@@ -12,6 +12,7 @@ import pb from '@/lib/pocketbase/client'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
