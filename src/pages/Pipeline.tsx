@@ -2,33 +2,43 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Search, X, Plus, GripVertical } from 'lucide-react'
+import { Search, X, Plus, GripVertical, Tag as TagIcon, Settings2, Briefcase } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Button } from '@/components/ui/button'
 import { useRealtime } from '@/hooks/use-realtime'
-import { getNegotiations, updateNegotiation } from '@/services/db'
+import { getNegotiations, updateNegotiation, getPipelineStages, getTags } from '@/services/db'
 import { cn } from '@/lib/utils'
 import { NegotiationSheet } from '@/components/NegotiationSheet'
-
-const STAGES = [
-  { id: 'lead', name: 'Novo Lead', color: 'bg-slate-200 text-slate-700' },
-  { id: 'contact', name: 'Contato Inicial', color: 'bg-blue-100 text-blue-700' },
-  { id: 'visit', name: 'Visita Técnica', color: 'bg-yellow-100 text-yellow-700' },
-  { id: 'proposal', name: 'Proposta Enviada', color: 'bg-orange-100 text-orange-700' },
-  { id: 'closed', name: 'Fechado Ganho', color: 'bg-emerald-100 text-emerald-700' },
-]
+import { TagManager } from '@/components/TagManager'
+import { StageManager } from '@/components/StageManager'
+import { NewNegotiationDialog } from '@/components/NewNegotiationDialog'
 
 export default function Pipeline() {
   const [negotiations, setNegotiations] = useState<any[]>([])
+  const [stages, setStages] = useState<any[]>([])
+  const [tags, setTags] = useState<any[]>([])
+
   const [search, setSearch] = useState('')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
 
-  const load = async () => setNegotiations(await getNegotiations())
+  const [tagManagerOpen, setTagManagerOpen] = useState(false)
+  const [stageManagerOpen, setStageManagerOpen] = useState(false)
+  const [newNegOpen, setNewNegOpen] = useState(false)
+
+  const loadAll = async () => {
+    setNegotiations(await getNegotiations())
+    setStages(await getPipelineStages())
+    setTags(await getTags())
+  }
+
   useEffect(() => {
-    load()
+    loadAll()
   }, [])
-  useRealtime('negotiations', load)
+  useRealtime('negotiations', async () => setNegotiations(await getNegotiations()))
+  useRealtime('pipeline_stages', async () => setStages(await getPipelineStages()))
+  useRealtime('tags', async () => setTags(await getTags()))
 
   const filtered = negotiations.filter(
     (n) =>
@@ -45,17 +55,16 @@ export default function Pipeline() {
     })
   }
 
-  const handleAddTag = async (neg: any, tag: string) => {
-    if (!tag.trim()) return
-    const tags = Array.from(new Set([...(neg.tags || []), tag.trim()]))
-    setNegotiations((prev) => prev.map((n) => (n.id === neg.id ? { ...n, tags } : n)))
-    await updateNegotiation(neg.id, { tags })
+  const handleAddTag = async (neg: any, tagId: string) => {
+    const negTags = Array.from(new Set([...(neg.tags || []), tagId]))
+    setNegotiations((prev) => prev.map((n) => (n.id === neg.id ? { ...n, tags: negTags } : n)))
+    await updateNegotiation(neg.id, { tags: negTags })
   }
 
-  const handleRemoveTag = async (neg: any, tag: string) => {
-    const tags = (neg.tags || []).filter((t: string) => t !== tag)
-    setNegotiations((prev) => prev.map((n) => (n.id === neg.id ? { ...n, tags } : n)))
-    await updateNegotiation(neg.id, { tags })
+  const handleRemoveTag = async (neg: any, tagId: string) => {
+    const negTags = (neg.tags || []).filter((t: string) => t !== tagId)
+    setNegotiations((prev) => prev.map((n) => (n.id === neg.id ? { ...n, tags: negTags } : n)))
+    await updateNegotiation(neg.id, { tags: negTags })
   }
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
@@ -79,19 +88,32 @@ export default function Pipeline() {
           <h2 className="text-2xl font-bold tracking-tight">Pipeline de Vendas</h2>
           <p className="text-muted-foreground">Arraste os cards para avançar as negociações</p>
         </div>
-        <div className="relative w-full max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar negociação ou lead..."
-            className="pl-8"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative w-full max-w-sm mr-2">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar..."
+              className="pl-8 w-[200px]"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <Button variant="outline" onClick={() => setStageManagerOpen(true)}>
+            <Settings2 className="h-4 w-4 sm:mr-2" />{' '}
+            <span className="hidden sm:inline">Funil</span>
+          </Button>
+          <Button variant="outline" onClick={() => setTagManagerOpen(true)}>
+            <TagIcon className="h-4 w-4 sm:mr-2" /> <span className="hidden sm:inline">Tags</span>
+          </Button>
+          <Button onClick={() => setNewNegOpen(true)}>
+            <Briefcase className="h-4 w-4 sm:mr-2" />{' '}
+            <span className="hidden sm:inline">Nova Negociação</span>
+          </Button>
         </div>
       </div>
 
       <div className="flex-1 flex gap-4 overflow-x-auto pb-4 items-start">
-        {STAGES.map((stage) => {
+        {stages.map((stage) => {
           const isCollapsed = collapsed.has(stage.id)
           const colNegs = filtered.filter((n) => n.stage === stage.id)
 
@@ -138,7 +160,7 @@ export default function Pipeline() {
                 <Badge variant="secondary">{colNegs.length}</Badge>
               </div>
 
-              <div className="flex-1 bg-muted/40 p-2 rounded-lg flex flex-col gap-3 overflow-y-auto border border-border/50">
+              <div className="flex-1 bg-muted/40 p-2 rounded-lg flex flex-col gap-3 overflow-y-auto border border-border/50 min-h-[100px]">
                 {colNegs.map((neg) => (
                   <Card
                     key={neg.id}
@@ -159,22 +181,47 @@ export default function Pipeline() {
                       </p>
 
                       <div className="flex flex-wrap gap-1 mt-2">
-                        {(neg.tags || []).map((tag: string) => (
-                          <Badge
-                            key={tag}
-                            variant="outline"
-                            className="text-[10px] pr-1 h-5 flex items-center gap-1 bg-background/50"
-                          >
-                            {tag}
-                            <X
-                              className="h-3 w-3 cursor-pointer hover:text-destructive"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleRemoveTag(neg, tag)
+                        {(neg.tags || []).map((tagId: string) => {
+                          const tagObj = tags.find((t) => t.id === tagId)
+                          if (!tagObj) {
+                            return (
+                              <Badge
+                                key={tagId}
+                                variant="outline"
+                                className="text-[10px] pr-1 h-5 flex items-center gap-1 bg-background/50"
+                              >
+                                {tagId}
+                                <X
+                                  className="h-3 w-3 cursor-pointer hover:text-destructive"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleRemoveTag(neg, tagId)
+                                  }}
+                                />
+                              </Badge>
+                            )
+                          }
+                          return (
+                            <Badge
+                              key={tagId}
+                              style={{
+                                backgroundColor: tagObj.color + '20',
+                                color: tagObj.color,
+                                borderColor: tagObj.color + '40',
                               }}
-                            />
-                          </Badge>
-                        ))}
+                              className="text-[10px] pr-1 h-5 flex items-center gap-1"
+                            >
+                              {tagObj.name}
+                              <X
+                                className="h-3 w-3 cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleRemoveTag(neg, tagId)
+                                }}
+                              />
+                            </Badge>
+                          )
+                        })}
                         <Popover>
                           <PopoverTrigger asChild>
                             <Badge
@@ -186,16 +233,27 @@ export default function Pipeline() {
                             </Badge>
                           </PopoverTrigger>
                           <PopoverContent className="w-48 p-2" onClick={(e) => e.stopPropagation()}>
-                            <Input
-                              placeholder="Adicionar tag... (Enter)"
-                              className="h-8 text-xs"
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  handleAddTag(neg, e.currentTarget.value)
-                                  e.currentTarget.value = ''
-                                }
-                              }}
-                            />
+                            {tags.length === 0 ? (
+                              <p className="text-xs text-muted-foreground text-center p-2">
+                                Nenhuma tag criada.
+                              </p>
+                            ) : (
+                              <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
+                                {tags.map((t) => (
+                                  <div
+                                    key={t.id}
+                                    className="flex items-center gap-2 text-xs p-1.5 hover:bg-muted cursor-pointer rounded"
+                                    onClick={() => handleAddTag(neg, t.id)}
+                                  >
+                                    <div
+                                      className="w-3 h-3 rounded-full"
+                                      style={{ backgroundColor: t.color }}
+                                    ></div>
+                                    {t.name}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </PopoverContent>
                         </Popover>
                       </div>
@@ -206,6 +264,15 @@ export default function Pipeline() {
             </div>
           )
         })}
+        {stages.length === 0 && (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-muted-foreground border-2 border-dashed rounded-xl h-64">
+            <Settings2 className="h-8 w-8 mb-4 opacity-50" />
+            <p>Nenhum estágio configurado.</p>
+            <Button variant="link" onClick={() => setStageManagerOpen(true)}>
+              Configurar Funil
+            </Button>
+          </div>
+        )}
       </div>
 
       <NegotiationSheet
@@ -213,6 +280,10 @@ export default function Pipeline() {
         open={!!selectedId}
         onOpenChange={(o: boolean) => !o && setSelectedId(null)}
       />
+
+      <TagManager open={tagManagerOpen} onOpenChange={setTagManagerOpen} />
+      <StageManager open={stageManagerOpen} onOpenChange={setStageManagerOpen} />
+      <NewNegotiationDialog open={newNegOpen} onOpenChange={setNewNegOpen} />
     </div>
   )
 }

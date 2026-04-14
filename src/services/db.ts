@@ -1,6 +1,21 @@
 import pb from '@/lib/pocketbase/client'
 
 export const getLeads = () => pb.collection('leads').getFullList({ sort: '-created' })
+export const createLead = (data: any) => pb.collection('leads').create(data)
+export const updateLead = (id: string, data: any) => pb.collection('leads').update(id, data)
+export const deleteLead = (id: string) => pb.collection('leads').delete(id)
+
+export const getTags = () => pb.collection('tags').getFullList({ sort: '-created' })
+export const createTag = (data: any) => pb.collection('tags').create(data)
+export const updateTag = (id: string, data: any) => pb.collection('tags').update(id, data)
+export const deleteTag = (id: string) => pb.collection('tags').delete(id)
+
+export const getPipelineStages = () =>
+  pb.collection('pipeline_stages').getFullList({ sort: 'order' })
+export const createPipelineStage = (data: any) => pb.collection('pipeline_stages').create(data)
+export const updatePipelineStage = (id: string, data: any) =>
+  pb.collection('pipeline_stages').update(id, data)
+export const deletePipelineStage = (id: string) => pb.collection('pipeline_stages').delete(id)
 
 export const getNegotiations = () =>
   pb.collection('negotiations').getFullList({ expand: 'lead_id', sort: '-created' })

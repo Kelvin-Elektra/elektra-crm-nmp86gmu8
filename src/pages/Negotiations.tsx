@@ -2,19 +2,24 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Briefcase, MapPin, Zap, User } from 'lucide-react'
-import { getNegotiations } from '@/services/db'
+import { getNegotiations, getPipelineStages } from '@/services/db'
 import { useRealtime } from '@/hooks/use-realtime'
 import { NegotiationSheet } from '@/components/NegotiationSheet'
 
 export default function Negotiations() {
   const [negotiations, setNegotiations] = useState<any[]>([])
+  const [stages, setStages] = useState<any[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const load = async () => setNegotiations(await getNegotiations())
+  const loadStages = async () => setStages(await getPipelineStages())
+
   useEffect(() => {
     load()
+    loadStages()
   }, [])
   useRealtime('negotiations', load)
+  useRealtime('pipeline_stages', loadStages)
 
   return (
     <div className="flex flex-col gap-6">
@@ -36,7 +41,7 @@ export default function Negotiations() {
                   <Briefcase className="h-5 w-5" />
                 </div>
                 <span className="text-xs font-semibold px-2 py-1 rounded-full bg-slate-100 text-slate-700 uppercase">
-                  {neg.stage}
+                  {stages.find((s) => s.id === neg.stage)?.name || neg.stage}
                 </span>
               </div>
               <h3 className="font-bold text-lg mb-1 line-clamp-1">{neg.title}</h3>
