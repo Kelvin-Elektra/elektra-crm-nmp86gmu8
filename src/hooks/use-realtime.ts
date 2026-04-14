@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import pb from '@/lib/pocketbase/client'
 import type { RecordSubscription } from 'pocketbase'
+import { isValidCollection } from '@/lib/pocketbase/collections'
 
 /**
  * Hook for real-time subscriptions to a PocketBase collection.
@@ -17,22 +18,27 @@ export function useRealtime(
   callbackRef.current = callback
 
   useEffect(() => {
-    if (!enabled) return
+    if (!enabled || !collectionName || !isValidCollection(collectionName)) return
 
     let unsubscribeFn: (() => Promise<void>) | undefined
     let cancelled = false
 
-    pb.collection(collectionName)
-      .subscribe('*', (e) => {
-        callbackRef.current(e)
-      })
-      .then((fn) => {
-        if (cancelled) {
-          fn().catch(() => {})
-        } else {
-          unsubscribeFn = fn
-        }
-      })
+    try {
+      pb.collection(collectionName)
+        .subscribe('*', (e) => {
+          callbackRef.current(e)
+        })
+        .then((fn) => {
+          if (cancelled) {
+            fn().catch(() => {})
+          } else {
+            unsubscribeFn = fn
+          }
+        })
+        .catch(() => {})
+    } catch (err) {
+      console.warn(`useRealtime failed for collection: ${collectionName}`, err)
+    }
 
     return () => {
       cancelled = true

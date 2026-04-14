@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Button } from '@/components/ui/button'
 import { useRealtime } from '@/hooks/use-realtime'
 import { getNegotiations, updateNegotiation, getPipelineStages, getTags } from '@/services/db'
+import { Collections } from '@/lib/pocketbase/collections'
 import { cn } from '@/lib/utils'
 import { NegotiationSheet } from '@/components/NegotiationSheet'
 import { TagManager } from '@/components/TagManager'
@@ -36,9 +37,9 @@ export default function Pipeline() {
   useEffect(() => {
     loadAll()
   }, [])
-  useRealtime('negotiations', async () => setNegotiations(await getNegotiations()))
-  useRealtime('pipeline_stages', async () => setStages(await getPipelineStages()))
-  useRealtime('tags', async () => setTags(await getTags()))
+  useRealtime(Collections.NEGOTIATIONS, async () => setNegotiations(await getNegotiations()))
+  useRealtime(Collections.PIPELINE_STAGES, async () => setStages(await getPipelineStages()))
+  useRealtime(Collections.TAGS, async () => setTags(await getTags()))
 
   const filtered = negotiations.filter(
     (n) =>

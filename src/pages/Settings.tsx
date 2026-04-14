@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Building2, User, Users, Plus, MoreHorizontal, Edit, Trash2 } from 'lucide-react'
 import { useRealtime } from '@/hooks/use-realtime'
 import pb from '@/lib/pocketbase/client'
+import { Collections } from '@/lib/pocketbase/collections'
 import {
   Dialog,
   DialogContent,
@@ -49,7 +50,7 @@ export default function Settings() {
   const loadUsers = async () => {
     if (user?.company_id) {
       try {
-        const records = await pb.collection('users').getFullList({
+        const records = await pb.collection(Collections.USERS).getFullList({
           filter: `company_id = '${user.company_id}'`,
           sort: '-created',
         })
@@ -63,7 +64,7 @@ export default function Settings() {
   const loadCompany = async () => {
     if (user?.company_id) {
       try {
-        const record = await pb.collection('companies').getOne(user.company_id)
+        const record = await pb.collection(Collections.COMPANIES).getOne(user.company_id)
         setCompany(record)
       } catch (err) {
         console.error(err)
@@ -76,12 +77,12 @@ export default function Settings() {
     loadCompany()
   }, [user?.company_id])
 
-  useRealtime('users', loadUsers)
+  useRealtime(Collections.USERS, loadUsers)
 
   const handleUpdateCompany = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      await pb.collection('companies').update(company.id, { domain: company.domain })
+      await pb.collection(Collections.COMPANIES).update(company.id, { domain: company.domain })
       toast({ title: 'Sucesso', description: 'Domínio atualizado com sucesso!' })
       loadCompany()
     } catch (err: any) {
@@ -93,7 +94,7 @@ export default function Settings() {
     e.preventDefault()
     try {
       const email = `${newUser.username}@${company?.domain || 'dominio.com'}`
-      await pb.collection('users').create({
+      await pb.collection(Collections.USERS).create({
         name: newUser.name,
         email,
         password: newUser.password,
@@ -119,7 +120,7 @@ export default function Settings() {
     e.preventDefault()
     if (!editUser) return
     try {
-      await pb.collection('users').update(editUser.id, {
+      await pb.collection(Collections.USERS).update(editUser.id, {
         name: editUser.name,
         role: editUser.role,
       })
@@ -135,7 +136,7 @@ export default function Settings() {
   const handleDeleteUser = async (id: string) => {
     if (!confirm('Tem certeza que deseja remover este usuário permanentemente?')) return
     try {
-      await pb.collection('users').delete(id)
+      await pb.collection(Collections.USERS).delete(id)
       toast({ title: 'Sucesso', description: 'Usuário removido com sucesso.' })
       loadUsers()
     } catch (err: any) {
