@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useToast } from '@/hooks/use-toast'
+import { extractFieldErrors } from '@/lib/pocketbase/errors'
 
 export default function Settings() {
   const { user } = useAuth()
@@ -81,8 +82,23 @@ export default function Settings() {
 
   const handleUpdateCompany = async (e: React.FormEvent) => {
     e.preventDefault()
+    let domainToSave = company.domain?.trim().toLowerCase() || ''
+
+    if (domainToSave.includes('@')) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro de validação',
+        description: 'O domínio não deve conter o caractere "@"',
+      })
+      return
+    }
+
+    if (domainToSave && !domainToSave.includes('.')) {
+      domainToSave += '.com'
+    }
+
     try {
-      await pb.collection(Collections.COMPANIES).update(company.id, { domain: company.domain })
+      await pb.collection(Collections.COMPANIES).update(company.id, { domain: domainToSave })
       toast({ title: 'Sucesso', description: 'Domínio atualizado com sucesso!' })
       loadCompany()
     } catch (err: any) {
@@ -93,13 +109,18 @@ export default function Settings() {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const email = `${newUser.username}@${company?.domain || 'dominio.com'}`
+      let domain = (company?.domain || 'dominio.com').trim().toLowerCase()
+      if (!domain.includes('.')) {
+        domain += '.com'
+      }
+      const email = `${newUser.username}@${domain}`
+
       await pb.collection(Collections.USERS).create({
         name: newUser.name,
         email,
         password: newUser.password,
-        role: newUser.role,
         passwordConfirm: newUser.password,
+        role: newUser.role,
         company_id: user?.company_id,
         status: 'active',
       })
@@ -108,10 +129,19 @@ export default function Settings() {
       setNewUser({ name: '', username: '', password: '', role: 'user' })
       loadUsers()
     } catch (err: any) {
+      const fieldErrors = extractFieldErrors(err)
+      let errorMsg = err.message || 'Erro ao criar usuário. Verifique se o email já existe.'
+
+      if (fieldErrors.email) {
+        errorMsg = 'Por favor, insira um e-mail ou domínio válido (ex: empresa.com)'
+      } else if (Object.keys(fieldErrors).length > 0) {
+        errorMsg = Object.values(fieldErrors).join('. ')
+      }
+
       toast({
         variant: 'destructive',
         title: 'Erro',
-        description: err.message || 'Erro ao criar usuário. Verifique se o email já existe.',
+        description: errorMsg,
       })
     }
   }
@@ -335,7 +365,12 @@ export default function Settings() {
                               placeholder="nome"
                             />
                             <div className="flex items-center px-3 border border-l-0 rounded-r-md bg-muted text-muted-foreground h-10 whitespace-nowrap">
-                              @{company?.domain || 'dominio.com'}
+                              @
+                              {company?.domain
+                                ? company.domain.includes('.')
+                                  ? company.domain
+                                  : `${company.domain}.com`
+                                : 'dominio.com'}
                             </div>
                           </div>
                         </div>
@@ -388,7 +423,7 @@ export default function Settings() {
                         <p className="text-sm text-muted-foreground">{u.email}</p>
                       </div>
                       <div className="flex items-center gap-4">
-                        <div className="text-xs bg-secondary px-2 py-1 rounded-md capitalize hidden md:block">
+                        <div className="text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded-md capitalize hidden md:block">
                           {u.role.replace('_', ' ')}
                         </div>
                         <DropdownMenu>
