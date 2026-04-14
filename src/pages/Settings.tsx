@@ -96,7 +96,7 @@ export default function Settings() {
             <TabsList className="flex flex-col w-full h-auto items-start p-0 bg-transparent gap-2">
               <TabsTrigger
                 value="profile"
-                className="w-full justify-start data-[state=active]:bg-secondary text-[#ffffff] bg-[#d5742e] opacity-[0]"
+                className="w-full justify-start data-[state=active]:bg-secondary text-[#ffffff] bg-[#d5742e] opacity-[0] opacity-[1]"
               >
                 <User className="mr-2 h-4 w-4" /> Meu Perfil
               </TabsTrigger>
