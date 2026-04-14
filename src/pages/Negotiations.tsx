@@ -3,21 +3,41 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Briefcase, MapPin, Zap, User } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { getNegotiations, getPipelineStages } from '@/services/db'
+import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 
 export default function Negotiations() {
   const [negotiations, setNegotiations] = useState<any[]>([])
   const [stages, setStages] = useState<any[]>([])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  const load = async () => setNegotiations(await getNegotiations())
-  const loadStages = async () => setStages(await getPipelineStages())
+  const load = async () => {
+    try {
+      const records = await pb.collection('negotiations').getFullList({
+        expand: 'lead_id,owner_id',
+        sort: '-created',
+      })
+      setNegotiations(records)
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const loadStages = async () => {
+    try {
+      const records = await pb.collection('pipeline_stages').getFullList({
+        sort: 'order',
+      })
+      setStages(records)
+    } catch (err) {
+      console.error(err)
+    }
+  }
 
   useEffect(() => {
     load()
     loadStages()
   }, [])
+
   useRealtime('negotiations', load)
   useRealtime('pipeline_stages', loadStages)
 
@@ -45,9 +65,17 @@ export default function Negotiations() {
                 </span>
               </div>
               <h3 className="font-bold text-lg mb-1 line-clamp-1">{neg.title}</h3>
-              <p className="text-sm text-muted-foreground mb-4 flex items-center">
-                <User className="h-4 w-4 mr-1" /> {neg.expand?.lead_id?.name || 'Desconhecido'}
-              </p>
+
+              <div className="flex flex-col gap-1 mb-4">
+                <p className="text-sm text-muted-foreground flex items-center">
+                  <User className="h-4 w-4 mr-1" /> Lead:{' '}
+                  {neg.expand?.lead_id?.name || 'Desconhecido'}
+                </p>
+                <p className="text-xs text-muted-foreground flex items-center">
+                  <Briefcase className="h-3 w-3 mr-1" /> Resp:{' '}
+                  {neg.expand?.owner_id?.name || 'Não atribuído'}
+                </p>
+              </div>
 
               <div className="space-y-2 mb-6">
                 <div className="flex items-center text-sm text-muted-foreground">
@@ -66,6 +94,11 @@ export default function Negotiations() {
             </CardContent>
           </Card>
         ))}
+        {negotiations.length === 0 && (
+          <div className="col-span-full py-12 text-center text-muted-foreground">
+            Nenhuma negociação encontrada.
+          </div>
+        )}
       </div>
     </div>
   )
