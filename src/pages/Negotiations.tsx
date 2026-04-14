@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Briefcase, MapPin, Zap, User } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { getNegotiations, getPipelineStages } from '@/services/db'
 import { useRealtime } from '@/hooks/use-realtime'
-import { NegotiationSheet } from '@/components/NegotiationSheet'
 
 export default function Negotiations() {
   const [negotiations, setNegotiations] = useState<any[]>([])
@@ -59,25 +59,14 @@ export default function Negotiations() {
               </div>
 
               <div className="flex gap-2 w-full">
-                <Button
-                  variant="outline"
-                  className="flex-1 text-xs"
-                  size="sm"
-                  onClick={() => setSelectedId(neg.id)}
-                >
-                  Ver Detalhes
+                <Button variant="outline" className="flex-1 text-xs" size="sm" asChild>
+                  <Link to={`/negociacoes/${neg.id}`}>Ver Detalhes</Link>
                 </Button>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
-
-      <NegotiationSheet
-        negotiation={negotiations.find((n) => n.id === selectedId)}
-        open={!!selectedId}
-        onOpenChange={(o: boolean) => !o && setSelectedId(null)}
-      />
     </div>
   )
 }

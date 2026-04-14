@@ -1,5 +1,10 @@
 import pb from '@/lib/pocketbase/client'
 
+export const getUsers = () => pb.collection('users').getFullList({ sort: '-created' })
+export const createUser = (data: any) => pb.collection('users').create(data)
+export const updateUser = (id: string, data: any) => pb.collection('users').update(id, data)
+export const getCompany = (id: string) => pb.collection('companies').getOne(id)
+
 export const getLeads = () => pb.collection('leads').getFullList({ sort: '-created' })
 export const createLead = (data: any) => pb.collection('leads').create(data)
 export const updateLead = (id: string, data: any) => pb.collection('leads').update(id, data)
@@ -18,7 +23,10 @@ export const updatePipelineStage = (id: string, data: any) =>
 export const deletePipelineStage = (id: string) => pb.collection('pipeline_stages').delete(id)
 
 export const getNegotiations = () =>
-  pb.collection('negotiations').getFullList({ expand: 'lead_id', sort: '-created' })
+  pb.collection('negotiations').getFullList({ expand: 'lead_id,owner_id', sort: '-created' })
+
+export const getNegotiation = (id: string) =>
+  pb.collection('negotiations').getOne(id, { expand: 'lead_id,owner_id' })
 
 export const updateNegotiation = (id: string, data: any) =>
   pb.collection('negotiations').update(id, data)

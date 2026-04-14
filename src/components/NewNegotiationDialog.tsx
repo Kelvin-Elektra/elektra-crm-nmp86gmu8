@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,6 +17,7 @@ import { useToast } from '@/hooks/use-toast'
 
 export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLeadId }: any) {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const { toast } = useToast()
   const [leads, setLeads] = useState<any[]>([])
   const [stages, setStages] = useState<any[]>([])
@@ -44,7 +46,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
       const firstStage = stages.sort((a, b) => a.order - b.order)[0]
       if (!firstStage) throw new Error('Nenhum estágio configurado no funil.')
 
-      await createNegotiation({
+      const neg = await createNegotiation({
         company_id: user?.company_id,
         lead_id: formData.lead_id,
         title: formData.title,
@@ -53,11 +55,13 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
         uc: formData.uc,
         address: formData.address,
         avg_consumption: Number(formData.avg_consumption) || 0,
+        owner_id: user?.id,
         tags: [],
       })
       toast({ title: 'Sucesso', description: 'Negociação criada com sucesso!' })
       onSuccess?.()
       onOpenChange(false)
+      navigate(`/negociacoes/${neg.id}`)
       setFormData({
         title: '',
         lead_id: '',
@@ -93,8 +97,9 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
               value={formData.lead_id}
               onValueChange={(val) => setFormData({ ...formData, lead_id: val })}
               required
+              disabled={!!initialLeadId}
             >
-              <SelectTrigger>
+              <SelectTrigger className={initialLeadId ? 'opacity-50 cursor-not-allowed' : ''}>
                 <SelectValue placeholder="Selecione um lead..." />
               </SelectTrigger>
               <SelectContent>

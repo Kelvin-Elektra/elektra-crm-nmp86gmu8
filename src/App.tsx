@@ -11,6 +11,7 @@ import Leads from './pages/Leads'
 import Negotiations from './pages/Negotiations'
 import Proposals from './pages/Proposals'
 import Settings from './pages/Settings'
+import NegotiationDetail from './pages/NegotiationDetail'
 
 const App = () => (
   <BrowserRouter future={{ v7_startTransition: false, v7_relativeSplatPath: false }}>
@@ -25,6 +26,7 @@ const App = () => (
             <Route path="/pipeline" element={<Pipeline />} />
             <Route path="/leads" element={<Leads />} />
             <Route path="/negociacoes" element={<Negotiations />} />
+            <Route path="/negociacoes/:id" element={<NegotiationDetail />} />
             <Route path="/propostas" element={<Proposals />} />
             <Route path="/configuracoes" element={<Settings />} />
           </Route>
