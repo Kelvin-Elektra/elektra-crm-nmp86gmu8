@@ -40,16 +40,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const authData = await pb.collection('users').authWithPassword(email, pass)
       const record = authData.record as User
 
-      if (record.status !== 'active') {
-        pb.authStore.clear()
-        toast({
-          title: 'Acesso Negado',
-          description: 'Usuário bloqueado pelo administrador.',
-          variant: 'destructive',
-        })
-        return false
-      }
-
       const company = await pb.collection('companies').getOne(record.company_id)
       if (company.status !== 'active') {
         pb.authStore.clear()

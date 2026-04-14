@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-14T21:47:04.236Z",
+  "generatedAt": "2026-04-14T22:04:29.342Z",
   "collections": [
     {
       "name": "users",
@@ -105,6 +105,12 @@
         {
           "name": "max_users",
           "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "domain",
+          "type": "text",
           "required": false,
           "system": false
         }

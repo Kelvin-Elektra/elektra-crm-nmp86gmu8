@@ -30,6 +30,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useToast } from '@/hooks/use-toast'
 
 export default function Settings() {
@@ -40,7 +41,7 @@ export default function Settings() {
   const [company, setCompany] = useState<any>(null)
 
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
-  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'user' })
+  const [newUser, setNewUser] = useState({ name: '', username: '', password: '', role: 'user' })
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editUser, setEditUser] = useState<any>(null)
@@ -77,18 +78,33 @@ export default function Settings() {
 
   useRealtime('users', loadUsers)
 
+  const handleUpdateCompany = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await pb.collection('companies').update(company.id, { domain: company.domain })
+      toast({ title: 'Sucesso', description: 'Domínio atualizado com sucesso!' })
+      loadCompany()
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erro', description: err.message })
+    }
+  }
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
+      const email = `${newUser.username}@${company?.domain || 'dominio.com'}`
       await pb.collection('users').create({
-        ...newUser,
+        name: newUser.name,
+        email,
+        password: newUser.password,
+        role: newUser.role,
         passwordConfirm: newUser.password,
         company_id: user?.company_id,
         status: 'active',
       })
       toast({ title: 'Sucesso', description: 'Usuário criado com sucesso!' })
       setIsUserModalOpen(false)
-      setNewUser({ name: '', email: '', password: '', role: 'user' })
+      setNewUser({ name: '', username: '', password: '', role: 'user' })
       loadUsers()
     } catch (err: any) {
       toast({
@@ -106,7 +122,6 @@ export default function Settings() {
       await pb.collection('users').update(editUser.id, {
         name: editUser.name,
         role: editUser.role,
-        status: editUser.status,
       })
       toast({ title: 'Sucesso', description: 'Usuário atualizado com sucesso!' })
       setIsEditModalOpen(false)
@@ -149,20 +164,20 @@ export default function Settings() {
             <TabsList className="flex flex-col w-full h-auto items-start p-0 bg-transparent gap-2">
               <TabsTrigger
                 value="profile"
-                className="w-full justify-start rounded-none border-l-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-primary/5 data-[state=active]:text-primary transition-colors"
+                className="w-full justify-start rounded-none border-l-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:font-semibold transition-all hover:bg-muted/50"
               >
                 <User className="mr-2 h-4 w-4" /> Meu Perfil
               </TabsTrigger>
               <TabsTrigger
                 value="company"
-                className="w-full justify-start rounded-none border-l-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-primary/5 data-[state=active]:text-primary transition-colors"
+                className="w-full justify-start rounded-none border-l-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:font-semibold transition-all hover:bg-muted/50"
               >
                 <Building2 className="mr-2 h-4 w-4" /> Dados da Empresa
               </TabsTrigger>
               {user?.role === 'admin_company' && (
                 <TabsTrigger
                   value="users"
-                  className="w-full justify-start rounded-none border-l-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-primary/5 data-[state=active]:text-primary transition-colors"
+                  className="w-full justify-start rounded-none border-l-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:font-semibold transition-all hover:bg-muted/50"
                 >
                   <Users className="mr-2 h-4 w-4" /> Equipe e Plano
                 </TabsTrigger>
@@ -240,6 +255,23 @@ export default function Settings() {
                     </span>
                   </div>
                 </div>
+                {user?.role === 'admin_company' && (
+                  <form onSubmit={handleUpdateCompany} className="space-y-2 mt-4">
+                    <Label>Domínio da Empresa</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={company?.domain || ''}
+                        onChange={(e) => setCompany({ ...company, domain: e.target.value })}
+                        placeholder="exemplo.com"
+                        required
+                      />
+                      <Button type="submit">Atualizar</Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Este domínio será usado para criar os emails dos novos membros da equipe.
+                    </p>
+                  </form>
+                )}
               </CardContent>
             </Card>
           )}
@@ -255,11 +287,24 @@ export default function Settings() {
                 </div>
                 <div className="flex gap-2">
                   <Dialog open={isUserModalOpen} onOpenChange={setIsUserModalOpen}>
-                    <DialogTrigger asChild>
-                      <Button disabled={!canAddUser}>
-                        <Plus className="h-4 w-4 mr-2" /> Novo Usuário
-                      </Button>
-                    </DialogTrigger>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="inline-block">
+                            <DialogTrigger asChild>
+                              <Button disabled={!canAddUser}>
+                                <Plus className="h-4 w-4 mr-2" /> Novo Usuário
+                              </Button>
+                            </DialogTrigger>
+                          </div>
+                        </TooltipTrigger>
+                        {!canAddUser && (
+                          <TooltipContent>
+                            <p>Limite de {maxUsers} usuários atingido.</p>
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
+                    </TooltipProvider>
                     <DialogContent>
                       <DialogHeader>
                         <DialogTitle>Adicionar Membro</DialogTitle>
@@ -274,13 +319,24 @@ export default function Settings() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>Email</Label>
-                          <Input
-                            type="email"
-                            required
-                            value={newUser.email}
-                            onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                          />
+                          <Label>Usuário</Label>
+                          <div className="flex items-center">
+                            <Input
+                              required
+                              value={newUser.username}
+                              onChange={(e) =>
+                                setNewUser({
+                                  ...newUser,
+                                  username: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''),
+                                })
+                              }
+                              className="rounded-r-none border-r-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                              placeholder="nome"
+                            />
+                            <div className="flex items-center px-3 border border-l-0 rounded-r-md bg-muted text-muted-foreground h-10 whitespace-nowrap">
+                              @{company?.domain || 'dominio.com'}
+                            </div>
+                          </div>
                         </div>
                         <div className="space-y-2">
                           <Label>Senha (mín. 8 caracteres)</Label>
@@ -327,15 +383,6 @@ export default function Settings() {
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <p className="font-medium leading-none">{u.name || 'Sem nome'}</p>
-                          <span
-                            className={`text-[10px] px-2 py-0.5 rounded-full ${
-                              u.status === 'active'
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-red-100 text-red-700'
-                            }`}
-                          >
-                            {u.status === 'active' ? 'Ativo' : 'Inativo'}
-                          </span>
                         </div>
                         <p className="text-sm text-muted-foreground">{u.email}</p>
                       </div>
@@ -410,21 +457,6 @@ export default function Settings() {
                   <SelectContent>
                     <SelectItem value="user">Usuário Padrão</SelectItem>
                     <SelectItem value="admin_company">Administrador (Empresa)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select
-                  value={editUser.status}
-                  onValueChange={(v) => setEditUser({ ...editUser, status: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Ativo</SelectItem>
-                    <SelectItem value="inactive">Inativo (Bloqueado)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
