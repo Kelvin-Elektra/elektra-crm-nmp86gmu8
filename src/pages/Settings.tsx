@@ -96,20 +96,20 @@ export default function Settings() {
             <TabsList className="flex flex-col w-full h-auto items-start p-0 bg-transparent gap-2">
               <TabsTrigger
                 value="profile"
-                className="w-full justify-start data-[state=active]:bg-secondary"
+                className="w-full justify-start data-[state=active]:bg-secondary text-[#ffffff]"
               >
                 <User className="mr-2 h-4 w-4" /> Meu Perfil
               </TabsTrigger>
               <TabsTrigger
                 value="company"
-                className="w-full justify-start data-[state=active]:bg-secondary"
+                className="w-full justify-start data-[state=active]:bg-secondary text-[#ffffff]"
               >
                 <Building2 className="mr-2 h-4 w-4" /> Dados da Empresa
               </TabsTrigger>
               {user?.role === 'admin_company' && (
                 <TabsTrigger
                   value="users"
-                  className="w-full justify-start data-[state=active]:bg-secondary"
+                  className="w-full justify-start data-[state=active]:bg-secondary text-[#ffffff]"
                 >
                   <Users className="mr-2 h-4 w-4" /> Usuários e Plano
                 </TabsTrigger>
