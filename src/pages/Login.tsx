@@ -8,8 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Sun, Loader2 } from 'lucide-react'
 
 export default function Login() {
-  const [email, setEmail] = useState('elektraengenhariasolucoes')
-  const [password, setPassword] = useState('1234')
+  const [email, setEmail] = useState('elektraengenhariasolucoes@gmail.com')
+  const [password, setPassword] = useState('Skip@Pass')
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
   const navigate = useNavigate()
@@ -43,10 +43,10 @@ export default function Login() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email ou Usuário</Label>
+                <Label htmlFor="email">Email Corporativo</Label>
                 <Input
                   id="email"
-                  type="text"
+                  type="email"
                   placeholder="Seu email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -57,9 +57,6 @@ export default function Login() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Senha</Label>
-                  <a href="#" className="text-sm font-medium text-primary hover:underline">
-                    Esqueceu a senha?
-                  </a>
                 </div>
                 <Input
                   id="password"

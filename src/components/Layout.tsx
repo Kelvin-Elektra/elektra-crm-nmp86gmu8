@@ -5,8 +5,10 @@ import { AppSidebar } from '@/components/AppSidebar'
 import { AppHeader } from '@/components/AppHeader'
 
 export default function Layout() {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
   const location = useLocation()
+
+  if (loading) return null
 
   if (!user && location.pathname !== '/') {
     return <Navigate to="/" replace />

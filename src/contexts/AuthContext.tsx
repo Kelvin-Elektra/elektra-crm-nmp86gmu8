@@ -1,5 +1,5 @@
-import { createContext, useContext, useState, ReactNode } from 'react'
-import { users, subscriptions } from '@/lib/mockData'
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 
 export type User = {
@@ -8,60 +8,79 @@ export type User = {
   name: string
   role: string
   status: string
-  companyId: string
+  company_id: string
 }
 
 interface AuthContextType {
   user: User | null
   login: (email: string, pass: string) => Promise<boolean>
   logout: () => void
+  loading: boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<User | null>(pb.authStore.record as User | null)
+  const [loading, setLoading] = useState(true)
   const { toast } = useToast()
 
-  const login = async (email: string, pass: string) => {
-    return new Promise<boolean>((resolve) => {
-      setTimeout(() => {
-        const foundUser = users.find((u) => u.email === email && u.password === pass)
-
-        if (!foundUser) {
-          toast({ title: 'Credenciais inválidas', variant: 'destructive' })
-          return resolve(false)
-        }
-
-        if (foundUser.status !== 'active') {
-          toast({
-            title: 'Acesso Negado',
-            description: 'Usuário bloqueado. Entre em contato com o administrador.',
-            variant: 'destructive',
-          })
-          return resolve(false)
-        }
-
-        const sub = subscriptions.find((s) => s.companyId === foundUser.companyId)
-        if (!sub || sub.status !== 'active') {
-          toast({
-            title: 'Assinatura Inativa',
-            description: 'Plano expirado. Regularize sua assinatura para acessar o sistema.',
-            variant: 'destructive',
-          })
-          return resolve(false)
-        }
-
-        const { password, ...safeUser } = foundUser
-        setUser(safeUser)
-        resolve(true)
-      }, 800)
+  useEffect(() => {
+    const unsubscribe = pb.authStore.onChange((_token, record) => {
+      setUser(record as User | null)
     })
+    setLoading(false)
+    return () => {
+      unsubscribe()
+    }
+  }, [])
+
+  const login = async (email: string, pass: string) => {
+    try {
+      const authData = await pb.collection('users').authWithPassword(email, pass)
+      const record = authData.record as User
+
+      if (record.status !== 'active') {
+        pb.authStore.clear()
+        toast({
+          title: 'Acesso Negado',
+          description: 'Usuário bloqueado pelo administrador.',
+          variant: 'destructive',
+        })
+        return false
+      }
+
+      const company = await pb.collection('companies').getOne(record.company_id)
+      if (company.status !== 'active') {
+        pb.authStore.clear()
+        toast({
+          title: 'Acesso Negado',
+          description: 'A assinatura da sua empresa está inativa.',
+          variant: 'destructive',
+        })
+        return false
+      }
+
+      setUser(record)
+      return true
+    } catch (err) {
+      toast({
+        title: 'Credenciais inválidas',
+        description: 'Verifique seu e-mail e senha.',
+        variant: 'destructive',
+      })
+      return false
+    }
   }
 
-  const logout = () => setUser(null)
+  const logout = () => {
+    pb.authStore.clear()
+    setUser(null)
+  }
 
-  return <AuthContext.Provider value={{ user, login, logout }}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={{ user, login, logout, loading }}>{children}</AuthContext.Provider>
+  )
 }
 
 export function useAuth() {

@@ -1,4 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState, useEffect } from 'react'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Plus, Search, Filter } from 'lucide-react'
@@ -10,44 +11,25 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
-
-const leads = [
-  {
-    id: 1,
-    name: 'Empresa Alpha Ltda',
-    contact: 'Carlos Mendes',
-    phone: '(11) 98888-7777',
-    status: 'Novo',
-    date: '14 Abr 2026',
-  },
-  {
-    id: 2,
-    name: 'Residência Silva',
-    contact: 'Ana Silva',
-    phone: '(21) 99999-8888',
-    status: 'Em Atendimento',
-    date: '12 Abr 2026',
-  },
-  {
-    id: 3,
-    name: 'Supermercado Bom Preço',
-    contact: 'Roberto Nunes',
-    phone: '(31) 97777-6666',
-    status: 'Qualificado',
-    date: '10 Abr 2026',
-  },
-  {
-    id: 4,
-    name: 'Clínica Sorriso',
-    contact: 'Dra. Júlia',
-    phone: '(41) 96666-5555',
-    status: 'Novo',
-    date: '09 Abr 2026',
-  },
-]
+import { getLeads } from '@/services/db'
+import { useRealtime } from '@/hooks/use-realtime'
 
 export default function Leads() {
+  const [leads, setLeads] = useState<any[]>([])
+  const [search, setSearch] = useState('')
+
+  const load = async () => setLeads(await getLeads())
+  useEffect(() => {
+    load()
+  }, [])
+  useRealtime('leads', load)
+
+  const filtered = leads.filter(
+    (l) =>
+      l.name.toLowerCase().includes(search.toLowerCase()) ||
+      (l.email || '').toLowerCase().includes(search.toLowerCase()),
+  )
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -64,7 +46,13 @@ export default function Leads() {
         <CardHeader className="py-4 border-b flex flex-row items-center gap-4">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input type="search" placeholder="Buscar leads..." className="pl-8" />
+            <Input
+              type="search"
+              placeholder="Buscar leads..."
+              className="pl-8"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
           <Button variant="outline" size="icon">
             <Filter className="h-4 w-4" />
@@ -74,30 +62,32 @@ export default function Leads() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nome / Empresa</TableHead>
-                <TableHead>Contato</TableHead>
+                <TableHead>Nome</TableHead>
+                <TableHead>Documento</TableHead>
+                <TableHead>Email</TableHead>
                 <TableHead>Telefone</TableHead>
-                <TableHead>Status</TableHead>
                 <TableHead className="text-right">Data Inclusão</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {leads.map((lead) => (
-                <TableRow key={lead.id} className="cursor-pointer hover:bg-muted/50">
+              {filtered.map((lead) => (
+                <TableRow key={lead.id} className="hover:bg-muted/50 transition-colors">
                   <TableCell className="font-medium">{lead.name}</TableCell>
-                  <TableCell>{lead.contact}</TableCell>
-                  <TableCell>{lead.phone}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={lead.status === 'Novo' ? 'default' : 'secondary'}
-                      className={lead.status === 'Novo' ? 'bg-primary text-primary-foreground' : ''}
-                    >
-                      {lead.status}
-                    </Badge>
+                  <TableCell>{lead.document || '-'}</TableCell>
+                  <TableCell>{lead.email || '-'}</TableCell>
+                  <TableCell>{lead.phone || '-'}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">
+                    {new Date(lead.created).toLocaleDateString('pt-BR')}
                   </TableCell>
-                  <TableCell className="text-right text-muted-foreground">{lead.date}</TableCell>
                 </TableRow>
               ))}
+              {filtered.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
+                    Nenhum lead encontrado.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
