@@ -31,7 +31,7 @@ migrate(
     app.save(stages)
   },
   (app) => {
-    const stages = app.findCollectionByNameOrId('stages')
+    const stages = app.findCollectionByNameOrId('pipeline_stages')
     app.delete(stages)
   },
 )
