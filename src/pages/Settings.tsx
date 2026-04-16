@@ -123,6 +123,7 @@ export default function Settings() {
         role: newUser.role,
         company_id: user?.company_id,
         status: 'active',
+        emailVisibility: true,
       })
       toast({ title: 'Sucesso', description: 'Usuário criado com sucesso!' })
       setIsUserModalOpen(false)

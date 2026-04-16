@@ -28,25 +28,27 @@ export function AppSidebar() {
   return (
     <Sidebar
       collapsible="icon"
-      className="border-r-0 shadow-lg transition-all duration-300"
+      className="border-r-0 shadow-2xl transition-all duration-300 md:mt-4 md:ml-4 md:mb-4 md:h-[calc(100vh-2rem)] md:rounded-2xl border border-sidebar-border overflow-hidden z-40 bg-sidebar"
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
     >
-      <SidebarHeader className="h-16 flex items-center justify-center border-b border-sidebar-border/50 px-4">
-        <div className="flex items-center gap-3 w-full overflow-hidden">
-          <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center shrink-0">
-            <Sun className="h-5 w-5 text-secondary" strokeWidth={2.5} />
+      <SidebarHeader className="h-16 flex items-center justify-center border-b border-sidebar-border/50 p-0">
+        <div className="flex items-center justify-center w-full h-full px-2 overflow-hidden">
+          <div className="flex items-center gap-3 w-full px-1">
+            <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center shrink-0 shadow-sm">
+              <Sun className="h-5 w-5 text-secondary" strokeWidth={2.5} />
+            </div>
+            <span className="font-bold text-lg tracking-tight truncate group-data-[collapsible=icon]:hidden transition-opacity duration-200">
+              Elektra CRM
+            </span>
           </div>
-          <span className="font-bold text-lg tracking-tight truncate group-data-[collapsible=icon]:hidden">
-            Elektra CRM
-          </span>
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="py-4">
-        <SidebarGroup>
+      <SidebarContent className="py-4 px-2 scrollbar-none">
+        <SidebarGroup className="px-0">
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-2">
               {navItems.map((item) => {
                 const isActive = location.pathname.startsWith(item.path)
                 return (
@@ -55,11 +57,13 @@ export function AppSidebar() {
                       asChild
                       isActive={isActive}
                       tooltip={item.title}
-                      className="h-10 transition-all duration-200"
+                      className="h-10 transition-all duration-200 w-full"
                     >
-                      <Link to={item.path}>
-                        <item.icon className="!h-5 !w-5" />
-                        <span className="font-medium">{item.title}</span>
+                      <Link to={item.path} className="flex items-center gap-3">
+                        <item.icon className="!h-5 !w-5 shrink-0" />
+                        <span className="font-medium group-data-[collapsible=icon]:hidden">
+                          {item.title}
+                        </span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -70,17 +74,20 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border/50 p-4">
+      <SidebarFooter className="border-t border-sidebar-border/50 p-2">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
               isActive={location.pathname === '/configuracoes'}
               tooltip="Configurações"
+              className="h-10 w-full transition-all duration-200"
             >
-              <Link to="/configuracoes">
-                <Settings className="!h-5 !w-5" />
-                <span>Configurações</span>
+              <Link to="/configuracoes" className="flex items-center gap-3">
+                <Settings className="!h-5 !w-5 shrink-0" />
+                <span className="font-medium group-data-[collapsible=icon]:hidden">
+                  Configurações
+                </span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

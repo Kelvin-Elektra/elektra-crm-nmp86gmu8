@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-04-16T13:29:52.632Z",
+  "generatedAt": "2026-04-16T14:04:16.275Z",
   "collections": [
     {
       "name": "users",
       "type": "auth",
       "apiRules": {
-        "list": "id = @request.auth.id",
-        "view": "id = @request.auth.id",
-        "create": "",
-        "update": "id = @request.auth.id",
-        "delete": "id = @request.auth.id"
+        "list": "id = @request.auth.id || @request.auth.role = 'admin_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "view": "id = @request.auth.id || @request.auth.role = 'admin_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "create": "@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company'",
+        "update": "id = @request.auth.id || @request.auth.role = 'admin_elektra' || (company_id != '' && company_id = @request.auth.company_id && @request.auth.role = 'admin_company')",
+        "delete": "id = @request.auth.id || @request.auth.role = 'admin_elektra' || (company_id != '' && company_id = @request.auth.company_id && @request.auth.role = 'admin_company')"
       },
       "fields": [
         {
