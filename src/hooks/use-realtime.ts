@@ -42,3 +42,5 @@ export function useRealtime(
     }
   }, [collectionName, enabled])
 }
+
+export default useRealtime

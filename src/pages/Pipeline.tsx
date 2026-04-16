@@ -5,6 +5,12 @@ import { Input } from '@/components/ui/input'
 import { Search, X, Plus, GripVertical, Tag as TagIcon, Settings2, Briefcase } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useRealtime } from '@/hooks/use-realtime'
 import { getNegotiations, updateNegotiation, getPipelineStages, getTags } from '@/services/db'
 import { Collections } from '@/lib/pocketbase/collections'
@@ -99,15 +105,30 @@ export default function Pipeline() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <Button variant="outline" onClick={() => setStageManagerOpen(true)}>
-            <Settings2 className="h-4 w-4 sm:mr-2" />{' '}
-            <span className="hidden sm:inline">Funil</span>
-          </Button>
-          <Button variant="outline" onClick={() => setTagManagerOpen(true)}>
-            <TagIcon className="h-4 w-4 sm:mr-2" /> <span className="hidden sm:inline">Tags</span>
-          </Button>
-          <Button onClick={() => setNewNegOpen(true)}>
-            <Briefcase className="h-4 w-4 sm:mr-2" />{' '}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Settings2 className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Gerenciar</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => setStageManagerOpen(true)}
+                className="cursor-pointer"
+              >
+                <Settings2 className="h-4 w-4 mr-2" /> Funil
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTagManagerOpen(true)} className="cursor-pointer">
+                <TagIcon className="h-4 w-4 mr-2" /> Tags
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button
+            onClick={() => setNewNegOpen(true)}
+            className="bg-primary text-primary-foreground"
+          >
+            <Plus className="h-4 w-4 sm:mr-2" />{' '}
             <span className="hidden sm:inline">Nova Negociação</span>
           </Button>
         </div>

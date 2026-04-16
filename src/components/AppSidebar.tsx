@@ -10,6 +10,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from '@/components/ui/sidebar'
 
 const navItems = [
@@ -22,9 +23,15 @@ const navItems = [
 
 export function AppSidebar() {
   const location = useLocation()
+  const { setOpen } = useSidebar()
 
   return (
-    <Sidebar collapsible="icon" className="border-r-0 shadow-lg">
+    <Sidebar
+      collapsible="icon"
+      className="border-r-0 shadow-lg transition-all duration-300"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
       <SidebarHeader className="h-16 flex items-center justify-center border-b border-sidebar-border/50 px-4">
         <div className="flex items-center gap-3 w-full overflow-hidden">
           <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center shrink-0">

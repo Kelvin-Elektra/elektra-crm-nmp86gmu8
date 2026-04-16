@@ -5,6 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthProvider } from '@/contexts/AuthContext'
 import Layout from './components/Layout'
 import Login from './pages/Login'
+import ForgotPassword from './pages/ForgotPassword'
 import Dashboard from './pages/Dashboard'
 import Pipeline from './pages/Pipeline'
 import Leads from './pages/Leads'
@@ -21,6 +22,7 @@ const App = () => (
         <Sonner />
         <Routes>
           <Route path="/" element={<Login />} />
+          <Route path="/esqueci-minha-senha" element={<ForgotPassword />} />
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/pipeline" element={<Pipeline />} />
