@@ -43,22 +43,29 @@ export default function Settings() {
   const [company, setCompany] = useState<any>(null)
 
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
-  const [newUser, setNewUser] = useState({ name: '', username: '', password: '', role: 'user' })
+  const [newUser, setNewUser] = useState({
+    name: '',
+    email: '',
+    password: '',
+    passwordConfirm: '',
+    role: 'user',
+  })
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editUser, setEditUser] = useState<any>(null)
 
   const loadUsers = async () => {
-    if (user?.company_id) {
-      try {
-        const records = await pb.collection(Collections.USERS).getFullList({
-          filter: `company_id = '${user.company_id}'`,
-          sort: '-created',
-        })
-        setCompanyUsers(records)
-      } catch (err) {
-        console.error(err)
-      }
+    try {
+      const filter = user?.role === 'admin_elektra' ? '' : `company_id = '${user?.company_id}'`
+      if (!filter && !user?.company_id && user?.role !== 'admin_elektra') return
+
+      const records = await pb.collection(Collections.USERS).getFullList({
+        filter,
+        sort: '-created',
+      })
+      setCompanyUsers(records)
+    } catch (err) {
+      console.error(err)
     }
   }
 
@@ -76,7 +83,7 @@ export default function Settings() {
   useEffect(() => {
     loadUsers()
     loadCompany()
-  }, [user?.company_id])
+  }, [user?.company_id, user?.role])
 
   useRealtime(Collections.USERS, loadUsers)
 
@@ -108,18 +115,22 @@ export default function Settings() {
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
-    try {
-      let domain = (company?.domain || 'dominio.com').trim().toLowerCase()
-      if (!domain.includes('.')) {
-        domain += '.com'
-      }
-      const email = `${newUser.username}@${domain}`
 
+    if (newUser.password !== newUser.passwordConfirm) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro de validação',
+        description: 'As senhas não coincidem.',
+      })
+      return
+    }
+
+    try {
       await pb.collection(Collections.USERS).create({
         name: newUser.name,
-        email,
+        email: newUser.email,
         password: newUser.password,
-        passwordConfirm: newUser.password,
+        passwordConfirm: newUser.passwordConfirm,
         role: newUser.role,
         company_id: user?.company_id,
         status: 'active',
@@ -127,14 +138,14 @@ export default function Settings() {
       })
       toast({ title: 'Sucesso', description: 'Usuário criado com sucesso!' })
       setIsUserModalOpen(false)
-      setNewUser({ name: '', username: '', password: '', role: 'user' })
+      setNewUser({ name: '', email: '', password: '', passwordConfirm: '', role: 'user' })
       loadUsers()
     } catch (err: any) {
       const fieldErrors = extractFieldErrors(err)
       let errorMsg = err.message || 'Erro ao criar usuário. Verifique se o email já existe.'
 
       if (fieldErrors.email) {
-        errorMsg = 'Por favor, insira um e-mail ou domínio válido (ex: empresa.com)'
+        errorMsg = 'Por favor, insira um e-mail válido.'
       } else if (Object.keys(fieldErrors).length > 0) {
         errorMsg = Object.values(fieldErrors).join('. ')
       }
@@ -150,17 +161,47 @@ export default function Settings() {
   const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editUser) return
+
+    if (editUser.password || editUser.passwordConfirm) {
+      if (editUser.password !== editUser.passwordConfirm) {
+        toast({
+          variant: 'destructive',
+          title: 'Erro de validação',
+          description: 'As senhas não coincidem.',
+        })
+        return
+      }
+    }
+
     try {
-      await pb.collection(Collections.USERS).update(editUser.id, {
+      const data = {
         name: editUser.name,
         role: editUser.role,
+        email: editUser.email,
+        ...(editUser.password
+          ? { password: editUser.password, passwordConfirm: editUser.passwordConfirm }
+          : {}),
+      }
+
+      await pb.send(`/backend/v1/users/${editUser.id}/admin-update`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+        headers: { 'Content-Type': 'application/json' },
       })
+
       toast({ title: 'Sucesso', description: 'Usuário atualizado com sucesso!' })
       setIsEditModalOpen(false)
       setEditUser(null)
       loadUsers()
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Erro', description: err.message })
+      const fieldErrors = extractFieldErrors(err)
+      let errorMsg = err.message || 'Erro ao atualizar usuário.'
+
+      if (Object.keys(fieldErrors).length > 0) {
+        errorMsg = Object.values(fieldErrors).join('. ')
+      }
+
+      toast({ variant: 'destructive', title: 'Erro', description: errorMsg })
     }
   }
 
@@ -176,7 +217,7 @@ export default function Settings() {
   }
 
   const maxUsers = company?.max_users || 5
-  const canAddUser = companyUsers.length < maxUsers
+  const canAddUser = user?.role === 'admin_elektra' || companyUsers.length < maxUsers
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl">
@@ -206,7 +247,7 @@ export default function Settings() {
               >
                 <Building2 className="mr-2 h-4 w-4" /> Dados da Empresa
               </TabsTrigger>
-              {user?.role === 'admin_company' && (
+              {(user?.role === 'admin_company' || user?.role === 'admin_elektra') && (
                 <TabsTrigger
                   value="users"
                   className="w-full justify-start rounded-none border-l-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:font-semibold transition-all hover:bg-muted/50"
@@ -308,160 +349,164 @@ export default function Settings() {
             </Card>
           )}
 
-          {activeTab === 'users' && user?.role === 'admin_company' && (
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Equipe e Plano</CardTitle>
-                  <CardDescription>
-                    Uso do plano: {companyUsers.length} de {maxUsers} usuários
-                  </CardDescription>
-                </div>
-                <div className="flex gap-2">
-                  <Dialog open={isUserModalOpen} onOpenChange={setIsUserModalOpen}>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="inline-block">
-                            <DialogTrigger asChild>
-                              <Button disabled={!canAddUser}>
-                                <Plus className="h-4 w-4 mr-2" /> Novo Usuário
-                              </Button>
-                            </DialogTrigger>
-                          </div>
-                        </TooltipTrigger>
-                        {!canAddUser && (
-                          <TooltipContent>
-                            <p>Limite de {maxUsers} usuários atingido.</p>
-                          </TooltipContent>
-                        )}
-                      </Tooltip>
-                    </TooltipProvider>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Adicionar Membro</DialogTitle>
-                      </DialogHeader>
-                      <form onSubmit={handleCreateUser} className="space-y-4">
-                        <div className="space-y-2">
-                          <Label>Nome</Label>
-                          <Input
-                            required
-                            value={newUser.name}
-                            onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Usuário</Label>
-                          <div className="flex items-center">
+          {activeTab === 'users' &&
+            (user?.role === 'admin_company' || user?.role === 'admin_elektra') && (
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>Equipe e Plano</CardTitle>
+                    <CardDescription>
+                      Uso do plano: {companyUsers.length} de {maxUsers} usuários
+                    </CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Dialog open={isUserModalOpen} onOpenChange={setIsUserModalOpen}>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="inline-block">
+                              <DialogTrigger asChild>
+                                <Button disabled={!canAddUser}>
+                                  <Plus className="h-4 w-4 mr-2" /> Novo Usuário
+                                </Button>
+                              </DialogTrigger>
+                            </div>
+                          </TooltipTrigger>
+                          {!canAddUser && (
+                            <TooltipContent>
+                              <p>Limite de {maxUsers} usuários atingido.</p>
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
+                      </TooltipProvider>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Adicionar Membro</DialogTitle>
+                        </DialogHeader>
+                        <form onSubmit={handleCreateUser} className="space-y-4">
+                          <div className="space-y-2">
+                            <Label>Nome</Label>
                             <Input
                               required
-                              value={newUser.username}
-                              onChange={(e) =>
-                                setNewUser({
-                                  ...newUser,
-                                  username: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''),
-                                })
-                              }
-                              className="rounded-r-none border-r-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                              placeholder="nome"
+                              value={newUser.name}
+                              onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
                             />
-                            <div className="flex items-center px-3 border border-l-0 rounded-r-md bg-muted text-muted-foreground h-10 whitespace-nowrap">
-                              @
-                              {company?.domain
-                                ? company.domain.includes('.')
-                                  ? company.domain
-                                  : `${company.domain}.com`
-                                : 'dominio.com'}
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Email</Label>
+                            <Input
+                              type="email"
+                              required
+                              value={newUser.email}
+                              onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                              placeholder="email@empresa.com"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Senha (mín. 8 caracteres)</Label>
+                              <Input
+                                type="password"
+                                required
+                                minLength={8}
+                                value={newUser.password}
+                                onChange={(e) =>
+                                  setNewUser({ ...newUser, password: e.target.value })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Confirmar Senha</Label>
+                              <Input
+                                type="password"
+                                required
+                                minLength={8}
+                                value={newUser.passwordConfirm}
+                                onChange={(e) =>
+                                  setNewUser({ ...newUser, passwordConfirm: e.target.value })
+                                }
+                              />
                             </div>
                           </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Senha (mín. 8 caracteres)</Label>
-                          <Input
-                            type="password"
-                            required
-                            minLength={8}
-                            value={newUser.password}
-                            onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Permissão</Label>
-                          <Select
-                            value={newUser.role}
-                            onValueChange={(v) => setNewUser({ ...newUser, role: v })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="user">Usuário Padrão</SelectItem>
-                              <SelectItem value="admin_company">Administrador (Empresa)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="pt-4 flex justify-end">
-                          <Button type="submit">Salvar</Button>
-                        </div>
-                      </form>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="rounded-md border">
-                  {companyUsers.map((u, i) => (
-                    <div
-                      key={u.id}
-                      className={`p-4 flex items-center justify-between ${
-                        i !== companyUsers.length - 1 ? 'border-b' : ''
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="font-medium leading-none">{u.name || 'Sem nome'}</p>
-                        </div>
-                        <p className="text-sm text-muted-foreground">{u.email}</p>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded-md capitalize hidden md:block">
-                          {u.role.replace('_', ' ')}
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setEditUser(u)
-                                setIsEditModalOpen(true)
-                              }}
+                          <div className="space-y-2">
+                            <Label>Permissão</Label>
+                            <Select
+                              value={newUser.role}
+                              onValueChange={(v) => setNewUser({ ...newUser, role: v })}
                             >
-                              <Edit className="h-4 w-4 mr-2" /> Editar
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => handleDeleteUser(u.id)}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" /> Remover
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="user">Usuário Padrão</SelectItem>
+                                <SelectItem value="admin_company">
+                                  Administrador (Empresa)
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="pt-4 flex justify-end">
+                            <Button type="submit">Salvar</Button>
+                          </div>
+                        </form>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="rounded-md border">
+                    {companyUsers.map((u, i) => (
+                      <div
+                        key={u.id}
+                        className={`p-4 flex items-center justify-between ${
+                          i !== companyUsers.length - 1 ? 'border-b' : ''
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-medium leading-none">{u.name || 'Sem nome'}</p>
+                          </div>
+                          <p className="text-sm text-muted-foreground">{u.email}</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded-md capitalize hidden md:block">
+                            {u.role.replace('_', ' ')}
+                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setEditUser(u)
+                                  setIsEditModalOpen(true)
+                                }}
+                              >
+                                <Edit className="h-4 w-4 mr-2" /> Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => handleDeleteUser(u.id)}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" /> Remover
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                  {companyUsers.length === 0 && (
-                    <div className="p-4 text-center text-muted-foreground">
-                      Nenhum usuário encontrado.
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                    ))}
+                    {companyUsers.length === 0 && (
+                      <div className="p-4 text-center text-muted-foreground">
+                        Nenhum usuário encontrado.
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
         </div>
       </div>
 
@@ -481,6 +526,36 @@ export default function Settings() {
                   value={editUser.name}
                   onChange={(e) => setEditUser({ ...editUser, name: e.target.value })}
                 />
+              </div>
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  required
+                  value={editUser.email}
+                  onChange={(e) => setEditUser({ ...editUser, email: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Nova Senha (opcional)</Label>
+                  <Input
+                    type="password"
+                    minLength={8}
+                    value={editUser.password || ''}
+                    onChange={(e) => setEditUser({ ...editUser, password: e.target.value })}
+                    placeholder="Deixe em branco para manter"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Confirmar Nova Senha</Label>
+                  <Input
+                    type="password"
+                    minLength={8}
+                    value={editUser.passwordConfirm || ''}
+                    onChange={(e) => setEditUser({ ...editUser, passwordConfirm: e.target.value })}
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Permissão</Label>
