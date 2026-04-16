@@ -54,6 +54,12 @@ export default function Settings() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editUser, setEditUser] = useState<any>(null)
 
+  const [profilePassword, setProfilePassword] = useState({
+    oldPassword: '',
+    password: '',
+    passwordConfirm: '',
+  })
+
   const loadUsers = async () => {
     try {
       const filter = user?.role === 'admin_elektra' ? '' : `company_id = '${user?.company_id}'`
@@ -86,6 +92,34 @@ export default function Settings() {
   }, [user?.company_id, user?.role])
 
   useRealtime(Collections.USERS, loadUsers)
+
+  const handleUpdateProfilePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (profilePassword.password !== profilePassword.passwordConfirm) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro de validação',
+        description: 'As novas senhas não coincidem.',
+      })
+      return
+    }
+    try {
+      await pb.collection(Collections.USERS).update(user!.id, {
+        oldPassword: profilePassword.oldPassword,
+        password: profilePassword.password,
+        passwordConfirm: profilePassword.passwordConfirm,
+      })
+      toast({ title: 'Sucesso', description: 'Senha atualizada com sucesso!' })
+      setProfilePassword({ oldPassword: '', password: '', passwordConfirm: '' })
+    } catch (err: any) {
+      const fieldErrors = extractFieldErrors(err)
+      let errorMsg = err.message || 'Erro ao atualizar senha.'
+      if (Object.keys(fieldErrors).length > 0) {
+        errorMsg = Object.values(fieldErrors).join('. ')
+      }
+      toast({ variant: 'destructive', title: 'Erro', description: errorMsg })
+    }
+  }
 
   const handleUpdateCompany = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -136,7 +170,17 @@ export default function Settings() {
         status: 'active',
         emailVisibility: true,
       })
-      toast({ title: 'Sucesso', description: 'Usuário criado com sucesso!' })
+
+      try {
+        await pb.collection(Collections.USERS).requestVerification(newUser.email)
+      } catch (verifyErr) {
+        console.error('Erro ao enviar email de verificação:', verifyErr)
+      }
+
+      toast({
+        title: 'Sucesso',
+        description: 'Usuário criado com sucesso! Um email de verificação foi enviado.',
+      })
       setIsUserModalOpen(false)
       setNewUser({ name: '', email: '', password: '', passwordConfirm: '', role: 'user' })
       loadUsers()
@@ -183,11 +227,22 @@ export default function Settings() {
           : {}),
       }
 
+      const originalUser = companyUsers.find((u) => u.id === editUser.id)
+      const emailChanged = originalUser && originalUser.email !== editUser.email
+
       await pb.send(`/backend/v1/users/${editUser.id}/admin-update`, {
         method: 'PATCH',
         body: JSON.stringify(data),
         headers: { 'Content-Type': 'application/json' },
       })
+
+      if (emailChanged) {
+        try {
+          await pb.collection(Collections.USERS).requestVerification(editUser.email)
+        } catch (verifyErr) {
+          console.error('Erro ao enviar email de verificação:', verifyErr)
+        }
+      }
 
       toast({ title: 'Sucesso', description: 'Usuário atualizado com sucesso!' })
       setIsEditModalOpen(false)
@@ -281,24 +336,55 @@ export default function Settings() {
 
                 <Separator className="my-4" />
 
-                <div className="space-y-2 opacity-50 pointer-events-none">
-                  <Label htmlFor="current_password">Senha Atual</Label>
-                  <Input id="current_password" type="password" />
-                </div>
-                <div className="grid grid-cols-2 gap-4 opacity-50 pointer-events-none">
+                <form onSubmit={handleUpdateProfilePassword} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="new_password">Nova Senha</Label>
-                    <Input id="new_password" type="password" />
+                    <Label htmlFor="current_password">Senha Atual</Label>
+                    <Input
+                      id="current_password"
+                      type="password"
+                      required
+                      value={profilePassword.oldPassword}
+                      onChange={(e) =>
+                        setProfilePassword({ ...profilePassword, oldPassword: e.target.value })
+                      }
+                    />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="confirm_password">Confirmar Nova Senha</Label>
-                    <Input id="confirm_password" type="password" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="new_password">Nova Senha</Label>
+                      <Input
+                        id="new_password"
+                        type="password"
+                        required
+                        minLength={8}
+                        value={profilePassword.password}
+                        onChange={(e) =>
+                          setProfilePassword({ ...profilePassword, password: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="confirm_password">Confirmar Nova Senha</Label>
+                      <Input
+                        id="confirm_password"
+                        type="password"
+                        required
+                        minLength={8}
+                        value={profilePassword.passwordConfirm}
+                        onChange={(e) =>
+                          setProfilePassword({
+                            ...profilePassword,
+                            passwordConfirm: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <div className="pt-4 flex justify-end">
-                  <Button disabled>Salvar Alterações</Button>
-                </div>
+                  <div className="pt-4 flex justify-end">
+                    <Button type="submit">Salvar Alterações</Button>
+                  </div>
+                </form>
               </CardContent>
             </Card>
           )}

@@ -35,8 +35,12 @@ export function AppSidebar() {
       <SidebarHeader className="h-16 flex items-center justify-center border-b border-sidebar-border/50 p-0">
         <div className="flex items-center justify-center w-full h-full px-2 overflow-hidden">
           <div className="flex items-center gap-3 w-full px-1">
-            <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center shrink-0 shadow-sm">
-              <Sun className="h-5 w-5 text-secondary" strokeWidth={2.5} />
+            <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
+              <img
+                src="https://img.usecurling.com/i?q=sun&shape=fill&color=white"
+                alt="Logo da Empresa"
+                className="h-full w-full object-cover"
+              />
             </div>
             <span className="font-bold text-lg tracking-tight truncate group-data-[collapsible=icon]:hidden transition-opacity duration-200">
               Elektra CRM

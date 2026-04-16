@@ -24,7 +24,7 @@ routerAdd(
     if (body.role !== undefined) record.set('role', body.role)
     if (body.email !== undefined) {
       record.setEmail(body.email)
-      record.setVerified(true)
+      record.setVerified(false)
     }
 
     if (body.password) {
