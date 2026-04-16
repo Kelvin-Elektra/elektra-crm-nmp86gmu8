@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-16T14:31:49.128Z",
+  "generatedAt": "2026-04-16T16:42:42.258Z",
   "collections": [
     {
       "name": "users",
@@ -83,12 +83,6 @@
           "system": false
         },
         {
-          "name": "status",
-          "type": "text",
-          "required": true,
-          "system": false
-        },
-        {
           "name": "created",
           "type": "autodate",
           "required": false,
@@ -109,10 +103,11 @@
           "system": false
         },
         {
-          "name": "domain",
-          "type": "text",
-          "required": false,
-          "system": false
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["active", "inactive"]
         }
       ],
       "indexes": []
@@ -174,7 +169,9 @@
           "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
-      "indexes": []
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_leads_phone_company` ON `leads` (phone, company_id) WHERE phone != ''"
+      ]
     },
     {
       "name": "negotiations",
@@ -366,6 +363,53 @@
         {
           "name": "order",
           "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "tags",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || company_id = @request.auth.company_id)",
+        "view": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || company_id = @request.auth.company_id)",
+        "create": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || company_id = @request.auth.company_id)",
+        "update": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || company_id = @request.auth.company_id)",
+        "delete": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || company_id = @request.auth.company_id)"
+      },
+      "fields": [
+        {
+          "name": "company_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "companies"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "color",
+          "type": "text",
           "required": true,
           "system": false
         },

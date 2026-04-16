@@ -9,6 +9,7 @@ export type User = {
   role: string
   status: string
   company_id: string
+  verified: boolean
 }
 
 interface AuthContextType {
@@ -39,6 +40,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const authData = await pb.collection('users').authWithPassword(email, pass)
       const record = authData.record as User
+
+      if (!record.verified) {
+        pb.authStore.clear()
+        toast({
+          title: 'Email não verificado',
+          description: 'Por favor, verifique seu e-mail antes de fazer login.',
+          variant: 'destructive',
+        })
+        return false
+      }
 
       const company = await pb.collection('companies').getOne(record.company_id)
       if (company.status !== 'active') {

@@ -121,27 +121,11 @@ export default function Settings() {
     }
   }
 
-  const handleUpdateCompany = async (e: React.FormEvent) => {
-    e.preventDefault()
-    let domainToSave = company.domain?.trim().toLowerCase() || ''
-
-    if (domainToSave.includes('@')) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro de validação',
-        description: 'O domínio não deve conter o caractere "@"',
-      })
-      return
-    }
-
-    if (domainToSave && !domainToSave.includes('.')) {
-      domainToSave += '.com'
-    }
-
+  const handleUpdateCompanyStatus = async (status: string) => {
     try {
-      await pb.collection(Collections.COMPANIES).update(company.id, { domain: domainToSave })
-      toast({ title: 'Sucesso', description: 'Domínio atualizado com sucesso!' })
-      loadCompany()
+      await pb.collection(Collections.COMPANIES).update(company.id, { status })
+      setCompany({ ...company, status })
+      toast({ title: 'Sucesso', description: 'Status atualizado com sucesso!' })
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Erro', description: err.message })
     }
@@ -402,35 +386,30 @@ export default function Settings() {
                 </div>
                 <div className="space-y-2 mt-4">
                   <Label>Status da Assinatura</Label>
-                  <div>
-                    <span
-                      className={`text-xs px-2 py-1 rounded-full ${
-                        company?.status === 'active'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-red-100 text-red-700'
-                      }`}
-                    >
-                      {company?.status === 'active' ? 'Ativa' : 'Inativa'}
-                    </span>
-                  </div>
-                </div>
-                {user?.role === 'admin_company' && (
-                  <form onSubmit={handleUpdateCompany} className="space-y-2 mt-4">
-                    <Label>Domínio da Empresa</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={company?.domain || ''}
-                        onChange={(e) => setCompany({ ...company, domain: e.target.value })}
-                        placeholder="exemplo.com"
-                        required
-                      />
-                      <Button type="submit">Atualizar</Button>
+                  {user?.role === 'admin_elektra' ? (
+                    <Select value={company?.status} onValueChange={handleUpdateCompanyStatus}>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Ativa</SelectItem>
+                        <SelectItem value="inactive">Inativa</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div>
+                      <span
+                        className={`text-xs px-2 py-1 rounded-full ${
+                          company?.status === 'active'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-red-100 text-red-700'
+                        }`}
+                      >
+                        {company?.status === 'active' ? 'Ativa' : 'Inativa'}
+                      </span>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Este domínio será usado para criar os emails dos novos membros da equipe.
-                    </p>
-                  </form>
-                )}
+                  )}
+                </div>
               </CardContent>
             </Card>
           )}

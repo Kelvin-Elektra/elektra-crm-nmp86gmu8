@@ -15,13 +15,37 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
 
+  const applyPhoneMask = (val: string) => {
+    let v = val.replace(/\D/g, '')
+    if (v.length > 11) v = v.slice(0, 11)
+    if (v.length > 2) v = `(${v.slice(0, 2)}) ${v.slice(2)}`
+    if (v.length > 10) v = `${v.slice(0, 10)}-${v.slice(10)}`
+    return v
+  }
+
+  const applyDocumentMask = (val: string) => {
+    let v = val.replace(/\D/g, '')
+    if (v.length <= 11) {
+      v = v.replace(/(\d{3})(\d)/, '$1.$2')
+      v = v.replace(/(\d{3})(\d)/, '$1.$2')
+      v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+    } else {
+      if (v.length > 14) v = v.slice(0, 14)
+      v = v.replace(/(\d{2})(\d)/, '$1.$2')
+      v = v.replace(/(\d{3})(\d)/, '$1.$2')
+      v = v.replace(/(\d{3})(\d)/, '$1/$2')
+      v = v.replace(/(\d{4})(\d{1,2})$/, '$1-$2')
+    }
+    return v
+  }
+
   useEffect(() => {
     if (lead)
       setFormData({
         name: lead.name,
-        document: lead.document || '',
+        document: applyDocumentMask(lead.document || ''),
         email: lead.email || '',
-        phone: lead.phone || '',
+        phone: applyPhoneMask(lead.phone || ''),
       })
     else setFormData({ name: '', document: '', email: '', phone: '' })
     setErrors({})
@@ -41,13 +65,21 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
       const fieldErrors = extractFieldErrors(err)
       if (Object.keys(fieldErrors).length > 0) {
         setErrors(fieldErrors)
-        if (fieldErrors.phone?.includes('unique')) {
+        if (fieldErrors.phone?.toLowerCase().includes('unique')) {
           toast({
             variant: 'destructive',
-            title: 'Erro',
-            description: 'Este telefone já está cadastrado em outro lead.',
+            title: 'Erro de Unicidade',
+            description: 'Este telefone já está cadastrado em outro lead desta empresa.',
           })
+          setErrors((prev) => ({ ...prev, phone: 'Este telefone já está cadastrado.' }))
         }
+      } else if (err.message?.toLowerCase().includes('unique constraint failed')) {
+        toast({
+          variant: 'destructive',
+          title: 'Erro de Unicidade',
+          description: 'Este telefone já está cadastrado em outro lead desta empresa.',
+        })
+        setErrors({ phone: 'Este telefone já está cadastrado.' })
       } else {
         toast({ variant: 'destructive', title: 'Erro', description: getErrorMessage(err) })
       }
@@ -67,6 +99,7 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
             <Label>Nome</Label>
             <Input
               required
+              placeholder="Ex: João da Silva"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             />
@@ -75,8 +108,9 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
             <Label>Telefone (Obrigatório)</Label>
             <Input
               required
+              placeholder="(00) 00000-0000"
               value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, phone: applyPhoneMask(e.target.value) })}
             />
             {errors.phone && <span className="text-xs text-destructive">{errors.phone}</span>}
           </div>
@@ -84,6 +118,7 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
             <Label>Email</Label>
             <Input
               type="email"
+              placeholder="email@exemplo.com"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             />
@@ -91,8 +126,11 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
           <div className="space-y-2">
             <Label>Documento (CPF/CNPJ)</Label>
             <Input
+              placeholder="000.000.000-00 ou 00.000.000/0000-00"
               value={formData.document}
-              onChange={(e) => setFormData({ ...formData, document: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, document: applyDocumentMask(e.target.value) })
+              }
             />
           </div>
           <div className="flex justify-end pt-4">
