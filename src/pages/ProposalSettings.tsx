@@ -35,7 +35,9 @@ export default function ProposalSettings() {
           pricing: record.pricing || formData.pricing,
         })
       })
-      .catch(() => {})
+      .catch((e) => {
+        console.error(e)
+      })
   }, [user])
 
   const handleSave = async () => {

@@ -29,7 +29,9 @@ export function BudgetsTab({ neg }: { neg: any }) {
         .collection('budgets')
         .getFullList({ filter: `negotiation_id = '${neg.id}'` })
       setItems(res)
-    } catch (e) {}
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   useEffect(() => {
