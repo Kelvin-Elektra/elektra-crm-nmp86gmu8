@@ -24,7 +24,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useRealtime } from '@/hooks/use-realtime'
-import { getNegotiations, updateNegotiation, getPipelineStages, getTags } from '@/services/db'
+import { getPipelineStages, getTags } from '@/services/db'
+import { useAuth } from '@/contexts/AuthContext'
 import { Collections } from '@/lib/pocketbase/collections'
 import { cn } from '@/lib/utils'
 import { NegotiationSheet } from '@/components/NegotiationSheet'
@@ -47,16 +48,21 @@ export default function Pipeline() {
   const [stageManagerOpen, setStageManagerOpen] = useState(false)
   const [newNegOpen, setNewNegOpen] = useState(false)
 
+  const { user } = useAuth()
+
   const loadAll = async () => {
-    setNegotiations(await getNegotiations())
+    const filter = user?.role === 'user' ? `owner_id = '${user?.id}'` : ''
+    setNegotiations(
+      await pb.collection('negotiations').getFullList({ expand: 'lead_id,owner_id', filter }),
+    )
     setStages(await getPipelineStages())
     setTags(await getTags())
   }
 
   useEffect(() => {
     loadAll()
-  }, [])
-  useRealtime(Collections.NEGOTIATIONS, async () => setNegotiations(await getNegotiations()))
+  }, [user])
+  useRealtime(Collections.NEGOTIATIONS, loadAll)
   useRealtime(Collections.PIPELINE_STAGES, async () => setStages(await getPipelineStages()))
   useRealtime(Collections.TAGS, async () => setTags(await getTags()))
 

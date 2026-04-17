@@ -384,7 +384,42 @@ export default function Settings() {
                   <Label>Nome da Empresa</Label>
                   <Input value={company?.name || ''} disabled />
                 </div>
-                <div className="space-y-2 mt-4">
+                <div className="space-y-2 mt-6">
+                  <Label>Logo da Empresa</Label>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={async (e) => {
+                      if (!e.target.files || !e.target.files[0]) return
+                      try {
+                        const formData = new FormData()
+                        formData.append('logo', e.target.files[0])
+                        const updated = await pb
+                          .collection('companies')
+                          .update(company.id, formData)
+                        setCompany(updated)
+                        toast({ title: 'Sucesso', description: 'Logo atualizada com sucesso!' })
+                      } catch (err: any) {
+                        toast({
+                          variant: 'destructive',
+                          title: 'Erro',
+                          description: 'Falha ao fazer upload da logo.',
+                        })
+                      }
+                    }}
+                  />
+                  {company?.logo && (
+                    <div className="mt-4 p-4 border rounded-lg bg-slate-50 inline-block">
+                      <img
+                        src={pb.files.getURL(company, company.logo)}
+                        alt="Logo"
+                        className="h-16 object-contain"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2 mt-6 border-t pt-6">
                   <Label>Status da Assinatura</Label>
                   {user?.role === 'admin_elektra' ? (
                     <Select value={company?.status} onValueChange={handleUpdateCompanyStatus}>

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-17T22:57:46.183Z",
+  "generatedAt": "2026-04-17T23:30:23.299Z",
   "collections": [
     {
       "name": "users",
@@ -108,6 +108,12 @@
           "required": true,
           "system": false,
           "selectValues": ["active", "inactive"]
+        },
+        {
+          "name": "logo",
+          "type": "file",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []

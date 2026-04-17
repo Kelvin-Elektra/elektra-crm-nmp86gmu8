@@ -37,19 +37,25 @@ import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 import { deleteNegotiation } from '@/services/db'
+import { useAuth } from '@/contexts/AuthContext'
+import { NewNegotiationDialog } from '@/components/NewNegotiationDialog'
 
 export default function Negotiations() {
+  const { user } = useAuth()
   const { toast } = useToast()
   const [negotiations, setNegotiations] = useState<any[]>([])
+  const [newNegOpen, setNewNegOpen] = useState(false)
   const [stages, setStages] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [view, setView] = useState<'list' | 'grid'>('list')
 
   const load = async () => {
     try {
+      const filter = user?.role === 'user' ? `owner_id = '${user?.id}'` : ''
       const records = await pb.collection('negotiations').getFullList({
         expand: 'lead_id,owner_id',
         sort: '-created',
+        filter,
       })
       setNegotiations(records)
     } catch (err) {
@@ -107,7 +113,10 @@ export default function Negotiations() {
           <p className="text-muted-foreground">Gerencie todas as suas propostas comerciais</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <Button onClick={() => setNewNegOpen(true)} className="w-full sm:w-auto">
+            Nova Negociação
+          </Button>
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -293,6 +302,7 @@ export default function Negotiations() {
           ))}
         </div>
       )}
+      <NewNegotiationDialog open={newNegOpen} onOpenChange={setNewNegOpen} onSuccess={load} />
     </div>
   )
 }

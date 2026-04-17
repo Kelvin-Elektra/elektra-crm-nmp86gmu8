@@ -14,6 +14,16 @@ import {
   FileArchive,
 } from 'lucide-react'
 import { useRealtime } from '@/hooks/use-realtime'
+import pb from '@/lib/pocketbase/client'
+import { useAuth } from '@/contexts/AuthContext'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { useToast } from '@/hooks/use-toast'
 import { ClientDetailsTab } from '@/components/negotiation-tabs/ClientDetailsTab'
 import { SizingTab } from '@/components/negotiation-tabs/SizingTab'
 import { BudgetsTab } from '@/components/negotiation-tabs/BudgetsTab'
@@ -21,11 +31,14 @@ import { FilesTab } from '@/components/negotiation-tabs/FilesTab'
 import { ProposalsTab } from '@/components/negotiation-tabs/ProposalsTab'
 
 export default function NegotiationDetail() {
+  const { user } = useAuth()
   const { id } = useParams()
   const navigate = useNavigate()
+  const { toast } = useToast()
   const [neg, setNeg] = useState<any>(null)
   const [proposals, setProposals] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [users, setUsers] = useState<any[]>([])
 
   const loadData = async () => {
     if (!id) return
@@ -49,6 +62,31 @@ export default function NegotiationDetail() {
   })
   useRealtime('proposals', loadData)
 
+  const isAdmin = user?.role === 'admin_company' || user?.role === 'admin_elektra'
+
+  useEffect(() => {
+    if (neg && isAdmin) {
+      pb.collection('users')
+        .getFullList({ filter: `company_id = '${neg.company_id}'` })
+        .then(setUsers)
+        .catch(console.error)
+    }
+  }, [neg?.company_id, isAdmin])
+
+  const handleOwnerChange = async (newOwnerId: string) => {
+    try {
+      await pb.collection('negotiations').update(neg.id, { owner_id: newOwnerId })
+      loadData()
+      toast({ title: 'Sucesso', description: 'Responsável atualizado.' })
+    } catch (e) {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível alterar o responsável.',
+        variant: 'destructive',
+      })
+    }
+  }
+
   if (loading)
     return <div className="p-8 flex justify-center animate-pulse">Carregando negociação...</div>
   if (!neg) return <div className="p-8 text-center text-destructive">Negociação não encontrada</div>
@@ -67,7 +105,22 @@ export default function NegotiationDetail() {
               <span className="text-sm text-muted-foreground flex items-center">
                 <User className="h-3 w-3 mr-1" />
                 Responsável:{' '}
-                <strong className="ml-1">{neg.expand?.owner_id?.name || 'Não atribuído'}</strong>
+                {isAdmin ? (
+                  <Select value={neg.owner_id || ''} onValueChange={handleOwnerChange}>
+                    <SelectTrigger className="h-6 w-auto text-xs ml-1 border-none bg-transparent hover:bg-muted focus:ring-0 px-1 py-0 shadow-none font-semibold">
+                      <SelectValue placeholder="Não atribuído" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {users.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <strong className="ml-1">{neg.expand?.owner_id?.name || 'Não atribuído'}</strong>
+                )}
               </span>
             </div>
           </div>
@@ -116,7 +169,7 @@ export default function NegotiationDetail() {
             <SizingTab neg={neg} reload={loadData} />
           </TabsContent>
           <TabsContent value="propostas" className="mt-0">
-            <ProposalsTab proposals={proposals} />
+            <ProposalsTab proposals={proposals} neg={neg} reload={loadData} />
           </TabsContent>
           <TabsContent value="orcamentos" className="mt-0">
             <BudgetsTab neg={neg} />

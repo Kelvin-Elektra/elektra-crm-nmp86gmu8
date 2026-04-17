@@ -63,7 +63,14 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
         computedAvg = Number(avgConsumption) || 0
       }
 
-      const cleanSizing = JSON.parse(JSON.stringify({ ...initialSizing, ...sizingPayload }))
+      const cleanSizing = { ...initialSizing, ...sizingPayload }
+
+      // Ensure cleanSizing does not have undefined fields to avoid JSON stringify issues
+      Object.keys(cleanSizing).forEach(
+        (key) =>
+          cleanSizing[key as keyof typeof cleanSizing] === undefined &&
+          delete cleanSizing[key as keyof typeof cleanSizing],
+      )
 
       await pb.collection('negotiations').update(neg.id, {
         avg_consumption: computedAvg,

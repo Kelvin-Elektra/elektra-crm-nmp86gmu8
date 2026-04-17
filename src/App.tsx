@@ -14,6 +14,7 @@ import Proposals from './pages/Proposals'
 import Settings from './pages/Settings'
 import NegotiationDetail from './pages/NegotiationDetail'
 import ProposalSettings from './pages/ProposalSettings'
+import VerifyEmail from './pages/VerifyEmail'
 
 const App = () => (
   <BrowserRouter future={{ v7_startTransition: false, v7_relativeSplatPath: false }}>
@@ -24,6 +25,8 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Login />} />
           <Route path="/esqueci-minha-senha" element={<ForgotPassword />} />
+          <Route path="/verificar-email" element={<VerifyEmail />} />
+          <Route path="/confirm-verification" element={<VerifyEmail />} />
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/pipeline" element={<Pipeline />} />

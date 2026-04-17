@@ -11,7 +11,7 @@ onRecordAfterCreateSuccess((e) => {
         <p>Sua conta foi criada com sucesso por um administrador da sua empresa.</p>
         <p>Para ativar sua conta e definir sua senha de acesso, clique no botão abaixo:</p>
         <div style="margin: 30px 0;">
-          <a href="${$secrets.get('PB_INSTANCE_URL') || 'https://elektra-crm.goskip.app'}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: #fff; text-decoration: none; border-radius: 6px; font-weight: bold;">Acessar o Sistema</a>
+          <a href="https://elektra-crm.goskip.app/" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: #fff; text-decoration: none; border-radius: 6px; font-weight: bold;">Acessar o Sistema</a>
         </div>
         <p style="font-size: 14px; color: #666;">Se você não solicitou este acesso, por favor ignore este email.</p>
         <p>Atenciosamente,<br>Equipe Elektra CRM</p>
