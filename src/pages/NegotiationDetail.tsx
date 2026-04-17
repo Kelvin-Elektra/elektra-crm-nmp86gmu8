@@ -1,12 +1,24 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getNegotiation, getProposalsByNeg } from '@/services/db'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, User, MapPin, Zap, Calendar, FileText } from 'lucide-react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  ArrowLeft,
+  User,
+  Calculator,
+  FileText,
+  ShoppingCart,
+  Folder,
+  FileArchive,
+} from 'lucide-react'
 import { useRealtime } from '@/hooks/use-realtime'
-import { format } from 'date-fns'
+import { ClientDetailsTab } from '@/components/negotiation-tabs/ClientDetailsTab'
+import { SizingTab } from '@/components/negotiation-tabs/SizingTab'
+import { BudgetsTab } from '@/components/negotiation-tabs/BudgetsTab'
+import { FilesTab } from '@/components/negotiation-tabs/FilesTab'
+import { ProposalsTab } from '@/components/negotiation-tabs/ProposalsTab'
 
 export default function NegotiationDetail() {
   const { id } = useParams()
@@ -32,18 +44,18 @@ export default function NegotiationDetail() {
   useEffect(() => {
     loadData()
   }, [id])
-
   useRealtime('negotiations', (e) => {
     if (e.record.id === id) loadData()
   })
   useRealtime('proposals', loadData)
 
-  if (loading) return <div className="p-8 text-center">Carregando...</div>
+  if (loading)
+    return <div className="p-8 flex justify-center animate-pulse">Carregando negociação...</div>
   if (!neg) return <div className="p-8 text-center text-destructive">Negociação não encontrada</div>
 
   return (
-    <div className="flex flex-col gap-6 max-w-5xl animate-fade-in">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-6 max-w-6xl mx-auto animate-fade-in pb-12 w-full">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <Button variant="outline" size="icon" onClick={() => navigate('/negociacoes')}>
             <ArrowLeft className="h-4 w-4" />
@@ -62,111 +74,68 @@ export default function NegotiationDetail() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Detalhes do Cliente</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-start gap-3">
-                <User className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div>
-                  <p className="font-medium">{neg.expand?.lead_id?.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {neg.expand?.lead_id?.document || neg.expand?.lead_id?.email}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div>
-                  <p className="font-medium">Endereço de Instalação</p>
-                  <p className="text-sm text-muted-foreground">{neg.address || 'Não informado'}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <Zap className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div>
-                  <p className="font-medium">Dados Técnicos</p>
-                  <p className="text-sm text-muted-foreground">
-                    Consumo: {neg.avg_consumption} kWh | Concessionária:{' '}
-                    {neg.concessionaire || 'N/A'} | UC: {neg.uc || 'N/A'}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+      <Tabs defaultValue="detalhes" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6 h-auto gap-2 p-1 bg-muted/50 rounded-xl overflow-x-auto">
+          <TabsTrigger value="detalhes" className="py-2.5 rounded-lg data-[state=active]:shadow-sm">
+            <User className="mr-2 h-4 w-4 hidden md:block" /> Cliente
+          </TabsTrigger>
+          <TabsTrigger
+            value="dimensionamento"
+            className="py-2.5 rounded-lg data-[state=active]:shadow-sm"
+          >
+            <Calculator className="mr-2 h-4 w-4 hidden md:block" /> Dimensionamento
+          </TabsTrigger>
+          <TabsTrigger
+            value="propostas"
+            className="py-2.5 rounded-lg data-[state=active]:shadow-sm"
+          >
+            <FileText className="mr-2 h-4 w-4 hidden md:block" /> Propostas FV
+          </TabsTrigger>
+          <TabsTrigger
+            value="orcamentos"
+            className="py-2.5 rounded-lg data-[state=active]:shadow-sm"
+          >
+            <ShoppingCart className="mr-2 h-4 w-4 hidden md:block" /> Orçamentos
+          </TabsTrigger>
+          <TabsTrigger
+            value="documentos"
+            className="py-2.5 rounded-lg data-[state=active]:shadow-sm"
+          >
+            <Folder className="mr-2 h-4 w-4 hidden md:block" /> Docs
+          </TabsTrigger>
+          <TabsTrigger value="arquivos" className="py-2.5 rounded-lg data-[state=active]:shadow-sm">
+            <FileArchive className="mr-2 h-4 w-4 hidden md:block" /> Arquivos
+          </TabsTrigger>
+        </TabsList>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Propostas</CardTitle>
-              <CardDescription>Histórico de propostas comerciais enviadas.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {proposals.length === 0 ? (
-                <div className="text-center p-6 text-muted-foreground border rounded-lg bg-muted/20">
-                  Nenhuma proposta gerada para esta negociação.
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {proposals.map((p) => (
-                    <div
-                      key={p.id}
-                      className="flex items-center justify-between p-4 border rounded-lg"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 bg-primary/10 rounded-full flex items-center justify-center text-primary">
-                          <FileText className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <p className="font-medium">{p.description || 'Proposta'}</p>
-                          <p className="text-xs text-muted-foreground">
-                            <Calendar className="h-3 w-3 inline mr-1" />
-                            {format(new Date(p.created), 'dd/MM/yyyy')}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-primary">
-                          {new Intl.NumberFormat('pt-BR', {
-                            style: 'currency',
-                            currency: 'BRL',
-                          }).format(p.price || 0)}
-                        </p>
-                        <Badge
-                          variant={
-                            p.status === 'accepted'
-                              ? 'default'
-                              : p.status === 'rejected'
-                                ? 'destructive'
-                                : 'secondary'
-                          }
-                        >
-                          {p.status || 'Rascunho'}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+        <div className="mt-6">
+          <TabsContent value="detalhes" className="mt-0">
+            <ClientDetailsTab neg={neg} />
+          </TabsContent>
+          <TabsContent value="dimensionamento" className="mt-0">
+            <SizingTab neg={neg} reload={loadData} />
+          </TabsContent>
+          <TabsContent value="propostas" className="mt-0">
+            <ProposalsTab proposals={proposals} />
+          </TabsContent>
+          <TabsContent value="orcamentos" className="mt-0">
+            <BudgetsTab neg={neg} />
+          </TabsContent>
+          <TabsContent value="documentos" className="mt-0">
+            <div className="text-center p-12 border rounded-xl bg-muted/10 border-dashed">
+              <Folder className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+              <h3 className="text-lg font-medium">Contratos e Documentos Oficiais</h3>
+              <p className="text-muted-foreground text-sm max-w-md mx-auto mt-2">
+                Em breve você poderá gerar contratos de prestação de serviços e procurações
+                diretamente por aqui.
+              </p>
+            </div>
+          </TabsContent>
+          <TabsContent value="arquivos" className="mt-0">
+            <FilesTab neg={neg} reload={loadData} />
+          </TabsContent>
         </div>
-
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Ações Rápidas</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Button className="w-full justify-start" variant="outline">
-                <FileText className="h-4 w-4 mr-2" /> Nova Proposta
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      </Tabs>
     </div>
   )
 }

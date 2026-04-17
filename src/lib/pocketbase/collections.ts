@@ -6,6 +6,8 @@ export const Collections = {
   PROPOSALS: 'proposals',
   PIPELINE_STAGES: 'pipeline_stages',
   TAGS: 'tags',
+  BUDGETS: 'budgets',
+  PROPOSAL_SETTINGS: 'proposal_settings',
 } as const
 
 export type CollectionName = (typeof Collections)[keyof typeof Collections]
