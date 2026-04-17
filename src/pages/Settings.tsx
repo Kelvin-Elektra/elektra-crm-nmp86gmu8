@@ -144,26 +144,21 @@ export default function Settings() {
     }
 
     try {
-      await pb.collection(Collections.USERS).create({
-        name: newUser.name,
-        email: newUser.email,
-        password: newUser.password,
-        passwordConfirm: newUser.passwordConfirm,
-        role: newUser.role,
-        company_id: user?.company_id,
-        status: 'active',
-        emailVisibility: true,
+      await pb.send('/backend/v1/users/admin-create', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: newUser.name,
+          email: newUser.email,
+          password: newUser.password,
+          role: newUser.role,
+          company_id: user?.company_id,
+        }),
+        headers: { 'Content-Type': 'application/json' },
       })
-
-      try {
-        await pb.collection(Collections.USERS).requestVerification(newUser.email)
-      } catch (verifyErr) {
-        console.error('Erro ao enviar email de verificação:', verifyErr)
-      }
 
       toast({
         title: 'Sucesso',
-        description: 'Usuário criado com sucesso! Um email de verificação foi enviado.',
+        description: 'Usuário criado com sucesso! Credenciais enviadas por email.',
       })
       setIsUserModalOpen(false)
       setNewUser({ name: '', email: '', password: '', passwordConfirm: '', role: 'user' })

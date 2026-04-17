@@ -4,11 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
-import { Save, FileImage, BarChart, Zap, DollarSign, Link as LinkIcon } from 'lucide-react'
+import { Save, FileImage, BarChart, Zap, Palette, Layers } from 'lucide-react'
 
 export default function ProposalSettings() {
   const { user } = useAuth()
@@ -16,12 +16,24 @@ export default function ProposalSettings() {
   const [settingsId, setSettingsId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [activeTemplate, setActiveTemplate] = useState('modern')
-  const [previewTemplate, setPreviewTemplate] = useState<any>(null)
 
   const [formData, setFormData] = useState({
     indicators: { inflation: '5', interest: '1' },
     tariffs: { tusd: '0.65', te: '0.45' },
     pricing: { margin: '30', tax: '12' },
+    visible_pages: {
+      cover: true,
+      technical: true,
+      charts: true,
+      system: true,
+      financial: true,
+      warranty: true,
+      terms: true,
+    },
+    branding: {
+      primaryColor: '#2563eb',
+      secondaryColor: '#1e40af',
+    },
   })
 
   useEffect(() => {
@@ -35,6 +47,8 @@ export default function ProposalSettings() {
           indicators: record.indicators || formData.indicators,
           tariffs: record.tariffs || formData.tariffs,
           pricing: record.pricing || formData.pricing,
+          visible_pages: record.visible_pages || formData.visible_pages,
+          branding: record.branding || formData.branding,
         })
       })
       .catch((e) => {
@@ -52,6 +66,8 @@ export default function ProposalSettings() {
         indicators: formData.indicators,
         tariffs: formData.tariffs,
         pricing: formData.pricing,
+        visible_pages: formData.visible_pages,
+        branding: formData.branding,
       }
       if (settingsId) {
         await pb.collection('proposal_settings').update(settingsId, data)
@@ -67,10 +83,10 @@ export default function ProposalSettings() {
     }
   }
 
-  const handleNestedChange = (category: keyof typeof formData, field: string, value: string) => {
+  const handleNestedChange = (category: keyof typeof formData, field: string, value: any) => {
     setFormData((prev) => ({
       ...prev,
-      [category]: { ...prev[category], [field]: value },
+      [category]: { ...(prev[category as keyof typeof formData] as any), [field]: value },
     }))
   }
 
@@ -80,7 +96,7 @@ export default function ProposalSettings() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Configurações da Proposta</h2>
           <p className="text-muted-foreground text-sm">
-            Gerencie os padrões para geração de propostas comerciais.
+            Gerencie os padrões, cores e páginas para geração de propostas.
           </p>
         </div>
         <Button onClick={handleSave} disabled={loading}>
@@ -89,21 +105,21 @@ export default function ProposalSettings() {
       </div>
 
       <Tabs defaultValue="templates" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 h-auto gap-2 p-1 bg-muted/50 rounded-xl">
-          <TabsTrigger value="templates" className="py-2.5 rounded-lg">
+        <TabsList className="flex flex-wrap w-full h-auto gap-2 p-1 bg-muted/50 rounded-xl justify-start">
+          <TabsTrigger value="templates" className="py-2.5 rounded-lg flex-1 sm:flex-none">
             <FileImage className="mr-2 h-4 w-4" /> Templates
           </TabsTrigger>
-          <TabsTrigger value="indicadores" className="py-2.5 rounded-lg">
+          <TabsTrigger value="branding" className="py-2.5 rounded-lg flex-1 sm:flex-none">
+            <Palette className="mr-2 h-4 w-4" /> Branding
+          </TabsTrigger>
+          <TabsTrigger value="pages" className="py-2.5 rounded-lg flex-1 sm:flex-none">
+            <Layers className="mr-2 h-4 w-4" /> Páginas
+          </TabsTrigger>
+          <TabsTrigger value="indicadores" className="py-2.5 rounded-lg flex-1 sm:flex-none">
             <BarChart className="mr-2 h-4 w-4" /> Indicadores
           </TabsTrigger>
-          <TabsTrigger value="tarifas" className="py-2.5 rounded-lg">
+          <TabsTrigger value="tarifas" className="py-2.5 rounded-lg flex-1 sm:flex-none">
             <Zap className="mr-2 h-4 w-4" /> Tarifas
-          </TabsTrigger>
-          <TabsTrigger value="precificacao" className="py-2.5 rounded-lg">
-            <DollarSign className="mr-2 h-4 w-4" /> Precificação
-          </TabsTrigger>
-          <TabsTrigger value="integracoes" className="py-2.5 rounded-lg">
-            <LinkIcon className="mr-2 h-4 w-4" /> Integrações
           </TabsTrigger>
         </TabsList>
 
@@ -111,28 +127,26 @@ export default function ProposalSettings() {
           <Card>
             <CardHeader>
               <CardTitle>Templates Profissionais</CardTitle>
-              <CardDescription>
-                Selecione o layout padrão de alto impacto para as suas propostas comerciais.
-              </CardDescription>
+              <CardDescription>Selecione o layout padrão das propostas.</CardDescription>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
                 {
                   id: 'modern',
                   name: 'Modern Solar',
-                  desc: 'Foco em gráficos e ROI com design arrojado.',
+                  desc: 'Foco em gráficos e ROI',
                   img: 'https://img.usecurling.com/p/400/500?q=modern%20document%20solar%20energy&color=blue',
                 },
                 {
                   id: 'technical',
                   name: 'Technical Detail',
-                  desc: 'Layout técnico com especificações claras.',
+                  desc: 'Layout técnico',
                   img: 'https://img.usecurling.com/p/400/500?q=technical%20blueprint%20document&color=gray',
                 },
                 {
                   id: 'compact',
                   name: 'Compact Quote',
-                  desc: 'Proposta direta focada em preço e fechamento.',
+                  desc: 'Proposta direta',
                   img: 'https://img.usecurling.com/p/400/500?q=clean%20minimal%20document&color=white',
                 },
               ].map((tpl) => (
@@ -151,24 +165,13 @@ export default function ProposalSettings() {
                       <Button
                         variant="default"
                         size="sm"
-                        className="w-full shadow-lg"
+                        className="w-full"
                         onClick={(e) => {
                           e.stopPropagation()
                           setActiveTemplate(tpl.id)
                         }}
                       >
                         Selecionar
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="w-full shadow-lg"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setPreviewTemplate(tpl)
-                        }}
-                      >
-                        Preview Ampliado
                       </Button>
                     </div>
                     {activeTemplate === tpl.id && (
@@ -187,13 +190,105 @@ export default function ProposalSettings() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="branding" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Cores da Marca</CardTitle>
+              <CardDescription>
+                Personalize a proposta com a identidade visual da sua empresa.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 max-w-md">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Cor Primária</Label>
+                  <p className="text-xs text-muted-foreground">Usada em títulos e destaques.</p>
+                </div>
+                <Input
+                  type="color"
+                  value={formData.branding.primaryColor}
+                  onChange={(e) => handleNestedChange('branding', 'primaryColor', e.target.value)}
+                  className="w-16 h-10 p-1 cursor-pointer"
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Cor Secundária</Label>
+                  <p className="text-xs text-muted-foreground">Usada em gráficos e detalhes.</p>
+                </div>
+                <Input
+                  type="color"
+                  value={formData.branding.secondaryColor}
+                  onChange={(e) => handleNestedChange('branding', 'secondaryColor', e.target.value)}
+                  className="w-16 h-10 p-1 cursor-pointer"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="pages" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Páginas da Proposta</CardTitle>
+              <CardDescription>Ative ou desative seções específicas do PDF final.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 max-w-lg">
+              {[
+                {
+                  id: 'cover',
+                  label: 'Página de Capa',
+                  desc: 'Logo, dados do cliente e vendedor.',
+                },
+                {
+                  id: 'technical',
+                  label: 'Dados Técnicos',
+                  desc: 'Local de instalação e consumo.',
+                },
+                {
+                  id: 'charts',
+                  label: 'Gráficos de Geração',
+                  desc: 'Comparativo Consumo vs Geração.',
+                },
+                {
+                  id: 'system',
+                  label: 'Sistema Proposto',
+                  desc: 'Equipamentos e valor do investimento.',
+                },
+                { id: 'financial', label: 'Análise Financeira', desc: 'Payback, economia e ROI.' },
+                {
+                  id: 'warranty',
+                  label: 'Garantias e Prazos',
+                  desc: 'Tempo de garantia dos equipamentos.',
+                },
+                {
+                  id: 'terms',
+                  label: 'Termos e Condições',
+                  desc: 'Formas de pagamento e validade.',
+                },
+              ].map((page) => (
+                <div
+                  key={page.id}
+                  className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
+                >
+                  <div className="space-y-0.5">
+                    <Label className="text-base">{page.label}</Label>
+                    <p className="text-sm text-muted-foreground">{page.desc}</p>
+                  </div>
+                  <Switch
+                    checked={(formData.visible_pages as any)[page.id]}
+                    onCheckedChange={(val) => handleNestedChange('visible_pages', page.id, val)}
+                  />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="indicadores" className="mt-6">
           <Card>
             <CardHeader>
               <CardTitle>Indicadores Econômicos</CardTitle>
-              <CardDescription>
-                Valores padrão para cálculo de viabilidade financeira.
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 max-w-md">
               <div className="space-y-2">
@@ -243,185 +338,7 @@ export default function ProposalSettings() {
             </CardContent>
           </Card>
         </TabsContent>
-
-        <TabsContent value="precificacao" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Precificação</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 max-w-md">
-              <div className="space-y-2">
-                <Label>Margem de Lucro Padrão (%)</Label>
-                <Input
-                  value={formData.pricing.margin}
-                  onChange={(e) => handleNestedChange('pricing', 'margin', e.target.value)}
-                  type="number"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Impostos Médios (%)</Label>
-                <Input
-                  value={formData.pricing.tax}
-                  onChange={(e) => handleNestedChange('pricing', 'tax', e.target.value)}
-                  type="number"
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="integracoes" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Integrações</CardTitle>
-              <CardDescription>Conecte-se com plataformas de assinatura e ERPs.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground bg-muted/50 p-4 rounded-lg">
-                Em breve: Integração nativa com ZapSign e Asaas para emissão de cobranças e
-                contratos digitais.
-              </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
-
-      <Dialog open={!!previewTemplate} onOpenChange={(open) => !open && setPreviewTemplate(null)}>
-        <DialogContent className="max-w-4xl h-[90vh] overflow-y-auto p-0 border-none bg-zinc-100">
-          <div className="bg-white text-slate-900 w-full min-h-full shadow-2xl">
-            <div className="p-8 md:p-16 space-y-10">
-              <header className="flex justify-between items-start border-b pb-8">
-                <img
-                  src="https://img.usecurling.com/i?q=solar%20energy&shape=fill&color=blue"
-                  className="w-16 h-16 rounded-lg"
-                  alt="Logo"
-                />
-                <div className="text-right">
-                  <h1 className="text-3xl font-bold text-slate-900 uppercase tracking-tight">
-                    Proposta Comercial
-                  </h1>
-                  <p className="text-slate-500 mt-2 font-medium">Sistema Fotovoltaico 6.6 kWp</p>
-                  <p className="text-slate-400 text-sm">Validade: 15 dias</p>
-                </div>
-              </header>
-
-              <section>
-                <h2 className="text-xl font-bold text-slate-800 border-b-2 border-primary inline-block mb-4 pb-1">
-                  Detalhes do Cliente
-                </h2>
-                <div className="grid md:grid-cols-2 gap-4 text-sm bg-slate-50 p-6 rounded-xl">
-                  <p>
-                    <strong className="text-slate-700">Nome:</strong> João da Silva
-                  </p>
-                  <p>
-                    <strong className="text-slate-700">Telefone:</strong> (11) 98765-4321
-                  </p>
-                  <p>
-                    <strong className="text-slate-700">Endereço:</strong> Rua das Flores, 123,
-                    Bairro Solar
-                  </p>
-                  <p>
-                    <strong className="text-slate-700">Consumo Médio:</strong> 800 kWh/mês
-                  </p>
-                </div>
-              </section>
-
-              <section className="grid md:grid-cols-2 gap-8">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-800 border-b-2 border-primary inline-block mb-4 pb-1">
-                    O Sistema Proposto
-                  </h2>
-                  <ul className="space-y-3 text-sm">
-                    <li className="flex justify-between border-b pb-2">
-                      <strong className="text-slate-600">Potência Instalada:</strong>{' '}
-                      <span>6.6 kWp</span>
-                    </li>
-                    <li className="flex justify-between border-b pb-2">
-                      <strong className="text-slate-600">Módulos Solares:</strong>{' '}
-                      <span>12x 550W (Tier 1)</span>
-                    </li>
-                    <li className="flex justify-between border-b pb-2">
-                      <strong className="text-slate-600">Inversor:</strong>{' '}
-                      <span>1x 5kW (Monitoramento Wi-Fi)</span>
-                    </li>
-                    <li className="flex justify-between border-b pb-2">
-                      <strong className="text-slate-600">Área Necessária:</strong>{' '}
-                      <span>~30 m²</span>
-                    </li>
-                    <li className="flex justify-between border-b pb-2">
-                      <strong className="text-slate-600">Geração Estimada:</strong>{' '}
-                      <span className="font-semibold text-primary">815 kWh/mês</span>
-                    </li>
-                  </ul>
-                </div>
-                <div className="bg-primary/5 p-6 rounded-xl border border-primary/20 shadow-sm flex flex-col justify-center">
-                  <h3 className="font-bold text-lg mb-4 text-center text-primary">
-                    Investimento Total
-                  </h3>
-                  <div className="text-center">
-                    <p className="text-4xl font-black text-slate-900">R$ 25.400,00</p>
-                    <p className="text-xs font-medium text-slate-500 mt-2 uppercase tracking-widest">
-                      À vista ou financiado em até 84x
-                    </p>
-                  </div>
-                  <div className="mt-8 space-y-3 text-sm">
-                    <div className="flex justify-between border-b border-primary/10 pb-2">
-                      <span className="text-slate-600">Equipamentos do Kit</span>
-                      <span className="font-medium">R$ 18.000,00</span>
-                    </div>
-                    <div className="flex justify-between border-b border-primary/10 pb-2">
-                      <span className="text-slate-600">Mão de Obra e Projeto</span>
-                      <span className="font-medium">R$ 7.400,00</span>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section>
-                <h2 className="text-xl font-bold text-slate-800 border-b-2 border-primary inline-block mb-6 pb-1">
-                  Análise Financeira e Retorno
-                </h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                  <div className="bg-white border shadow-sm p-5 rounded-xl transition-transform hover:-translate-y-1">
-                    <p className="text-slate-500 text-xs font-medium uppercase mb-2">
-                      Economia Mensal
-                    </p>
-                    <p className="font-bold text-2xl text-green-600">~R$ 750</p>
-                  </div>
-                  <div className="bg-white border shadow-sm p-5 rounded-xl transition-transform hover:-translate-y-1">
-                    <p className="text-slate-500 text-xs font-medium uppercase mb-2">Payback</p>
-                    <p className="font-bold text-2xl text-slate-800">3.2 anos</p>
-                  </div>
-                  <div className="bg-white border shadow-sm p-5 rounded-xl transition-transform hover:-translate-y-1">
-                    <p className="text-slate-500 text-xs font-medium uppercase mb-2">
-                      Economia 25 anos
-                    </p>
-                    <p className="font-bold text-2xl text-primary">R$ 225k</p>
-                  </div>
-                  <div className="bg-white border shadow-sm p-5 rounded-xl transition-transform hover:-translate-y-1">
-                    <p className="text-slate-500 text-xs font-medium uppercase mb-2">
-                      Retorno (TIR)
-                    </p>
-                    <p className="font-bold text-2xl text-slate-800">28% a.a.</p>
-                  </div>
-                </div>
-              </section>
-
-              <footer className="pt-16 border-t text-center">
-                <p className="text-slate-400 text-xs uppercase tracking-wider font-semibold">
-                  Documento gerado automaticamente pelo Elektra CRM
-                </p>
-                <Button
-                  className="mt-8 px-8 rounded-full shadow-lg"
-                  onClick={() => setPreviewTemplate(null)}
-                >
-                  Fechar Visualização
-                </Button>
-              </footer>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

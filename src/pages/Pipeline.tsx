@@ -24,8 +24,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useRealtime } from '@/hooks/use-realtime'
-import { getPipelineStages, getTags } from '@/services/db'
+import { getPipelineStages, getTags, updateNegotiation } from '@/services/db'
 import { useAuth } from '@/contexts/AuthContext'
+import pb from '@/lib/pocketbase/client'
 import { Collections } from '@/lib/pocketbase/collections'
 import { cn } from '@/lib/utils'
 import { NegotiationSheet } from '@/components/NegotiationSheet'

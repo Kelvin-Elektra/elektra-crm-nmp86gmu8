@@ -46,7 +46,7 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
         JSON.stringify({
           ...sizing,
           distributor,
-          modulePower,
+          modulePower: Number(modulePower) || 0,
           inverterBrand,
         }),
       )
@@ -68,9 +68,9 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
       const cleanSizing = JSON.parse(
         JSON.stringify({
           ...sizing,
-          adjustedModules,
+          adjustedModules: Number(adjustedModules) || 0,
           selectedInverter,
-          totalPower,
+          totalPower: Number(totalPower) || 0,
         }),
       )
       await pb.collection('negotiations').update(neg.id, {

@@ -57,7 +57,7 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
     setErrors({})
     try {
       if (lead) await updateLead(lead.id, formData)
-      else await createLead({ ...formData, company_id: user?.company_id })
+      else await createLead({ ...formData, company_id: user?.company_id, owner_id: user?.id })
       toast({ title: 'Sucesso', description: 'Lead salvo com sucesso!' })
       onSuccess?.()
       onOpenChange(false)

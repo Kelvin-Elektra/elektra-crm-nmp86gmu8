@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-17T23:30:23.299Z",
+  "generatedAt": "2026-04-17T23:53:30.662Z",
   "collections": [
     {
       "name": "users",
@@ -122,11 +122,11 @@
       "name": "leads",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || company_id = @request.auth.company_id)",
-        "view": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || company_id = @request.auth.company_id)",
+        "list": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || (@request.auth.role = 'admin_company' && company_id = @request.auth.company_id) || (@request.auth.role = 'user' && company_id = @request.auth.company_id && owner_id = @request.auth.id))",
+        "view": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || (@request.auth.role = 'admin_company' && company_id = @request.auth.company_id) || (@request.auth.role = 'user' && company_id = @request.auth.company_id && owner_id = @request.auth.id))",
         "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || company_id = @request.auth.company_id)",
-        "delete": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || company_id = @request.auth.company_id)"
+        "update": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || (@request.auth.role = 'admin_company' && company_id = @request.auth.company_id) || (@request.auth.role = 'user' && company_id = @request.auth.company_id && owner_id = @request.auth.id))",
+        "delete": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || (@request.auth.role = 'admin_company' && company_id = @request.auth.company_id) || (@request.auth.role = 'user' && company_id = @request.auth.company_id && owner_id = @request.auth.id))"
       },
       "fields": [
         {
@@ -173,6 +173,13 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "owner_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
         }
       ],
       "indexes": [
@@ -576,6 +583,18 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "visible_pages",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "branding",
+          "type": "json",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []
