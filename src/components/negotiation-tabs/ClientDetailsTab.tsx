@@ -70,7 +70,8 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
         sizing: cleanSizing,
       })
 
-      toast({ title: 'Consumo atualizado com sucesso' })      if (reload) {
+      toast({ title: 'Consumo atualizado com sucesso' })
+      if (reload) {
         reload()
       } else {
         window.location.reload()
