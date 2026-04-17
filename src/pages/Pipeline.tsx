@@ -2,13 +2,25 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Search, X, Plus, GripVertical, Tag as TagIcon, Settings2, Briefcase } from 'lucide-react'
+import {
+  Search,
+  X,
+  Plus,
+  GripVertical,
+  Tag as TagIcon,
+  Settings2,
+  Briefcase,
+  Filter,
+} from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -26,6 +38,7 @@ export default function Pipeline() {
   const [tags, setTags] = useState<any[]>([])
 
   const [search, setSearch] = useState('')
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
@@ -47,11 +60,14 @@ export default function Pipeline() {
   useRealtime(Collections.PIPELINE_STAGES, async () => setStages(await getPipelineStages()))
   useRealtime(Collections.TAGS, async () => setTags(await getTags()))
 
-  const filtered = negotiations.filter(
-    (n) =>
+  const filtered = negotiations.filter((n) => {
+    const matchesSearch =
       n.title.toLowerCase().includes(search.toLowerCase()) ||
-      n.expand?.lead_id?.name?.toLowerCase().includes(search.toLowerCase()),
-  )
+      n.expand?.lead_id?.name?.toLowerCase().includes(search.toLowerCase())
+    const matchesTags =
+      selectedTags.length === 0 || (n.tags || []).some((t: string) => selectedTags.includes(t))
+    return matchesSearch && matchesTags
+  })
 
   const toggleColumn = (id: string) => {
     setCollapsed((prev) => {
@@ -96,20 +112,65 @@ export default function Pipeline() {
           <p className="text-muted-foreground">Arraste os cards para avançar as negociações</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative w-full max-w-sm mr-2">
+          <div className="relative w-full max-w-[200px] mr-2">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar..."
-              className="pl-8 w-[200px]"
+              className="pl-8"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="relative">
+                <Filter className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Tags</span>
+                {selectedTags.length > 0 && (
+                  <Badge
+                    variant="secondary"
+                    className="ml-2 absolute -top-2 -right-2 px-1.5 min-w-[20px] h-5 flex items-center justify-center"
+                  >
+                    {selectedTags.length}
+                  </Badge>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Filtrar por Tags</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {tags.map((t) => (
+                <DropdownMenuCheckboxItem
+                  key={t.id}
+                  checked={selectedTags.includes(t.id)}
+                  onCheckedChange={(c) => {
+                    if (c) setSelectedTags([...selectedTags, t.id])
+                    else setSelectedTags(selectedTags.filter((id) => id !== t.id))
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: t.color }}
+                    ></div>
+                    {t.name}
+                  </div>
+                </DropdownMenuCheckboxItem>
+              ))}
+              {tags.length === 0 && (
+                <div className="p-2 text-xs text-muted-foreground text-center">
+                  Nenhuma tag cadastrada
+                </div>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
                 <Settings2 className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Gerenciar</span>
+                <span className="hidden sm:inline">Ajustes</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -124,6 +185,7 @@ export default function Pipeline() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
           <Button
             onClick={() => setNewNegOpen(true)}
             className="bg-primary text-primary-foreground"

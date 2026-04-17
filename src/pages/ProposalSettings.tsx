@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
@@ -15,6 +16,7 @@ export default function ProposalSettings() {
   const [settingsId, setSettingsId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [activeTemplate, setActiveTemplate] = useState('modern')
+  const [previewTemplate, setPreviewTemplate] = useState<any>(null)
 
   const [formData, setFormData] = useState({
     indicators: { inflation: '5', interest: '1' },
@@ -145,17 +147,28 @@ export default function ProposalSettings() {
                       alt={tpl.name}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4 gap-2">
                       <Button
-                        variant="secondary"
+                        variant="default"
                         size="sm"
-                        className="w-full"
+                        className="w-full shadow-lg"
                         onClick={(e) => {
                           e.stopPropagation()
                           setActiveTemplate(tpl.id)
                         }}
                       >
                         Selecionar
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-full shadow-lg"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setPreviewTemplate(tpl)
+                        }}
+                      >
+                        Preview Ampliado
                       </Button>
                     </div>
                     {activeTemplate === tpl.id && (
@@ -170,60 +183,6 @@ export default function ProposalSettings() {
                   </div>
                 </div>
               ))}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Preview do Conteúdo Mockado</CardTitle>
-              <CardDescription>
-                Veja como os dados serão distribuídos no template selecionado.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="p-6 border rounded-xl bg-card shadow-sm flex flex-col md:flex-row gap-8 items-center">
-                <div className="flex-1 space-y-4 w-full">
-                  <div className="flex items-center gap-4 border-b pb-4">
-                    <img
-                      src="https://img.usecurling.com/i?q=solar%20energy&shape=fill&color=blue"
-                      className="w-12 h-12 rounded-md object-cover"
-                      alt="Logo"
-                    />
-                    <div>
-                      <h4 className="font-bold text-lg">Elektra Engenharia</h4>
-                      <p className="text-sm text-muted-foreground">Proposta para João da Silva</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-muted p-3 rounded-lg">
-                      <p className="text-xs text-muted-foreground">Potência do Sistema</p>
-                      <p className="font-semibold">6.6 kWp</p>
-                    </div>
-                    <div className="bg-muted p-3 rounded-lg">
-                      <p className="text-xs text-muted-foreground">Geração Estimada</p>
-                      <p className="font-semibold">800 kWh/mês</p>
-                    </div>
-                    <div className="bg-muted p-3 rounded-lg">
-                      <p className="text-xs text-muted-foreground">Payback</p>
-                      <p className="font-semibold">3.2 Anos</p>
-                    </div>
-                    <div className="bg-primary/10 p-3 rounded-lg border border-primary/20">
-                      <p className="text-xs text-primary font-medium">Investimento</p>
-                      <p className="font-bold text-primary">R$ 25.400,00</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="w-full md:w-1/3 aspect-video bg-muted rounded-lg flex items-center justify-center border-2 border-dashed relative overflow-hidden">
-                  <img
-                    src="https://img.usecurling.com/p/400/300?q=bar%20chart%20finance&color=blue"
-                    alt="chart"
-                    className="absolute inset-0 w-full h-full object-cover opacity-30"
-                  />
-                  <p className="text-sm text-muted-foreground text-center px-4 relative z-10 font-medium">
-                    Gráfico de Viabilidade Financeira (Placeholder)
-                  </p>
-                </div>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -326,6 +285,143 @@ export default function ProposalSettings() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!previewTemplate} onOpenChange={(open) => !open && setPreviewTemplate(null)}>
+        <DialogContent className="max-w-4xl h-[90vh] overflow-y-auto p-0 border-none bg-zinc-100">
+          <div className="bg-white text-slate-900 w-full min-h-full shadow-2xl">
+            <div className="p-8 md:p-16 space-y-10">
+              <header className="flex justify-between items-start border-b pb-8">
+                <img
+                  src="https://img.usecurling.com/i?q=solar%20energy&shape=fill&color=blue"
+                  className="w-16 h-16 rounded-lg"
+                  alt="Logo"
+                />
+                <div className="text-right">
+                  <h1 className="text-3xl font-bold text-slate-900 uppercase tracking-tight">
+                    Proposta Comercial
+                  </h1>
+                  <p className="text-slate-500 mt-2 font-medium">Sistema Fotovoltaico 6.6 kWp</p>
+                  <p className="text-slate-400 text-sm">Validade: 15 dias</p>
+                </div>
+              </header>
+
+              <section>
+                <h2 className="text-xl font-bold text-slate-800 border-b-2 border-primary inline-block mb-4 pb-1">
+                  Detalhes do Cliente
+                </h2>
+                <div className="grid md:grid-cols-2 gap-4 text-sm bg-slate-50 p-6 rounded-xl">
+                  <p>
+                    <strong className="text-slate-700">Nome:</strong> João da Silva
+                  </p>
+                  <p>
+                    <strong className="text-slate-700">Telefone:</strong> (11) 98765-4321
+                  </p>
+                  <p>
+                    <strong className="text-slate-700">Endereço:</strong> Rua das Flores, 123,
+                    Bairro Solar
+                  </p>
+                  <p>
+                    <strong className="text-slate-700">Consumo Médio:</strong> 800 kWh/mês
+                  </p>
+                </div>
+              </section>
+
+              <section className="grid md:grid-cols-2 gap-8">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-800 border-b-2 border-primary inline-block mb-4 pb-1">
+                    O Sistema Proposto
+                  </h2>
+                  <ul className="space-y-3 text-sm">
+                    <li className="flex justify-between border-b pb-2">
+                      <strong className="text-slate-600">Potência Instalada:</strong>{' '}
+                      <span>6.6 kWp</span>
+                    </li>
+                    <li className="flex justify-between border-b pb-2">
+                      <strong className="text-slate-600">Módulos Solares:</strong>{' '}
+                      <span>12x 550W (Tier 1)</span>
+                    </li>
+                    <li className="flex justify-between border-b pb-2">
+                      <strong className="text-slate-600">Inversor:</strong>{' '}
+                      <span>1x 5kW (Monitoramento Wi-Fi)</span>
+                    </li>
+                    <li className="flex justify-between border-b pb-2">
+                      <strong className="text-slate-600">Área Necessária:</strong>{' '}
+                      <span>~30 m²</span>
+                    </li>
+                    <li className="flex justify-between border-b pb-2">
+                      <strong className="text-slate-600">Geração Estimada:</strong>{' '}
+                      <span className="font-semibold text-primary">815 kWh/mês</span>
+                    </li>
+                  </ul>
+                </div>
+                <div className="bg-primary/5 p-6 rounded-xl border border-primary/20 shadow-sm flex flex-col justify-center">
+                  <h3 className="font-bold text-lg mb-4 text-center text-primary">
+                    Investimento Total
+                  </h3>
+                  <div className="text-center">
+                    <p className="text-4xl font-black text-slate-900">R$ 25.400,00</p>
+                    <p className="text-xs font-medium text-slate-500 mt-2 uppercase tracking-widest">
+                      À vista ou financiado em até 84x
+                    </p>
+                  </div>
+                  <div className="mt-8 space-y-3 text-sm">
+                    <div className="flex justify-between border-b border-primary/10 pb-2">
+                      <span className="text-slate-600">Equipamentos do Kit</span>
+                      <span className="font-medium">R$ 18.000,00</span>
+                    </div>
+                    <div className="flex justify-between border-b border-primary/10 pb-2">
+                      <span className="text-slate-600">Mão de Obra e Projeto</span>
+                      <span className="font-medium">R$ 7.400,00</span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h2 className="text-xl font-bold text-slate-800 border-b-2 border-primary inline-block mb-6 pb-1">
+                  Análise Financeira e Retorno
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                  <div className="bg-white border shadow-sm p-5 rounded-xl transition-transform hover:-translate-y-1">
+                    <p className="text-slate-500 text-xs font-medium uppercase mb-2">
+                      Economia Mensal
+                    </p>
+                    <p className="font-bold text-2xl text-green-600">~R$ 750</p>
+                  </div>
+                  <div className="bg-white border shadow-sm p-5 rounded-xl transition-transform hover:-translate-y-1">
+                    <p className="text-slate-500 text-xs font-medium uppercase mb-2">Payback</p>
+                    <p className="font-bold text-2xl text-slate-800">3.2 anos</p>
+                  </div>
+                  <div className="bg-white border shadow-sm p-5 rounded-xl transition-transform hover:-translate-y-1">
+                    <p className="text-slate-500 text-xs font-medium uppercase mb-2">
+                      Economia 25 anos
+                    </p>
+                    <p className="font-bold text-2xl text-primary">R$ 225k</p>
+                  </div>
+                  <div className="bg-white border shadow-sm p-5 rounded-xl transition-transform hover:-translate-y-1">
+                    <p className="text-slate-500 text-xs font-medium uppercase mb-2">
+                      Retorno (TIR)
+                    </p>
+                    <p className="font-bold text-2xl text-slate-800">28% a.a.</p>
+                  </div>
+                </div>
+              </section>
+
+              <footer className="pt-16 border-t text-center">
+                <p className="text-slate-400 text-xs uppercase tracking-wider font-semibold">
+                  Documento gerado automaticamente pelo Elektra CRM
+                </p>
+                <Button
+                  className="mt-8 px-8 rounded-full shadow-lg"
+                  onClick={() => setPreviewTemplate(null)}
+                >
+                  Fechar Visualização
+                </Button>
+              </footer>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

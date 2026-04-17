@@ -25,7 +25,7 @@ onRecordAfterCreateSuccess((e) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Elektra CRM <onboarding@resend.dev>',
+        from: 'Elektra CRM <notificacao@elektrasolucoes.tech>',
         to: [email],
         subject: 'Bem-vindo ao Elektra CRM - Confirme sua conta',
         html: html,

@@ -1,14 +1,49 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Briefcase, MapPin, Zap, User } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import {
+  Briefcase,
+  MapPin,
+  Zap,
+  User,
+  Search,
+  LayoutGrid,
+  List as ListIcon,
+  Trash2,
+  Eye,
+} from 'lucide-react'
 import { Link } from 'react-router-dom'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
+import { useToast } from '@/hooks/use-toast'
+import { deleteNegotiation } from '@/services/db'
 
 export default function Negotiations() {
+  const { toast } = useToast()
   const [negotiations, setNegotiations] = useState<any[]>([])
   const [stages, setStages] = useState<any[]>([])
+  const [search, setSearch] = useState('')
+  const [view, setView] = useState<'list' | 'grid'>('list')
 
   const load = async () => {
     try {
@@ -41,65 +76,223 @@ export default function Negotiations() {
   useRealtime('negotiations', load)
   useRealtime('pipeline_stages', loadStages)
 
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteNegotiation(id)
+      toast({ title: 'Sucesso', description: 'Negociação excluída com sucesso.' })
+      load()
+    } catch (e) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Não foi possível excluir a negociação.',
+      })
+    }
+  }
+
+  const filtered = negotiations.filter((n) => {
+    const term = search.toLowerCase()
+    return (
+      n.title.toLowerCase().includes(term) ||
+      n.expand?.lead_id?.name?.toLowerCase().includes(term) ||
+      n.expand?.lead_id?.document?.includes(term)
+    )
+  })
+
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-6 animate-fade-in pb-12">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Todas as Negociações</h2>
-          <p className="text-muted-foreground">
-            Visão geral em lista das suas propostas comerciais
-          </p>
+          <h2 className="text-2xl font-bold tracking-tight">Negociações</h2>
+          <p className="text-muted-foreground">Gerencie todas as suas propostas comerciais</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por título ou lead..."
+              className="pl-8"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="flex bg-muted rounded-md p-1">
+            <Button
+              variant={view === 'list' ? 'secondary' : 'ghost'}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setView('list')}
+            >
+              <ListIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={view === 'grid' ? 'secondary' : 'ghost'}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setView('grid')}
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {negotiations.map((neg) => (
-          <Card key={neg.id} className="hover:border-primary/50 transition-colors border-border/50">
-            <CardContent className="p-6">
-              <div className="flex justify-between items-start mb-4">
-                <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-                  <Briefcase className="h-5 w-5" />
+      {filtered.length === 0 ? (
+        <div className="py-12 text-center text-muted-foreground border-2 border-dashed rounded-xl">
+          Nenhuma negociação encontrada com os filtros atuais.
+        </div>
+      ) : view === 'list' ? (
+        <div className="rounded-md border bg-card overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Título</TableHead>
+                <TableHead>Lead</TableHead>
+                <TableHead>Responsável</TableHead>
+                <TableHead>Fase</TableHead>
+                <TableHead>Consumo</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((neg) => (
+                <TableRow key={neg.id} className="group">
+                  <TableCell className="font-medium">{neg.title}</TableCell>
+                  <TableCell>{neg.expand?.lead_id?.name || 'Sem Lead'}</TableCell>
+                  <TableCell>{neg.expand?.owner_id?.name || 'Não atribuído'}</TableCell>
+                  <TableCell>
+                    <span className="text-xs font-semibold px-2 py-1 rounded-full bg-primary/10 text-primary">
+                      {stages.find((s) => s.id === neg.stage)?.name || neg.stage}
+                    </span>
+                  </TableCell>
+                  <TableCell>{neg.avg_consumption ? `${neg.avg_consumption} kWh` : '-'}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button variant="ghost" size="icon" asChild>
+                        <Link to={`/negociacoes/${neg.id}`}>
+                          <Eye className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Excluir negociação?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Esta ação não pode ser desfeita. Isso removerá permanentemente a
+                              negociação
+                              <strong> {neg.title}</strong> e todos os dados vinculados a ela.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDelete(neg.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Excluir
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((neg) => (
+            <Card
+              key={neg.id}
+              className="hover:border-primary/50 transition-colors border-border/50 flex flex-col"
+            >
+              <CardContent className="p-6 flex-1 flex flex-col">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary shrink-0">
+                    <Briefcase className="h-5 w-5" />
+                  </div>
+                  <span className="text-xs font-semibold px-2 py-1 rounded-full bg-slate-100 text-slate-700 uppercase">
+                    {stages.find((s) => s.id === neg.stage)?.name || neg.stage}
+                  </span>
                 </div>
-                <span className="text-xs font-semibold px-2 py-1 rounded-full bg-slate-100 text-slate-700 uppercase">
-                  {stages.find((s) => s.id === neg.stage)?.name || neg.stage}
-                </span>
-              </div>
-              <h3 className="font-bold text-lg mb-1 line-clamp-1">{neg.title}</h3>
+                <h3 className="font-bold text-lg mb-1 line-clamp-1">{neg.title}</h3>
 
-              <div className="flex flex-col gap-1 mb-4">
-                <p className="text-sm text-muted-foreground flex items-center">
-                  <User className="h-4 w-4 mr-1" /> Lead:{' '}
-                  {neg.expand?.lead_id?.name || 'Desconhecido'}
-                </p>
-                <p className="text-xs text-muted-foreground flex items-center">
-                  <Briefcase className="h-3 w-3 mr-1" /> Resp:{' '}
-                  {neg.expand?.owner_id?.name || 'Não atribuído'}
-                </p>
-              </div>
-
-              <div className="space-y-2 mb-6">
-                <div className="flex items-center text-sm text-muted-foreground">
-                  <Zap className="h-4 w-4 mr-2" /> Consumo: {neg.avg_consumption} kWh
+                <div className="flex flex-col gap-1 mb-4 flex-1">
+                  <p className="text-sm text-muted-foreground flex items-center">
+                    <User className="h-4 w-4 mr-1 shrink-0" />{' '}
+                    <span className="line-clamp-1">
+                      {neg.expand?.lead_id?.name || 'Desconhecido'}
+                    </span>
+                  </p>
+                  <p className="text-xs text-muted-foreground flex items-center">
+                    <Briefcase className="h-3 w-3 mr-1 shrink-0" />{' '}
+                    <span className="line-clamp-1">
+                      {neg.expand?.owner_id?.name || 'Não atribuído'}
+                    </span>
+                  </p>
                 </div>
-                <div className="flex items-center text-sm text-muted-foreground">
-                  <MapPin className="h-4 w-4 mr-2" /> {neg.address || 'Sem endereço'}
-                </div>
-              </div>
 
-              <div className="flex gap-2 w-full">
-                <Button variant="outline" className="flex-1 text-xs" size="sm" asChild>
-                  <Link to={`/negociacoes/${neg.id}`}>Ver Detalhes</Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-        {negotiations.length === 0 && (
-          <div className="col-span-full py-12 text-center text-muted-foreground">
-            Nenhuma negociação encontrada.
-          </div>
-        )}
-      </div>
+                <div className="space-y-2 mb-6">
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <Zap className="h-4 w-4 mr-2" /> Consumo: {neg.avg_consumption} kWh
+                  </div>
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <MapPin className="h-4 w-4 mr-2" />{' '}
+                    <span className="line-clamp-1">{neg.address || 'Sem endereço'}</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 w-full mt-auto">
+                  <Button variant="outline" className="flex-1 text-xs" size="sm" asChild>
+                    <Link to={`/negociacoes/${neg.id}`}>Ver Detalhes</Link>
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir negociação?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Esta ação não pode ser desfeita. Isso removerá permanentemente a
+                          negociação.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDelete(neg.id)}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Excluir
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

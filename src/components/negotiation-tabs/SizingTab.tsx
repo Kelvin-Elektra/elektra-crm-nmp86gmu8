@@ -42,13 +42,16 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
   const saveInputs = async () => {
     setLoading(true)
     try {
-      await pb.collection('negotiations').update(neg.id, {
-        sizing: {
+      const cleanSizing = JSON.parse(
+        JSON.stringify({
           ...sizing,
           distributor,
           modulePower,
           inverterBrand,
-        },
+        }),
+      )
+      await pb.collection('negotiations').update(neg.id, {
+        sizing: cleanSizing,
       })
       toast({ title: 'Parâmetros salvos' })
       reload()
@@ -62,13 +65,16 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
   const saveSystem = async () => {
     setLoading(true)
     try {
-      await pb.collection('negotiations').update(neg.id, {
-        sizing: {
+      const cleanSizing = JSON.parse(
+        JSON.stringify({
           ...sizing,
           adjustedModules,
           selectedInverter,
           totalPower,
-        },
+        }),
+      )
+      await pb.collection('negotiations').update(neg.id, {
+        sizing: cleanSizing,
       })
       toast({ title: 'Kit definido e salvo com sucesso!' })
       reload()

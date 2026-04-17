@@ -63,13 +63,14 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
         computedAvg = Number(avgConsumption) || 0
       }
 
+      const cleanSizing = JSON.parse(JSON.stringify({ ...initialSizing, ...sizingPayload }))
+
       await pb.collection('negotiations').update(neg.id, {
         avg_consumption: computedAvg,
-        sizing: { ...initialSizing, ...sizingPayload },
+        sizing: cleanSizing,
       })
 
-      toast({ title: 'Consumo atualizado com sucesso' })
-      if (reload) {
+      toast({ title: 'Consumo atualizado com sucesso' })      if (reload) {
         reload()
       } else {
         window.location.reload()

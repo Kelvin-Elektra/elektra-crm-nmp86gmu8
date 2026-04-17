@@ -40,6 +40,8 @@ export const updateNegotiation = (id: string, data: any) =>
 
 export const createNegotiation = (data: any) => pb.collection(Collections.NEGOTIATIONS).create(data)
 
+export const deleteNegotiation = (id: string) => pb.collection(Collections.NEGOTIATIONS).delete(id)
+
 export const getProposalsByNeg = (id: string) =>
   pb
     .collection(Collections.PROPOSALS)
