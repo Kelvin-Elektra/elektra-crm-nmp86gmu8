@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { Upload, File, Trash2, Video, Image as ImageIcon, ExternalLink } from 'lucide-react'
 
 export function FilesTab({ neg, reload }: { neg: any; reload: () => void }) {
@@ -26,8 +27,21 @@ export function FilesTab({ neg, reload }: { neg: any; reload: () => void }) {
       const input = document.getElementById('file-upload') as HTMLInputElement
       if (input) input.value = ''
       reload()
-    } catch (e) {
-      toast({ variant: 'destructive', title: 'Erro', description: 'Falha no upload.' })
+    } catch (e: any) {
+      const msg = getErrorMessage(e)
+      if (msg.includes('Limite de armazenamento')) {
+        toast({
+          variant: 'destructive',
+          title: 'Limite Atingido',
+          description: 'Limite de armazenamento (1GB) atingido. Entre em contato com o suporte.',
+        })
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Erro no Upload',
+          description: msg || 'Falha ao enviar arquivo.',
+        })
+      }
     } finally {
       setLoading(false)
     }
