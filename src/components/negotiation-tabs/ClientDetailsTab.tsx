@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { updateNegotiation } from '@/services/db'
 import { useToast } from '@/hooks/use-toast'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => void }) {
   const { toast } = useToast()
@@ -84,7 +85,11 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
         window.location.reload()
       }
     } catch (e) {
-      toast({ variant: 'destructive', title: 'Erro ao salvar consumo' })
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao salvar consumo',
+        description: getErrorMessage(e),
+      })
     } finally {
       setLoading(false)
     }

@@ -21,6 +21,8 @@ import pb from '@/lib/pocketbase/client'
 import { Collections } from '@/lib/pocketbase/collections'
 import { cn } from '@/lib/utils'
 import { NegotiationSheet } from '@/components/NegotiationSheet'
+import { useToast } from '@/hooks/use-toast'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { TagManager } from '@/components/TagManager'
 import { StageManager } from '@/components/StageManager'
 import { NewNegotiationDialog } from '@/components/NewNegotiationDialog'
@@ -41,6 +43,7 @@ export default function Pipeline() {
   const [newNegOpen, setNewNegOpen] = useState(false)
 
   const { user } = useAuth()
+  const { toast } = useToast()
 
   const loadAll = async () => {
     const filter = user?.role === 'user' ? `owner_id = '${user?.id}'` : ''
@@ -80,18 +83,32 @@ export default function Pipeline() {
     const negTags = Array.from(new Set([...(neg.tags || []), tagId]))
     setNegotiations((prev) => prev.map((n) => (n.id === neg.id ? { ...n, tags: negTags } : n)))
 
-    const formData = new FormData()
-    formData.append('tags', JSON.stringify(negTags))
-    await pb.collection('negotiations').update(neg.id, formData)
+    try {
+      await updateNegotiation(neg.id, { tags: negTags })
+    } catch (err) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao adicionar tag',
+        description: getErrorMessage(err),
+      })
+      setNegotiations((prev) => prev.map((n) => (n.id === neg.id ? { ...n, tags: neg.tags } : n)))
+    }
   }
 
   const handleRemoveTag = async (neg: any, tagId: string) => {
     const negTags = (neg.tags || []).filter((t: string) => t !== tagId)
     setNegotiations((prev) => prev.map((n) => (n.id === neg.id ? { ...n, tags: negTags } : n)))
 
-    const formData = new FormData()
-    formData.append('tags', JSON.stringify(negTags))
-    await pb.collection('negotiations').update(neg.id, formData)
+    try {
+      await updateNegotiation(neg.id, { tags: negTags })
+    } catch (err) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao remover tag',
+        description: getErrorMessage(err),
+      })
+      setNegotiations((prev) => prev.map((n) => (n.id === neg.id ? { ...n, tags: neg.tags } : n)))
+    }
   }
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
@@ -103,11 +120,23 @@ export default function Pipeline() {
     setDragOverCol(null)
     const id = e.dataTransfer.getData('negotiation_id')
     if (id) {
+      const negToMove = negotiations.find((n) => n.id === id)
+      if (!negToMove) return
+
       setNegotiations((prev) => prev.map((n) => (n.id === id ? { ...n, stage: stageId } : n)))
 
-      const formData = new FormData()
-      formData.append('stage', stageId)
-      await pb.collection('negotiations').update(id, formData)
+      try {
+        await updateNegotiation(id, { stage: stageId })
+      } catch (err) {
+        toast({
+          variant: 'destructive',
+          title: 'Erro ao mover card',
+          description: getErrorMessage(err),
+        })
+        setNegotiations((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, stage: negToMove.stage } : n)),
+        )
+      }
     }
   }
 

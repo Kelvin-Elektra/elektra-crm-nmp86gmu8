@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { updateNegotiation } from '@/services/db'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { Settings2, Zap, Save, CheckCircle2 } from 'lucide-react'
 
 export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
@@ -53,7 +54,11 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
       toast({ title: 'Parâmetros salvos' })
       reload()
     } catch (e) {
-      toast({ variant: 'destructive', title: 'Erro ao salvar' })
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao salvar parâmetros',
+        description: getErrorMessage(e),
+      })
     } finally {
       setLoading(false)
     }
@@ -72,7 +77,11 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
       toast({ title: 'Kit definido e salvo com sucesso!' })
       reload()
     } catch (e) {
-      toast({ variant: 'destructive', title: 'Erro ao salvar' })
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao salvar sistema',
+        description: getErrorMessage(e),
+      })
     } finally {
       setLoading(false)
     }

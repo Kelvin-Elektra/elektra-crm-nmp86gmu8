@@ -3,7 +3,9 @@ onRecordUpdateRequest((e) => {
   if (!companyId) return e.next()
 
   const uploadedFiles = e.findUploadedFiles('arquivos')
-  if (!uploadedFiles || uploadedFiles.length === 0) return e.next()
+  if (!uploadedFiles || uploadedFiles.length === 0) {
+    return e.next() // Skip heavy calculation if no files are being uploaded
+  }
 
   const negs = $app.findRecordsByFilter('negotiations', `company_id = '${companyId}'`, '', 2000, 0)
   let totalSize = 0
@@ -19,15 +21,20 @@ onRecordUpdateRequest((e) => {
         } catch (_) {}
       }
     }
+
+    // Add size of newly uploaded files
+    for (const file of uploadedFiles) {
+      totalSize += file.size
+    }
+
+    // Soft limit of 1GB = 1073741824 bytes
+    if (totalSize > 1073741824) {
+      throw new BadRequestError(
+        'Limite de armazenamento (1GB) atingido. Entre em contato com o suporte.',
+      )
+    }
   } finally {
     fsys.close()
-  }
-
-  // Soft limit of 1GB = 1073741824 bytes
-  if (totalSize > 1073741824) {
-    throw new BadRequestError(
-      'Limite de armazenamento (1GB) atingido. Entre em contato com o suporte.',
-    )
   }
 
   e.next()
