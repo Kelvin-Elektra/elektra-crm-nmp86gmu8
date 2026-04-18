@@ -2,7 +2,13 @@ onRecordUpdateRequest((e) => {
   const companyId = e.record.get('company_id')
   if (!companyId) return e.next()
 
-  const uploadedFiles = e.findUploadedFiles('arquivos')
+  let uploadedFiles = []
+  try {
+    uploadedFiles = e.findUploadedFiles('arquivos')
+  } catch (err) {
+    // Skip if not a multipart request or field is missing
+  }
+
   if (!uploadedFiles || uploadedFiles.length === 0) {
     return e.next() // Skip heavy calculation if no files are being uploaded
   }

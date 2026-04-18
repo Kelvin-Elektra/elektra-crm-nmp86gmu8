@@ -53,6 +53,24 @@ export const createNegotiation = async (data: any) => {
 }
 
 export const updateNegotiation = async (id: string, data: any) => {
+  let hasFiles = false
+  for (const key in data) {
+    const val = data[key]
+    if (val instanceof File || val instanceof Blob) hasFiles = true
+    if (
+      Array.isArray(val) &&
+      val.length > 0 &&
+      (val[0] instanceof File || val[0] instanceof Blob)
+    ) {
+      hasFiles = true
+    }
+  }
+
+  // Optimize payload: Use JSON for simple metadata updates to avoid server-side FormData parsing issues
+  if (!hasFiles) {
+    return await pb.collection('negotiations').update(id, data)
+  }
+
   const formData = new FormData()
   for (const key in data) {
     const val = data[key]
