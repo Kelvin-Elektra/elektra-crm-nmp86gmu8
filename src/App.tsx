@@ -14,6 +14,7 @@ import Proposals from './pages/Proposals'
 import Settings from './pages/Settings'
 import NegotiationDetail from './pages/NegotiationDetail'
 import ProposalSettings from './pages/ProposalSettings'
+import PvKitSettings from './pages/PvKitSettings'
 import VerifyEmail from './pages/VerifyEmail'
 
 const App = () => (
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/negociacoes" element={<Negotiations />} />
             <Route path="/negociacoes/:id" element={<NegotiationDetail />} />
             <Route path="/propostas" element={<Proposals />} />
+            <Route path="/configuracoes-kit-pv" element={<PvKitSettings />} />
             <Route path="/configuracoes-proposta" element={<ProposalSettings />} />
             <Route path="/configuracoes" element={<Settings />} />
           </Route>

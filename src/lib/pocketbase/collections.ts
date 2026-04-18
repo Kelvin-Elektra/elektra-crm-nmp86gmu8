@@ -8,6 +8,13 @@ export const Collections = {
   TAGS: 'tags',
   BUDGETS: 'budgets',
   PROPOSAL_SETTINGS: 'proposal_settings',
+  PV_DISTRIBUTORS: 'pv_distributors',
+  PV_MODULES: 'pv_modules',
+  PV_INVERTERS: 'pv_inverters',
+  PV_INSTALLATIONS: 'pv_installations',
+  PV_SUPPLIES: 'pv_supplies',
+  PV_SUPPLY_RULES: 'pv_supply_rules',
+  PV_COSTS: 'pv_costs',
 } as const
 
 export type CollectionName = (typeof Collections)[keyof typeof Collections]

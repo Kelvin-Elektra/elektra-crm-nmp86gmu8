@@ -1,5 +1,14 @@
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Columns3, Users, Briefcase, FileText, Settings, Sun } from 'lucide-react'
+import {
+  LayoutDashboard,
+  Columns3,
+  Users,
+  Briefcase,
+  FileText,
+  Settings,
+  Sun,
+  Zap,
+} from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -83,14 +92,29 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
+              isActive={location.pathname === '/configuracoes-kit-pv'}
+              tooltip="Configurações do Kit PV"
+              className="h-10 w-full transition-all duration-200"
+            >
+              <Link to="/configuracoes-kit-pv" className="flex items-center gap-3">
+                <Zap className="!h-5 !w-5 shrink-0" />
+                <span className="font-medium group-data-[collapsible=icon]:hidden">
+                  Configurações do Kit PV
+                </span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
               isActive={location.pathname === '/configuracoes-proposta'}
-              tooltip="Configurações da Proposta"
+              tooltip="Configurações da Proposta PV"
               className="h-10 w-full transition-all duration-200"
             >
               <Link to="/configuracoes-proposta" className="flex items-center gap-3">
                 <FileText className="!h-5 !w-5 shrink-0" />
                 <span className="font-medium group-data-[collapsible=icon]:hidden">
-                  Configurações da Proposta
+                  Configurações da Proposta PV
                 </span>
               </Link>
             </SidebarMenuButton>

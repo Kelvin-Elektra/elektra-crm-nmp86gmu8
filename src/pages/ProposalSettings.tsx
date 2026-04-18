@@ -97,7 +97,7 @@ export default function ProposalSettings() {
     <div className="flex flex-col gap-6 max-w-5xl animate-fade-in pb-12">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Configurações da Proposta</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Configurações da Proposta PV</h2>
           <p className="text-muted-foreground text-sm">
             Gerencie os padrões, cores e páginas para geração de propostas.
           </p>

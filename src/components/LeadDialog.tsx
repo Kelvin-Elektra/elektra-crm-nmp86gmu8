@@ -63,23 +63,31 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
       onOpenChange(false)
     } catch (err: any) {
       const fieldErrors = extractFieldErrors(err)
-      if (Object.keys(fieldErrors).length > 0) {
-        setErrors(fieldErrors)
-        if (fieldErrors.phone?.toLowerCase().includes('unique')) {
+      const isUniqueErr =
+        Object.keys(fieldErrors).some((k) => fieldErrors[k].toLowerCase().includes('unique')) ||
+        err.message?.toLowerCase().includes('unique constraint failed')
+
+      if (isUniqueErr) {
+        try {
+          const { default: pb } = await import('@/lib/pocketbase/client')
+          const existingLead = await pb
+            .collection('leads')
+            .getFirstListItem(`phone = '${formData.phone}' && company_id = '${user?.company_id}'`)
+          toast({
+            variant: 'destructive',
+            title: 'Lead Duplicado',
+            description: `Lead ${existingLead.name} já pertence a outro usuário.`,
+          })
+        } catch {
           toast({
             variant: 'destructive',
             title: 'Erro de Unicidade',
             description: 'Este telefone já está cadastrado em outro lead desta empresa.',
           })
-          setErrors((prev) => ({ ...prev, phone: 'Este telefone já está cadastrado.' }))
         }
-      } else if (err.message?.toLowerCase().includes('unique constraint failed')) {
-        toast({
-          variant: 'destructive',
-          title: 'Erro de Unicidade',
-          description: 'Este telefone já está cadastrado em outro lead desta empresa.',
-        })
-        setErrors({ phone: 'Este telefone já está cadastrado.' })
+        setErrors((prev) => ({ ...prev, phone: 'Este telefone já está cadastrado.' }))
+      } else if (Object.keys(fieldErrors).length > 0) {
+        setErrors(fieldErrors)
       } else {
         toast({ variant: 'destructive', title: 'Erro', description: getErrorMessage(err) })
       }
