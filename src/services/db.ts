@@ -55,16 +55,25 @@ export const createNegotiation = async (data: any) => {
 export const updateNegotiation = async (id: string, data: any) => {
   const formData = new FormData()
   for (const key in data) {
-    if (data[key] !== undefined && data[key] !== null) {
-      if (
-        typeof data[key] === 'object' &&
-        !(data[key] instanceof File) &&
-        !(data[key] instanceof Blob)
-      ) {
-        formData.append(key, JSON.stringify(data[key]))
+    const val = data[key]
+    if (val === undefined) continue
+
+    if (val === null) {
+      formData.append(key, '')
+    } else if (val instanceof File || val instanceof Blob) {
+      formData.append(key, val)
+    } else if (Array.isArray(val)) {
+      if (val.length > 0 && (val[0] instanceof File || val[0] instanceof Blob)) {
+        for (const file of val) {
+          formData.append(key, file)
+        }
       } else {
-        formData.append(key, String(data[key]))
+        formData.append(key, JSON.stringify(val))
       }
+    } else if (typeof val === 'object') {
+      formData.append(key, JSON.stringify(val))
+    } else {
+      formData.append(key, String(val))
     }
   }
   return await pb.collection('negotiations').update(id, formData)

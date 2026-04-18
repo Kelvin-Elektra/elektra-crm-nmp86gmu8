@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import pb from '@/lib/pocketbase/client'
+import { updateNegotiation } from '@/services/db'
 import { useToast } from '@/hooks/use-toast'
 
 export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => void }) {
@@ -72,11 +72,10 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
           delete cleanSizing[key as keyof typeof cleanSizing],
       )
 
-      const formData = new FormData()
-      formData.append('avg_consumption', String(computedAvg))
-      formData.append('sizing', JSON.stringify(cleanSizing))
-
-      await pb.collection('negotiations').update(neg.id, formData)
+      await updateNegotiation(neg.id, {
+        avg_consumption: computedAvg,
+        sizing: cleanSizing,
+      })
 
       toast({ title: 'Consumo atualizado com sucesso' })
       if (reload) {
