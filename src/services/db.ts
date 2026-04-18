@@ -8,6 +8,26 @@ export const getTags = async () => {
   return await pb.collection('tags').getFullList()
 }
 
+export const createTag = async (data: any) => {
+  return await pb.collection('tags').create(data)
+}
+
+export const deleteTag = async (id: string) => {
+  return await pb.collection('tags').delete(id)
+}
+
+export const getLeads = async () => {
+  return await pb.collection('leads').getFullList({ sort: '-created' })
+}
+
+export const deleteLead = async (id: string) => {
+  return await pb.collection('leads').delete(id)
+}
+
+export const getProposals = async () => {
+  return await pb.collection('proposals').getFullList({ sort: '-created' })
+}
+
 export const updateNegotiation = async (id: string, data: any) => {
   const formData = new FormData()
   for (const key in data) {
