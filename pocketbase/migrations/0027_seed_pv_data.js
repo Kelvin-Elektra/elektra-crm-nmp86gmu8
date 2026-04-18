@@ -25,10 +25,8 @@ migrate(
         { name: 'Material complementar', calc_method: 'fixed', value: 500 },
         { name: 'Imposto serviço', calc_method: 'inside', value: 5 },
         { name: 'Imposto produto', calc_method: 'inside', value: 12 },
-        { name: 'Imposto único', calc_method: 'inside', value: 0 },
         { name: 'Comissão', calc_method: 'inside', value: 3 },
         { name: 'Engenharia', calc_method: 'fixed', value: 800 },
-        { name: 'Custos extras', calc_method: 'fixed', value: 0 },
         { name: 'Margem de contribuição', calc_method: 'markup', value: 20 },
       ]
       for (const c of costs) {
