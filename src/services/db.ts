@@ -4,6 +4,18 @@ export const getPipelineStages = async () => {
   return await pb.collection('pipeline_stages').getFullList({ sort: 'order' })
 }
 
+export const createPipelineStage = async (data: any) => {
+  return await pb.collection('pipeline_stages').create(data)
+}
+
+export const updatePipelineStage = async (id: string, data: any) => {
+  return await pb.collection('pipeline_stages').update(id, data)
+}
+
+export const deletePipelineStage = async (id: string) => {
+  return await pb.collection('pipeline_stages').delete(id)
+}
+
 export const getTags = async () => {
   return await pb.collection('tags').getFullList()
 }
@@ -20,12 +32,24 @@ export const getLeads = async () => {
   return await pb.collection('leads').getFullList({ sort: '-created' })
 }
 
+export const createLead = async (data: any) => {
+  return await pb.collection('leads').create(data)
+}
+
+export const updateLead = async (id: string, data: any) => {
+  return await pb.collection('leads').update(id, data)
+}
+
 export const deleteLead = async (id: string) => {
   return await pb.collection('leads').delete(id)
 }
 
 export const getProposals = async () => {
   return await pb.collection('proposals').getFullList({ sort: '-created' })
+}
+
+export const createNegotiation = async (data: any) => {
+  return await pb.collection('negotiations').create(data)
 }
 
 export const updateNegotiation = async (id: string, data: any) => {
