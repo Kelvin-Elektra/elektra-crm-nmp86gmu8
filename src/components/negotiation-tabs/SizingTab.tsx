@@ -13,6 +13,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
+import { updateNegotiation } from '@/services/db'
 import { Settings2, Zap, Save, CheckCircle2 } from 'lucide-react'
 
 export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
@@ -42,17 +43,13 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
   const saveInputs = async () => {
     setLoading(true)
     try {
-      const cleanSizing = JSON.parse(
-        JSON.stringify({
-          ...sizing,
-          distributor,
-          modulePower: Number(modulePower) || 0,
-          inverterBrand,
-        }),
-      )
-      await pb.collection('negotiations').update(neg.id, {
-        sizing: cleanSizing,
-      })
+      const cleanSizing = {
+        ...sizing,
+        distributor,
+        modulePower: Number(modulePower) || 0,
+        inverterBrand,
+      }
+      await updateNegotiation(neg.id, { sizing: cleanSizing })
       toast({ title: 'Parâmetros salvos' })
       reload()
     } catch (e) {
@@ -65,17 +62,13 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
   const saveSystem = async () => {
     setLoading(true)
     try {
-      const cleanSizing = JSON.parse(
-        JSON.stringify({
-          ...sizing,
-          adjustedModules: Number(adjustedModules) || 0,
-          selectedInverter,
-          totalPower: Number(totalPower) || 0,
-        }),
-      )
-      await pb.collection('negotiations').update(neg.id, {
-        sizing: cleanSizing,
-      })
+      const cleanSizing = {
+        ...sizing,
+        adjustedModules: Number(adjustedModules) || 0,
+        selectedInverter,
+        totalPower: Number(totalPower) || 0,
+      }
+      await updateNegotiation(neg.id, { sizing: cleanSizing })
       toast({ title: 'Kit definido e salvo com sucesso!' })
       reload()
     } catch (e) {

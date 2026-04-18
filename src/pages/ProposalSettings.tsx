@@ -23,16 +23,19 @@ export default function ProposalSettings() {
     pricing: { margin: '30', tax: '12' },
     visible_pages: {
       cover: true,
+      facade: true,
       technical: true,
       charts: true,
       system: true,
       financial: true,
       warranty: true,
+      schedule: true,
       terms: true,
     },
     branding: {
       primaryColor: '#2563eb',
       secondaryColor: '#1e40af',
+      gradientColor: '#3b82f6',
     },
   })
 
@@ -223,6 +226,18 @@ export default function ProposalSettings() {
                   className="w-16 h-10 p-1 cursor-pointer"
                 />
               </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Cor de Gradiente</Label>
+                  <p className="text-xs text-muted-foreground">Usada em efeitos de fundo.</p>
+                </div>
+                <Input
+                  type="color"
+                  value={formData.branding.gradientColor || '#3b82f6'}
+                  onChange={(e) => handleNestedChange('branding', 'gradientColor', e.target.value)}
+                  className="w-16 h-10 p-1 cursor-pointer"
+                />
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -240,6 +255,7 @@ export default function ProposalSettings() {
                   label: 'Página de Capa',
                   desc: 'Logo, dados do cliente e vendedor.',
                 },
+                { id: 'facade', label: 'Foto da Fachada', desc: 'Imagem ilustrativa do local.' },
                 {
                   id: 'technical',
                   label: 'Dados Técnicos',
@@ -256,11 +272,8 @@ export default function ProposalSettings() {
                   desc: 'Equipamentos e valor do investimento.',
                 },
                 { id: 'financial', label: 'Análise Financeira', desc: 'Payback, economia e ROI.' },
-                {
-                  id: 'warranty',
-                  label: 'Garantias e Prazos',
-                  desc: 'Tempo de garantia dos equipamentos.',
-                },
+                { id: 'warranty', label: 'Garantias', desc: 'Tempo de garantia dos equipamentos.' },
+                { id: 'schedule', label: 'Cronograma', desc: 'Etapas de execução do projeto.' },
                 {
                   id: 'terms',
                   label: 'Termos e Condições',

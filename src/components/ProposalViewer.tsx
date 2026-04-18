@@ -40,14 +40,20 @@ export function ProposalViewer({ open, onOpenChange, proposal, negotiation }: an
 
   const pages = settings?.visible_pages || {
     cover: true,
+    facade: true,
     technical: true,
     charts: true,
     system: true,
     financial: true,
     warranty: true,
+    schedule: true,
     terms: true,
   }
-  const brand = settings?.branding || { primaryColor: '#2563eb', secondaryColor: '#1e40af' }
+  const brand = settings?.branding || {
+    primaryColor: '#2563eb',
+    secondaryColor: '#1e40af',
+    gradientColor: '#3b82f6',
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -57,7 +63,9 @@ export function ProposalViewer({ open, onOpenChange, proposal, negotiation }: an
           {pages.cover && (
             <div
               className="h-[29.7cm] flex flex-col justify-center items-center p-16 text-center relative overflow-hidden text-white page-break-after"
-              style={{ backgroundColor: brand.primaryColor }}
+              style={{
+                background: `linear-gradient(135deg, ${brand.primaryColor}, ${brand.gradientColor || brand.secondaryColor})`,
+              }}
             >
               <div className="absolute inset-0 opacity-20 bg-[url('https://img.usecurling.com/p/1200/800?q=solar%20panels%20roof&color=black')] bg-cover bg-center mix-blend-overlay"></div>
               <div className="relative z-10 w-full max-w-2xl bg-black/40 p-12 rounded-3xl backdrop-blur-sm border border-white/20 shadow-2xl">
@@ -83,6 +91,25 @@ export function ProposalViewer({ open, onOpenChange, proposal, negotiation }: an
                     {negotiation?.expand?.owner_id?.name || 'Equipe'}
                   </strong>
                 </p>
+              </div>
+            </div>
+          )}
+
+          {/* Page 1.5: Facade */}
+          {pages.facade && (
+            <div className="p-16 space-y-12 page-break-after h-[29.7cm]">
+              <div className="border-b-2 pb-4 mb-8" style={{ borderColor: brand.primaryColor }}>
+                <h2 className="text-3xl font-bold text-slate-800">Local de Instalação</h2>
+                <p className="text-slate-500">Visão da fachada e área de cobertura</p>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="aspect-[16/9] w-full rounded-xl overflow-hidden bg-slate-200">
+                  <img
+                    src="https://img.usecurling.com/p/800/450?q=house%20roof%20solar%20panels&color=black"
+                    alt="Fachada"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -275,52 +302,116 @@ export function ProposalViewer({ open, onOpenChange, proposal, negotiation }: an
           {pages.warranty && (
             <div className="p-16 space-y-12 page-break-after h-[29.7cm]">
               <div className="border-b-2 pb-4 mb-8" style={{ borderColor: brand.primaryColor }}>
-                <h2 className="text-3xl font-bold text-slate-800">Garantias e Prazos</h2>
+                <h2 className="text-3xl font-bold text-slate-800">Garantias</h2>
                 <p className="text-slate-500">Segurança e transparência no projeto</p>
               </div>
-              <div className="grid grid-cols-2 gap-12">
-                <div>
-                  <h3 className="font-bold text-xl mb-6 text-slate-800">Garantias</h3>
-                  <ul className="space-y-4 text-slate-600 list-disc pl-5">
-                    <li>
-                      <strong className="text-slate-800">Módulos Solares:</strong> 12 anos contra
-                      defeitos de fabricação.
-                    </li>
-                    <li>
-                      <strong className="text-slate-800">Performance:</strong> 25 anos de eficiência
-                      linear de 80%.
-                    </li>
-                    <li>
-                      <strong className="text-slate-800">Inversor:</strong> 10 anos de garantia de
-                      fábrica.
-                    </li>
-                    <li>
-                      <strong className="text-slate-800">Instalação:</strong> 1 ano de garantia para
-                      serviços prestados.
-                    </li>
-                  </ul>
-                </div>
-                <div>
-                  <h3 className="font-bold text-xl mb-6 text-slate-800">Etapas do Projeto</h3>
-                  <ul className="space-y-4 text-slate-600 list-none pl-0 border-l-2 border-slate-200 ml-2">
-                    <li className="relative pl-6 before:content-[''] before:absolute before:left-[-5px] before:top-2 before:w-2 before:h-2 before:bg-slate-400 before:rounded-full">
-                      <strong className="text-slate-800">1. Assinatura:</strong> Aprovação do
-                      contrato e financiamento.
-                    </li>
-                    <li className="relative pl-6 before:content-[''] before:absolute before:left-[-5px] before:top-2 before:w-2 before:h-2 before:bg-slate-400 before:rounded-full">
-                      <strong className="text-slate-800">2. Projeto:</strong> Elaboração e envio à
-                      concessionária (15 dias).
-                    </li>
-                    <li className="relative pl-6 before:content-[''] before:absolute before:left-[-5px] before:top-2 before:w-2 before:h-2 before:bg-slate-400 before:rounded-full">
-                      <strong className="text-slate-800">3. Instalação:</strong> Execução da obra no
-                      local (3 a 5 dias).
-                    </li>
-                    <li className="relative pl-6 before:content-[''] before:absolute before:left-[-5px] before:top-2 before:w-2 before:h-2 before:bg-slate-400 before:rounded-full">
-                      <strong className="text-slate-800">4. Vistoria:</strong> Aprovação final pela
-                      concessionária e troca do medidor.
-                    </li>
-                  </ul>
-                </div>
+              <div className="max-w-2xl">
+                <ul className="space-y-6 text-slate-600 list-none pl-0">
+                  <li className="flex items-start gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                    <div
+                      className="w-12 h-12 rounded-full flex items-center justify-center text-white shrink-0"
+                      style={{ backgroundColor: brand.primaryColor }}
+                    >
+                      12
+                    </div>
+                    <div>
+                      <strong className="text-slate-800 text-lg block">
+                        Anos - Módulos Solares
+                      </strong>
+                      Garantia contra defeitos de fabricação dos painéis solares.
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                    <div
+                      className="w-12 h-12 rounded-full flex items-center justify-center text-white shrink-0"
+                      style={{ backgroundColor: brand.secondaryColor }}
+                    >
+                      25
+                    </div>
+                    <div>
+                      <strong className="text-slate-800 text-lg block">Anos - Performance</strong>
+                      Garantia de eficiência linear de geração de energia mínima de 80%.
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center text-white shrink-0 bg-slate-400">
+                      10
+                    </div>
+                    <div>
+                      <strong className="text-slate-800 text-lg block">Anos - Inversor</strong>
+                      Garantia de fábrica contra defeitos no equipamento conversor.
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center text-white shrink-0 bg-slate-300">
+                      1
+                    </div>
+                    <div>
+                      <strong className="text-slate-800 text-lg block">Ano - Instalação</strong>
+                      Garantia completa para os serviços prestados pela nossa equipe.
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {/* Page 6.5: Schedule */}
+          {pages.schedule && (
+            <div className="p-16 space-y-12 page-break-after h-[29.7cm]">
+              <div className="border-b-2 pb-4 mb-8" style={{ borderColor: brand.primaryColor }}>
+                <h2 className="text-3xl font-bold text-slate-800">Cronograma de Execução</h2>
+                <p className="text-slate-500">Próximos passos após o fechamento</p>
+              </div>
+              <div className="max-w-2xl mx-auto py-8">
+                <ul
+                  className="space-y-10 text-slate-600 list-none pl-0 border-l-4 ml-6"
+                  style={{ borderColor: brand.primaryColor }}
+                >
+                  <li className="relative pl-10">
+                    <div
+                      className="absolute left-[-14px] top-1 w-6 h-6 rounded-full border-4 border-white shadow-sm"
+                      style={{ backgroundColor: brand.secondaryColor }}
+                    ></div>
+                    <strong className="text-slate-800 text-xl block mb-2">
+                      1. Assinatura do Contrato
+                    </strong>
+                    Aprovação comercial e validação de financiamento (se aplicável).
+                  </li>
+                  <li className="relative pl-10">
+                    <div
+                      className="absolute left-[-14px] top-1 w-6 h-6 rounded-full border-4 border-white shadow-sm"
+                      style={{ backgroundColor: brand.secondaryColor }}
+                    ></div>
+                    <strong className="text-slate-800 text-xl block mb-2">
+                      2. Visita Técnica & Projeto
+                    </strong>
+                    Levantamento detalhado no local e envio do projeto à concessionária para
+                    aprovação.
+                  </li>
+                  <li className="relative pl-10">
+                    <div
+                      className="absolute left-[-14px] top-1 w-6 h-6 rounded-full border-4 border-white shadow-sm"
+                      style={{ backgroundColor: brand.secondaryColor }}
+                    ></div>
+                    <strong className="text-slate-800 text-xl block mb-2">
+                      3. Entrega & Instalação
+                    </strong>
+                    Recebimento dos equipamentos e execução da obra no local por nossa equipe
+                    especializada.
+                  </li>
+                  <li className="relative pl-10">
+                    <div
+                      className="absolute left-[-14px] top-1 w-6 h-6 rounded-full border-4 border-white shadow-sm"
+                      style={{ backgroundColor: brand.secondaryColor }}
+                    ></div>
+                    <strong className="text-slate-800 text-xl block mb-2">
+                      4. Vistoria & Ativação
+                    </strong>
+                    Aprovação final pela concessionária e troca do medidor. Seu sistema já está
+                    gerando economia!
+                  </li>
+                </ul>
               </div>
             </div>
           )}
