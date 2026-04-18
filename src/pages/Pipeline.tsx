@@ -2,16 +2,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import {
-  Search,
-  X,
-  Plus,
-  GripVertical,
-  Tag as TagIcon,
-  Settings2,
-  Briefcase,
-  Filter,
-} from 'lucide-react'
+import { Search, X, Plus, GripVertical, Tag as TagIcon, Settings2, Filter } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import {
@@ -88,7 +79,7 @@ export default function Pipeline() {
   const handleAddTag = async (neg: any, tagId: string) => {
     const negTags = Array.from(new Set([...(neg.tags || []), tagId]))
     setNegotiations((prev) => prev.map((n) => (n.id === neg.id ? { ...n, tags: negTags } : n)))
-    
+
     const formData = new FormData()
     formData.append('tags', JSON.stringify(negTags))
     await pb.collection('negotiations').update(neg.id, formData)
@@ -97,7 +88,7 @@ export default function Pipeline() {
   const handleRemoveTag = async (neg: any, tagId: string) => {
     const negTags = (neg.tags || []).filter((t: string) => t !== tagId)
     setNegotiations((prev) => prev.map((n) => (n.id === neg.id ? { ...n, tags: negTags } : n)))
-    
+
     const formData = new FormData()
     formData.append('tags', JSON.stringify(negTags))
     await pb.collection('negotiations').update(neg.id, formData)
@@ -113,7 +104,7 @@ export default function Pipeline() {
     const id = e.dataTransfer.getData('negotiation_id')
     if (id) {
       setNegotiations((prev) => prev.map((n) => (n.id === id ? { ...n, stage: stageId } : n)))
-      
+
       const formData = new FormData()
       formData.append('stage', stageId)
       await pb.collection('negotiations').update(id, formData)

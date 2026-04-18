@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/contexts/AuthContext'
 import { Building2, User, Users, Plus, MoreHorizontal, Edit, Trash2 } from 'lucide-react'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -392,10 +392,10 @@ export default function Settings() {
                 <div className="space-y-2">
                   <Label>Nome da Empresa</Label>
                   <div className="flex gap-2">
-                    <Input 
-                      value={company?.name || ''} 
+                    <Input
+                      value={company?.name || ''}
                       onChange={(e) => setCompany({ ...company, name: e.target.value })}
-                      disabled={user?.role !== 'admin_elektra'} 
+                      disabled={user?.role !== 'admin_elektra'}
                     />
                     {user?.role === 'admin_elektra' && (
                       <Button onClick={handleUpdateCompanyName}>Salvar</Button>
