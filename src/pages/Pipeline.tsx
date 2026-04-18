@@ -24,7 +24,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useRealtime } from '@/hooks/use-realtime'
-import { getPipelineStages, getTags, updateNegotiation } from '@/services/db'
+import { getPipelineStages, getTags } from '@/services/db'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { Collections } from '@/lib/pocketbase/collections'
@@ -88,13 +88,19 @@ export default function Pipeline() {
   const handleAddTag = async (neg: any, tagId: string) => {
     const negTags = Array.from(new Set([...(neg.tags || []), tagId]))
     setNegotiations((prev) => prev.map((n) => (n.id === neg.id ? { ...n, tags: negTags } : n)))
-    await updateNegotiation(neg.id, { tags: negTags })
+    
+    const formData = new FormData()
+    formData.append('tags', JSON.stringify(negTags))
+    await pb.collection('negotiations').update(neg.id, formData)
   }
 
   const handleRemoveTag = async (neg: any, tagId: string) => {
     const negTags = (neg.tags || []).filter((t: string) => t !== tagId)
     setNegotiations((prev) => prev.map((n) => (n.id === neg.id ? { ...n, tags: negTags } : n)))
-    await updateNegotiation(neg.id, { tags: negTags })
+    
+    const formData = new FormData()
+    formData.append('tags', JSON.stringify(negTags))
+    await pb.collection('negotiations').update(neg.id, formData)
   }
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
@@ -107,7 +113,10 @@ export default function Pipeline() {
     const id = e.dataTransfer.getData('negotiation_id')
     if (id) {
       setNegotiations((prev) => prev.map((n) => (n.id === id ? { ...n, stage: stageId } : n)))
-      await updateNegotiation(id, { stage: stageId })
+      
+      const formData = new FormData()
+      formData.append('stage', stageId)
+      await pb.collection('negotiations').update(id, formData)
     }
   }
 

@@ -123,9 +123,23 @@ export default function Settings() {
 
   const handleUpdateCompanyStatus = async (status: string) => {
     try {
-      await pb.collection(Collections.COMPANIES).update(company.id, { status })
+      const formData = new FormData()
+      formData.append('status', status)
+      await pb.collection(Collections.COMPANIES).update(company.id, formData)
       setCompany({ ...company, status })
       toast({ title: 'Sucesso', description: 'Status atualizado com sucesso!' })
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erro', description: err.message })
+    }
+  }
+
+  const handleUpdateCompanyName = async () => {
+    if (!company) return
+    try {
+      const formData = new FormData()
+      formData.append('name', company.name)
+      await pb.collection(Collections.COMPANIES).update(company.id, formData)
+      toast({ title: 'Sucesso', description: 'Nome da empresa atualizado com sucesso!' })
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Erro', description: err.message })
     }
@@ -377,7 +391,16 @@ export default function Settings() {
               <CardContent>
                 <div className="space-y-2">
                   <Label>Nome da Empresa</Label>
-                  <Input value={company?.name || ''} disabled />
+                  <div className="flex gap-2">
+                    <Input 
+                      value={company?.name || ''} 
+                      onChange={(e) => setCompany({ ...company, name: e.target.value })}
+                      disabled={user?.role !== 'admin_elektra'} 
+                    />
+                    {user?.role === 'admin_elektra' && (
+                      <Button onClick={handleUpdateCompanyName}>Salvar</Button>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2 mt-6">
                   <Label>Logo da Empresa</Label>

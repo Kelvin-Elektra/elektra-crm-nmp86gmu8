@@ -72,10 +72,11 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
           delete cleanSizing[key as keyof typeof cleanSizing],
       )
 
-      await pb.collection('negotiations').update(neg.id, {
-        avg_consumption: computedAvg,
-        sizing: cleanSizing,
-      })
+      const formData = new FormData()
+      formData.append('avg_consumption', String(computedAvg))
+      formData.append('sizing', JSON.stringify(cleanSizing))
+
+      await pb.collection('negotiations').update(neg.id, formData)
 
       toast({ title: 'Consumo atualizado com sucesso' })
       if (reload) {
