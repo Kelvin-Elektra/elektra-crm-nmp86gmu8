@@ -10,13 +10,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Pencil } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
+import { useToast } from '@/hooks/use-toast'
 
 export function InstallationsTab() {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [data, setData] = useState<any[]>([])
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState({ name: '', purlin_type: 'Terças de madeira' })
 
   const loadData = async () => {
@@ -32,9 +35,39 @@ export function InstallationsTab() {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user?.company_id) return
-    await pb.collection('pv_installations').create({ ...form, company_id: user.company_id })
+    try {
+      if (editingId) {
+        await pb.collection('pv_installations').update(editingId, form)
+        toast({ title: 'Sucesso', description: 'Instalação atualizada.' })
+      } else {
+        await pb.collection('pv_installations').create({ ...form, company_id: user.company_id })
+        toast({ title: 'Sucesso', description: 'Instalação adicionada.' })
+      }
+      resetForm()
+      loadData()
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Erro', description: 'Falha ao salvar.' })
+    }
+  }
+
+  const handleEdit = (item: any) => {
+    setForm({ name: item.name, purlin_type: item.purlin_type || 'Terças de madeira' })
+    setEditingId(item.id)
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      await pb.collection('pv_installations').delete(id)
+      toast({ title: 'Sucesso', description: 'Instalação removida.' })
+      loadData()
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Erro', description: 'Falha ao remover.' })
+    }
+  }
+
+  const resetForm = () => {
     setForm({ name: '', purlin_type: 'Terças de madeira' })
-    loadData()
+    setEditingId(null)
   }
 
   const defaultNames = ['Aluzinco', 'Telha', 'Fibrocimento', 'Eternit', 'Solo', 'Carport']
@@ -48,36 +81,37 @@ export function InstallationsTab() {
       <CardContent className="space-y-6">
         <form
           onSubmit={handleAdd}
-          className="flex flex-col md:flex-row gap-4 items-end bg-muted/30 p-4 rounded-lg"
+          className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-muted/30 p-5 rounded-xl border border-border/50"
         >
-          <div className="flex-1 space-y-2 w-full">
-            <Label>Nome do Tipo</Label>
+          <div className="md:col-span-5 flex flex-col gap-2">
+            <Label className="font-semibold">Nome do Tipo</Label>
             <Input
               required
               placeholder="Ex: Cerâmica"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className="bg-background"
             />
-            <div className="flex flex-wrap gap-1 mt-1">
+            <div className="flex flex-wrap gap-1.5 mt-1">
               {defaultNames.map((n) => (
                 <button
                   type="button"
                   key={n}
                   onClick={() => setForm({ ...form, name: n })}
-                  className="text-xs bg-background border hover:bg-muted px-2 py-1 rounded-md transition-colors"
+                  className="text-[11px] bg-background border hover:bg-primary hover:text-primary-foreground px-2.5 py-1 rounded-md transition-colors"
                 >
                   {n}
                 </button>
               ))}
             </div>
           </div>
-          <div className="flex-1 space-y-2 w-full">
-            <Label>Enterçamento</Label>
+          <div className="md:col-span-4 flex flex-col gap-2">
+            <Label className="font-semibold">Enterçamento Base</Label>
             <Select
               value={form.purlin_type}
               onValueChange={(v) => setForm({ ...form, purlin_type: v })}
             >
-              <SelectTrigger>
+              <SelectTrigger className="bg-background">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -88,12 +122,28 @@ export function InstallationsTab() {
               </SelectContent>
             </Select>
           </div>
-          <Button type="submit" className="w-full md:w-auto">
-            <Plus className="w-4 h-4 mr-2" /> Adicionar
-          </Button>
+          <div className="md:col-span-3 flex flex-col gap-2 justify-start">
+            <Label className="invisible hidden md:block">Ação</Label>
+            <div className="flex gap-2">
+              {editingId && (
+                <Button type="button" variant="outline" onClick={resetForm} className="w-full">
+                  Cancelar
+                </Button>
+              )}
+              <Button type="submit" className="w-full">
+                {editingId ? (
+                  'Salvar'
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4 mr-1" /> Adicionar
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </form>
 
-        <div className="rounded-md border">
+        <div className="rounded-md border overflow-hidden">
           <table className="w-full text-sm text-left">
             <thead className="bg-muted">
               <tr>
@@ -104,15 +154,14 @@ export function InstallationsTab() {
             </thead>
             <tbody>
               {data.map((d) => (
-                <tr key={d.id} className="border-t">
+                <tr key={d.id} className="border-t hover:bg-muted/30 transition-colors">
                   <td className="p-3 font-medium">{d.name}</td>
                   <td className="p-3">{d.purlin_type || '-'}</td>
                   <td className="p-3 text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => pb.collection('pv_installations').delete(d.id).then(loadData)}
-                    >
+                    <Button variant="ghost" size="icon" onClick={() => handleEdit(d)}>
+                      <Pencil className="w-4 h-4 text-muted-foreground" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
                       <Trash2 className="w-4 h-4 text-destructive" />
                     </Button>
                   </td>

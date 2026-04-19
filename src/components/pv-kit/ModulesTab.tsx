@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Pencil, Search } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
@@ -21,7 +21,12 @@ export function ModulesTab() {
   const [data, setData] = useState<any[]>([])
   const [distributors, setDistributors] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({
+  const [editingId, setEditingId] = useState<string | null>(null)
+
+  const [search, setSearch] = useState('')
+  const [distFilter, setDistFilter] = useState('all')
+
+  const initialForm = {
     name: '',
     power: '',
     brand: '',
@@ -30,7 +35,8 @@ export function ModulesTab() {
     width: '',
     price: '',
     notes: '',
-  })
+  }
+  const [form, setForm] = useState(initialForm)
 
   const loadData = async () => {
     if (!user?.company_id) return
@@ -50,37 +56,69 @@ export function ModulesTab() {
     e.preventDefault()
     if (!user?.company_id || !form.distributor_id) return
     setLoading(true)
+
+    const payload = {
+      ...form,
+      power: Number(form.power),
+      height: form.height ? Number(form.height) : null,
+      width: form.width ? Number(form.width) : null,
+      price: form.price ? Number(form.price) : null,
+      company_id: user.company_id,
+    }
+
     try {
-      await pb.collection('pv_modules').create({
-        ...form,
-        power: Number(form.power),
-        height: form.height ? Number(form.height) : null,
-        width: form.width ? Number(form.width) : null,
-        price: form.price ? Number(form.price) : null,
-        company_id: user.company_id,
-      })
-      toast({ title: 'Sucesso', description: 'Módulo adicionado.' })
-      setForm({
-        name: '',
-        power: '',
-        brand: '',
-        distributor_id: form.distributor_id,
-        height: '',
-        width: '',
-        price: '',
-        notes: '',
-      })
+      if (editingId) {
+        await pb.collection('pv_modules').update(editingId, payload)
+        toast({ title: 'Sucesso', description: 'Módulo atualizado.' })
+      } else {
+        await pb.collection('pv_modules').create(payload)
+        toast({ title: 'Sucesso', description: 'Módulo adicionado.' })
+      }
+      resetForm()
       loadData()
     } catch (error) {
-      toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível adicionar.' })
+      toast({ variant: 'destructive', title: 'Erro', description: 'Falha ao salvar o módulo.' })
     } finally {
       setLoading(false)
     }
   }
 
-  const handleDelete = async (id: string) => {
-    await pb.collection('pv_modules').delete(id).then(loadData)
+  const handleEdit = (mod: any) => {
+    setForm({
+      name: mod.name,
+      power: mod.power?.toString() || '',
+      brand: mod.brand,
+      distributor_id: mod.distributor_id,
+      height: mod.height?.toString() || '',
+      width: mod.width?.toString() || '',
+      price: mod.price?.toString() || '',
+      notes: mod.notes || '',
+    })
+    setEditingId(mod.id)
   }
+
+  const handleDelete = async (id: string) => {
+    try {
+      await pb.collection('pv_modules').delete(id)
+      toast({ title: 'Sucesso', description: 'Módulo removido.' })
+      loadData()
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Erro', description: 'Falha ao remover.' })
+    }
+  }
+
+  const resetForm = () => {
+    setForm({ ...initialForm, distributor_id: form.distributor_id })
+    setEditingId(null)
+  }
+
+  const filteredData = data.filter((d) => {
+    const matchSearch =
+      d.name.toLowerCase().includes(search.toLowerCase()) ||
+      d.brand.toLowerCase().includes(search.toLowerCase())
+    const matchDist = distFilter === 'all' || d.distributor_id === distFilter
+    return matchSearch && matchDist
+  })
 
   return (
     <Card>
@@ -90,15 +128,15 @@ export function ModulesTab() {
       <CardContent className="space-y-6">
         <form
           onSubmit={handleAdd}
-          className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end bg-muted/30 p-4 rounded-lg"
+          className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start bg-muted/30 p-5 rounded-xl border border-border/50"
         >
           <div className="space-y-2">
-            <Label>Distribuidora</Label>
+            <Label className="font-semibold">Distribuidora</Label>
             <Select
               value={form.distributor_id}
               onValueChange={(v) => setForm({ ...form, distributor_id: v })}
             >
-              <SelectTrigger>
+              <SelectTrigger className="bg-background">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
@@ -111,97 +149,161 @@ export function ModulesTab() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Nome/Modelo</Label>
+            <Label className="font-semibold">Nome/Modelo</Label>
             <Input
               required
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className="bg-background"
             />
           </div>
           <div className="space-y-2">
-            <Label>Potência (Wp)</Label>
+            <Label className="font-semibold">Potência (Wp)</Label>
             <Input
               required
               type="number"
               value={form.power}
               onChange={(e) => setForm({ ...form, power: e.target.value })}
+              className="bg-background"
             />
           </div>
           <div className="space-y-2">
-            <Label>Marca</Label>
+            <Label className="font-semibold">Marca</Label>
             <Input
               required
               value={form.brand}
               onChange={(e) => setForm({ ...form, brand: e.target.value })}
+              className="bg-background"
             />
           </div>
-
           <div className="space-y-2">
-            <Label>Altura (m)</Label>
+            <Label className="font-semibold">Altura (m)</Label>
             <Input
               type="number"
               step="0.01"
               value={form.height}
               onChange={(e) => setForm({ ...form, height: e.target.value })}
+              className="bg-background"
             />
           </div>
           <div className="space-y-2">
-            <Label>Largura (m)</Label>
+            <Label className="font-semibold">Largura (m)</Label>
             <Input
               type="number"
               step="0.01"
               value={form.width}
               onChange={(e) => setForm({ ...form, width: e.target.value })}
+              className="bg-background"
             />
           </div>
           <div className="space-y-2">
-            <Label>Preço (R$)</Label>
+            <Label className="font-semibold">Preço (R$)</Label>
             <Input
               type="number"
               step="0.01"
               value={form.price}
               onChange={(e) => setForm({ ...form, price: e.target.value })}
+              className="bg-background"
             />
           </div>
           <div className="space-y-2">
-            <Label>Observações</Label>
+            <Label className="font-semibold">Observações</Label>
             <Input
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              className="bg-background"
             />
           </div>
-
-          <Button type="submit" disabled={loading} className="md:col-span-4">
-            <Plus className="w-4 h-4 mr-2" /> Salvar Módulo
-          </Button>
+          <div className="md:col-span-4 flex justify-end gap-2 mt-2">
+            {editingId && (
+              <Button type="button" variant="outline" onClick={resetForm}>
+                Cancelar
+              </Button>
+            )}
+            <Button type="submit" disabled={loading}>
+              {editingId ? (
+                'Salvar Alterações'
+              ) : (
+                <>
+                  <Plus className="w-4 h-4 mr-2" /> Adicionar Módulo
+                </>
+              )}
+            </Button>
+          </div>
         </form>
-        <div className="rounded-md border">
-          <table className="w-full text-sm text-left">
+
+        <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-4">
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por modelo ou marca..."
+              className="pl-9"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <Select value={distFilter} onValueChange={setDistFilter}>
+            <SelectTrigger className="w-full md:w-[250px]">
+              <SelectValue placeholder="Filtrar Distribuidora" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as Distribuidoras</SelectItem>
+              {distributors.map((d) => (
+                <SelectItem key={d.id} value={d.id}>
+                  {d.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="rounded-md border overflow-x-auto">
+          <table className="w-full text-sm text-left whitespace-nowrap">
             <thead className="bg-muted">
               <tr>
                 <th className="p-3 font-medium">Modelo</th>
-                <th className="p-3 font-medium">Potência</th>
-                <th className="p-3 font-medium">Preço</th>
                 <th className="p-3 font-medium">Marca</th>
+                <th className="p-3 font-medium">Potência</th>
+                <th className="p-3 font-medium">Dimensões (m)</th>
+                <th className="p-3 font-medium">Área (m²)</th>
+                <th className="p-3 font-medium">Preço</th>
                 <th className="p-3 font-medium">Distribuidora</th>
                 <th className="p-3 font-medium text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
-              {data.map((d) => (
-                <tr key={d.id} className="border-t">
-                  <td className="p-3">{d.name}</td>
-                  <td className="p-3">{d.power} Wp</td>
-                  <td className="p-3">{d.price ? `R$ ${d.price}` : '-'}</td>
+              {filteredData.map((d) => (
+                <tr key={d.id} className="border-t hover:bg-muted/30 transition-colors">
+                  <td className="p-3 font-medium">{d.name}</td>
                   <td className="p-3">{d.brand}</td>
+                  <td className="p-3">{d.power} Wp</td>
+                  <td className="p-3">{d.height && d.width ? `${d.height}x${d.width}` : '-'}</td>
+                  <td className="p-3">
+                    {d.height && d.width ? (d.height * d.width).toFixed(2) : '-'}
+                  </td>
+                  <td className="p-3">
+                    {d.price
+                      ? `R$ ${d.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                      : '-'}
+                  </td>
                   <td className="p-3">{d.expand?.distributor_id?.name}</td>
                   <td className="p-3 text-right">
+                    <Button variant="ghost" size="icon" onClick={() => handleEdit(d)}>
+                      <Pencil className="w-4 h-4 text-muted-foreground" />
+                    </Button>
                     <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
                       <Trash2 className="w-4 h-4 text-destructive" />
                     </Button>
                   </td>
                 </tr>
               ))}
+              {filteredData.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="p-6 text-center text-muted-foreground">
+                    Nenhum módulo encontrado.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

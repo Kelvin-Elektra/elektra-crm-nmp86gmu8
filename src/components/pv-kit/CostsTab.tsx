@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Trash2, Settings2 } from 'lucide-react'
+import { Plus, Trash2, Settings2, Pencil } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
@@ -21,12 +21,17 @@ export function CostsTab() {
   const [data, setData] = useState<any[]>([])
   const [settingsId, setSettingsId] = useState<string | null>(null)
   const [billingModel, setBillingModel] = useState('direct')
-  const [form, setForm] = useState({
+  const [editingId, setEditingId] = useState<string | null>(null)
+
+  const initialForm = {
     name: '',
     range_type: 'none',
     calc_method: 'fixed',
     value: '',
-  })
+    min_val: '',
+    max_val: '',
+  }
+  const [form, setForm] = useState(initialForm)
 
   const loadData = async () => {
     if (!user?.company_id) return
@@ -42,7 +47,7 @@ export function CostsTab() {
         if (settings.billing_model) setBillingModel(settings.billing_model)
       }
     } catch (_) {
-      // ignore
+      /* ignore */
     }
   }
 
@@ -71,11 +76,57 @@ export function CostsTab() {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user?.company_id) return
-    await pb
-      .collection('pv_costs')
-      .create({ ...form, value: Number(form.value), company_id: user.company_id })
-    setForm({ name: '', range_type: 'none', calc_method: 'fixed', value: '' })
-    loadData()
+
+    const payload = {
+      name: form.name,
+      calc_method: form.calc_method,
+      value: Number(form.value),
+      range_type: form.range_type,
+      min_val: form.range_type !== 'none' && form.min_val ? Number(form.min_val) : null,
+      max_val: form.range_type !== 'none' && form.max_val ? Number(form.max_val) : null,
+      company_id: user.company_id,
+    }
+
+    try {
+      if (editingId) {
+        await pb.collection('pv_costs').update(editingId, payload)
+        toast({ title: 'Sucesso', description: 'Custo/Imposto atualizado.' })
+      } else {
+        await pb.collection('pv_costs').create(payload)
+        toast({ title: 'Sucesso', description: 'Custo/Imposto adicionado.' })
+      }
+      resetForm()
+      loadData()
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Erro', description: 'Falha ao salvar.' })
+    }
+  }
+
+  const handleEdit = (item: any) => {
+    setForm({
+      name: item.name,
+      range_type: item.range_type,
+      calc_method: item.calc_method,
+      value: item.value.toString(),
+      min_val: item.min_val?.toString() || '',
+      max_val: item.max_val?.toString() || '',
+    })
+    setEditingId(item.id)
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      await pb.collection('pv_costs').delete(id)
+      toast({ title: 'Sucesso', description: 'Removido com sucesso.' })
+      loadData()
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Erro', description: 'Falha ao remover.' })
+    }
+  }
+
+  const resetForm = () => {
+    setForm(initialForm)
+    setEditingId(null)
   }
 
   return (
@@ -115,23 +166,24 @@ export function CostsTab() {
         <CardContent className="space-y-6">
           <form
             onSubmit={handleAdd}
-            className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end bg-muted/30 p-4 rounded-lg"
+            className="grid grid-cols-1 md:grid-cols-5 gap-4 items-start bg-muted/30 p-5 rounded-xl border border-border/50"
           >
-            <div className="space-y-2">
-              <Label>Nome do Custo/Imposto</Label>
+            <div className="space-y-2 md:col-span-2">
+              <Label className="font-semibold">Nome do Custo/Imposto</Label>
               <Input
                 required
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className="bg-background"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Método de Cálculo</Label>
+            <div className="space-y-2 md:col-span-2">
+              <Label className="font-semibold">Método de Cálculo</Label>
               <Select
                 value={form.calc_method}
                 onValueChange={(v) => setForm({ ...form, calc_method: v })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="bg-background">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -144,35 +196,69 @@ export function CostsTab() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Valor / Porcentagem</Label>
+              <Label className="font-semibold">Valor / %</Label>
               <Input
                 required
                 type="number"
                 step="0.01"
                 value={form.value}
                 onChange={(e) => setForm({ ...form, value: e.target.value })}
+                className="bg-background"
               />
             </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label>Condição (Range)</Label>
-              <Select
-                value={form.range_type}
-                onValueChange={(v) => setForm({ ...form, range_type: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sempre aplicar</SelectItem>
-                  <SelectItem value="modules">Qtde. de Módulos</SelectItem>
-                  <SelectItem value="kwp">Potência Total (kWp)</SelectItem>
-                  <SelectItem value="kw">Potência do Inversor (kW)</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="space-y-2 md:col-span-5">
+              <Label className="font-semibold">Condição (Faixa de Aplicação)</Label>
+              <div className="flex flex-col sm:flex-row items-center gap-2">
+                <Select
+                  value={form.range_type}
+                  onValueChange={(v) => setForm({ ...form, range_type: v })}
+                >
+                  <SelectTrigger className="w-full sm:w-[250px] bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sempre aplicar (Geral)</SelectItem>
+                    <SelectItem value="modules">Qtde. de Módulos</SelectItem>
+                    <SelectItem value="kwp">Potência Total (kWp)</SelectItem>
+                    <SelectItem value="kw">Potência do Inversor (kW)</SelectItem>
+                  </SelectContent>
+                </Select>
+                {form.range_type !== 'none' && (
+                  <div className="flex w-full gap-2 transition-all">
+                    <Input
+                      type="number"
+                      placeholder="Mínimo"
+                      value={form.min_val}
+                      onChange={(e) => setForm({ ...form, min_val: e.target.value })}
+                      className="w-full bg-background"
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Máximo"
+                      value={form.max_val}
+                      onChange={(e) => setForm({ ...form, max_val: e.target.value })}
+                      className="w-full bg-background"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
-            <Button type="submit" className="md:col-span-5">
-              <Plus className="w-4 h-4 mr-2" /> Salvar Regra
-            </Button>
+            <div className="md:col-span-5 flex justify-end gap-2 mt-2">
+              {editingId && (
+                <Button type="button" variant="outline" onClick={resetForm}>
+                  Cancelar
+                </Button>
+              )}
+              <Button type="submit">
+                {editingId ? (
+                  'Salvar Alterações'
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4 mr-2" /> Salvar Regra
+                  </>
+                )}
+              </Button>
+            </div>
           </form>
 
           <div className="rounded-md border">
@@ -182,13 +268,13 @@ export function CostsTab() {
                   <th className="p-3 font-medium">Nome</th>
                   <th className="p-3 font-medium">Método</th>
                   <th className="p-3 font-medium">Valor / %</th>
-                  <th className="p-3 font-medium">Aplicação</th>
+                  <th className="p-3 font-medium">Faixa / Aplicação</th>
                   <th className="p-3 font-medium text-right">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {data.map((d) => (
-                  <tr key={d.id} className="border-t">
+                  <tr key={d.id} className="border-t hover:bg-muted/30 transition-colors">
                     <td className="p-3 font-medium">{d.name}</td>
                     <td className="p-3 capitalize">
                       {d.calc_method === 'fixed' && 'Fixo'}
@@ -197,24 +283,33 @@ export function CostsTab() {
                       {d.calc_method === 'tax' && 'Imposto'}
                       {d.calc_method === 'margin' && 'Margem'}
                     </td>
-                    <td className="p-3">
-                      {d.value}{' '}
-                      {d.calc_method === 'fixed' || d.calc_method === 'variable' ? 'R$' : '%'}
+                    <td className="p-3 font-medium">
+                      {d.calc_method === 'fixed' || d.calc_method === 'variable' ? 'R$ ' : ''}
+                      {d.value}
+                      {d.calc_method !== 'fixed' && d.calc_method !== 'variable' ? '%' : ''}
                     </td>
-                    <td className="p-3 capitalize">
-                      {d.range_type === 'none' ? 'Geral' : d.range_type}
+                    <td className="p-3 capitalize text-muted-foreground">
+                      {d.range_type === 'none'
+                        ? 'Geral'
+                        : `${d.range_type} (${d.min_val || 0} - ${d.max_val || '∞'})`}
                     </td>
                     <td className="p-3 text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => pb.collection('pv_costs').delete(d.id).then(loadData)}
-                      >
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(d)}>
+                        <Pencil className="w-4 h-4 text-muted-foreground" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
                         <Trash2 className="w-4 h-4 text-destructive" />
                       </Button>
                     </td>
                   </tr>
                 ))}
+                {data.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="p-6 text-center text-muted-foreground">
+                      Nenhuma regra de custo configurada.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Switch } from '@/components/ui/switch'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Pencil } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
@@ -25,6 +25,7 @@ export function SuppliesTab() {
   const [distributors, setDistributors] = useState<any[]>([])
   const [installations, setInstallations] = useState<any[]>([])
 
+  const [editingSupplyId, setEditingSupplyId] = useState<string | null>(null)
   const [supplyForm, setSupplyForm] = useState({
     name: '',
     price: '',
@@ -63,30 +64,49 @@ export function SuppliesTab() {
   const handleAddSupply = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user?.company_id) return
-    try {
-      await pb.collection('pv_supplies').create({
-        name: supplyForm.name,
-        price: Number(supplyForm.price),
-        distributor_id: supplyForm.global
+
+    const payload = {
+      name: supplyForm.name,
+      price: Number(supplyForm.price),
+      distributor_id: supplyForm.global
+        ? null
+        : supplyForm.distributor_id === 'all'
           ? null
-          : supplyForm.distributor_id === 'all'
-            ? null
-            : supplyForm.distributor_id,
-        calc_base: 'fixed',
-        multiplier: 1,
-        range_type: 'none',
-        company_id: user.company_id,
-      })
-      toast({ title: 'Sucesso', description: 'Insumo adicionado.' })
+          : supplyForm.distributor_id,
+      calc_base: 'fixed',
+      multiplier: 1,
+      range_type: 'none',
+      company_id: user.company_id,
+    }
+
+    try {
+      if (editingSupplyId) {
+        await pb.collection('pv_supplies').update(editingSupplyId, payload)
+        toast({ title: 'Sucesso', description: 'Insumo atualizado.' })
+      } else {
+        await pb.collection('pv_supplies').create(payload)
+        toast({ title: 'Sucesso', description: 'Insumo adicionado.' })
+      }
       setSupplyForm({ name: '', price: '', global: true, distributor_id: 'all' })
+      setEditingSupplyId(null)
       loadData()
     } catch (err) {
       toast({
         variant: 'destructive',
         title: 'Erro',
-        description: 'Não foi possível adicionar o insumo.',
+        description: 'Não foi possível salvar o insumo.',
       })
     }
+  }
+
+  const handleEditSupply = (s: any) => {
+    setSupplyForm({
+      name: s.name,
+      price: s.price.toString(),
+      global: !s.distributor_id,
+      distributor_id: s.distributor_id || 'all',
+    })
+    setEditingSupplyId(s.id)
   }
 
   const handleAddRule = async (e: React.FormEvent) => {
@@ -131,28 +151,28 @@ export function SuppliesTab() {
           <CardContent className="space-y-6">
             <form
               onSubmit={handleAddSupply}
-              className="flex flex-col gap-4 bg-muted/30 p-4 rounded-lg"
+              className="flex flex-col gap-4 bg-muted/30 p-5 rounded-xl border border-border/50"
             >
               <div className="flex items-center gap-2">
                 <Switch
                   checked={supplyForm.global}
                   onCheckedChange={(c) => setSupplyForm({ ...supplyForm, global: c })}
                 />
-                <Label>Aplicar a todos os distribuidores</Label>
+                <Label className="font-semibold">Aplicar a todos os distribuidores (Global)</Label>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                 {!supplyForm.global && (
                   <div className="space-y-2">
-                    <Label>Distribuidor</Label>
+                    <Label className="font-semibold">Distribuidor</Label>
                     <Select
                       value={supplyForm.distributor_id}
                       onValueChange={(v) => setSupplyForm({ ...supplyForm, distributor_id: v })}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-background">
                         <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Nenhum</SelectItem>
+                        <SelectItem value="all">Todos</SelectItem>
                         {distributors.map((d) => (
                           <SelectItem key={d.id} value={d.id}>
                             {d.name}
@@ -163,27 +183,50 @@ export function SuppliesTab() {
                   </div>
                 )}
                 <div className={`space-y-2 ${supplyForm.global ? 'md:col-span-2' : ''}`}>
-                  <Label>Nome do Insumo</Label>
+                  <Label className="font-semibold">Nome do Insumo</Label>
                   <Input
                     required
                     placeholder="Ex: Cabo Solar 6mm"
                     value={supplyForm.name}
                     onChange={(e) => setSupplyForm({ ...supplyForm, name: e.target.value })}
+                    className="bg-background"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Valor Unitário (R$)</Label>
+                  <Label className="font-semibold">Valor Unitário (R$)</Label>
                   <Input
                     required
                     type="number"
                     step="0.01"
                     value={supplyForm.price}
                     onChange={(e) => setSupplyForm({ ...supplyForm, price: e.target.value })}
+                    className="bg-background"
                   />
                 </div>
-                <Button type="submit">
-                  <Plus className="w-4 h-4 mr-2" /> Adicionar
-                </Button>
+                <div className="flex gap-2">
+                  {editingSupplyId && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setEditingSupplyId(null)
+                        setSupplyForm({ name: '', price: '', global: true, distributor_id: 'all' })
+                      }}
+                      className="w-full"
+                    >
+                      Cancelar
+                    </Button>
+                  )}
+                  <Button type="submit" className="w-full">
+                    {editingSupplyId ? (
+                      'Salvar'
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4 mr-2" /> Adicionar
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </form>
 
@@ -199,11 +242,26 @@ export function SuppliesTab() {
                 </thead>
                 <tbody>
                   {supplies.map((d) => (
-                    <tr key={d.id} className="border-t">
-                      <td className="p-3">{d.name}</td>
-                      <td className="p-3">{d.expand?.distributor_id?.name || 'Todos'}</td>
-                      <td className="p-3">R$ {d.price}</td>
+                    <tr key={d.id} className="border-t hover:bg-muted/30 transition-colors">
+                      <td className="p-3 font-medium">{d.name}</td>
+                      <td className="p-3">
+                        {d.expand?.distributor_id?.name ? (
+                          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                            {d.expand.distributor_id.name}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
+                            Global
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        R$ {d.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
                       <td className="p-3 text-right">
+                        <Button variant="ghost" size="icon" onClick={() => handleEditSupply(d)}>
+                          <Pencil className="w-4 h-4 text-muted-foreground" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -232,16 +290,16 @@ export function SuppliesTab() {
           <CardContent className="space-y-6">
             <form
               onSubmit={handleAddRule}
-              className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end bg-muted/30 p-4 rounded-lg"
+              className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start bg-muted/30 p-5 rounded-xl border border-border/50"
             >
               <div className="space-y-2 md:col-span-2">
-                <Label>Insumo</Label>
+                <Label className="font-semibold">Insumo</Label>
                 <Select
                   required
                   value={ruleForm.supply_id}
                   onValueChange={(v) => setRuleForm({ ...ruleForm, supply_id: v })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-background">
                     <SelectValue placeholder="Selecione o insumo" />
                   </SelectTrigger>
                   <SelectContent>
@@ -254,12 +312,12 @@ export function SuppliesTab() {
                 </Select>
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label>Instalação Alvo</Label>
+                <Label className="font-semibold">Instalação Alvo</Label>
                 <Select
                   value={ruleForm.installation_id}
                   onValueChange={(v) => setRuleForm({ ...ruleForm, installation_id: v })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-background">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -273,12 +331,12 @@ export function SuppliesTab() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Base de Cálculo</Label>
+                <Label className="font-semibold">Base de Cálculo</Label>
                 <Select
                   value={ruleForm.calc_base}
                   onValueChange={(v) => setRuleForm({ ...ruleForm, calc_base: v })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-background">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -290,23 +348,24 @@ export function SuppliesTab() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Multiplicador</Label>
+                <Label className="font-semibold">Multiplicador</Label>
                 <Input
                   required
                   type="number"
                   step="0.01"
                   value={ruleForm.multiplier}
                   onChange={(e) => setRuleForm({ ...ruleForm, multiplier: e.target.value })}
+                  className="bg-background"
                 />
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label>Aplicar na Faixa (De-Até)</Label>
-                <div className="flex items-center gap-2">
+                <Label className="font-semibold">Aplicar na Faixa (De-Até)</Label>
+                <div className="flex flex-col sm:flex-row items-center gap-2">
                   <Select
                     value={ruleForm.range_type}
                     onValueChange={(v) => setRuleForm({ ...ruleForm, range_type: v })}
                   >
-                    <SelectTrigger className="w-[140px]">
+                    <SelectTrigger className="w-full sm:w-[160px] bg-background">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -315,27 +374,31 @@ export function SuppliesTab() {
                       <SelectItem value="kwp">kWp</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Input
-                    type="number"
-                    placeholder="Min"
-                    className="w-full"
-                    disabled={ruleForm.range_type === 'none'}
-                    value={ruleForm.min_val}
-                    onChange={(e) => setRuleForm({ ...ruleForm, min_val: e.target.value })}
-                  />
-                  <Input
-                    type="number"
-                    placeholder="Max"
-                    className="w-full"
-                    disabled={ruleForm.range_type === 'none'}
-                    value={ruleForm.max_val}
-                    onChange={(e) => setRuleForm({ ...ruleForm, max_val: e.target.value })}
-                  />
+                  <div className="flex w-full gap-2">
+                    <Input
+                      type="number"
+                      placeholder="Min"
+                      className="w-full bg-background"
+                      disabled={ruleForm.range_type === 'none'}
+                      value={ruleForm.min_val}
+                      onChange={(e) => setRuleForm({ ...ruleForm, min_val: e.target.value })}
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Max"
+                      className="w-full bg-background"
+                      disabled={ruleForm.range_type === 'none'}
+                      value={ruleForm.max_val}
+                      onChange={(e) => setRuleForm({ ...ruleForm, max_val: e.target.value })}
+                    />
+                  </div>
                 </div>
               </div>
-              <Button type="submit" className="md:col-span-4">
-                <Plus className="w-4 h-4 mr-2" /> Adicionar
-              </Button>
+              <div className="md:col-span-4 flex justify-end mt-2">
+                <Button type="submit">
+                  <Plus className="w-4 h-4 mr-2" /> Adicionar Regra
+                </Button>
+              </div>
             </form>
 
             <div className="rounded-md border">
@@ -351,7 +414,7 @@ export function SuppliesTab() {
                 </thead>
                 <tbody>
                   {rules.map((r) => (
-                    <tr key={r.id} className="border-t">
+                    <tr key={r.id} className="border-t hover:bg-muted/30 transition-colors">
                       <td className="p-3 font-medium">{r.expand?.supply_id?.name}</td>
                       <td className="p-3">{r.expand?.installation_id?.name || 'Todas'}</td>
                       <td className="p-3">
