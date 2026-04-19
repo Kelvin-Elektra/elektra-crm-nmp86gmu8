@@ -46,12 +46,17 @@ export function SuppliesTab() {
   })
 
   const defaultSupplyNames = [
-    'Cabo Solar Preto',
-    'Cabo Solar Vermelho',
+    'Cabo solar vermelho',
+    'Cabo solar preto',
     'Conector MC4',
-    'String Box',
-    'Disjuntor AC',
-    'Terminal Ilhós',
+    'Suporte fibromadeira',
+    'Suporte Fibrometal',
+    'Emenda',
+    'Perfil alumínio',
+    'Minitrilho',
+    'Intermediário',
+    'Final',
+    'Est. Solo',
   ]
 
   const calcBaseLabels: Record<string, string> = {

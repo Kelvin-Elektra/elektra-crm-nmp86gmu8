@@ -36,11 +36,12 @@ export function CostsTab() {
   const [form, setForm] = useState(initialForm)
 
   const defaultCostNames = [
-    'Mão de Obra',
+    'Comissão de venda',
+    'Mão de obra',
     'Engenharia',
-    'Comissão de Venda',
-    'Frete',
-    'Imposto (Nota Fiscal)',
+    'Material complementar',
+    'Imposto',
+    'Margem de contribuição',
   ]
 
   const handleNumberChange = (field: string, value: string) => {
