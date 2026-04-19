@@ -14,6 +14,7 @@ import { Plus, Trash2, Settings2, Pencil } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export function CostsTab() {
   const { user } = useAuth()
@@ -22,6 +23,7 @@ export function CostsTab() {
   const [settingsId, setSettingsId] = useState<string | null>(null)
   const [billingModel, setBillingModel] = useState('direct')
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   const initialForm = {
     name: '',
@@ -33,21 +35,47 @@ export function CostsTab() {
   }
   const [form, setForm] = useState(initialForm)
 
+  const defaultCostNames = [
+    'Mão de Obra',
+    'Engenharia',
+    'Comissão de Venda',
+    'Frete',
+    'Imposto (Nota Fiscal)',
+  ]
+
+  const handleNumberChange = (field: string, value: string) => {
+    let clean = value.replace(/[^0-9,]/g, '')
+    const parts = clean.split(',')
+    if (parts.length > 2) {
+      clean = parts[0] + ',' + parts.slice(1).join('')
+    }
+    setForm({ ...form, [field]: clean })
+  }
+
+  const parseNumber = (val: string) => (val ? Number(val.replace(',', '.')) : null)
+  const formatNumber = (val: number | string | null | undefined) =>
+    val !== null && val !== undefined ? val.toString().replace('.', ',') : ''
+
   const loadData = async () => {
     if (!user?.company_id) return
-    const res = await pb.collection('pv_costs').getFullList()
-    setData(res)
-
+    setLoading(true)
     try {
-      const settings = await pb
-        .collection('proposal_settings')
-        .getFirstListItem(`company_id = '${user.company_id}'`)
-      if (settings) {
-        setSettingsId(settings.id)
-        if (settings.billing_model) setBillingModel(settings.billing_model)
+      const res = await pb.collection('pv_costs').getFullList()
+      setData(res)
+
+      try {
+        const settings = await pb
+          .collection('proposal_settings')
+          .getFirstListItem(`company_id = '${user.company_id}'`)
+        if (settings) {
+          setSettingsId(settings.id)
+          if (settings.billing_model) setBillingModel(settings.billing_model)
+        }
+      } catch (_) {
+        /* ignore */
       }
-    } catch (_) {
-      /* ignore */
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -80,10 +108,10 @@ export function CostsTab() {
     const payload = {
       name: form.name,
       calc_method: form.calc_method,
-      value: Number(form.value),
+      value: parseNumber(form.value) || 0,
       range_type: form.range_type,
-      min_val: form.range_type !== 'none' && form.min_val ? Number(form.min_val) : null,
-      max_val: form.range_type !== 'none' && form.max_val ? Number(form.max_val) : null,
+      min_val: form.range_type !== 'none' && form.min_val ? parseNumber(form.min_val) : null,
+      max_val: form.range_type !== 'none' && form.max_val ? parseNumber(form.max_val) : null,
       company_id: user.company_id,
     }
 
@@ -107,9 +135,9 @@ export function CostsTab() {
       name: item.name,
       range_type: item.range_type,
       calc_method: item.calc_method,
-      value: item.value.toString(),
-      min_val: item.min_val?.toString() || '',
-      max_val: item.max_val?.toString() || '',
+      value: formatNumber(item.value),
+      min_val: formatNumber(item.min_val),
+      max_val: formatNumber(item.max_val),
     })
     setEditingId(item.id)
   }
@@ -176,6 +204,18 @@ export function CostsTab() {
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className="bg-background"
               />
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {defaultCostNames.map((n) => (
+                  <button
+                    type="button"
+                    key={n}
+                    onClick={() => setForm({ ...form, name: n })}
+                    className="text-[11px] bg-background border hover:bg-primary hover:text-primary-foreground px-2.5 py-1 rounded-md transition-colors"
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="space-y-2 md:col-span-2">
               <Label className="font-semibold">Método de Cálculo</Label>
@@ -199,10 +239,9 @@ export function CostsTab() {
               <Label className="font-semibold">Valor / %</Label>
               <Input
                 required
-                type="number"
-                step="0.01"
+                type="text"
                 value={form.value}
-                onChange={(e) => setForm({ ...form, value: e.target.value })}
+                onChange={(e) => handleNumberChange('value', e.target.value)}
                 className="bg-background"
               />
             </div>
@@ -226,17 +265,17 @@ export function CostsTab() {
                 {form.range_type !== 'none' && (
                   <div className="flex w-full gap-2 transition-all">
                     <Input
-                      type="number"
+                      type="text"
                       placeholder="Mínimo"
                       value={form.min_val}
-                      onChange={(e) => setForm({ ...form, min_val: e.target.value })}
+                      onChange={(e) => handleNumberChange('min_val', e.target.value)}
                       className="w-full bg-background"
                     />
                     <Input
-                      type="number"
+                      type="text"
                       placeholder="Máximo"
                       value={form.max_val}
-                      onChange={(e) => setForm({ ...form, max_val: e.target.value })}
+                      onChange={(e) => handleNumberChange('max_val', e.target.value)}
                       className="w-full bg-background"
                     />
                   </div>
@@ -273,42 +312,63 @@ export function CostsTab() {
                 </tr>
               </thead>
               <tbody>
-                {data.map((d) => (
-                  <tr key={d.id} className="border-t hover:bg-muted/30 transition-colors">
-                    <td className="p-3 font-medium">{d.name}</td>
-                    <td className="p-3 capitalize">
-                      {d.calc_method === 'fixed' && 'Fixo'}
-                      {d.calc_method === 'variable' && 'Variável'}
-                      {d.calc_method === 'rate' && 'Percentual'}
-                      {d.calc_method === 'tax' && 'Imposto'}
-                      {d.calc_method === 'margin' && 'Margem'}
-                    </td>
-                    <td className="p-3 font-medium">
-                      {d.calc_method === 'fixed' || d.calc_method === 'variable' ? 'R$ ' : ''}
-                      {d.value}
-                      {d.calc_method !== 'fixed' && d.calc_method !== 'variable' ? '%' : ''}
-                    </td>
-                    <td className="p-3 capitalize text-muted-foreground">
-                      {d.range_type === 'none'
-                        ? 'Geral'
-                        : `${d.range_type} (${d.min_val || 0} - ${d.max_val || '∞'})`}
-                    </td>
-                    <td className="p-3 text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(d)}>
-                        <Pencil className="w-4 h-4 text-muted-foreground" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-                {data.length === 0 && (
+                {loading ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <tr key={i} className="border-t">
+                      <td className="p-3">
+                        <Skeleton className="h-4 w-32" />
+                      </td>
+                      <td className="p-3">
+                        <Skeleton className="h-4 w-24" />
+                      </td>
+                      <td className="p-3">
+                        <Skeleton className="h-4 w-16" />
+                      </td>
+                      <td className="p-3">
+                        <Skeleton className="h-4 w-32" />
+                      </td>
+                      <td className="p-3 text-right">
+                        <Skeleton className="h-8 w-16 ml-auto" />
+                      </td>
+                    </tr>
+                  ))
+                ) : data.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="p-6 text-center text-muted-foreground">
                       Nenhuma regra de custo configurada.
                     </td>
                   </tr>
+                ) : (
+                  data.map((d) => (
+                    <tr key={d.id} className="border-t hover:bg-muted/30 transition-colors">
+                      <td className="p-3 font-medium">{d.name}</td>
+                      <td className="p-3 capitalize">
+                        {d.calc_method === 'fixed' && 'Fixo'}
+                        {d.calc_method === 'variable' && 'Variável'}
+                        {d.calc_method === 'rate' && 'Percentual'}
+                        {d.calc_method === 'tax' && 'Imposto'}
+                        {d.calc_method === 'margin' && 'Margem'}
+                      </td>
+                      <td className="p-3 font-medium">
+                        {d.calc_method === 'fixed' || d.calc_method === 'variable' ? 'R$ ' : ''}
+                        {formatNumber(d.value)}
+                        {d.calc_method !== 'fixed' && d.calc_method !== 'variable' ? '%' : ''}
+                      </td>
+                      <td className="p-3 capitalize text-muted-foreground">
+                        {d.range_type === 'none'
+                          ? 'Geral'
+                          : `${d.range_type} (${formatNumber(d.min_val) || 0} - ${formatNumber(d.max_val) || '∞'})`}
+                      </td>
+                      <td className="p-3 text-right">
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(d)}>
+                          <Pencil className="w-4 h-4 text-muted-foreground" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>

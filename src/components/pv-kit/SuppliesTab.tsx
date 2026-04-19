@@ -16,6 +16,7 @@ import { Plus, Trash2, Pencil } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export function SuppliesTab() {
   const { user } = useAuth()
@@ -24,6 +25,7 @@ export function SuppliesTab() {
   const [rules, setRules] = useState<any[]>([])
   const [distributors, setDistributors] = useState<any[]>([])
   const [installations, setInstallations] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
   const [editingSupplyId, setEditingSupplyId] = useState<string | null>(null)
   const [supplyForm, setSupplyForm] = useState({
@@ -43,18 +45,52 @@ export function SuppliesTab() {
     max_val: '',
   })
 
+  const defaultSupplyNames = [
+    'Cabo Solar Preto',
+    'Cabo Solar Vermelho',
+    'Conector MC4',
+    'String Box',
+    'Disjuntor AC',
+    'Terminal Ilhós',
+  ]
+
+  const calcBaseLabels: Record<string, string> = {
+    modules: 'módulos',
+    kwp: 'kWp',
+    mppt: 'MPPT',
+    fixed: 'Fixo',
+  }
+
+  const handleNumberChange = (val: string, setter: (v: string) => void) => {
+    let clean = val.replace(/[^0-9,]/g, '')
+    const parts = clean.split(',')
+    if (parts.length > 2) {
+      clean = parts[0] + ',' + parts.slice(1).join('')
+    }
+    setter(clean)
+  }
+
+  const parseNumber = (val: string) => (val ? Number(val.replace(',', '.')) : null)
+  const formatNumber = (val: number | string | null | undefined) =>
+    val !== null && val !== undefined ? val.toString().replace('.', ',') : ''
+
   const loadData = async () => {
     if (!user?.company_id) return
-    const [suppData, ruleData, dists, insts] = await Promise.all([
-      pb.collection('pv_supplies').getFullList({ expand: 'distributor_id' }),
-      pb.collection('pv_supply_rules').getFullList({ expand: 'supply_id,installation_id' }),
-      pb.collection('pv_distributors').getFullList(),
-      pb.collection('pv_installations').getFullList(),
-    ])
-    setSupplies(suppData)
-    setRules(ruleData)
-    setDistributors(dists)
-    setInstallations(insts)
+    setLoading(true)
+    try {
+      const [suppData, ruleData, dists, insts] = await Promise.all([
+        pb.collection('pv_supplies').getFullList({ expand: 'distributor_id' }),
+        pb.collection('pv_supply_rules').getFullList({ expand: 'supply_id,installation_id' }),
+        pb.collection('pv_distributors').getFullList(),
+        pb.collection('pv_installations').getFullList(),
+      ])
+      setSupplies(suppData)
+      setRules(ruleData)
+      setDistributors(dists)
+      setInstallations(insts)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -67,7 +103,7 @@ export function SuppliesTab() {
 
     const payload = {
       name: supplyForm.name,
-      price: Number(supplyForm.price),
+      price: parseNumber(supplyForm.price) || 0,
       distributor_id: supplyForm.global
         ? null
         : supplyForm.distributor_id === 'all'
@@ -102,7 +138,7 @@ export function SuppliesTab() {
   const handleEditSupply = (s: any) => {
     setSupplyForm({
       name: s.name,
-      price: s.price.toString(),
+      price: formatNumber(s.price),
       global: !s.distributor_id,
       distributor_id: s.distributor_id || 'all',
     })
@@ -117,10 +153,12 @@ export function SuppliesTab() {
         supply_id: ruleForm.supply_id,
         installation_id: ruleForm.installation_id === 'all' ? null : ruleForm.installation_id,
         calc_base: ruleForm.calc_base,
-        multiplier: Number(ruleForm.multiplier),
+        multiplier: parseNumber(ruleForm.multiplier) || 1,
         range_type: ruleForm.range_type,
-        min_val: ruleForm.min_val ? Number(ruleForm.min_val) : null,
-        max_val: ruleForm.max_val ? Number(ruleForm.max_val) : null,
+        min_val:
+          ruleForm.range_type !== 'none' && ruleForm.min_val ? parseNumber(ruleForm.min_val) : null,
+        max_val:
+          ruleForm.range_type !== 'none' && ruleForm.max_val ? parseNumber(ruleForm.max_val) : null,
         company_id: user.company_id,
       })
       toast({ title: 'Sucesso', description: 'Regra adicionada.' })
@@ -160,7 +198,7 @@ export function SuppliesTab() {
                 />
                 <Label className="font-semibold">Aplicar a todos os distribuidores (Global)</Label>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
                 {!supplyForm.global && (
                   <div className="space-y-2">
                     <Label className="font-semibold">Distribuidor</Label>
@@ -191,19 +229,34 @@ export function SuppliesTab() {
                     onChange={(e) => setSupplyForm({ ...supplyForm, name: e.target.value })}
                     className="bg-background"
                   />
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {defaultSupplyNames.map((n) => (
+                      <button
+                        type="button"
+                        key={n}
+                        onClick={() => setSupplyForm({ ...supplyForm, name: n })}
+                        className="text-[11px] bg-background border hover:bg-primary hover:text-primary-foreground px-2.5 py-1 rounded-md transition-colors"
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label className="font-semibold">Valor Unitário (R$)</Label>
                   <Input
                     required
-                    type="number"
-                    step="0.01"
+                    type="text"
                     value={supplyForm.price}
-                    onChange={(e) => setSupplyForm({ ...supplyForm, price: e.target.value })}
+                    onChange={(e) =>
+                      handleNumberChange(e.target.value, (v) =>
+                        setSupplyForm({ ...supplyForm, price: v }),
+                      )
+                    }
                     className="bg-background"
                   />
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 self-end pb-[2px]">
                   {editingSupplyId && (
                     <Button
                       type="button"
@@ -241,37 +294,62 @@ export function SuppliesTab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {supplies.map((d) => (
-                    <tr key={d.id} className="border-t hover:bg-muted/30 transition-colors">
-                      <td className="p-3 font-medium">{d.name}</td>
-                      <td className="p-3">
-                        {d.expand?.distributor_id?.name ? (
-                          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                            {d.expand.distributor_id.name}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
-                            Global
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3">
-                        R$ {d.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="p-3 text-right">
-                        <Button variant="ghost" size="icon" onClick={() => handleEditSupply(d)}>
-                          <Pencil className="w-4 h-4 text-muted-foreground" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => pb.collection('pv_supplies').delete(d.id).then(loadData)}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
+                  {loading ? (
+                    Array.from({ length: 3 }).map((_, i) => (
+                      <tr key={i} className="border-t">
+                        <td className="p-3">
+                          <Skeleton className="h-4 w-32" />
+                        </td>
+                        <td className="p-3">
+                          <Skeleton className="h-4 w-20" />
+                        </td>
+                        <td className="p-3">
+                          <Skeleton className="h-4 w-16" />
+                        </td>
+                        <td className="p-3 text-right">
+                          <Skeleton className="h-8 w-16 ml-auto" />
+                        </td>
+                      </tr>
+                    ))
+                  ) : supplies.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="p-6 text-center text-muted-foreground">
+                        Nenhum insumo encontrado.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    supplies.map((d) => (
+                      <tr key={d.id} className="border-t hover:bg-muted/30 transition-colors">
+                        <td className="p-3 font-medium">{d.name}</td>
+                        <td className="p-3">
+                          {d.expand?.distributor_id?.name ? (
+                            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                              {d.expand.distributor_id.name}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
+                              Global
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3">
+                          R$ {d.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="p-3 text-right">
+                          <Button variant="ghost" size="icon" onClick={() => handleEditSupply(d)}>
+                            <Pencil className="w-4 h-4 text-muted-foreground" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => pb.collection('pv_supplies').delete(d.id).then(loadData)}
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -305,7 +383,7 @@ export function SuppliesTab() {
                   <SelectContent>
                     {supplies.map((s) => (
                       <SelectItem key={s.id} value={s.id}>
-                        {s.name} (R$ {s.price})
+                        {s.name} (R$ {formatNumber(s.price)})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -351,10 +429,13 @@ export function SuppliesTab() {
                 <Label className="font-semibold">Multiplicador</Label>
                 <Input
                   required
-                  type="number"
-                  step="0.01"
+                  type="text"
                   value={ruleForm.multiplier}
-                  onChange={(e) => setRuleForm({ ...ruleForm, multiplier: e.target.value })}
+                  onChange={(e) =>
+                    handleNumberChange(e.target.value, (v) =>
+                      setRuleForm({ ...ruleForm, multiplier: v }),
+                    )
+                  }
                   className="bg-background"
                 />
               </div>
@@ -376,20 +457,28 @@ export function SuppliesTab() {
                   </Select>
                   <div className="flex w-full gap-2">
                     <Input
-                      type="number"
+                      type="text"
                       placeholder="Min"
                       className="w-full bg-background"
                       disabled={ruleForm.range_type === 'none'}
                       value={ruleForm.min_val}
-                      onChange={(e) => setRuleForm({ ...ruleForm, min_val: e.target.value })}
+                      onChange={(e) =>
+                        handleNumberChange(e.target.value, (v) =>
+                          setRuleForm({ ...ruleForm, min_val: v }),
+                        )
+                      }
                     />
                     <Input
-                      type="number"
+                      type="text"
                       placeholder="Max"
                       className="w-full bg-background"
                       disabled={ruleForm.range_type === 'none'}
                       value={ruleForm.max_val}
-                      onChange={(e) => setRuleForm({ ...ruleForm, max_val: e.target.value })}
+                      onChange={(e) =>
+                        handleNumberChange(e.target.value, (v) =>
+                          setRuleForm({ ...ruleForm, max_val: v }),
+                        )
+                      }
                     />
                   </div>
                 </div>
@@ -413,31 +502,59 @@ export function SuppliesTab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rules.map((r) => (
-                    <tr key={r.id} className="border-t hover:bg-muted/30 transition-colors">
-                      <td className="p-3 font-medium">{r.expand?.supply_id?.name}</td>
-                      <td className="p-3">{r.expand?.installation_id?.name || 'Todas'}</td>
-                      <td className="p-3">
-                        {r.multiplier}x {r.calc_base}
-                      </td>
-                      <td className="p-3 capitalize">
-                        {r.range_type === 'none'
-                          ? 'Geral'
-                          : `${r.range_type} (${r.min_val || 0} - ${r.max_val || '∞'})`}
-                      </td>
-                      <td className="p-3 text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() =>
-                            pb.collection('pv_supply_rules').delete(r.id).then(loadData)
-                          }
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
+                  {loading ? (
+                    Array.from({ length: 3 }).map((_, i) => (
+                      <tr key={i} className="border-t">
+                        <td className="p-3">
+                          <Skeleton className="h-4 w-32" />
+                        </td>
+                        <td className="p-3">
+                          <Skeleton className="h-4 w-24" />
+                        </td>
+                        <td className="p-3">
+                          <Skeleton className="h-4 w-24" />
+                        </td>
+                        <td className="p-3">
+                          <Skeleton className="h-4 w-16" />
+                        </td>
+                        <td className="p-3 text-right">
+                          <Skeleton className="h-8 w-16 ml-auto" />
+                        </td>
+                      </tr>
+                    ))
+                  ) : rules.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-6 text-center text-muted-foreground">
+                        Nenhuma regra encontrada.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    rules.map((r) => (
+                      <tr key={r.id} className="border-t hover:bg-muted/30 transition-colors">
+                        <td className="p-3 font-medium">{r.expand?.supply_id?.name}</td>
+                        <td className="p-3">{r.expand?.installation_id?.name || 'Todas'}</td>
+                        <td className="p-3">
+                          {formatNumber(r.multiplier)}x {calcBaseLabels[r.calc_base] || r.calc_base}
+                        </td>
+                        <td className="p-3 capitalize">
+                          {r.range_type === 'none'
+                            ? 'Geral'
+                            : `${r.range_type} (${formatNumber(r.min_val) || 0} - ${formatNumber(r.max_val) || '∞'})`}
+                        </td>
+                        <td className="p-3 text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() =>
+                              pb.collection('pv_supply_rules').delete(r.id).then(loadData)
+                            }
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

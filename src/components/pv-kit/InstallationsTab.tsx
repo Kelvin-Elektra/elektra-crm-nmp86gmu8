@@ -14,18 +14,25 @@ import { Plus, Trash2, Pencil } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export function InstallationsTab() {
   const { user } = useAuth()
   const { toast } = useToast()
   const [data, setData] = useState<any[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ name: '', purlin_type: 'Terças de madeira' })
 
   const loadData = async () => {
     if (!user?.company_id) return
-    const res = await pb.collection('pv_installations').getFullList()
-    setData(res)
+    setLoading(true)
+    try {
+      const res = await pb.collection('pv_installations').getFullList()
+      setData(res)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -153,20 +160,42 @@ export function InstallationsTab() {
               </tr>
             </thead>
             <tbody>
-              {data.map((d) => (
-                <tr key={d.id} className="border-t hover:bg-muted/30 transition-colors">
-                  <td className="p-3 font-medium">{d.name}</td>
-                  <td className="p-3">{d.purlin_type || '-'}</td>
-                  <td className="p-3 text-right">
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(d)}>
-                      <Pencil className="w-4 h-4 text-muted-foreground" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
+              {loading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <tr key={i} className="border-t">
+                    <td className="p-3">
+                      <Skeleton className="h-4 w-24" />
+                    </td>
+                    <td className="p-3">
+                      <Skeleton className="h-4 w-32" />
+                    </td>
+                    <td className="p-3 text-right">
+                      <Skeleton className="h-8 w-16 ml-auto" />
+                    </td>
+                  </tr>
+                ))
+              ) : data.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="p-6 text-center text-muted-foreground">
+                    Nenhuma instalação encontrada.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                data.map((d) => (
+                  <tr key={d.id} className="border-t hover:bg-muted/30 transition-colors">
+                    <td className="p-3 font-medium">{d.name}</td>
+                    <td className="p-3">{d.purlin_type || '-'}</td>
+                    <td className="p-3 text-right">
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(d)}>
+                        <Pencil className="w-4 h-4 text-muted-foreground" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

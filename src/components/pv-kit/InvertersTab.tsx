@@ -14,6 +14,7 @@ import { Plus, Trash2, Pencil, Search } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export function InvertersTab() {
   const { user } = useAuth()
@@ -21,6 +22,7 @@ export function InvertersTab() {
   const [data, setData] = useState<any[]>([])
   const [distributors, setDistributors] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [fetching, setFetching] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
 
   const [search, setSearch] = useState('')
@@ -41,14 +43,32 @@ export function InvertersTab() {
   }
   const [form, setForm] = useState(initialForm)
 
+  const handleNumberChange = (field: string, value: string) => {
+    let clean = value.replace(/[^0-9,]/g, '')
+    const parts = clean.split(',')
+    if (parts.length > 2) {
+      clean = parts[0] + ',' + parts.slice(1).join('')
+    }
+    setForm({ ...form, [field]: clean })
+  }
+
+  const parseNumber = (val: string) => (val ? Number(val.replace(',', '.')) : 0)
+  const formatNumber = (val: number | string | null | undefined) =>
+    val !== null && val !== undefined ? val.toString().replace('.', ',') : ''
+
   const loadData = async () => {
     if (!user?.company_id) return
-    const [invs, dists] = await Promise.all([
-      pb.collection('pv_inverters').getFullList({ expand: 'distributor_id' }),
-      pb.collection('pv_distributors').getFullList(),
-    ])
-    setData(invs)
-    setDistributors(dists)
+    setFetching(true)
+    try {
+      const [invs, dists] = await Promise.all([
+        pb.collection('pv_inverters').getFullList({ expand: 'distributor_id' }),
+        pb.collection('pv_distributors').getFullList(),
+      ])
+      setData(invs)
+      setDistributors(dists)
+    } finally {
+      setFetching(false)
+    }
   }
 
   useEffect(() => {
@@ -62,10 +82,10 @@ export function InvertersTab() {
 
     const payload = {
       ...form,
-      power: Number(form.power),
-      overload: Number(form.overload),
-      price: form.price ? Number(form.price) : null,
-      mppt: Number(form.mppt),
+      power: parseNumber(form.power),
+      overload: parseNumber(form.overload),
+      price: form.price ? parseNumber(form.price) : null,
+      mppt: parseNumber(form.mppt),
       company_id: user.company_id,
     }
 
@@ -89,16 +109,16 @@ export function InvertersTab() {
   const handleEdit = (inv: any) => {
     setForm({
       name: inv.name,
-      power: inv.power?.toString() || '',
+      power: formatNumber(inv.power),
       brand: inv.brand,
       distributor_id: inv.distributor_id,
       type: inv.type,
       voltage: inv.voltage || '',
       warranty: inv.warranty || '',
       obs: inv.obs || '',
-      overload: inv.overload?.toString() || '30',
-      price: inv.price?.toString() || '',
-      mppt: inv.mppt?.toString() || '1',
+      overload: formatNumber(inv.overload),
+      price: formatNumber(inv.price),
+      mppt: formatNumber(inv.mppt),
     })
     setEditingId(inv.id)
   }
@@ -155,7 +175,7 @@ export function InvertersTab() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label className="font-semibold">Modelo</Label>
+            <Label className="font-semibold">Nome/Modelo</Label>
             <Input
               required
               value={form.name}
@@ -167,10 +187,9 @@ export function InvertersTab() {
             <Label className="font-semibold">Potência (kW)</Label>
             <Input
               required
-              type="number"
-              step="0.1"
+              type="text"
               value={form.power}
-              onChange={(e) => setForm({ ...form, power: e.target.value })}
+              onChange={(e) => handleNumberChange('power', e.target.value)}
               className="bg-background"
             />
           </div>
@@ -197,20 +216,23 @@ export function InvertersTab() {
           </div>
           <div className="space-y-2">
             <Label className="font-semibold">Tensão</Label>
-            <Input
-              placeholder="Ex: 220V/380V"
-              value={form.voltage}
-              onChange={(e) => setForm({ ...form, voltage: e.target.value })}
-              className="bg-background"
-            />
+            <Select value={form.voltage} onValueChange={(v) => setForm({ ...form, voltage: v })}>
+              <SelectTrigger className="bg-background">
+                <SelectValue placeholder="Selecione" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="220V">220V</SelectItem>
+                <SelectItem value="380V">380V</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <Label className="font-semibold">Overload Max (%)</Label>
             <Input
               required
-              type="number"
+              type="text"
               value={form.overload}
-              onChange={(e) => setForm({ ...form, overload: e.target.value })}
+              onChange={(e) => handleNumberChange('overload', e.target.value)}
               className="bg-background"
             />
           </div>
@@ -218,9 +240,9 @@ export function InvertersTab() {
             <Label className="font-semibold">MPPT</Label>
             <Input
               required
-              type="number"
+              type="text"
               value={form.mppt}
-              onChange={(e) => setForm({ ...form, mppt: e.target.value })}
+              onChange={(e) => handleNumberChange('mppt', e.target.value)}
               className="bg-background"
             />
           </div>
@@ -236,10 +258,9 @@ export function InvertersTab() {
           <div className="space-y-2">
             <Label className="font-semibold">Preço (R$)</Label>
             <Input
-              type="number"
-              step="0.01"
+              type="text"
               value={form.price}
-              onChange={(e) => setForm({ ...form, price: e.target.value })}
+              onChange={(e) => handleNumberChange('price', e.target.value)}
               className="bg-background"
             />
           </div>
@@ -299,7 +320,7 @@ export function InvertersTab() {
           <table className="w-full text-sm text-left whitespace-nowrap">
             <thead className="bg-muted">
               <tr>
-                <th className="p-3 font-medium">Modelo</th>
+                <th className="p-3 font-medium">Nome/Modelo</th>
                 <th className="p-3 font-medium">Marca</th>
                 <th className="p-3 font-medium">Potência</th>
                 <th className="p-3 font-medium">Fase/Tensão</th>
@@ -311,40 +332,73 @@ export function InvertersTab() {
               </tr>
             </thead>
             <tbody>
-              {filteredData.map((d) => (
-                <tr key={d.id} className="border-t hover:bg-muted/30 transition-colors">
-                  <td className="p-3 font-medium">{d.name}</td>
-                  <td className="p-3">{d.brand}</td>
-                  <td className="p-3">{d.power} kW</td>
-                  <td className="p-3 capitalize">
-                    {d.type} {d.voltage && `(${d.voltage})`}
-                  </td>
-                  <td className="p-3">
-                    {d.overload}% / {d.mppt}x
-                  </td>
-                  <td className="p-3">{d.warranty || '-'}</td>
-                  <td className="p-3">
-                    {d.price
-                      ? `R$ ${d.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-                      : '-'}
-                  </td>
-                  <td className="p-3">{d.expand?.distributor_id?.name}</td>
-                  <td className="p-3 text-right">
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(d)}>
-                      <Pencil className="w-4 h-4 text-muted-foreground" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-              {filteredData.length === 0 && (
+              {fetching ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <tr key={i} className="border-t">
+                    <td className="p-3">
+                      <Skeleton className="h-4 w-24" />
+                    </td>
+                    <td className="p-3">
+                      <Skeleton className="h-4 w-20" />
+                    </td>
+                    <td className="p-3">
+                      <Skeleton className="h-4 w-16" />
+                    </td>
+                    <td className="p-3">
+                      <Skeleton className="h-4 w-24" />
+                    </td>
+                    <td className="p-3">
+                      <Skeleton className="h-4 w-20" />
+                    </td>
+                    <td className="p-3">
+                      <Skeleton className="h-4 w-16" />
+                    </td>
+                    <td className="p-3">
+                      <Skeleton className="h-4 w-20" />
+                    </td>
+                    <td className="p-3">
+                      <Skeleton className="h-4 w-24" />
+                    </td>
+                    <td className="p-3 text-right">
+                      <Skeleton className="h-8 w-16 ml-auto" />
+                    </td>
+                  </tr>
+                ))
+              ) : filteredData.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="p-6 text-center text-muted-foreground">
                     Nenhum inversor encontrado.
                   </td>
                 </tr>
+              ) : (
+                filteredData.map((d) => (
+                  <tr key={d.id} className="border-t hover:bg-muted/30 transition-colors">
+                    <td className="p-3 font-medium">{d.name}</td>
+                    <td className="p-3">{d.brand}</td>
+                    <td className="p-3">{formatNumber(d.power)} kW</td>
+                    <td className="p-3 capitalize">
+                      {d.type} {d.voltage && `(${d.voltage})`}
+                    </td>
+                    <td className="p-3">
+                      {formatNumber(d.overload)}% / {formatNumber(d.mppt)}x
+                    </td>
+                    <td className="p-3">{d.warranty || '-'}</td>
+                    <td className="p-3">
+                      {d.price
+                        ? `R$ ${d.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                        : '-'}
+                    </td>
+                    <td className="p-3">{d.expand?.distributor_id?.name}</td>
+                    <td className="p-3 text-right">
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(d)}>
+                        <Pencil className="w-4 h-4 text-muted-foreground" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
