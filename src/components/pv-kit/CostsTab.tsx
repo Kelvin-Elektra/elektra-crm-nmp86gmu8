@@ -41,7 +41,9 @@ export function CostsTab() {
         setSettingsId(settings.id)
         if (settings.billing_model) setBillingModel(settings.billing_model)
       }
-    } catch (_) {}
+    } catch (_) {
+      // ignore
+    }
   }
 
   useEffect(() => {
