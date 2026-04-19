@@ -1,14 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import {
-  LayoutDashboard,
-  Columns3,
-  Users,
-  Briefcase,
-  FileText,
-  Settings,
-  Sun,
-  Zap,
-} from 'lucide-react'
+import { LayoutDashboard, Columns3, Users, Briefcase, FileText, Settings, Zap } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -21,6 +12,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar'
+import { useAuth } from '@/contexts/AuthContext'
 
 const navItems = [
   { title: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -33,6 +25,9 @@ const navItems = [
 export function AppSidebar() {
   const location = useLocation()
   const { setOpen } = useSidebar()
+  const { user } = useAuth()
+
+  const isAdmin = user?.role === 'admin_elektra' || user?.role === 'admin_company'
 
   return (
     <Sidebar
@@ -89,41 +84,45 @@ export function AppSidebar() {
 
       <SidebarFooter className="border-t border-sidebar-border/50 p-2">
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={location.pathname === '/configuracoes-kit-pv'}
-              tooltip="Configurações do Kit PV"
-              className="h-10 w-full transition-all duration-200"
-            >
-              <Link to="/configuracoes-kit-pv" className="flex items-center gap-3">
-                <Zap className="!h-5 !w-5 shrink-0" />
-                <span className="font-medium group-data-[collapsible=icon]:hidden">
-                  Configurações do Kit PV
-                </span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={location.pathname === '/configuracoes-proposta'}
-              tooltip="Configurações da Proposta PV"
-              className="h-10 w-full transition-all duration-200"
-            >
-              <Link to="/configuracoes-proposta" className="flex items-center gap-3">
-                <FileText className="!h-5 !w-5 shrink-0" />
-                <span className="font-medium group-data-[collapsible=icon]:hidden">
-                  Configurações da Proposta PV
-                </span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {isAdmin && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={location.pathname === '/configuracoes-kit-pv'}
+                tooltip="Configurações do Kit PV"
+                className="h-10 w-full transition-all duration-200"
+              >
+                <Link to="/configuracoes-kit-pv" className="flex items-center gap-3">
+                  <Zap className="!h-5 !w-5 shrink-0" />
+                  <span className="font-medium group-data-[collapsible=icon]:hidden">
+                    Configurações do Kit PV
+                  </span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+          {isAdmin && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={location.pathname === '/configuracoes-proposta'}
+                tooltip="Configurações da Proposta PV"
+                className="h-10 w-full transition-all duration-200"
+              >
+                <Link to="/configuracoes-proposta" className="flex items-center gap-3">
+                  <FileText className="!h-5 !w-5 shrink-0" />
+                  <span className="font-medium group-data-[collapsible=icon]:hidden">
+                    Configurações da Proposta PV
+                  </span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
               isActive={location.pathname === '/configuracoes'}
-              tooltip="Configurações"
+              tooltip="Configurações Gerais"
               className="h-10 w-full transition-all duration-200"
             >
               <Link to="/configuracoes" className="flex items-center gap-3">

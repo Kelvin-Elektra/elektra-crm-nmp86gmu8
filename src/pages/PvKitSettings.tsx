@@ -6,6 +6,8 @@ import { ModulesTab } from '@/components/pv-kit/ModulesTab'
 import { InvertersTab } from '@/components/pv-kit/InvertersTab'
 import { InstallationsTab } from '@/components/pv-kit/InstallationsTab'
 import { CostsTab } from '@/components/pv-kit/CostsTab'
+import { SuppliesTab } from '@/components/pv-kit/SuppliesTab'
+import { Wrench } from 'lucide-react'
 
 export default function PvKitSettings() {
   return (
@@ -31,8 +33,11 @@ export default function PvKitSettings() {
           <TabsTrigger value="installations" className="py-2.5 rounded-lg flex-1 sm:flex-none">
             <Shield className="mr-2 h-4 w-4" /> Instalação
           </TabsTrigger>
+          <TabsTrigger value="supplies" className="py-2.5 rounded-lg flex-1 sm:flex-none">
+            <Wrench className="mr-2 h-4 w-4" /> Insumos
+          </TabsTrigger>
           <TabsTrigger value="costs" className="py-2.5 rounded-lg flex-1 sm:flex-none">
-            <DollarSign className="mr-2 h-4 w-4" /> Custos de Projeto
+            <DollarSign className="mr-2 h-4 w-4" /> Custos e Impostos
           </TabsTrigger>
         </TabsList>
 
@@ -48,6 +53,9 @@ export default function PvKitSettings() {
           </TabsContent>
           <TabsContent value="installations">
             <InstallationsTab />
+          </TabsContent>
+          <TabsContent value="supplies">
+            <SuppliesTab />
           </TabsContent>
           <TabsContent value="costs">
             <CostsTab />

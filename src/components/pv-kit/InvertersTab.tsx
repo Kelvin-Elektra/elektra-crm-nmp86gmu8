@@ -24,6 +24,7 @@ export function InvertersTab() {
     brand: '',
     distributor_id: '',
     type: 'monofásico',
+    overload: '30',
   })
 
   const loadData = async () => {
@@ -43,15 +44,19 @@ export function InvertersTab() {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user?.company_id || !form.distributor_id) return
-    await pb
-      .collection('pv_inverters')
-      .create({ ...form, power: Number(form.power), company_id: user.company_id })
+    await pb.collection('pv_inverters').create({
+      ...form,
+      power: Number(form.power),
+      overload: Number(form.overload),
+      company_id: user.company_id,
+    })
     setForm({
       name: '',
       power: '',
       brand: '',
       distributor_id: form.distributor_id,
       type: 'monofásico',
+      overload: '30',
     })
     loadData()
   }
@@ -64,7 +69,7 @@ export function InvertersTab() {
       <CardContent className="space-y-6">
         <form
           onSubmit={handleAdd}
-          className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end bg-muted/30 p-4 rounded-lg"
+          className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end bg-muted/30 p-4 rounded-lg"
         >
           <div className="space-y-2">
             <Label>Distribuidora</Label>
@@ -73,7 +78,7 @@ export function InvertersTab() {
               onValueChange={(v) => setForm({ ...form, distributor_id: v })}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select" />
+                <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
                 {distributors.map((d) => (
@@ -122,9 +127,20 @@ export function InvertersTab() {
               </SelectContent>
             </Select>
           </div>
-          <Button type="submit">
-            <Plus className="w-4 h-4 mr-2" /> Salvar
-          </Button>
+          <div className="space-y-2">
+            <Label>Sobrecarga Max (%)</Label>
+            <Input
+              required
+              type="number"
+              value={form.overload}
+              onChange={(e) => setForm({ ...form, overload: e.target.value })}
+            />
+          </div>
+          <div className="col-span-1 md:col-span-2 flex justify-end">
+            <Button type="submit" className="w-full">
+              <Plus className="w-4 h-4 mr-2" /> Salvar Inversor
+            </Button>
+          </div>
         </form>
         <div className="rounded-md border">
           <table className="w-full text-sm text-left">
@@ -132,7 +148,7 @@ export function InvertersTab() {
               <tr>
                 <th className="p-3 font-medium">Modelo</th>
                 <th className="p-3 font-medium">Potência</th>
-                <th className="p-3 font-medium">Tipo</th>
+                <th className="p-3 font-medium">Overload</th>
                 <th className="p-3 font-medium">Distribuidora</th>
                 <th className="p-3 font-medium text-right">Ações</th>
               </tr>
@@ -142,7 +158,7 @@ export function InvertersTab() {
                 <tr key={d.id} className="border-t">
                   <td className="p-3">{d.name}</td>
                   <td className="p-3">{d.power} kW</td>
-                  <td className="p-3 capitalize">{d.type}</td>
+                  <td className="p-3">{d.overload}%</td>
                   <td className="p-3">{d.expand?.distributor_id?.name}</td>
                   <td className="p-3 text-right">
                     <Button

@@ -21,7 +21,16 @@ export function ModulesTab() {
   const [data, setData] = useState<any[]>([])
   const [distributors, setDistributors] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({ name: '', power: '', brand: '', distributor_id: '' })
+  const [form, setForm] = useState({
+    name: '',
+    power: '',
+    brand: '',
+    distributor_id: '',
+    height: '',
+    width: '',
+    frame: '',
+    notes: '',
+  })
 
   const loadData = async () => {
     if (!user?.company_id) return
@@ -42,11 +51,24 @@ export function ModulesTab() {
     if (!user?.company_id || !form.distributor_id) return
     setLoading(true)
     try {
-      await pb
-        .collection('pv_modules')
-        .create({ ...form, power: Number(form.power), company_id: user.company_id })
+      await pb.collection('pv_modules').create({
+        ...form,
+        power: Number(form.power),
+        height: form.height ? Number(form.height) : null,
+        width: form.width ? Number(form.width) : null,
+        company_id: user.company_id,
+      })
       toast({ title: 'Sucesso', description: 'Módulo adicionado.' })
-      setForm({ name: '', power: '', brand: '', distributor_id: form.distributor_id })
+      setForm({
+        name: '',
+        power: '',
+        brand: '',
+        distributor_id: form.distributor_id,
+        height: '',
+        width: '',
+        frame: '',
+        notes: '',
+      })
       loadData()
     } catch (error) {
       toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível adicionar.' })
@@ -67,7 +89,7 @@ export function ModulesTab() {
       <CardContent className="space-y-6">
         <form
           onSubmit={handleAdd}
-          className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end bg-muted/30 p-4 rounded-lg"
+          className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end bg-muted/30 p-4 rounded-lg"
         >
           <div className="space-y-2">
             <Label>Distribuidora</Label>
@@ -112,8 +134,41 @@ export function ModulesTab() {
               onChange={(e) => setForm({ ...form, brand: e.target.value })}
             />
           </div>
-          <Button type="submit" disabled={loading}>
-            <Plus className="w-4 h-4 mr-2" /> Salvar
+
+          <div className="space-y-2">
+            <Label>Altura (mm)</Label>
+            <Input
+              type="number"
+              value={form.height}
+              onChange={(e) => setForm({ ...form, height: e.target.value })}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Largura (mm)</Label>
+            <Input
+              type="number"
+              value={form.width}
+              onChange={(e) => setForm({ ...form, width: e.target.value })}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Cor do Frame</Label>
+            <Input
+              placeholder="Ex: Preto"
+              value={form.frame}
+              onChange={(e) => setForm({ ...form, frame: e.target.value })}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Observações</Label>
+            <Input
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            />
+          </div>
+
+          <Button type="submit" disabled={loading} className="md:col-span-4">
+            <Plus className="w-4 h-4 mr-2" /> Salvar Módulo
           </Button>
         </form>
         <div className="rounded-md border">

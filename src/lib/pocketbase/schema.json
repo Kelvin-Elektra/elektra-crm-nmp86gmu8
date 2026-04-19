@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-18T19:36:59.094Z",
+  "generatedAt": "2026-04-19T12:45:34.296Z",
   "collections": [
     {
       "name": "users",
@@ -595,9 +595,438 @@
           "type": "json",
           "required": false,
           "system": false
+        },
+        {
+          "name": "billing_model",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["direct", "intermediated"]
         }
       ],
       "indexes": []
+    },
+    {
+      "name": "pv_distributors",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && company_id = @request.auth.company_id",
+        "view": "@request.auth.id != '' && company_id = @request.auth.company_id",
+        "create": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')",
+        "update": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')",
+        "delete": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')"
+      },
+      "fields": [
+        {
+          "name": "company_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "companies"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "cnpj",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_pv_distributors_company ON pv_distributors (company_id)"]
+    },
+    {
+      "name": "pv_modules",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && company_id = @request.auth.company_id",
+        "view": "@request.auth.id != '' && company_id = @request.auth.company_id",
+        "create": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')",
+        "update": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')",
+        "delete": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')"
+      },
+      "fields": [
+        {
+          "name": "company_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "companies"
+        },
+        {
+          "name": "distributor_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "pv_distributors"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "power",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "brand",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "height",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "width",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "frame",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_pv_modules_company ON pv_modules (company_id)"]
+    },
+    {
+      "name": "pv_inverters",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && company_id = @request.auth.company_id",
+        "view": "@request.auth.id != '' && company_id = @request.auth.company_id",
+        "create": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')",
+        "update": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')",
+        "delete": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')"
+      },
+      "fields": [
+        {
+          "name": "company_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "companies"
+        },
+        {
+          "name": "distributor_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "pv_distributors"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "power",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "brand",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "type",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["monofásico", "trifásico"]
+        },
+        {
+          "name": "voltage",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "warranty",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "obs",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "overload",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_pv_inverters_company ON pv_inverters (company_id)"]
+    },
+    {
+      "name": "pv_installations",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && company_id = @request.auth.company_id",
+        "view": "@request.auth.id != '' && company_id = @request.auth.company_id",
+        "create": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')",
+        "update": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')",
+        "delete": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')"
+      },
+      "fields": [
+        {
+          "name": "company_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "companies"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "purlin_type",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_pv_installations_company ON pv_installations (company_id)"]
+    },
+    {
+      "name": "pv_supplies",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && company_id = @request.auth.company_id",
+        "view": "@request.auth.id != '' && company_id = @request.auth.company_id",
+        "create": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')",
+        "update": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')",
+        "delete": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')"
+      },
+      "fields": [
+        {
+          "name": "company_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "companies"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "price",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "calc_base",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["modules", "inverters", "kwp", "fixed"]
+        },
+        {
+          "name": "multiplier",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "installation_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "pv_installations"
+        },
+        {
+          "name": "range_type",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["modules", "kwp", "none"]
+        },
+        {
+          "name": "max_val",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_pv_supplies_company ON pv_supplies (company_id)"]
+    },
+    {
+      "name": "pv_costs",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && company_id = @request.auth.company_id",
+        "view": "@request.auth.id != '' && company_id = @request.auth.company_id",
+        "create": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')",
+        "update": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')",
+        "delete": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')"
+      },
+      "fields": [
+        {
+          "name": "company_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "companies"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "range_type",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["modules", "kwp", "kw", "none"]
+        },
+        {
+          "name": "min_val",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "max_val",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "calc_method",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["fixed", "variable", "rate", "tax", "margin"]
+        },
+        {
+          "name": "value",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_pv_costs_company ON pv_costs (company_id)"]
     }
   ]
 }

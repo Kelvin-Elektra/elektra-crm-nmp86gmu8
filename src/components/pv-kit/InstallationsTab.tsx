@@ -37,6 +37,8 @@ export function InstallationsTab() {
     loadData()
   }
 
+  const defaultNames = ['Aluzinco', 'Telha', 'Fibrocimento', 'Eternit', 'Solo', 'Carport']
+
   return (
     <Card>
       <CardHeader>
@@ -44,17 +46,28 @@ export function InstallationsTab() {
         <CardDescription>Defina os tipos de telhados ou solo para dimensionamento.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <form onSubmit={handleAdd} className="flex gap-4 items-end bg-muted/30 p-4 rounded-lg">
-          <div className="flex-1 space-y-2">
+        <form
+          onSubmit={handleAdd}
+          className="flex flex-col md:flex-row gap-4 items-end bg-muted/30 p-4 rounded-lg"
+        >
+          <div className="flex-1 space-y-2 w-full">
             <Label>Nome do Tipo</Label>
-            <Input
-              required
-              placeholder="Ex: Cerâmica"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-            />
+            <div className="flex gap-2">
+              <Input
+                required
+                list="installations-names"
+                placeholder="Ex: Cerâmica"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+              <datalist id="installations-names">
+                {defaultNames.map((n) => (
+                  <option key={n} value={n} />
+                ))}
+              </datalist>
+            </div>
           </div>
-          <div className="flex-1 space-y-2">
+          <div className="flex-1 space-y-2 w-full">
             <Label>Enterçamento</Label>
             <Select
               value={form.purlin_type}
@@ -66,11 +79,12 @@ export function InstallationsTab() {
               <SelectContent>
                 <SelectItem value="Terças de madeira">Terças de madeira</SelectItem>
                 <SelectItem value="Terças de metal">Terças de metal</SelectItem>
-                <SelectItem value="Nenhum">Nenhum</SelectItem>
+                <SelectItem value="Solo">Solo</SelectItem>
+                <SelectItem value="Irrelevante">Irrelevante</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <Button type="submit">
+          <Button type="submit" className="w-full md:w-auto">
             <Plus className="w-4 h-4 mr-2" /> Adicionar
           </Button>
         </form>
