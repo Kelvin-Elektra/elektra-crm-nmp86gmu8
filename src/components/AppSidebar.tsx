@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { LayoutDashboard, Columns3, Users, Briefcase, FileText, Settings, Zap } from 'lucide-react'
 import {
@@ -28,6 +29,10 @@ export function AppSidebar() {
   const { user } = useAuth()
 
   const isAdmin = user?.role === 'admin_elektra' || user?.role === 'admin_company'
+
+  useEffect(() => {
+    setOpen(false)
+  }, [setOpen])
 
   return (
     <Sidebar

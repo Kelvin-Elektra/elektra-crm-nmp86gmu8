@@ -100,7 +100,7 @@ export function CostsTab() {
                 Minha empresa fatura a venda com o valor cheio para o consumidor final
               </SelectItem>
               <SelectItem value="intermediated">
-                O distribuidor fatura o kit e minha empresa fatura a diferença (serviço/lucro)
+                O distribuidor fatura o kit e minha empresa fatura a diferença
               </SelectItem>
             </SelectContent>
           </Select>
@@ -136,7 +136,7 @@ export function CostsTab() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="fixed">Valor fixo (R$)</SelectItem>
-                  <SelectItem value="variable">Valor váriavel (R$)</SelectItem>
+                  <SelectItem value="variable">Valor variável (R$)</SelectItem>
                   <SelectItem value="rate">Percentual sobre o valor da venda (%)</SelectItem>
                   <SelectItem value="tax">Imposto (%)</SelectItem>
                   <SelectItem value="margin">Margem de contribuição (%)</SelectItem>

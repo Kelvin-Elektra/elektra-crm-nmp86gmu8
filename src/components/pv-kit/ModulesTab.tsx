@@ -28,7 +28,7 @@ export function ModulesTab() {
     distributor_id: '',
     height: '',
     width: '',
-    frame: '',
+    price: '',
     notes: '',
   })
 
@@ -56,6 +56,7 @@ export function ModulesTab() {
         power: Number(form.power),
         height: form.height ? Number(form.height) : null,
         width: form.width ? Number(form.width) : null,
+        price: form.price ? Number(form.price) : null,
         company_id: user.company_id,
       })
       toast({ title: 'Sucesso', description: 'Módulo adicionado.' })
@@ -66,7 +67,7 @@ export function ModulesTab() {
         distributor_id: form.distributor_id,
         height: '',
         width: '',
-        frame: '',
+        price: '',
         notes: '',
       })
       loadData()
@@ -136,27 +137,30 @@ export function ModulesTab() {
           </div>
 
           <div className="space-y-2">
-            <Label>Altura (mm)</Label>
+            <Label>Altura (m)</Label>
             <Input
               type="number"
+              step="0.01"
               value={form.height}
               onChange={(e) => setForm({ ...form, height: e.target.value })}
             />
           </div>
           <div className="space-y-2">
-            <Label>Largura (mm)</Label>
+            <Label>Largura (m)</Label>
             <Input
               type="number"
+              step="0.01"
               value={form.width}
               onChange={(e) => setForm({ ...form, width: e.target.value })}
             />
           </div>
           <div className="space-y-2">
-            <Label>Cor do Frame</Label>
+            <Label>Preço (R$)</Label>
             <Input
-              placeholder="Ex: Preto"
-              value={form.frame}
-              onChange={(e) => setForm({ ...form, frame: e.target.value })}
+              type="number"
+              step="0.01"
+              value={form.price}
+              onChange={(e) => setForm({ ...form, price: e.target.value })}
             />
           </div>
           <div className="space-y-2">
@@ -177,6 +181,7 @@ export function ModulesTab() {
               <tr>
                 <th className="p-3 font-medium">Modelo</th>
                 <th className="p-3 font-medium">Potência</th>
+                <th className="p-3 font-medium">Preço</th>
                 <th className="p-3 font-medium">Marca</th>
                 <th className="p-3 font-medium">Distribuidora</th>
                 <th className="p-3 font-medium text-right">Ações</th>
@@ -187,6 +192,7 @@ export function ModulesTab() {
                 <tr key={d.id} className="border-t">
                   <td className="p-3">{d.name}</td>
                   <td className="p-3">{d.power} Wp</td>
+                  <td className="p-3">{d.price ? `R$ ${d.price}` : '-'}</td>
                   <td className="p-3">{d.brand}</td>
                   <td className="p-3">{d.expand?.distributor_id?.name}</td>
                   <td className="p-3 text-right">

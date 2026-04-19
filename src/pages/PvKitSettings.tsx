@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Zap, Boxes, Shield, Settings, Link as LinkIcon, DollarSign } from 'lucide-react'
 import { DistributorsTab } from '@/components/pv-kit/DistributorsTab'
+import { Navigate } from 'react-router-dom'
+import { useAuth } from '@/contexts/AuthContext'
 import { ModulesTab } from '@/components/pv-kit/ModulesTab'
 import { InvertersTab } from '@/components/pv-kit/InvertersTab'
 import { InstallationsTab } from '@/components/pv-kit/InstallationsTab'
@@ -10,6 +12,13 @@ import { SuppliesTab } from '@/components/pv-kit/SuppliesTab'
 import { Wrench } from 'lucide-react'
 
 export default function PvKitSettings() {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin_elektra' || user?.role === 'admin_company'
+
+  if (!isAdmin) {
+    return <Navigate to="/dashboard" replace />
+  }
+
   return (
     <div className="flex flex-col gap-6 max-w-6xl animate-fade-in pb-12 w-full">
       <div>

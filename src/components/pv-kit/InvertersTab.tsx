@@ -25,6 +25,8 @@ export function InvertersTab() {
     distributor_id: '',
     type: 'monofásico',
     overload: '30',
+    price: '',
+    mppt: '1',
   })
 
   const loadData = async () => {
@@ -48,6 +50,8 @@ export function InvertersTab() {
       ...form,
       power: Number(form.power),
       overload: Number(form.overload),
+      price: Number(form.price),
+      mppt: Number(form.mppt),
       company_id: user.company_id,
     })
     setForm({
@@ -57,6 +61,8 @@ export function InvertersTab() {
       distributor_id: form.distributor_id,
       type: 'monofásico',
       overload: '30',
+      price: '',
+      mppt: '1',
     })
     loadData()
   }
@@ -128,7 +134,7 @@ export function InvertersTab() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Sobrecarga Max (%)</Label>
+            <Label>Overload Max (%)</Label>
             <Input
               required
               type="number"
@@ -136,8 +142,27 @@ export function InvertersTab() {
               onChange={(e) => setForm({ ...form, overload: e.target.value })}
             />
           </div>
-          <div className="col-span-1 md:col-span-2 flex justify-end">
-            <Button type="submit" className="w-full">
+          <div className="space-y-2">
+            <Label>Preço (R$)</Label>
+            <Input
+              required
+              type="number"
+              step="0.01"
+              value={form.price}
+              onChange={(e) => setForm({ ...form, price: e.target.value })}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>MPPT</Label>
+            <Input
+              required
+              type="number"
+              value={form.mppt}
+              onChange={(e) => setForm({ ...form, mppt: e.target.value })}
+            />
+          </div>
+          <div className="col-span-1 md:col-span-4 flex justify-end">
+            <Button type="submit" className="w-full md:w-auto">
               <Plus className="w-4 h-4 mr-2" /> Salvar Inversor
             </Button>
           </div>
@@ -149,6 +174,8 @@ export function InvertersTab() {
                 <th className="p-3 font-medium">Modelo</th>
                 <th className="p-3 font-medium">Potência</th>
                 <th className="p-3 font-medium">Overload</th>
+                <th className="p-3 font-medium">MPPT</th>
+                <th className="p-3 font-medium">Preço</th>
                 <th className="p-3 font-medium">Distribuidora</th>
                 <th className="p-3 font-medium text-right">Ações</th>
               </tr>
@@ -159,6 +186,8 @@ export function InvertersTab() {
                   <td className="p-3">{d.name}</td>
                   <td className="p-3">{d.power} kW</td>
                   <td className="p-3">{d.overload}%</td>
+                  <td className="p-3">{d.mppt}</td>
+                  <td className="p-3">{d.price ? `R$ ${d.price}` : '-'}</td>
                   <td className="p-3">{d.expand?.distributor_id?.name}</td>
                   <td className="p-3 text-right">
                     <Button

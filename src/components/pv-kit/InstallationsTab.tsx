@@ -52,19 +52,23 @@ export function InstallationsTab() {
         >
           <div className="flex-1 space-y-2 w-full">
             <Label>Nome do Tipo</Label>
-            <div className="flex gap-2">
-              <Input
-                required
-                list="installations-names"
-                placeholder="Ex: Cerâmica"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-              />
-              <datalist id="installations-names">
-                {defaultNames.map((n) => (
-                  <option key={n} value={n} />
-                ))}
-              </datalist>
+            <Input
+              required
+              placeholder="Ex: Cerâmica"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+            <div className="flex flex-wrap gap-1 mt-1">
+              {defaultNames.map((n) => (
+                <button
+                  type="button"
+                  key={n}
+                  onClick={() => setForm({ ...form, name: n })}
+                  className="text-xs bg-background border hover:bg-muted px-2 py-1 rounded-md transition-colors"
+                >
+                  {n}
+                </button>
+              ))}
             </div>
           </div>
           <div className="flex-1 space-y-2 w-full">

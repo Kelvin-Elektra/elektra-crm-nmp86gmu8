@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-19T12:45:34.296Z",
+  "generatedAt": "2026-04-19T19:48:35.153Z",
   "collections": [
     {
       "name": "users",
@@ -733,6 +733,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "price",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": ["CREATE INDEX idx_pv_modules_company ON pv_modules (company_id)"]
@@ -824,6 +830,18 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "price",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "mppt",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": ["CREATE INDEX idx_pv_inverters_company ON pv_inverters (company_id)"]
@@ -910,7 +928,7 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["modules", "inverters", "kwp", "fixed"]
+          "selectValues": ["modules", "kwp", "mppt", "fixed"]
         },
         {
           "name": "multiplier",
@@ -951,6 +969,13 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "distributor_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "pv_distributors"
         }
       ],
       "indexes": ["CREATE INDEX idx_pv_supplies_company ON pv_supplies (company_id)"]
@@ -1027,6 +1052,87 @@
         }
       ],
       "indexes": ["CREATE INDEX idx_pv_costs_company ON pv_costs (company_id)"]
+    },
+    {
+      "name": "pv_supply_rules",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && company_id = @request.auth.company_id",
+        "view": "@request.auth.id != '' && company_id = @request.auth.company_id",
+        "create": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')",
+        "update": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')",
+        "delete": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')"
+      },
+      "fields": [
+        {
+          "name": "company_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "companies"
+        },
+        {
+          "name": "supply_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "pv_supplies"
+        },
+        {
+          "name": "installation_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "pv_installations"
+        },
+        {
+          "name": "calc_base",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["modules", "kwp", "mppt", "fixed"]
+        },
+        {
+          "name": "multiplier",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "range_type",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["modules", "kwp", "none"]
+        },
+        {
+          "name": "min_val",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "max_val",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_pv_supply_rules_company ON pv_supply_rules (company_id)"]
     }
   ]
 }
