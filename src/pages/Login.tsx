@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Sun, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
+import logoCrmMinimalista from '../assets/logo-crm-minimalista-wpp-6873d.png'
 
 export default function Login() {
   const [email, setEmail] = useState('elektraengenhariasolucoes@gmail.com')
@@ -28,11 +29,10 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
       <div className="w-full max-w-md animate-fade-in-up">
         <div className="flex flex-col items-center mb-8 text-center">
-          <div className="h-16 w-16 bg-primary rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-primary/20">
-            <Sun className="h-10 w-10 text-secondary" strokeWidth={2} />
-          </div>
-          <h1 className="text-3xl font-bold tracking-tight text-secondary">Elektra CRM</h1>
-          <p className="text-muted-foreground mt-2">Plataforma de gestão de vendas solares</p>
+          <img src={logoCrmMinimalista} alt="Elektra CRM" className="h-24 object-contain mb-4" />
+          <p className="text-muted-foreground mt-2 font-medium">
+            Plataforma de gestão de vendas solares
+          </p>
         </div>
 
         <Card className="border-border/50 shadow-xl">

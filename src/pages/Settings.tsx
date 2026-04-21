@@ -404,37 +404,62 @@ export default function Settings() {
                 </div>
                 <div className="space-y-2 mt-6">
                   <Label>Logo da Empresa</Label>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={async (e) => {
-                      if (!e.target.files || !e.target.files[0]) return
-                      try {
-                        const formData = new FormData()
-                        formData.append('logo', e.target.files[0])
-                        const updated = await pb
-                          .collection('companies')
-                          .update(company.id, formData)
-                        setCompany(updated)
-                        toast({ title: 'Sucesso', description: 'Logo atualizada com sucesso!' })
-                      } catch (err: any) {
-                        toast({
-                          variant: 'destructive',
-                          title: 'Erro',
-                          description: 'Falha ao fazer upload da logo.',
-                        })
-                      }
-                    }}
-                  />
-                  {company?.logo && (
-                    <div className="mt-4 p-4 border rounded-lg bg-slate-50 inline-block">
-                      <img
-                        src={pb.files.getURL(company, company.logo)}
-                        alt="Logo"
-                        className="h-16 object-contain"
-                      />
-                    </div>
-                  )}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      className="flex-1"
+                      onChange={async (e) => {
+                        if (!e.target.files || !e.target.files[0]) return
+                        try {
+                          const formData = new FormData()
+                          formData.append('logo', e.target.files[0])
+                          const updated = await pb
+                            .collection('companies')
+                            .update(company.id, formData)
+                          setCompany(updated)
+                          toast({ title: 'Sucesso', description: 'Logo atualizada com sucesso!' })
+                        } catch (err: any) {
+                          toast({
+                            variant: 'destructive',
+                            title: 'Erro',
+                            description: 'Falha ao fazer upload da logo.',
+                          })
+                        }
+                      }}
+                    />
+                    {company?.logo && (
+                      <div className="flex items-center gap-4 border p-2 rounded-lg bg-slate-50">
+                        <img
+                          src={pb.files.getURL(company, company.logo)}
+                          alt="Logo"
+                          className="h-12 object-contain"
+                        />
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const updated = await pb
+                                .collection('companies')
+                                .update(company.id, { logo: null })
+                              setCompany(updated)
+                              toast({ title: 'Sucesso', description: 'Logo removida.' })
+                            } catch (e) {
+                              toast({
+                                variant: 'destructive',
+                                title: 'Erro',
+                                description: 'Falha ao remover.',
+                              })
+                            }
+                          }}
+                        >
+                          Remover
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-2 mt-6 border-t pt-6">

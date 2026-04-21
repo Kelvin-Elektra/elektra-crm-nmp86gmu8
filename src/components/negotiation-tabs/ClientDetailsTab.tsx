@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { User, MapPin, Zap, Phone, Mail, FileText, Save } from 'lucide-react'
-import { maskCPF, maskPhone } from '@/lib/masks'
+import { maskCPF, maskPhone, maskCEP } from '@/lib/masks'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -29,9 +29,25 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
   const [isMonthly, setIsMonthly] = useState(isMonthlyInit)
   const [avgConsumption, setAvgConsumption] = useState(neg.avg_consumption || '')
 
-  const [tension, setTension] = useState(initialSizing.tension || '220V')
+  const [concessionaire, setConcessionaire] = useState(neg.concessionaire || '')
+  const [uc, setUc] = useState(neg.uc || '')
+  const [networkType, setNetworkType] = useState(initialSizing.network_type || '')
+  const [tension, setTension] = useState(initialSizing.tension || '')
   const [installationType, setInstallationType] = useState(initialSizing.installation_type || '')
+
   const [installations, setInstallations] = useState<any[]>([])
+  const [settings, setSettings] = useState<any>(null)
+
+  const [addressStruct, setAddressStruct] = useState(
+    initialSizing.address_struct || {
+      street: '',
+      number: '',
+      neighborhood: '',
+      city: '',
+      state: '',
+      zip: '',
+    },
+  )
 
   useEffect(() => {
     if (neg?.company_id) {
@@ -39,8 +55,23 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
         .getFullList({ filter: `company_id='${neg.company_id}'` })
         .then(setInstallations)
         .catch(console.error)
+
+      pb.collection('proposal_settings')
+        .getFirstListItem(`company_id='${neg.company_id}'`)
+        .then(setSettings)
+        .catch(console.error)
     }
   }, [neg?.company_id])
+
+  // Automatically update tension based on network type mapping
+  useEffect(() => {
+    if (networkType && settings?.tariffs?.networks) {
+      const net = settings.tariffs.networks.find((n: any) => n.type === networkType)
+      if (net && net.voltage) {
+        setTension(net.voltage)
+      }
+    }
+  }, [networkType, settings])
 
   const [monthlyData, setMonthlyData] = useState({
     jan: initialSizing.jan || '',
@@ -86,14 +117,17 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
         computedAvg = Number(avgConsumption) || 0
       }
 
+      const fullAddress = `${addressStruct.street}, ${addressStruct.number} - ${addressStruct.neighborhood}, ${addressStruct.city} - ${addressStruct.state}, ${addressStruct.zip}`
+
       const cleanSizing = {
         ...initialSizing,
         ...sizingPayload,
         tension,
+        network_type: networkType,
         installation_type: installationType,
+        address_struct: addressStruct,
       }
 
-      // Ensure cleanSizing does not have undefined fields to avoid JSON stringify issues
       Object.keys(cleanSizing).forEach(
         (key) =>
           cleanSizing[key as keyof typeof cleanSizing] === undefined &&
@@ -102,6 +136,9 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
 
       await updateNegotiation(neg.id, {
         avg_consumption: computedAvg,
+        concessionaire,
+        uc,
+        address: fullAddress,
         sizing: cleanSizing,
       })
 
@@ -121,6 +158,9 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
       setLoading(false)
     }
   }
+
+  const enabledConcs = settings?.tariffs?.concessionaires?.filter((c: any) => c.enabled) || []
+  const networks = settings?.tariffs?.networks || []
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -173,51 +213,151 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
           <CardTitle className="text-lg">Local de Instalação e Consumo</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="flex items-start gap-3">
-              <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>
-                <p className="font-medium">{neg.address || 'Não informado'}</p>
-                <p className="text-sm text-muted-foreground">Endereço Completo</p>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <h3 className="font-medium flex items-center gap-2">
+                <MapPin className="h-4 w-4" /> Endereço da Instalação
+              </h3>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2 space-y-1">
+                  <Label>Rua / Av</Label>
+                  <Input
+                    value={addressStruct.street}
+                    onChange={(e) => setAddressStruct({ ...addressStruct, street: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Número</Label>
+                  <Input
+                    value={addressStruct.number}
+                    onChange={(e) => setAddressStruct({ ...addressStruct, number: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Bairro</Label>
+                  <Input
+                    value={addressStruct.neighborhood}
+                    onChange={(e) =>
+                      setAddressStruct({ ...addressStruct, neighborhood: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>CEP</Label>
+                  <Input
+                    value={addressStruct.zip}
+                    onChange={(e) =>
+                      setAddressStruct({ ...addressStruct, zip: maskCEP(e.target.value) })
+                    }
+                    maxLength={9}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2 space-y-1">
+                  <Label>Cidade</Label>
+                  <Input
+                    value={addressStruct.city}
+                    onChange={(e) => setAddressStruct({ ...addressStruct, city: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>UF</Label>
+                  <Input
+                    value={addressStruct.state}
+                    onChange={(e) =>
+                      setAddressStruct({ ...addressStruct, state: e.target.value.toUpperCase() })
+                    }
+                    maxLength={2}
+                  />
+                </div>
               </div>
             </div>
-            <div className="flex items-start gap-3">
-              <Zap className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>
-                <p className="font-medium">
-                  Concessionária: {neg.concessionaire || 'N/A'} | UC: {neg.uc || 'N/A'}
-                </p>
-                <p className="text-sm text-muted-foreground">Dados da Rede</p>
-              </div>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t pt-4 mt-2">
-            <div className="space-y-2">
-              <Label>Tensão da Instalação</Label>
-              <Select value={tension} onValueChange={setTension}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a tensão" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="220V">220V</SelectItem>
-                  <SelectItem value="380V">380V</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Tipo de Instalação</Label>
-              <datalist id="installations-list">
-                {installations.map((inst) => (
-                  <option key={inst.id} value={inst.name} />
-                ))}
-              </datalist>
-              <Input
-                list="installations-list"
-                value={installationType}
-                onChange={(e) => setInstallationType(e.target.value)}
-                placeholder="Ex: Telhado Cerâmico, Solo..."
-              />
+            <div className="space-y-4">
+              <h3 className="font-medium flex items-center gap-2">
+                <Zap className="h-4 w-4" /> Dados da Rede
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Concessionária</Label>
+                  <Select value={concessionaire} onValueChange={setConcessionaire}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {enabledConcs.map((c: any) => (
+                        <SelectItem key={c.name} value={c.name}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                      {enabledConcs.length === 0 && (
+                        <SelectItem value="N/A" disabled>
+                          Nenhuma configurada
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Unidade Consumidora (UC)</Label>
+                  <Input value={uc} onChange={(e) => setUc(e.target.value)} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Tipo de Rede</Label>
+                  <Select value={networkType} onValueChange={setNetworkType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {networks.map((n: any) => (
+                        <SelectItem key={n.type} value={n.type}>
+                          {n.type}
+                        </SelectItem>
+                      ))}
+                      {networks.length === 0 && (
+                        <SelectItem value="N/A" disabled>
+                          Nenhuma configurada
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Tensão da Instalação</Label>
+                  <Input
+                    value={tension}
+                    onChange={(e) => setTension(e.target.value)}
+                    placeholder="Ex: 220V"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Tipo de Instalação</Label>
+                <Select value={installationType} onValueChange={setInstallationType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {installations.map((i: any) => (
+                      <SelectItem key={i.id} value={i.id}>
+                        {i.name}
+                      </SelectItem>
+                    ))}
+                    {installations.length === 0 && (
+                      <SelectItem value="N/A" disabled>
+                        Nenhuma configurada
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 

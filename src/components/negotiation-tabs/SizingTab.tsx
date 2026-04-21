@@ -16,11 +16,46 @@ import { updateNegotiation } from '@/services/db'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { Save, Sun, Battery, Settings2 } from 'lucide-react'
 
+const getHspByState = (state: string) => {
+  if (!state) return 4.94
+  const map: Record<string, number> = {
+    AC: 4.8,
+    AL: 4.6,
+    AP: 4.5,
+    AM: 4.8,
+    BA: 4.7,
+    CE: 5.3,
+    DF: 4.5,
+    ES: 5.1,
+    GO: 5.2,
+    MA: 4.6,
+    MT: 5.2,
+    MS: 5.1,
+    MG: 5.3,
+    PA: 5.0,
+    PB: 4.8,
+    PR: 5.2,
+    PE: 5.4,
+    PI: 5.4,
+    RJ: 4.8,
+    RN: 5.4,
+    RS: 4.5,
+    RO: 5.5,
+    RR: 4.7,
+    SC: 4.3,
+    SP: 4.6,
+    SE: 5.3,
+    TO: 4.7,
+  }
+  return map[state.toUpperCase()] || 4.94
+}
+
 export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const sizing = neg.sizing || {}
 
+  const [distributors, setDistributors] = useState<any[]>([])
   const [modules, setModules] = useState<any[]>([])
   const [inverters, setInverters] = useState<any[]>([])
 
@@ -37,31 +72,63 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
     setter(clean)
   }
 
-  const [hsp, setHsp] = useState(sizing.hsp !== undefined ? formatNumber(sizing.hsp) : '4,94')
+  const recommendedHsp = getHspByState(sizing.address_struct?.state)
+
+  const [hsp, setHsp] = useState(
+    sizing.hsp !== undefined ? formatNumber(sizing.hsp) : formatNumber(recommendedHsp),
+  )
   const [losses, setLosses] = useState(
     sizing.losses !== undefined ? formatNumber(sizing.losses) : '25',
+  )
+
+  const [selectedDistributorId, setSelectedDistributorId] = useState(
+    sizing.selected_distributor_id || 'none',
   )
   const [selectedModuleId, setSelectedModuleId] = useState(sizing.selected_module_id || 'none')
   const [selectedInverterId, setSelectedInverterId] = useState(
     sizing.selected_inverter_id || 'none',
   )
+
   const [moduleQty, setModuleQty] = useState(
     sizing.module_qty !== undefined ? String(sizing.module_qty) : '',
   )
 
   useEffect(() => {
     if (!neg.company_id) return
+
+    pb.collection('pv_distributors')
+      .getFullList({ filter: `company_id='${neg.company_id}'` })
+      .then(setDistributors)
+      .catch(console.error)
+
     pb.collection('pv_modules')
       .getFullList({ filter: `company_id='${neg.company_id}'`, sort: '-power' })
       .then(setModules)
       .catch(console.error)
+
     pb.collection('pv_inverters')
       .getFullList({ filter: `company_id='${neg.company_id}'`, sort: '-power' })
       .then(setInverters)
       .catch(console.error)
   }, [neg.company_id])
 
-  const hspNum = parseNumber(hsp) || 4.94
+  const handleDistributorChange = (val: string) => {
+    setSelectedDistributorId(val)
+    setSelectedModuleId('none')
+    setSelectedInverterId('none')
+  }
+
+  const filteredModules =
+    selectedDistributorId === 'none'
+      ? []
+      : modules.filter((m) => m.distributor_id === selectedDistributorId)
+
+  const filteredInverters =
+    selectedDistributorId === 'none'
+      ? []
+      : inverters.filter((i) => i.distributor_id === selectedDistributorId)
+
+  const hspNum = parseNumber(hsp) || recommendedHsp
   const lossesNum = parseNumber(losses) || 25
   const lossFactor = 1 - lossesNum / 100
 
@@ -85,15 +152,16 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
         ...sizing,
         hsp: hspNum,
         losses: lossesNum,
+        selected_distributor_id: selectedDistributorId === 'none' ? null : selectedDistributorId,
         selected_module_id: selectedModuleId === 'none' ? null : selectedModuleId,
         selected_inverter_id: selectedInverterId === 'none' ? null : selectedInverterId,
         module_qty: actualModuleQty,
         suggested_power_kwp: suggestedPowerKwp,
         kit_power_kwp: kitPowerKwp,
         est_monthly_gen: estMonthlyGen,
+        totalPower: kitPowerKwp, // For compatibility
       }
 
-      // Clean up undefined
       Object.keys(cleanSizing).forEach(
         (key) =>
           cleanSizing[key as keyof typeof cleanSizing] === undefined &&
@@ -131,12 +199,17 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>HSP (Horas de Sol Pico)</Label>
-                <Input
-                  type="text"
-                  value={hsp}
-                  onChange={(e) => handleNumberChange(e.target.value, setHsp)}
-                  placeholder="Ex: 4,94"
-                />
+                <div className="relative">
+                  <Input
+                    type="text"
+                    value={hsp}
+                    onChange={(e) => handleNumberChange(e.target.value, setHsp)}
+                    placeholder="Ex: 4,94"
+                  />
+                  <span className="absolute right-3 top-2 text-xs text-muted-foreground bg-background px-1">
+                    Rec: {recommendedHsp}
+                  </span>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Perdas Nominais (%)</Label>
@@ -167,14 +240,41 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Módulo Fotovoltaico</Label>
-              <Select value={selectedModuleId} onValueChange={setSelectedModuleId}>
+              <Label>Distribuidora (Filtro)</Label>
+              <Select value={selectedDistributorId} onValueChange={handleDistributorChange}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione o módulo..." />
+                  <SelectValue placeholder="Selecione o distribuidor..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Selecione uma distribuidora</SelectItem>
+                  {distributors.map((d) => (
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Módulo Fotovoltaico</Label>
+              <Select
+                value={selectedModuleId}
+                onValueChange={setSelectedModuleId}
+                disabled={selectedDistributorId === 'none'}
+              >
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      selectedDistributorId === 'none'
+                        ? 'Selecione o distribuidor primeiro'
+                        : 'Selecione o módulo...'
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Não selecionado</SelectItem>
-                  {modules.map((m) => (
+                  {filteredModules.map((m) => (
                     <SelectItem key={m.id} value={m.id}>
                       {m.brand} - {m.name} ({m.power}W)
                     </SelectItem>
@@ -185,13 +285,23 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
 
             <div className="space-y-2">
               <Label>Inversor</Label>
-              <Select value={selectedInverterId} onValueChange={setSelectedInverterId}>
+              <Select
+                value={selectedInverterId}
+                onValueChange={setSelectedInverterId}
+                disabled={selectedDistributorId === 'none'}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione o inversor..." />
+                  <SelectValue
+                    placeholder={
+                      selectedDistributorId === 'none'
+                        ? 'Selecione o distribuidor primeiro'
+                        : 'Selecione o inversor...'
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Não selecionado</SelectItem>
-                  {inverters.map((i) => (
+                  {filteredInverters.map((i) => (
                     <SelectItem key={i.id} value={i.id}>
                       {i.brand} - {i.name} ({i.power}kW)
                     </SelectItem>

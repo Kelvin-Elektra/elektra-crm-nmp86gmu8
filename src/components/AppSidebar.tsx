@@ -14,6 +14,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { useAuth } from '@/contexts/AuthContext'
+import logoCrmIcon from '../assets/logo-crm-3-icon-95c86.png'
 
 const navItems = [
   { title: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -44,11 +45,11 @@ export function AppSidebar() {
       <SidebarHeader className="h-16 flex items-center justify-center border-b border-sidebar-border/50 p-0">
         <div className="flex items-center justify-center w-full h-full px-2 overflow-hidden">
           <div className="flex items-center gap-3 w-full px-1">
-            <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
+            <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
               <img
-                src="https://img.usecurling.com/i?q=sun&shape=fill&color=white"
-                alt="Logo da Empresa"
-                className="h-full w-full object-cover"
+                src={logoCrmIcon}
+                alt="Logo Elektra CRM"
+                className="h-full w-full object-contain"
               />
             </div>
             <span className="font-bold text-lg tracking-tight truncate group-data-[collapsible=icon]:hidden transition-opacity duration-200">

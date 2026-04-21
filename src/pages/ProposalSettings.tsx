@@ -19,7 +19,20 @@ export default function ProposalSettings() {
 
   const [formData, setFormData] = useState({
     indicators: { inflation: '5', interest: '1' },
-    tariffs: { tusd: '0.65', te: '0.45' },
+    tariffs: {
+      concessionaires: [
+        { name: 'Enel SP', enabled: true, tusd: '0.48', te: '0.36', icms: 'Nenhuma' },
+        { name: 'CPFL', enabled: false, tusd: '0.45', te: '0.35', icms: 'Nenhuma' },
+        { name: 'Light', enabled: false, tusd: '0.50', te: '0.40', icms: 'Nenhuma' },
+        { name: 'Cemig', enabled: false, tusd: '0.55', te: '0.45', icms: 'Nenhuma' },
+      ],
+      networks: [
+        { type: 'Monofásico', voltage: '127V' },
+        { type: 'Monofásico rural', voltage: '127-220V' },
+        { type: 'Bifásico', voltage: '127-220V' },
+        { type: 'Trifásico', voltage: '220-380V' },
+      ],
+    },
     pricing: { margin: '30', tax: '12' },
     visible_pages: {
       cover: true,
@@ -324,30 +337,102 @@ export default function ProposalSettings() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="tarifas" className="mt-6">
+        <TabsContent value="tarifas" className="mt-6 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Tarifas Base</CardTitle>
+              <CardTitle>Concessionárias e Tarifas</CardTitle>
+              <CardDescription>Habilite e configure as tarifas por concessionária.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4 max-w-md">
-              <div className="space-y-2">
-                <Label>TUSD (R$/kWh)</Label>
-                <Input
-                  value={formData.tariffs.tusd}
-                  onChange={(e) => handleNestedChange('tariffs', 'tusd', e.target.value)}
-                  type="number"
-                  step="0.01"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>TE (R$/kWh)</Label>
-                <Input
-                  value={formData.tariffs.te}
-                  onChange={(e) => handleNestedChange('tariffs', 'te', e.target.value)}
-                  type="number"
-                  step="0.01"
-                />
-              </div>
+            <CardContent className="space-y-4">
+              {formData.tariffs.concessionaires?.map((conc: any, idx: number) => (
+                <div
+                  key={idx}
+                  className="flex flex-col md:flex-row md:items-center gap-4 p-4 border rounded-lg"
+                >
+                  <div className="flex items-center gap-3 w-full md:w-1/4">
+                    <Switch
+                      checked={conc.enabled}
+                      onCheckedChange={(val) => {
+                        const newConcs = [...formData.tariffs.concessionaires]
+                        newConcs[idx].enabled = val
+                        handleNestedChange('tariffs', 'concessionaires', newConcs)
+                      }}
+                    />
+                    <Label className="font-semibold">{conc.name}</Label>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
+                    <div className="space-y-1">
+                      <Label className="text-xs">TUSD (R$)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={conc.tusd}
+                        disabled={!conc.enabled}
+                        onChange={(e) => {
+                          const newConcs = [...formData.tariffs.concessionaires]
+                          newConcs[idx].tusd = e.target.value
+                          handleNestedChange('tariffs', 'concessionaires', newConcs)
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">TE (R$)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={conc.te}
+                        disabled={!conc.enabled}
+                        onChange={(e) => {
+                          const newConcs = [...formData.tariffs.concessionaires]
+                          newConcs[idx].te = e.target.value
+                          handleNestedChange('tariffs', 'concessionaires', newConcs)
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Isenção ICMS</Label>
+                      <select
+                        className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        value={conc.icms}
+                        disabled={!conc.enabled}
+                        onChange={(e) => {
+                          const newConcs = [...formData.tariffs.concessionaires]
+                          newConcs[idx].icms = e.target.value
+                          handleNestedChange('tariffs', 'concessionaires', newConcs)
+                        }}
+                      >
+                        <option value="Nenhuma">Nenhuma</option>
+                        <option value="TE">TE</option>
+                        <option value="TUSD">TUSD</option>
+                        <option value="Ambas">Ambas</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Mapeamento de Rede e Tensão</CardTitle>
+              <CardDescription>Defina a tensão padrão com base no tipo de rede.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {formData.tariffs.networks?.map((net: any, idx: number) => (
+                <div key={idx} className="flex items-center gap-4 p-3 border rounded-lg max-w-md">
+                  <Label className="w-1/2 font-semibold">{net.type}</Label>
+                  <Input
+                    className="w-1/2"
+                    value={net.voltage}
+                    onChange={(e) => {
+                      const newNets = [...formData.tariffs.networks]
+                      newNets[idx].voltage = e.target.value
+                      handleNestedChange('tariffs', 'networks', newNets)
+                    }}
+                  />
+                </div>
+              ))}
             </CardContent>
           </Card>
         </TabsContent>

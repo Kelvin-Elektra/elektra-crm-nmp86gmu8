@@ -21,15 +21,56 @@ export function ProposalsTab({
   const [selectedProposal, setSelectedProposal] = useState<any>(null)
 
   const handleGenerate = async () => {
-    const price = neg.sizing?.totalPower ? neg.sizing.totalPower * 3500 : 0
     try {
+      // 1. Fetch current settings, module, and inverter for snapshot
+      const settings = await pb
+        .collection('proposal_settings')
+        .getFirstListItem(`company_id='${neg.company_id}'`)
+        .catch(() => null)
+
+      let moduleData = null
+      if (neg.sizing?.selected_module_id) {
+        moduleData = await pb
+          .collection('pv_modules')
+          .getOne(neg.sizing.selected_module_id)
+          .catch(() => null)
+      }
+
+      let inverterData = null
+      if (neg.sizing?.selected_inverter_id) {
+        inverterData = await pb
+          .collection('pv_inverters')
+          .getOne(neg.sizing.selected_inverter_id)
+          .catch(() => null)
+      }
+
+      // Create snapshot object
+      const snapshot = {
+        sizing: neg.sizing || {},
+        module: moduleData || {},
+        inverter: inverterData || {},
+        tariffs: settings?.tariffs || {},
+        indicators: settings?.indicators || {},
+        pricing: settings?.pricing || {},
+        generatedAt: new Date().toISOString(),
+      }
+
+      const totalPower = neg.sizing?.kit_power_kwp || neg.sizing?.totalPower || 0
+
+      // Calculate base cost and a default margin (fallback)
+      const baseCost =
+        (moduleData?.price || 0) * (neg.sizing?.module_qty || 0) + (inverterData?.price || 0)
+      const price = baseCost > 0 ? baseCost * 1.4 : totalPower * 3500
+
       const rec = await pb.collection('proposals').create({
         company_id: neg.company_id,
         negotiation_id: neg.id,
-        description: `Proposta Sistema ${neg.sizing?.totalPower || 0} kWp`,
+        description: `Proposta Sistema ${totalPower.toFixed(2)} kWp`,
         price: price,
         status: 'draft',
+        kit_details: JSON.stringify(snapshot), // The Snapshot persistence
       })
+
       reload()
       setSelectedProposal(rec)
       setViewerOpen(true)
