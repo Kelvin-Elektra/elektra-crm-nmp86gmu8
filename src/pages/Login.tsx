@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
@@ -6,15 +6,35 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2 } from 'lucide-react'
+import pb from '@/lib/pocketbase/client'
 
-const LOGO_URL = 'https://img.usecurling.com/i?q=elektra&color=azure'
+const DEFAULT_LOGO_URL = 'https://img.usecurling.com/i?q=elektra&color=azure'
 
 export default function Login() {
   const [email, setEmail] = useState('elektraengenhariasolucoes@gmail.com')
   const [password, setPassword] = useState('Skip@Pass')
   const [loading, setLoading] = useState(false)
+  const [logoUrl, setLogoUrl] = useState(DEFAULT_LOGO_URL)
   const { login } = useAuth()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    const fetchLogo = async () => {
+      try {
+        const domain = window.location.hostname
+        const res = await pb.send(
+          `/backend/v1/public/company?domain=${encodeURIComponent(domain)}`,
+          { method: 'GET' },
+        )
+        if (res.logoUrl) {
+          setLogoUrl(`${pb.baseUrl}${res.logoUrl}`)
+        }
+      } catch (err) {
+        console.error('Error fetching company logo:', err)
+      }
+    }
+    fetchLogo()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,7 +50,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
       <div className="w-full max-w-md animate-fade-in-up">
         <div className="flex flex-col items-center mb-8 text-center">
-          <img src={LOGO_URL} alt="Elektra CRM" className="h-24 object-contain mb-4 rounded-xl" />
+          <img src={logoUrl} alt="Elektra CRM" className="h-24 object-contain mb-4 rounded-xl" />
           <p className="text-muted-foreground mt-2 font-medium">
             Plataforma de gestão de vendas solares
           </p>

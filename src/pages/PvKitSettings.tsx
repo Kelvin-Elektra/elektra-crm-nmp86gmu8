@@ -50,7 +50,7 @@ export default function PvKitSettings() {
             <DollarSign className="mr-2 h-4 w-4" /> Custos e Impostos
           </TabsTrigger>
           <TabsTrigger value="tariffs" className="py-2.5 rounded-lg flex-1 sm:flex-none">
-            <Building className="mr-2 h-4 w-4" /> Gestão Tarifária
+            <Building className="mr-2 h-4 w-4" /> Concessionárias e Tarifas
           </TabsTrigger>
         </TabsList>
 

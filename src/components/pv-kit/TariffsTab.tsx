@@ -663,7 +663,9 @@ export function TariffsTab() {
                     <SelectItem value="127V">127V</SelectItem>
                     <SelectItem value="220V">220V</SelectItem>
                     <SelectItem value="127-220V">127-220V</SelectItem>
+                    <SelectItem value="127-254V">127-254V</SelectItem>
                     <SelectItem value="220-380V">220-380V</SelectItem>
+                    <SelectItem value="220-440V">220-440V</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -750,6 +752,7 @@ export function TariffsTab() {
                     R$
                   </span>
                   <Input
+                    placeholder="0,36"
                     value={editTariffRule?.te || ''}
                     onChange={(e) =>
                       handleNumberChange(e.target.value, (v) =>
@@ -767,6 +770,7 @@ export function TariffsTab() {
                     R$
                   </span>
                   <Input
+                    placeholder="0,48"
                     value={editTariffRule?.tusd || ''}
                     onChange={(e) =>
                       handleNumberChange(e.target.value, (v) =>
