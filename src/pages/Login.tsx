@@ -31,7 +31,11 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
       <div className="w-full max-w-md animate-fade-in-up">
         <div className="flex flex-col items-center mb-8 text-center">
-          <img src={LOGO_URL} alt="Elektra CRM" className="h-24 object-contain mb-4" />
+          <img
+            src={LOGO_URL}
+            alt="Elektra CRM"
+            className="h-24 object-contain mb-4 mix-blend-multiply dark:mix-blend-normal"
+          />
           <p className="text-muted-foreground mt-2 font-medium">
             Plataforma de gestão de vendas solares
           </p>

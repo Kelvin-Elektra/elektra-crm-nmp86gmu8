@@ -1,6 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,7 +22,15 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { HelpCircle, Trash2, Edit2, Check, ChevronsUpDown } from 'lucide-react'
+import {
+  HelpCircle,
+  Trash2,
+  Edit2,
+  Check,
+  ChevronsUpDown,
+  ArrowRight,
+  ArrowLeft,
+} from 'lucide-react'
 import {
   Command,
   CommandEmpty,
@@ -25,7 +40,13 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import {
   Table,
   TableBody,
@@ -35,6 +56,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const UTILITIES = [
   { s: 'AC', n: 'Energisa Acre' },
@@ -76,6 +98,7 @@ export function TariffsTab() {
   const [distributors, setDistributors] = useState<any[]>([])
   const [openCombobox, setOpenCombobox] = useState(false)
   const [searchDist, setSearchDist] = useState('')
+  const [activeStep, setActiveStep] = useState('step1')
 
   const [form, setForm] = useState({
     distributor_name: '',
@@ -135,11 +158,12 @@ export function TariffsTab() {
           icms_exemption: form.icms_exemption,
         })
       }
-      toast({ title: 'Sucesso', description: 'Regras tarifárias salvas.' })
+      toast({ title: 'Sucesso', description: 'Regras tarifárias salvas em lote.' })
       setForm({ ...form, classes: [], te: '', tusd: '' })
+      setActiveStep('step1')
       loadData()
     } catch (e: any) {
-      toast({ variant: 'destructive', title: 'Erro', description: e.message })
+      toast({ variant: 'destructive', title: 'Erro ao salvar', description: e.message })
     }
   }
 
@@ -153,7 +177,7 @@ export function TariffsTab() {
         tusd: Number(editRule.tusd),
         icms_exemption: editRule.icms_exemption,
       })
-      toast({ title: 'Sucesso', description: 'Regra atualizada.' })
+      toast({ title: 'Sucesso', description: 'Regra tarifária atualizada.' })
       setEditRule(null)
       loadData()
     } catch (e: any) {
@@ -162,199 +186,272 @@ export function TariffsTab() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Excluir esta regra?')) return
-    await pb.collection('pv_tariff_rules').delete(id)
-    loadData()
+    if (!confirm('Deseja realmente excluir esta regra tarifária?')) return
+    try {
+      await pb.collection('pv_tariff_rules').delete(id)
+      toast({ title: 'Sucesso', description: 'Regra excluída.' })
+      loadData()
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: 'Erro', description: e.message })
+    }
   }
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Nova Configuração Tarifária</CardTitle>
-          <CardDescription>
-            Defina tarifas em lote selecionando múltiplas classes de consumo.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Concessionária</Label>
-              <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" role="combobox" className="w-full justify-between">
-                    {form.distributor_name || 'Selecione ou digite...'}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0">
-                  <Command>
-                    <CommandInput
-                      placeholder="Buscar concessionária..."
-                      onValueChange={setSearchDist}
-                    />
-                    <CommandList>
-                      <CommandEmpty>
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start px-2 py-1.5 text-sm"
-                          onClick={() => {
-                            setForm({ ...form, distributor_name: searchDist })
-                            setOpenCombobox(false)
-                          }}
-                        >
-                          Criar "{searchDist}"
-                        </Button>
-                      </CommandEmpty>
-                      {STATES.map((state) => {
-                        const group = UTILITIES.filter((u) => u.s === state)
-                        if (!group.length) return null
-                        return (
-                          <CommandGroup key={state} heading={state}>
-                            {group.map((u) => (
-                              <CommandItem
-                                key={u.n}
-                                onSelect={() => {
-                                  setForm({ ...form, distributor_name: u.n })
-                                  setOpenCombobox(false)
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    'mr-2 h-4 w-4',
-                                    form.distributor_name === u.n ? 'opacity-100' : 'opacity-0',
-                                  )}
-                                />
-                                {u.n}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        )
-                      })}
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div className="space-y-2">
-              <Label>Conexão</Label>
-              <Select
-                value={form.network_type}
-                onValueChange={(v) => setForm({ ...form, network_type: v })}
+      <div className="bg-card border rounded-lg shadow-sm overflow-hidden">
+        <div className="p-6 pb-0">
+          <h3 className="text-lg font-medium">Nova Regra Tarifária</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Siga as 3 etapas para configurar regras de energia em lote.
+          </p>
+        </div>
+        <Tabs value={activeStep} onValueChange={setActiveStep} className="w-full">
+          <div className="px-6 border-b">
+            <TabsList className="grid w-full grid-cols-3 h-12 bg-transparent">
+              <TabsTrigger
+                value="step1"
+                className="data-[state=active]:bg-primary/5 data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none"
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Monofásico">Monofásico</SelectItem>
-                  <SelectItem value="Bifásico">Bifásico</SelectItem>
-                  <SelectItem value="Trifásico">Trifásico</SelectItem>
-                  <SelectItem value="Monofásico rural">Monofásico rural</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Tensão</Label>
-              <Select value={form.voltage} onValueChange={(v) => setForm({ ...form, voltage: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="127V">127V</SelectItem>
-                  <SelectItem value="127-220V">127-220V</SelectItem>
-                  <SelectItem value="220-380V">220-380V</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                1. Concessionária
+              </TabsTrigger>
+              <TabsTrigger
+                value="step2"
+                disabled={!form.distributor_name}
+                className="data-[state=active]:bg-primary/5 data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none"
+              >
+                2. Conexão e Tensão
+              </TabsTrigger>
+              <TabsTrigger
+                value="step3"
+                disabled={!form.distributor_name}
+                className="data-[state=active]:bg-primary/5 data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none"
+              >
+                3. Classes e Tarifas
+              </TabsTrigger>
+            </TabsList>
           </div>
 
-          <div className="space-y-2">
-            <Label>Classes de Consumo (Aplicação em Lote)</Label>
-            <div className="flex flex-wrap gap-4 p-4 border rounded-md bg-muted/20">
-              {CLASSES.map((cls) => (
-                <div key={cls} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`cls-${cls}`}
-                    checked={form.classes.includes(cls)}
-                    onCheckedChange={(c) =>
-                      setForm({
-                        ...form,
-                        classes: c ? [...form.classes, cls] : form.classes.filter((x) => x !== cls),
-                      })
-                    }
-                  />
-                  <Label htmlFor={`cls-${cls}`}>{cls}</Label>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Tarifa de Energia (TE)</Label>
-              <Input
-                type="number"
-                step="0.00001"
-                placeholder="Ex: 0.36000"
-                value={form.te}
-                onChange={(e) => setForm({ ...form, te: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Tarifa de Uso (TUSD)</Label>
-              <Input
-                type="number"
-                step="0.00001"
-                placeholder="Ex: 0.48000"
-                value={form.tusd}
-                onChange={(e) => setForm({ ...form, tusd: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Label>Isenção de ICMS</Label>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger type="button">
-                      <HelpCircle className="h-4 w-4 text-muted-foreground" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Defina se há isenção de ICMS aplicado sobre a energia compensada</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+          <div className="p-6">
+            <TabsContent value="step1" className="mt-0 space-y-4 animate-fade-in">
+              <div className="space-y-2 max-w-md">
+                <Label>Habilitar Concessionária</Label>
+                <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" className="w-full justify-between">
+                      {form.distributor_name || 'Selecione ou digite...'}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0">
+                    <Command>
+                      <CommandInput
+                        placeholder="Buscar concessionária..."
+                        onValueChange={setSearchDist}
+                      />
+                      <CommandList>
+                        <CommandEmpty>
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-start px-2 py-1.5 text-sm"
+                            onClick={() => {
+                              setForm({ ...form, distributor_name: searchDist })
+                              setOpenCombobox(false)
+                            }}
+                          >
+                            Criar "{searchDist}"
+                          </Button>
+                        </CommandEmpty>
+                        {STATES.map((state) => {
+                          const group = UTILITIES.filter((u) => u.s === state)
+                          if (!group.length) return null
+                          return (
+                            <CommandGroup key={state} heading={state}>
+                              {group.map((u) => (
+                                <CommandItem
+                                  key={u.n}
+                                  onSelect={() => {
+                                    setForm({ ...form, distributor_name: u.n })
+                                    setOpenCombobox(false)
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      'mr-2 h-4 w-4',
+                                      form.distributor_name === u.n ? 'opacity-100' : 'opacity-0',
+                                    )}
+                                  />
+                                  {u.n}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          )
+                        })}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
-              <Select
-                value={form.icms_exemption}
-                onValueChange={(v) => setForm({ ...form, icms_exemption: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhuma</SelectItem>
-                  <SelectItem value="te">Apenas TE</SelectItem>
-                  <SelectItem value="tusd">Apenas TUSD</SelectItem>
-                  <SelectItem value="both">Ambas</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+              <div className="pt-4 flex justify-end">
+                <Button
+                  onClick={() => {
+                    if (!form.distributor_name)
+                      return toast({
+                        variant: 'destructive',
+                        title: 'Selecione uma concessionária',
+                      })
+                    setActiveStep('step2')
+                  }}
+                >
+                  Próximo Passo <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="step2" className="mt-0 space-y-4 animate-fade-in">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
+                <div className="space-y-2">
+                  <Label>Tipo de Conexão</Label>
+                  <Select
+                    value={form.network_type}
+                    onValueChange={(v) => setForm({ ...form, network_type: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Monofásico">Monofásico</SelectItem>
+                      <SelectItem value="Bifásico">Bifásico</SelectItem>
+                      <SelectItem value="Trifásico">Trifásico</SelectItem>
+                      <SelectItem value="Monofásico rural">Monofásico rural</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Tensão da Rede</Label>
+                  <Select
+                    value={form.voltage}
+                    onValueChange={(v) => setForm({ ...form, voltage: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="127V">127V</SelectItem>
+                      <SelectItem value="220V">220V</SelectItem>
+                      <SelectItem value="127-220V">127-220V</SelectItem>
+                      <SelectItem value="220-380V">220-380V</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="pt-4 flex justify-between">
+                <Button variant="outline" onClick={() => setActiveStep('step1')}>
+                  <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
+                </Button>
+                <Button onClick={() => setActiveStep('step3')}>
+                  Próximo Passo <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="step3" className="mt-0 space-y-6 animate-fade-in">
+              <div className="space-y-3">
+                <Label className="text-base">Classes de Consumo (Aplicação em Lote)</Label>
+                <div className="flex flex-wrap gap-4 p-4 border rounded-lg bg-muted/30">
+                  {CLASSES.map((cls) => (
+                    <div key={cls} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`cls-${cls}`}
+                        checked={form.classes.includes(cls)}
+                        onCheckedChange={(c) =>
+                          setForm({
+                            ...form,
+                            classes: c
+                              ? [...form.classes, cls]
+                              : form.classes.filter((x) => x !== cls),
+                          })
+                        }
+                      />
+                      <Label htmlFor={`cls-${cls}`} className="cursor-pointer">
+                        {cls}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <Label>Tarifa de Energia (TE)</Label>
+                  <Input
+                    type="number"
+                    step="0.00001"
+                    placeholder="Ex: 0.36000"
+                    value={form.te}
+                    onChange={(e) => setForm({ ...form, te: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Tarifa de Uso (TUSD)</Label>
+                  <Input
+                    type="number"
+                    step="0.00001"
+                    placeholder="Ex: 0.48000"
+                    value={form.tusd}
+                    onChange={(e) => setForm({ ...form, tusd: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label>Isenção de ICMS</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger type="button">
+                          <HelpCircle className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Defina se há isenção de ICMS aplicado sobre a energia compensada</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <Select
+                    value={form.icms_exemption}
+                    onValueChange={(v) => setForm({ ...form, icms_exemption: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhuma</SelectItem>
+                      <SelectItem value="te">Apenas TE</SelectItem>
+                      <SelectItem value="tusd">Apenas TUSD</SelectItem>
+                      <SelectItem value="both">Ambas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="pt-4 flex justify-between">
+                <Button variant="outline" onClick={() => setActiveStep('step2')}>
+                  <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
+                </Button>
+                <Button onClick={handleSave}>Salvar Configuração</Button>
+              </div>
+            </TabsContent>
           </div>
-          <Button onClick={handleSave} className="mt-4">
-            Salvar Regras
-          </Button>
-        </CardContent>
-      </Card>
+        </Tabs>
+      </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Regras Existentes</CardTitle>
+          <CardTitle>Regras Configuradas</CardTitle>
+          <CardDescription>Gerencie as tarifas cadastradas no sistema.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="border rounded-md overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
+                <TableRow className="bg-muted/50">
                   <TableHead>Concessionária</TableHead>
                   <TableHead>Classe</TableHead>
                   <TableHead>Conexão</TableHead>
@@ -367,10 +464,10 @@ export function TariffsTab() {
               <TableBody>
                 {rules.map((r) => (
                   <TableRow key={r.id}>
-                    <TableCell>{r.expand?.distributor_id?.name}</TableCell>
+                    <TableCell className="font-medium">{r.expand?.distributor_id?.name}</TableCell>
                     <TableCell>{r.class}</TableCell>
                     <TableCell>
-                      {r.network_type} ({r.voltage})
+                      {r.network_type} <span className="text-muted-foreground">({r.voltage})</span>
                     </TableCell>
                     <TableCell>{r.te}</TableCell>
                     <TableCell>{r.tusd}</TableCell>
@@ -387,7 +484,7 @@ export function TariffsTab() {
                 ))}
                 {rules.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-4 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       Nenhuma regra tarifária configurada.
                     </TableCell>
                   </TableRow>
@@ -404,7 +501,43 @@ export function TariffsTab() {
             <DialogTitle>Editar Regra ({editRule?.class})</DialogTitle>
           </DialogHeader>
           {editRule && (
-            <div className="space-y-4">
+            <div className="space-y-4 pt-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Tipo de Conexão</Label>
+                  <Select
+                    value={editRule.network_type}
+                    onValueChange={(v) => setEditRule({ ...editRule, network_type: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Monofásico">Monofásico</SelectItem>
+                      <SelectItem value="Bifásico">Bifásico</SelectItem>
+                      <SelectItem value="Trifásico">Trifásico</SelectItem>
+                      <SelectItem value="Monofásico rural">Monofásico rural</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Tensão</Label>
+                  <Select
+                    value={editRule.voltage}
+                    onValueChange={(v) => setEditRule({ ...editRule, voltage: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="127V">127V</SelectItem>
+                      <SelectItem value="220V">220V</SelectItem>
+                      <SelectItem value="127-220V">127-220V</SelectItem>
+                      <SelectItem value="220-380V">220-380V</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>TE</Label>
@@ -442,9 +575,12 @@ export function TariffsTab() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={handleUpdate} className="w-full">
-                Salvar Alterações
-              </Button>
+              <DialogFooter className="mt-4">
+                <Button variant="outline" onClick={() => setEditRule(null)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleUpdate}>Salvar Alterações</Button>
+              </DialogFooter>
             </div>
           )}
         </DialogContent>

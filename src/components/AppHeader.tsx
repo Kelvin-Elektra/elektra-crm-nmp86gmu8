@@ -63,11 +63,15 @@ export function AppHeader() {
     <header className="h-16 flex shrink-0 items-center justify-between border-b bg-background px-4 shadow-sm z-10 sticky top-0">
       <div className="flex items-center gap-4">
         <SidebarTrigger className="-ml-2 md:hidden" />
-        <img src={companyLogo} alt="Company Logo" className="h-8 object-contain hidden md:block" />
         <h1 className="text-lg font-semibold tracking-tight text-foreground">{title}</h1>
       </div>
 
       <div className="flex items-center gap-4">
+        <img
+          src={companyLogo}
+          alt="Company Logo"
+          className="h-8 object-contain hidden md:block mix-blend-multiply dark:mix-blend-normal"
+        />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-9 w-9 rounded-full">
