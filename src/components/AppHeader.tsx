@@ -14,8 +14,10 @@ import { useLocation } from 'react-router-dom'
 import { LogOut, User as UserIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import pb from '@/lib/pocketbase/client'
+import { useRealtime } from '@/hooks/use-realtime'
+import logoCrmIcon from '../assets/logo-crm-3-icon-95c86.png'
 
-const DEFAULT_LOGO_URL = 'https://skip-images.s3.amazonaws.com/1098670c-cf2e-4b20-ba11-a8360d8bfa79'
+const DEFAULT_LOGO_URL = logoCrmIcon
 
 const routeNames: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -43,6 +45,16 @@ export function AppHeader() {
         .catch(console.error)
     }
   }, [user?.company_id])
+
+  useRealtime('companies', (e) => {
+    if (e.record.id === user?.company_id) {
+      if (e.record.logo) {
+        setCompanyLogo(pb.files.getURL(e.record, e.record.logo))
+      } else {
+        setCompanyLogo(DEFAULT_LOGO_URL)
+      }
+    }
+  })
 
   const title = routeNames[location.pathname] || 'Visão Geral'
   const initials = user?.name?.substring(0, 2).toUpperCase() || 'US'

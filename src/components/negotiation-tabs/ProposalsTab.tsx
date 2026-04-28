@@ -45,11 +45,20 @@ export function ProposalsTab({
       }
 
       // Create snapshot object
+      const tariffRules = await pb
+        .collection('pv_tariff_rules')
+        .getFullList({
+          filter: `company_id='${neg.company_id}'`,
+          expand: 'distributor_id',
+        })
+        .catch(() => [])
+
       const snapshot = {
         sizing: neg.sizing || {},
         module: moduleData || {},
         inverter: inverterData || {},
         tariffs: settings?.tariffs || {},
+        tariff_rules: tariffRules,
         indicators: settings?.indicators || {},
         pricing: settings?.pricing || {},
         generatedAt: new Date().toISOString(),

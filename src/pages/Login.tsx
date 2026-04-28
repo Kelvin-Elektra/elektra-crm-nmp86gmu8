@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2 } from 'lucide-react'
 
-const LOGO_URL = 'https://skip-images.s3.amazonaws.com/1098670c-cf2e-4b20-ba11-a8360d8bfa79'
+import logoCrmIcon from '../assets/logo-crm-3-icon-95c86.png'
+const LOGO_URL = logoCrmIcon
 
 export default function Login() {
   const [email, setEmail] = useState('elektraengenhariasolucoes@gmail.com')

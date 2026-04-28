@@ -9,7 +9,8 @@ import { InvertersTab } from '@/components/pv-kit/InvertersTab'
 import { InstallationsTab } from '@/components/pv-kit/InstallationsTab'
 import { CostsTab } from '@/components/pv-kit/CostsTab'
 import { SuppliesTab } from '@/components/pv-kit/SuppliesTab'
-import { Wrench } from 'lucide-react'
+import { TariffsTab } from '@/components/pv-kit/TariffsTab'
+import { Wrench, Building } from 'lucide-react'
 
 export default function PvKitSettings() {
   const { user } = useAuth()
@@ -48,6 +49,9 @@ export default function PvKitSettings() {
           <TabsTrigger value="costs" className="py-2.5 rounded-lg flex-1 sm:flex-none">
             <DollarSign className="mr-2 h-4 w-4" /> Custos e Impostos
           </TabsTrigger>
+          <TabsTrigger value="tariffs" className="py-2.5 rounded-lg flex-1 sm:flex-none">
+            <Building className="mr-2 h-4 w-4" /> Gestão Tarifária
+          </TabsTrigger>
         </TabsList>
 
         <div className="mt-6">
@@ -68,6 +72,9 @@ export default function PvKitSettings() {
           </TabsContent>
           <TabsContent value="costs">
             <CostsTab />
+          </TabsContent>
+          <TabsContent value="tariffs">
+            <TariffsTab />
           </TabsContent>
         </div>
       </Tabs>
