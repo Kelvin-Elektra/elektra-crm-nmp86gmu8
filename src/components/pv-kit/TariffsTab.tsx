@@ -231,7 +231,7 @@ export function TariffsTab() {
       <Tabs defaultValue="concessionarias" className="w-full">
         <TabsList className="grid w-full grid-cols-3 mb-6">
           <TabsTrigger value="concessionarias">Concessionárias</TabsTrigger>
-          <TabsTrigger value="rede">Configuração de Rede</TabsTrigger>
+          <TabsTrigger value="rede">Rede e Tensão</TabsTrigger>
           <TabsTrigger value="tarifas">Classes e Tarifas</TabsTrigger>
         </TabsList>
 
@@ -519,7 +519,10 @@ export function TariffsTab() {
                           <HelpCircle className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>Defina se há isenção de ICMS aplicado sobre a energia compensada</p>
+                          <p>
+                            Defina a aplicação de isenção de ICMS sobre a parcela de energia
+                            compensada.
+                          </p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>

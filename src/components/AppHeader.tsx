@@ -15,8 +15,7 @@ import { LogOut, User as UserIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
-const DEFAULT_LOGO_URL =
-  'https://img.usecurling.com/i?q=elektra+energy+logo&shape=outline&color=azure'
+const DEFAULT_LOGO_URL = '/logo.png'
 
 const routeNames: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -69,7 +68,7 @@ export function AppHeader() {
         <img
           src={companyLogo}
           alt="Company Logo"
-          className="h-8 object-contain hidden md:block bg-transparent"
+          className="h-8 object-contain hidden md:block rounded-md"
         />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
