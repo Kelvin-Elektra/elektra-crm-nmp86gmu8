@@ -60,9 +60,9 @@ export function ModulesTab() {
     const payload = {
       ...form,
       power: Number(form.power),
-      height: form.height ? Number(form.height) : null,
-      width: form.width ? Number(form.width) : null,
-      price: form.price ? Number(form.price) : null,
+      height: form.height ? Number(form.height.replace(',', '.')) : null,
+      width: form.width ? Number(form.width.replace(',', '.')) : null,
+      price: form.price ? Number(form.price.replace(',', '.')) : null,
       company_id: user.company_id,
     }
 
@@ -89,9 +89,9 @@ export function ModulesTab() {
       power: mod.power?.toString() || '',
       brand: mod.brand,
       distributor_id: mod.distributor_id,
-      height: mod.height?.toString() || '',
-      width: mod.width?.toString() || '',
-      price: mod.price?.toString() || '',
+      height: mod.height?.toString().replace('.', ',') || '',
+      width: mod.width?.toString().replace('.', ',') || '',
+      price: mod.price?.toString().replace('.', ',') || '',
       notes: mod.notes || '',
     })
     setEditingId(mod.id)
@@ -179,32 +179,49 @@ export function ModulesTab() {
           <div className="space-y-2">
             <Label className="font-semibold">Altura (m)</Label>
             <Input
-              type="number"
-              step="0.01"
               value={form.height}
-              onChange={(e) => setForm({ ...form, height: e.target.value })}
+              onChange={(e) => {
+                let val = e.target.value.replace(/[^\d,]/g, '')
+                const parts = val.split(',')
+                if (parts.length > 2) val = parts[0] + ',' + parts.slice(1).join('')
+                setForm({ ...form, height: val })
+              }}
               className="bg-background"
+              placeholder="0,00"
             />
           </div>
           <div className="space-y-2">
             <Label className="font-semibold">Largura (m)</Label>
             <Input
-              type="number"
-              step="0.01"
               value={form.width}
-              onChange={(e) => setForm({ ...form, width: e.target.value })}
+              onChange={(e) => {
+                let val = e.target.value.replace(/[^\d,]/g, '')
+                const parts = val.split(',')
+                if (parts.length > 2) val = parts[0] + ',' + parts.slice(1).join('')
+                setForm({ ...form, width: val })
+              }}
               className="bg-background"
+              placeholder="0,00"
             />
           </div>
           <div className="space-y-2">
-            <Label className="font-semibold">Preço (R$)</Label>
-            <Input
-              type="number"
-              step="0.01"
-              value={form.price}
-              onChange={(e) => setForm({ ...form, price: e.target.value })}
-              className="bg-background"
-            />
+            <Label className="font-semibold">Preço</Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">
+                R$
+              </span>
+              <Input
+                value={form.price}
+                onChange={(e) => {
+                  let val = e.target.value.replace(/[^\d,]/g, '')
+                  const parts = val.split(',')
+                  if (parts.length > 2) val = parts[0] + ',' + parts.slice(1).join('')
+                  setForm({ ...form, price: val })
+                }}
+                className="pl-9 bg-background"
+                placeholder="0,00"
+              />
+            </div>
           </div>
           <div className="space-y-2">
             <Label className="font-semibold">Observações</Label>

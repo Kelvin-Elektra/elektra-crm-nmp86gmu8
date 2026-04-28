@@ -15,7 +15,7 @@ import { LogOut, User as UserIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
-const DEFAULT_LOGO_URL = '/logo.png'
+const DEFAULT_LOGO_URL = 'https://img.usecurling.com/i?q=elektra&color=azure'
 
 const routeNames: Record<string, string> = {
   '/dashboard': 'Dashboard',

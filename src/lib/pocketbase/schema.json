@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-28T19:07:01.937Z",
+  "generatedAt": "2026-04-28T19:25:36.533Z",
   "collections": [
     {
       "name": "users",
@@ -655,6 +655,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "connections",
+          "type": "json",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": ["CREATE INDEX idx_pv_distributors_company ON pv_distributors (company_id)"]
@@ -1292,13 +1298,13 @@
         {
           "name": "network_type",
           "type": "text",
-          "required": true,
+          "required": false,
           "system": false
         },
         {
           "name": "voltage",
           "type": "text",
-          "required": true,
+          "required": false,
           "system": false
         },
         {

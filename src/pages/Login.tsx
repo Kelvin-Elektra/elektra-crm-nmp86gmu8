@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2 } from 'lucide-react'
 
-const LOGO_URL = '/logo.png'
+const LOGO_URL = 'https://img.usecurling.com/i?q=elektra&color=azure'
 
 export default function Login() {
   const [email, setEmail] = useState('elektraengenhariasolucoes@gmail.com')

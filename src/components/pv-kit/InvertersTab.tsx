@@ -256,13 +256,19 @@ export function InvertersTab() {
             />
           </div>
           <div className="space-y-2">
-            <Label className="font-semibold">Preço (R$)</Label>
-            <Input
-              type="text"
-              value={form.price}
-              onChange={(e) => handleNumberChange('price', e.target.value)}
-              className="bg-background"
-            />
+            <Label className="font-semibold">Preço</Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">
+                R$
+              </span>
+              <Input
+                type="text"
+                value={form.price}
+                onChange={(e) => handleNumberChange('price', e.target.value)}
+                className="pl-9 bg-background"
+                placeholder="0,00"
+              />
+            </div>
           </div>
           <div className="space-y-2 md:col-span-2">
             <Label className="font-semibold">Observações</Label>
