@@ -15,9 +15,8 @@ import { LogOut, User as UserIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
-import logoCrmIcon from '../assets/logo-crm-3-icon-95c86.png'
-
-const DEFAULT_LOGO_URL = logoCrmIcon
+const DEFAULT_LOGO_URL =
+  'https://img.usecurling.com/i?q=elektra+energy+logo&shape=outline&color=azure'
 
 const routeNames: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -70,7 +69,7 @@ export function AppHeader() {
         <img
           src={companyLogo}
           alt="Company Logo"
-          className="h-8 object-contain hidden md:block mix-blend-multiply dark:mix-blend-normal"
+          className="h-8 object-contain hidden md:block bg-transparent"
         />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

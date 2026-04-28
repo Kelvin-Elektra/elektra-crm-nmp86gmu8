@@ -7,8 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2 } from 'lucide-react'
 
-import logoCrmIcon from '../assets/logo-crm-3-icon-95c86.png'
-const LOGO_URL = logoCrmIcon
+const LOGO_URL = 'https://img.usecurling.com/i?q=elektra+energy+logo&shape=outline&color=azure'
 
 export default function Login() {
   const [email, setEmail] = useState('elektraengenhariasolucoes@gmail.com')
@@ -34,7 +33,7 @@ export default function Login() {
           <img
             src={LOGO_URL}
             alt="Elektra CRM"
-            className="h-24 object-contain mb-4 mix-blend-multiply dark:mix-blend-normal"
+            className="h-24 object-contain mb-4 bg-transparent"
           />
           <p className="text-muted-foreground mt-2 font-medium">
             Plataforma de gestão de vendas solares
