@@ -12,7 +12,10 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useLocation } from 'react-router-dom'
 import { LogOut, User as UserIcon } from 'lucide-react'
-import logoCrmMinimalista from '../assets/logo-crm-minimalista-wpp-6873d.png'
+import { useEffect, useState } from 'react'
+import pb from '@/lib/pocketbase/client'
+
+const DEFAULT_LOGO_URL = 'https://skip-images.s3.amazonaws.com/1098670c-cf2e-4b20-ba11-a8360d8bfa79'
 
 const routeNames: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -26,6 +29,20 @@ const routeNames: Record<string, string> = {
 export function AppHeader() {
   const { user, logout } = useAuth()
   const location = useLocation()
+  const [companyLogo, setCompanyLogo] = useState<string>(DEFAULT_LOGO_URL)
+
+  useEffect(() => {
+    if (user?.company_id) {
+      pb.collection('companies')
+        .getOne(user.company_id)
+        .then((record) => {
+          if (record.logo) {
+            setCompanyLogo(pb.files.getURL(record, record.logo))
+          }
+        })
+        .catch(console.error)
+    }
+  }, [user?.company_id])
 
   const title = routeNames[location.pathname] || 'Visão Geral'
   const initials = user?.name?.substring(0, 2).toUpperCase() || 'US'
@@ -34,11 +51,7 @@ export function AppHeader() {
     <header className="h-16 flex shrink-0 items-center justify-between border-b bg-background px-4 shadow-sm z-10 sticky top-0">
       <div className="flex items-center gap-4">
         <SidebarTrigger className="-ml-2 md:hidden" />
-        <img
-          src={logoCrmMinimalista}
-          alt="Elektra CRM"
-          className="h-8 object-contain hidden md:block"
-        />
+        <img src={companyLogo} alt="Company Logo" className="h-8 object-contain hidden md:block" />
         <h1 className="text-lg font-semibold tracking-tight text-foreground">{title}</h1>
       </div>
 
