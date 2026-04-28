@@ -18,6 +18,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
+const NETWORK_TYPES = ['Monofásico', 'Bifásico', 'Trifásico', 'Monofásico rural']
+const AVAILABLE_CLASSES = ['Residencial', 'Comercial', 'Industrial', 'Rural', 'Outros']
+
 export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => void }) {
   const { toast } = useToast()
   const lead = neg.expand?.lead_id || {}
@@ -29,14 +32,17 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
   const [isMonthly, setIsMonthly] = useState(isMonthlyInit)
   const [avgConsumption, setAvgConsumption] = useState(neg.avg_consumption || '')
 
-  const [concessionaire, setConcessionaire] = useState(neg.concessionaire || '')
-  const [uc, setUc] = useState(neg.uc || '')
+  const [distributorId, setDistributorId] = useState(initialSizing.distributor_id || '')
   const [networkType, setNetworkType] = useState(initialSizing.network_type || '')
+  const [consumerClass, setConsumerClass] = useState(initialSizing.consumer_class || '')
   const [tension, setTension] = useState(initialSizing.tension || '')
+
+  const [uc, setUc] = useState(neg.uc || '')
   const [installationType, setInstallationType] = useState(initialSizing.installation_type || '')
 
   const [installations, setInstallations] = useState<any[]>([])
-  const [settings, setSettings] = useState<any>(null)
+  const [distributors, setDistributors] = useState<any[]>([])
+  const [tariffRules, setTariffRules] = useState<any[]>([])
 
   const [addressStruct, setAddressStruct] = useState(
     initialSizing.address_struct || {
@@ -56,22 +62,54 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
         .then(setInstallations)
         .catch(console.error)
 
-      pb.collection('proposal_settings')
-        .getFirstListItem(`company_id='${neg.company_id}'`)
-        .then(setSettings)
+      pb.collection('pv_distributors')
+        .getFullList({ filter: `company_id='${neg.company_id}'` })
+        .then(setDistributors)
+        .catch(console.error)
+
+      pb.collection('pv_tariff_rules')
+        .getFullList({ filter: `company_id='${neg.company_id}'` })
+        .then(setTariffRules)
         .catch(console.error)
     }
   }, [neg?.company_id])
 
-  // Automatically update tension based on network type mapping
+  // Derive available options based on rules
+  const availableNetworks = distributorId
+    ? Array.from(
+        new Set(
+          tariffRules.filter((r) => r.distributor_id === distributorId).map((r) => r.network_type),
+        ),
+      )
+    : []
+  const networkOptions = availableNetworks.length > 0 ? availableNetworks : NETWORK_TYPES
+
+  const availableClasses =
+    distributorId && networkType
+      ? Array.from(
+          new Set(
+            tariffRules
+              .filter((r) => r.distributor_id === distributorId && r.network_type === networkType)
+              .map((r) => r.class),
+          ),
+        )
+      : []
+  const classOptions = availableClasses.length > 0 ? availableClasses : AVAILABLE_CLASSES
+
+  // Automatically update tension
   useEffect(() => {
-    if (networkType && settings?.tariffs?.networks) {
-      const net = settings.tariffs.networks.find((n: any) => n.type === networkType)
-      if (net && net.voltage) {
-        setTension(net.voltage)
+    if (distributorId && networkType && consumerClass) {
+      const rule = tariffRules.find(
+        (r) =>
+          r.distributor_id === distributorId &&
+          r.network_type === networkType &&
+          r.class === consumerClass,
+      )
+      if (rule && rule.voltage) {
+        setTension(rule.voltage)
       }
     }
-  }, [networkType, settings])
+  }, [distributorId, networkType, consumerClass, tariffRules])
 
   const [monthlyData, setMonthlyData] = useState({
     jan: initialSizing.jan || '',
@@ -119,13 +157,29 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
 
       const fullAddress = `${addressStruct.street}, ${addressStruct.number} - ${addressStruct.neighborhood}, ${addressStruct.city} - ${addressStruct.state}, ${addressStruct.zip}`
 
+      const ruleSnapshot = tariffRules.find(
+        (r) =>
+          r.distributor_id === distributorId &&
+          r.network_type === networkType &&
+          r.class === consumerClass,
+      )
+
       const cleanSizing = {
         ...initialSizing,
         ...sizingPayload,
-        tension,
+        distributor_id: distributorId,
         network_type: networkType,
+        consumer_class: consumerClass,
+        tension,
         installation_type: installationType,
         address_struct: addressStruct,
+        tariff_snapshot: ruleSnapshot
+          ? {
+              te: ruleSnapshot.te,
+              tusd: ruleSnapshot.tusd,
+              icms_exemption: ruleSnapshot.icms_exemption,
+            }
+          : initialSizing.tariff_snapshot,
       }
 
       Object.keys(cleanSizing).forEach(
@@ -134,9 +188,11 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
           delete cleanSizing[key as keyof typeof cleanSizing],
       )
 
+      const selectedDistName = distributors.find((d) => d.id === distributorId)?.name || ''
+
       await updateNegotiation(neg.id, {
         avg_consumption: computedAvg,
-        concessionaire,
+        concessionaire: selectedDistName,
         uc,
         address: fullAddress,
         sizing: cleanSizing,
@@ -158,9 +214,6 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
       setLoading(false)
     }
   }
-
-  const enabledConcs = settings?.tariffs?.concessionaires?.filter((c: any) => c.enabled) || []
-  const networks = settings?.tariffs?.networks || []
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -283,17 +336,17 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Concessionária</Label>
-                  <Select value={concessionaire} onValueChange={setConcessionaire}>
+                  <Select value={distributorId} onValueChange={setDistributorId}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {enabledConcs.map((c: any) => (
-                        <SelectItem key={c.name} value={c.name}>
-                          {c.name}
+                      {distributors.map((d: any) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.name}
                         </SelectItem>
                       ))}
-                      {enabledConcs.length === 0 && (
+                      {distributors.length === 0 && (
                         <SelectItem value="N/A" disabled>
                           Nenhuma configurada
                         </SelectItem>
@@ -315,19 +368,32 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {networks.map((n: any) => (
-                        <SelectItem key={n.type} value={n.type}>
-                          {n.type}
+                      {networkOptions.map((n: string) => (
+                        <SelectItem key={n} value={n}>
+                          {n}
                         </SelectItem>
                       ))}
-                      {networks.length === 0 && (
-                        <SelectItem value="N/A" disabled>
-                          Nenhuma configurada
-                        </SelectItem>
-                      )}
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-1">
+                  <Label>Classe de Consumo</Label>
+                  <Select value={consumerClass} onValueChange={setConsumerClass}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {classOptions.map((c: string) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Tensão da Instalação</Label>
                   <Input
@@ -336,27 +402,26 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
                     placeholder="Ex: 220V"
                   />
                 </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label>Tipo de Instalação</Label>
-                <Select value={installationType} onValueChange={setInstallationType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {installations.map((i: any) => (
-                      <SelectItem key={i.id} value={i.id}>
-                        {i.name}
-                      </SelectItem>
-                    ))}
-                    {installations.length === 0 && (
-                      <SelectItem value="N/A" disabled>
-                        Nenhuma configurada
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-1">
+                  <Label>Tipo de Instalação</Label>
+                  <Select value={installationType} onValueChange={setInstallationType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {installations.map((i: any) => (
+                        <SelectItem key={i.id} value={i.id}>
+                          {i.name}
+                        </SelectItem>
+                      ))}
+                      {installations.length === 0 && (
+                        <SelectItem value="N/A" disabled>
+                          Nenhuma configurada
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </div>

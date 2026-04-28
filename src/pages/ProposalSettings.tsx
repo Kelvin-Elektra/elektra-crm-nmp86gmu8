@@ -5,10 +5,29 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
-import { Save, FileImage, BarChart, Zap, Palette, Layers } from 'lucide-react'
+import { Save, FileImage, BarChart, Zap, Palette, Layers, Trash2 } from 'lucide-react'
+
+const NETWORK_TYPES = ['Monofásico', 'Bifásico', 'Trifásico', 'Monofásico rural']
+const AVAILABLE_CLASSES = ['Residencial', 'Comercial', 'Industrial', 'Rural', 'Outros']
 
 export default function ProposalSettings() {
   const { user } = useAuth()
@@ -17,22 +36,22 @@ export default function ProposalSettings() {
   const [loading, setLoading] = useState(false)
   const [activeTemplate, setActiveTemplate] = useState('modern')
 
+  const [distributors, setDistributors] = useState<any[]>([])
+  const [tariffRules, setTariffRules] = useState<any[]>([])
+  const [newDistName, setNewDistName] = useState('')
+
+  const [ruleForm, setRuleForm] = useState({
+    distributor_id: '',
+    network_type: '',
+    voltage: '',
+    tusd: '0,48',
+    te: '0,36',
+    icms_exemption: 'none',
+  })
+  const [ruleClasses, setRuleClasses] = useState<string[]>([])
+
   const [formData, setFormData] = useState({
     indicators: { inflation: '5', interest: '1' },
-    tariffs: {
-      concessionaires: [
-        { name: 'Enel SP', enabled: true, tusd: '0.48', te: '0.36', icms: 'Nenhuma' },
-        { name: 'CPFL', enabled: false, tusd: '0.45', te: '0.35', icms: 'Nenhuma' },
-        { name: 'Light', enabled: false, tusd: '0.50', te: '0.40', icms: 'Nenhuma' },
-        { name: 'Cemig', enabled: false, tusd: '0.55', te: '0.45', icms: 'Nenhuma' },
-      ],
-      networks: [
-        { type: 'Monofásico', voltage: '127V' },
-        { type: 'Monofásico rural', voltage: '127-220V' },
-        { type: 'Bifásico', voltage: '127-220V' },
-        { type: 'Trifásico', voltage: '220-380V' },
-      ],
-    },
     pricing: { margin: '30', tax: '12' },
     visible_pages: {
       cover: true,
@@ -52,8 +71,27 @@ export default function ProposalSettings() {
     },
   })
 
+  const loadTariffData = async () => {
+    if (!user?.company_id) return
+    try {
+      const dists = await pb
+        .collection('pv_distributors')
+        .getFullList({ filter: `company_id='${user.company_id}'` })
+      setDistributors(dists)
+      const rules = await pb.collection('pv_tariff_rules').getFullList({
+        filter: `company_id='${user.company_id}'`,
+        expand: 'distributor_id',
+      })
+      setTariffRules(rules)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   useEffect(() => {
     if (!user?.company_id) return
+    loadTariffData()
+
     pb.collection('proposal_settings')
       .getFirstListItem(`company_id = '${user.company_id}'`)
       .then((record) => {
@@ -61,15 +99,12 @@ export default function ProposalSettings() {
         if (record.template) setActiveTemplate(record.template)
         setFormData({
           indicators: record.indicators || formData.indicators,
-          tariffs: record.tariffs || formData.tariffs,
           pricing: record.pricing || formData.pricing,
           visible_pages: record.visible_pages || formData.visible_pages,
           branding: record.branding || formData.branding,
         })
       })
-      .catch((e) => {
-        console.error(e)
-      })
+      .catch((e) => console.error(e))
   }, [user])
 
   const handleSave = async () => {
@@ -80,7 +115,6 @@ export default function ProposalSettings() {
         company_id: user.company_id,
         template: activeTemplate,
         indicators: formData.indicators,
-        tariffs: formData.tariffs,
         pricing: formData.pricing,
         visible_pages: formData.visible_pages,
         branding: formData.branding,
@@ -91,7 +125,7 @@ export default function ProposalSettings() {
         const record = await pb.collection('proposal_settings').create(data)
         setSettingsId(record.id)
       }
-      toast({ title: 'Sucesso', description: 'Configurações salvas com sucesso.' })
+      toast({ title: 'Sucesso', description: 'Configurações gerais salvas.' })
     } catch (e) {
       toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível salvar.' })
     } finally {
@@ -106,17 +140,81 @@ export default function ProposalSettings() {
     }))
   }
 
+  const handleNumberChange = (val: string, setter: (v: string) => void) => {
+    let clean = val.replace(/[^0-9,]/g, '')
+    const parts = clean.split(',')
+    if (parts.length > 2) {
+      clean = parts[0] + ',' + parts.slice(1).join('')
+    }
+    setter(clean)
+  }
+
+  const handleAddDistributor = async () => {
+    if (!newDistName) return
+    setLoading(true)
+    try {
+      await pb
+        .collection('pv_distributors')
+        .create({ company_id: user!.company_id, name: newDistName })
+      setNewDistName('')
+      loadTariffData()
+      toast({ title: 'Distribuidora adicionada com sucesso.' })
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Erro ao adicionar distribuidora' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAddRule = async () => {
+    if (!ruleForm.distributor_id || !ruleForm.network_type || ruleClasses.length === 0) {
+      toast({ variant: 'destructive', title: 'Preencha distribuidora, rede e ao menos 1 classe.' })
+      return
+    }
+    setLoading(true)
+    try {
+      for (const c of ruleClasses) {
+        await pb.collection('pv_tariff_rules').create({
+          company_id: user!.company_id,
+          distributor_id: ruleForm.distributor_id,
+          class: c,
+          network_type: ruleForm.network_type,
+          voltage: ruleForm.voltage,
+          tusd: parseFloat(ruleForm.tusd.replace(',', '.')),
+          te: parseFloat(ruleForm.te.replace(',', '.')),
+          icms_exemption: ruleForm.icms_exemption,
+        })
+      }
+      toast({ title: 'Regras criadas com sucesso.' })
+      setRuleClasses([])
+      loadTariffData()
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Erro ao salvar regras' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteRule = async (id: string) => {
+    try {
+      await pb.collection('pv_tariff_rules').delete(id)
+      loadTariffData()
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Erro ao remover regra' })
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6 max-w-5xl animate-fade-in pb-12">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Configurações da Proposta PV</h2>
           <p className="text-muted-foreground text-sm">
-            Gerencie os padrões, cores e páginas para geração de propostas.
+            Gerencie os padrões, cores, tarifas e páginas para geração de propostas.
           </p>
         </div>
         <Button onClick={handleSave} disabled={loading}>
-          <Save className="mr-2 h-4 w-4" /> Salvar
+          <Save className="mr-2 h-4 w-4" /> Salvar Configurações
         </Button>
       </div>
 
@@ -135,7 +233,7 @@ export default function ProposalSettings() {
             <BarChart className="mr-2 h-4 w-4" /> Indicadores
           </TabsTrigger>
           <TabsTrigger value="tarifas" className="py-2.5 rounded-lg flex-1 sm:flex-none">
-            <Zap className="mr-2 h-4 w-4" /> Tarifas
+            <Zap className="mr-2 h-4 w-4" /> Tarifas e Redes
           </TabsTrigger>
         </TabsList>
 
@@ -340,99 +438,213 @@ export default function ProposalSettings() {
         <TabsContent value="tarifas" className="mt-6 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Concessionárias e Tarifas</CardTitle>
-              <CardDescription>Habilite e configure as tarifas por concessionária.</CardDescription>
+              <CardTitle>Concessionárias (Distribuidoras)</CardTitle>
+              <CardDescription>Cadastre as distribuidoras de energia atendidas.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {formData.tariffs.concessionaires?.map((conc: any, idx: number) => (
-                <div
-                  key={idx}
-                  className="flex flex-col md:flex-row md:items-center gap-4 p-4 border rounded-lg"
-                >
-                  <div className="flex items-center gap-3 w-full md:w-1/4">
-                    <Switch
-                      checked={conc.enabled}
-                      onCheckedChange={(val) => {
-                        const newConcs = [...formData.tariffs.concessionaires]
-                        newConcs[idx].enabled = val
-                        handleNestedChange('tariffs', 'concessionaires', newConcs)
-                      }}
-                    />
-                    <Label className="font-semibold">{conc.name}</Label>
+              <div className="flex gap-2 max-w-md">
+                <Input
+                  placeholder="Nome da distribuidora..."
+                  value={newDistName}
+                  onChange={(e) => setNewDistName(e.target.value)}
+                />
+                <Button onClick={handleAddDistributor} disabled={loading || !newDistName}>
+                  Adicionar
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-4">
+                {distributors.map((d) => (
+                  <div
+                    key={d.id}
+                    className="px-3 py-1 bg-secondary text-secondary-foreground rounded-full text-sm font-medium border"
+                  >
+                    {d.name}
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
-                    <div className="space-y-1">
-                      <Label className="text-xs">TUSD (R$)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={conc.tusd}
-                        disabled={!conc.enabled}
-                        onChange={(e) => {
-                          const newConcs = [...formData.tariffs.concessionaires]
-                          newConcs[idx].tusd = e.target.value
-                          handleNestedChange('tariffs', 'concessionaires', newConcs)
-                        }}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">TE (R$)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={conc.te}
-                        disabled={!conc.enabled}
-                        onChange={(e) => {
-                          const newConcs = [...formData.tariffs.concessionaires]
-                          newConcs[idx].te = e.target.value
-                          handleNestedChange('tariffs', 'concessionaires', newConcs)
-                        }}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Isenção ICMS</Label>
-                      <select
-                        className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                        value={conc.icms}
-                        disabled={!conc.enabled}
-                        onChange={(e) => {
-                          const newConcs = [...formData.tariffs.concessionaires]
-                          newConcs[idx].icms = e.target.value
-                          handleNestedChange('tariffs', 'concessionaires', newConcs)
-                        }}
-                      >
-                        <option value="Nenhuma">Nenhuma</option>
-                        <option value="TE">TE</option>
-                        <option value="TUSD">TUSD</option>
-                        <option value="Ambas">Ambas</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                ))}
+                {distributors.length === 0 && (
+                  <p className="text-sm text-muted-foreground">Nenhuma distribuidora cadastrada.</p>
+                )}
+              </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Mapeamento de Rede e Tensão</CardTitle>
-              <CardDescription>Defina a tensão padrão com base no tipo de rede.</CardDescription>
+              <CardTitle>Regras de Tarifas e Tensão</CardTitle>
+              <CardDescription>
+                Defina os valores de TE, TUSD e isenções em lote por distribuidora e rede.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {formData.tariffs.networks?.map((net: any, idx: number) => (
-                <div key={idx} className="flex items-center gap-4 p-3 border rounded-lg max-w-md">
-                  <Label className="w-1/2 font-semibold">{net.type}</Label>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-muted/30 p-4 rounded-lg border border-border/50">
+                <div className="space-y-2">
+                  <Label>Distribuidora</Label>
+                  <Select
+                    value={ruleForm.distributor_id}
+                    onValueChange={(v) => setRuleForm({ ...ruleForm, distributor_id: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {distributors.map((d) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.name}
+                        </SelectItem>
+                      ))}
+                      {distributors.length === 0 && (
+                        <SelectItem value="none" disabled>
+                          Cadastre uma distribuidora antes
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Tipo de Rede</Label>
+                  <Select
+                    value={ruleForm.network_type}
+                    onValueChange={(v) => setRuleForm({ ...ruleForm, network_type: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {NETWORK_TYPES.map((n) => (
+                        <SelectItem key={n} value={n}>
+                          {n}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Classes de Consumo (Atribuição em Lote)</Label>
+                  <div className="flex flex-wrap gap-4 mt-2">
+                    {AVAILABLE_CLASSES.map((c) => (
+                      <div key={c} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`class-${c}`}
+                          checked={ruleClasses.includes(c)}
+                          onCheckedChange={(checked) => {
+                            if (checked) setRuleClasses([...ruleClasses, c])
+                            else setRuleClasses(ruleClasses.filter((x) => x !== c))
+                          }}
+                        />
+                        <Label htmlFor={`class-${c}`} className="cursor-pointer">
+                          {c}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Tensão da Rede (Ex: 220V, 380V)</Label>
                   <Input
-                    className="w-1/2"
-                    value={net.voltage}
-                    onChange={(e) => {
-                      const newNets = [...formData.tariffs.networks]
-                      newNets[idx].voltage = e.target.value
-                      handleNestedChange('tariffs', 'networks', newNets)
-                    }}
+                    value={ruleForm.voltage}
+                    onChange={(e) => setRuleForm({ ...ruleForm, voltage: e.target.value })}
+                    placeholder="Ex: 220V"
                   />
                 </div>
-              ))}
+                <div className="space-y-2">
+                  <Label>Isenção de ICMS</Label>
+                  <Select
+                    value={ruleForm.icms_exemption}
+                    onValueChange={(v) => setRuleForm({ ...ruleForm, icms_exemption: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhuma</SelectItem>
+                      <SelectItem value="te">TE</SelectItem>
+                      <SelectItem value="tusd">TUSD</SelectItem>
+                      <SelectItem value="both">Ambas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>TE (R$)</Label>
+                  <Input
+                    value={ruleForm.te}
+                    onChange={(e) =>
+                      handleNumberChange(e.target.value, (v) => setRuleForm({ ...ruleForm, te: v }))
+                    }
+                    placeholder="0,36"
+                  />
+                  <p className="text-xs text-muted-foreground">Est. Grupo B: 0,36</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>TUSD (R$)</Label>
+                  <Input
+                    value={ruleForm.tusd}
+                    onChange={(e) =>
+                      handleNumberChange(e.target.value, (v) =>
+                        setRuleForm({ ...ruleForm, tusd: v }),
+                      )
+                    }
+                    placeholder="0,48"
+                  />
+                  <p className="text-xs text-muted-foreground">Est. Grupo B: 0,48</p>
+                </div>
+                <div className="md:col-span-2 flex justify-end mt-2">
+                  <Button onClick={handleAddRule} disabled={loading}>
+                    Salvar Novas Regras
+                  </Button>
+                </div>
+              </div>
+
+              <div className="border rounded-md overflow-hidden mt-6">
+                <Table>
+                  <TableHeader className="bg-muted/50">
+                    <TableRow>
+                      <TableHead>Distribuidora</TableHead>
+                      <TableHead>Rede</TableHead>
+                      <TableHead>Classe</TableHead>
+                      <TableHead>Tensão</TableHead>
+                      <TableHead>TE / TUSD</TableHead>
+                      <TableHead>ICMS</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tariffRules.map((r) => (
+                      <TableRow key={r.id}>
+                        <TableCell className="font-medium">
+                          {r.expand?.distributor_id?.name}
+                        </TableCell>
+                        <TableCell>{r.network_type}</TableCell>
+                        <TableCell>{r.class}</TableCell>
+                        <TableCell>{r.voltage}</TableCell>
+                        <TableCell>
+                          R$ {r.te?.toFixed(2).replace('.', ',')} / R${' '}
+                          {r.tusd?.toFixed(2).replace('.', ',')}
+                        </TableCell>
+                        <TableCell className="capitalize">
+                          {r.icms_exemption === 'none' ? 'Nenhuma' : r.icms_exemption}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive"
+                            onClick={() => handleDeleteRule(r.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {tariffRules.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
+                          Nenhuma regra cadastrada.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

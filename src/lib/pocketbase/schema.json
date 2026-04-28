@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-21T22:12:28.698Z",
+  "generatedAt": "2026-04-28T17:34:26.408Z",
   "collections": [
     {
       "name": "users",
@@ -114,6 +114,12 @@
           "type": "file",
           "required": false,
           "system": false
+        },
+        {
+          "name": "avg_efficiency",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []
@@ -190,11 +196,11 @@
       "name": "negotiations",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || company_id = @request.auth.company_id)",
-        "view": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || company_id = @request.auth.company_id)",
+        "list": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || (@request.auth.role = 'admin_company' && company_id = @request.auth.company_id) || (@request.auth.role = 'user' && company_id = @request.auth.company_id && owner_id = @request.auth.id))",
+        "view": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || (@request.auth.role = 'admin_company' && company_id = @request.auth.company_id) || (@request.auth.role = 'user' && company_id = @request.auth.company_id && owner_id = @request.auth.id))",
         "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || company_id = @request.auth.company_id)",
-        "delete": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || company_id = @request.auth.company_id)"
+        "update": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || (@request.auth.role = 'admin_company' && company_id = @request.auth.company_id) || (@request.auth.role = 'user' && company_id = @request.auth.company_id && owner_id = @request.auth.id))",
+        "delete": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || (@request.auth.role = 'admin_company' && company_id = @request.auth.company_id) || (@request.auth.role = 'user' && company_id = @request.auth.company_id && owner_id = @request.auth.id))"
       },
       "fields": [
         {
@@ -293,11 +299,11 @@
       "name": "proposals",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || company_id = @request.auth.company_id)",
-        "view": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || company_id = @request.auth.company_id)",
+        "list": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || (@request.auth.role = 'admin_company' && company_id = @request.auth.company_id) || (@request.auth.role = 'user' && company_id = @request.auth.company_id && negotiation_id.owner_id = @request.auth.id))",
+        "view": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || (@request.auth.role = 'admin_company' && company_id = @request.auth.company_id) || (@request.auth.role = 'user' && company_id = @request.auth.company_id && negotiation_id.owner_id = @request.auth.id))",
         "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || company_id = @request.auth.company_id)",
-        "delete": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || company_id = @request.auth.company_id)"
+        "update": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || (@request.auth.role = 'admin_company' && company_id = @request.auth.company_id) || (@request.auth.role = 'user' && company_id = @request.auth.company_id && negotiation_id.owner_id = @request.auth.id))",
+        "delete": "@request.auth.id != '' && (@request.auth.role = 'admin_elektra' || (@request.auth.role = 'admin_company' && company_id = @request.auth.company_id) || (@request.auth.role = 'user' && company_id = @request.auth.company_id && negotiation_id.owner_id = @request.auth.id))"
       },
       "fields": [
         {
@@ -1133,6 +1139,206 @@
         }
       ],
       "indexes": ["CREATE INDEX idx_pv_supply_rules_company ON pv_supply_rules (company_id)"]
+    },
+    {
+      "name": "pv_hsp_data",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "city",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "state",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "jan",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "feb",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "mar",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "apr",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "may",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "jun",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "jul",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "aug",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sep",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "oct",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "nov",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "dec",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "annual_avg",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE UNIQUE INDEX idx_pv_hsp_data_city_state ON pv_hsp_data (city, state)"]
+    },
+    {
+      "name": "pv_tariff_rules",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && company_id = @request.auth.company_id",
+        "view": "@request.auth.id != '' && company_id = @request.auth.company_id",
+        "create": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')",
+        "update": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')",
+        "delete": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')"
+      },
+      "fields": [
+        {
+          "name": "company_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "companies"
+        },
+        {
+          "name": "distributor_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "pv_distributors"
+        },
+        {
+          "name": "class",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "network_type",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "voltage",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "tusd",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "te",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "icms_exemption",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["none", "te", "tusd", "both"]
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_pv_tariff_rules_company ON pv_tariff_rules (company_id)",
+        "CREATE INDEX idx_pv_tariff_rules_distributor ON pv_tariff_rules (distributor_id)"
+      ]
     }
   ]
 }
