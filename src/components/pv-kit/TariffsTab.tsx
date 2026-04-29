@@ -145,6 +145,15 @@ export function TariffsTab() {
   // --- Handlers for Tab 1: Concessionárias ---
   const handleAddDistributor = async () => {
     if (!distName) return toast({ variant: 'destructive', title: 'Nome inválido' })
+
+    const exists = distributors.some((d) => d.name.toLowerCase() === distName.toLowerCase())
+    if (exists) {
+      return toast({
+        variant: 'destructive',
+        title: `A concessionária ${distName} já está cadastrada.`,
+      })
+    }
+
     try {
       await pb
         .collection('pv_distributors')
@@ -200,17 +209,15 @@ export function TariffsTab() {
   }
 
   // --- Handlers for Tab 3: Classes e Tarifas ---
-  const handleCreateRule = async () => {
-    if (
-      !ruleForm.distributor_id ||
-      ruleForm.classes.length === 0 ||
-      !ruleForm.te ||
-      !ruleForm.tusd
-    ) {
-      return toast({ variant: 'destructive', title: 'Preencha todos os campos obrigatórios' })
-    }
+  const [duplicateRulesDialog, setDuplicateRulesDialog] = useState<{
+    open: boolean
+    existing: any[]
+    newClasses: string[]
+  }>({ open: false, existing: [], newClasses: [] })
+
+  const proceedCreateRules = async (classesToCreate: string[], classesToUpdate: any[]) => {
     try {
-      for (const cls of ruleForm.classes) {
+      for (const cls of classesToCreate) {
         await pb.collection('pv_tariff_rules').create({
           company_id: user?.company_id,
           distributor_id: ruleForm.distributor_id,
@@ -222,12 +229,50 @@ export function TariffsTab() {
           voltage: '',
         })
       }
-      toast({ title: 'Sucesso', description: 'Regras tarifárias cadastradas com sucesso.' })
+
+      for (const rule of classesToUpdate) {
+        await pb.collection('pv_tariff_rules').update(rule.id, {
+          te: parseNumber(ruleForm.te),
+          tusd: parseNumber(ruleForm.tusd),
+          icms_exemption: ruleForm.icms_exemption,
+        })
+      }
+
+      toast({ title: 'Sucesso', description: 'Regras tarifárias salvas com sucesso.' })
       setRuleForm({ ...ruleForm, classes: [], te: '', tusd: '' })
+      setDuplicateRulesDialog({ open: false, existing: [], newClasses: [] })
       loadData()
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Erro ao salvar', description: e.message })
     }
+  }
+
+  const handleCreateRule = async () => {
+    if (
+      !ruleForm.distributor_id ||
+      ruleForm.classes.length === 0 ||
+      !ruleForm.te ||
+      !ruleForm.tusd
+    ) {
+      return toast({ variant: 'destructive', title: 'Preencha todos os campos obrigatórios' })
+    }
+
+    const existingForDist = rules.filter((r) => r.distributor_id === ruleForm.distributor_id)
+    const existingOverlaps = existingForDist.filter((r) => ruleForm.classes.includes(r.class))
+
+    if (existingOverlaps.length > 0) {
+      const newClasses = ruleForm.classes.filter(
+        (c) => !existingOverlaps.find((r) => r.class === c),
+      )
+      setDuplicateRulesDialog({
+        open: true,
+        existing: existingOverlaps,
+        newClasses,
+      })
+      return
+    }
+
+    await proceedCreateRules(ruleForm.classes, [])
   }
 
   const handleUpdateTariff = async () => {
@@ -851,6 +896,41 @@ export function TariffsTab() {
               onClick={() => deleteDistId && handleDeleteDist(deleteDistId)}
             >
               Excluir Concessionária
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Duplicate Rules Confirmation Modal */}
+      <Dialog
+        open={duplicateRulesDialog.open}
+        onOpenChange={(o) =>
+          !o && setDuplicateRulesDialog({ open: false, existing: [], newClasses: [] })
+        }
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Classes já cadastradas</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {duplicateRulesDialog.existing.length > 1 ? 'As classes' : 'A classe'}{' '}
+            {duplicateRulesDialog.existing.map((r) => r.class).join(', ')} já{' '}
+            {duplicateRulesDialog.existing.length > 1 ? 'possuem' : 'possui'} valores salvos para
+            esta concessionária. Deseja atualizar os valores existentes?
+          </p>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDuplicateRulesDialog({ open: false, existing: [], newClasses: [] })}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() =>
+                proceedCreateRules(duplicateRulesDialog.newClasses, duplicateRulesDialog.existing)
+              }
+            >
+              Atualizar Valores
             </Button>
           </DialogFooter>
         </DialogContent>

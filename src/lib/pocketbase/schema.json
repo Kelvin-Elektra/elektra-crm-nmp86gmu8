@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-28T19:30:41.679Z",
+  "generatedAt": "2026-04-29T18:10:22.362Z",
   "collections": [
     {
       "name": "users",
@@ -663,7 +663,10 @@
           "system": false
         }
       ],
-      "indexes": ["CREATE INDEX idx_pv_distributors_company ON pv_distributors (company_id)"]
+      "indexes": [
+        "CREATE INDEX idx_pv_distributors_company ON pv_distributors (company_id)",
+        "CREATE UNIQUE INDEX `idx_pv_distributors_unique_name` ON `pv_distributors` (company_id, name)"
+      ]
     },
     {
       "name": "pv_modules",
@@ -1343,7 +1346,8 @@
       ],
       "indexes": [
         "CREATE INDEX idx_pv_tariff_rules_company ON pv_tariff_rules (company_id)",
-        "CREATE INDEX idx_pv_tariff_rules_distributor ON pv_tariff_rules (distributor_id)"
+        "CREATE INDEX idx_pv_tariff_rules_distributor ON pv_tariff_rules (distributor_id)",
+        "CREATE UNIQUE INDEX `idx_pv_tariff_rules_unique_class` ON `pv_tariff_rules` (distributor_id, class)"
       ]
     }
   ]

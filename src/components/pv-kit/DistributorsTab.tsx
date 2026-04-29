@@ -28,6 +28,15 @@ export function DistributorsTab() {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user?.company_id) return
+
+    const exists = data.some((d) => d.name.toLowerCase() === form.name.toLowerCase())
+    if (exists) {
+      return toast({
+        variant: 'destructive',
+        title: `A distribuidora/concessionária ${form.name} já está cadastrada.`,
+      })
+    }
+
     setLoading(true)
     try {
       await pb.collection('pv_distributors').create({ ...form, company_id: user.company_id })
