@@ -37,6 +37,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { getOrFetchHsp } from '@/services/hsp'
 
 const getHspByState = (state: string) => {
   if (!state) return 4.94
@@ -149,10 +150,9 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
     const city = sizing.address_struct?.city || neg.city
     const state = sizing.address_struct?.state || neg.state
     if (city && state) {
-      pb.collection('pv_hsp_data')
-        .getFirstListItem(`city~'${city}' && state~'${state}'`)
-        .then((record) => {
-          if (record.annual_avg) setFetchedHsp(record.annual_avg)
+      getOrFetchHsp(city, state)
+        .then((ann) => {
+          if (ann) setFetchedHsp(ann)
         })
         .catch(() => setFetchedHsp(null))
     }
@@ -363,9 +363,24 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
 
             <div className="pt-4 border-t space-y-4">
               <div className="flex items-center justify-between">
-                <Label className="cursor-pointer" htmlFor="toggle-faces">
-                  Considerar faces do telhado
-                </Label>
+                <div className="flex items-center gap-2">
+                  <Label className="cursor-pointer" htmlFor="toggle-faces">
+                    Considerar faces do telhado
+                  </Label>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p>
+                          Define a quantidade de módulos por orientação. Cada face terá sua perda
+                          específica descontada, conforme as regras de eficiência.
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
                 <Switch
                   id="toggle-faces"
                   checked={useRoofFaces}
@@ -406,12 +421,14 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
                       <div className="w-24 space-y-1">
                         <Input
                           type="number"
+                          min="0"
                           placeholder="Módulos"
                           className="h-8 text-sm"
                           value={item.modules}
                           onChange={(e) => {
                             const arr = [...roofFaces]
-                            arr[idx].modules = e.target.value
+                            const val = Number(e.target.value)
+                            arr[idx].modules = val < 0 ? '0' : e.target.value
                             setRoofFaces(arr)
                           }}
                         />
@@ -525,8 +542,12 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
                   <Label>Qtde. de Módulos</Label>
                   <Input
                     type="number"
+                    min="0"
                     value={moduleQty}
-                    onChange={(e) => setModuleQty(e.target.value)}
+                    onChange={(e) => {
+                      const val = Number(e.target.value)
+                      if (val >= 0) setModuleQty(e.target.value)
+                    }}
                     placeholder="Auto"
                   />
                 </div>

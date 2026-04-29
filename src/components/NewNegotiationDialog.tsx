@@ -16,6 +16,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { maskCEP } from '@/lib/masks'
+import { LocationCombobox } from '@/components/LocationCombobox'
 
 const NETWORK_TYPES = ['Monofásico', 'Bifásico', 'Trifásico', 'Monofásico rural']
 
@@ -27,6 +28,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
   const [stages, setStages] = useState<any[]>([])
   const [utilities, setUtilities] = useState<any[]>([])
   const [tariffRules, setTariffRules] = useState<any[]>([])
+  const [hspCities, setHspCities] = useState<string[]>([])
 
   const [formData, setFormData] = useState({
     title: '',
@@ -56,6 +58,10 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
           .getFullList({ filter: `company_id='${user.company_id}'` })
           .then(setTariffRules)
       }
+      pb.collection('pv_hsp_data')
+        .getFullList({ sort: 'city' })
+        .then((records) => setHspCities(Array.from(new Set(records.map((r) => r.city)))))
+        .catch(console.error)
       if (initialLeadId) setFormData((prev) => ({ ...prev, lead_id: initialLeadId }))
       else setFormData((prev) => ({ ...prev, lead_id: '' }))
     }
@@ -176,12 +182,12 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0">
-        <DialogHeader className="px-6 pt-6 pb-2">
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
           <DialogTitle>Nova Negociação</DialogTitle>
         </DialogHeader>
-        <form onSubmit={onSubmit} className="flex flex-col overflow-hidden h-full">
-          <div className="px-6 flex-1 overflow-y-auto min-h-[50vh]">
+        <form onSubmit={onSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <div className="px-6 flex-1 overflow-y-auto">
             <div className="space-y-4 mt-2 pb-6">
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div className="space-y-2 sm:col-span-4">
@@ -249,9 +255,10 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
                 </div>
                 <div className="space-y-2 sm:col-span-1">
                   <Label>Cidade</Label>
-                  <Input
+                  <LocationCombobox
+                    cities={hspCities}
                     value={formData.city}
-                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    onChange={(city: string) => setFormData({ ...formData, city })}
                   />
                 </div>
                 <div className="space-y-2 sm:col-span-1">
@@ -333,7 +340,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
               </div>
             </div>
           </div>
-          <div className="p-6 border-t bg-background mt-auto flex justify-end">
+          <div className="p-6 border-t bg-background shrink-0 flex justify-end">
             <Button type="submit">Criar Negociação</Button>
           </div>
         </form>

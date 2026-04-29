@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-29T21:35:35.389Z",
+  "generatedAt": "2026-04-29T22:05:22.514Z",
   "collections": [
     {
       "name": "users",
@@ -1475,12 +1475,6 @@
           "system": false
         },
         {
-          "name": "logo",
-          "type": "file",
-          "required": false,
-          "system": false
-        },
-        {
           "name": "created",
           "type": "autodate",
           "required": false,
@@ -1493,6 +1487,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "logo",
+          "type": "file",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []
@@ -1545,6 +1545,40 @@
       "indexes": [
         "CREATE UNIQUE INDEX idx_pv_efficiency_rules_company ON pv_efficiency_rules (company_id)"
       ]
+    },
+    {
+      "name": "system_image",
+      "type": "base",
+      "apiRules": {
+        "list": null,
+        "view": null,
+        "create": null,
+        "update": null,
+        "delete": null
+      },
+      "fields": [
+        {
+          "name": "logo",
+          "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onUpdate"]
+        }
+      ],
+      "indexes": []
     }
   ]
 }

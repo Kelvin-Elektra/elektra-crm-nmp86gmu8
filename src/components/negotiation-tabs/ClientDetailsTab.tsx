@@ -10,6 +10,7 @@ import { updateNegotiation } from '@/services/db'
 import { useToast } from '@/hooks/use-toast'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
 import pb from '@/lib/pocketbase/client'
+import { LocationCombobox } from '@/components/LocationCombobox'
 import {
   Select,
   SelectContent,
@@ -43,6 +44,7 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
   const [installations, setInstallations] = useState<any[]>([])
   const [utilities, setUtilities] = useState<any[]>([])
   const [tariffRules, setTariffRules] = useState<any[]>([])
+  const [hspCities, setHspCities] = useState<string[]>([])
 
   const [addressStruct, setAddressStruct] = useState({
     street: initialSizing.address_struct?.street || '',
@@ -68,6 +70,11 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
       pb.collection('pv_tariff_rules')
         .getFullList({ filter: `company_id='${neg.company_id}'` })
         .then(setTariffRules)
+        .catch(console.error)
+
+      pb.collection('pv_hsp_data')
+        .getFullList({ sort: 'city' })
+        .then((records) => setHspCities(Array.from(new Set(records.map((r) => r.city)))))
         .catch(console.error)
     }
   }, [neg?.company_id])
@@ -345,9 +352,10 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
                 <div className="grid grid-cols-3 gap-3">
                   <div className="col-span-2 space-y-1">
                     <Label>Cidade</Label>
-                    <Input
+                    <LocationCombobox
+                      cities={hspCities}
                       value={addressStruct.city}
-                      onChange={(e) => setAddressStruct({ ...addressStruct, city: e.target.value })}
+                      onChange={(city: string) => setAddressStruct({ ...addressStruct, city })}
                     />
                   </div>
                   <div className="space-y-1">
