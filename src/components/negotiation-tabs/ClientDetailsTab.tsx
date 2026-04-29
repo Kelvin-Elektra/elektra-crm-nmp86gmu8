@@ -166,7 +166,7 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
     { k: 'dec', l: 'Dez' },
   ]
 
-  const handleSaveConsumption = async () => {
+  const handleSaveAll = async () => {
     setLoading(true)
     try {
       let computedAvg = 0
@@ -227,7 +227,7 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
         sizing: cleanSizing,
       })
 
-      toast({ title: 'Dados atualizados com sucesso' })
+      toast({ title: 'Todos os dados foram atualizados com sucesso' })
       if (reload) {
         reload()
       } else {
@@ -245,61 +245,63 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Dados Principais</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-start gap-3">
-            <User className="h-5 w-5 text-muted-foreground mt-0.5" />
-            <div>
-              <p className="font-medium">{lead.name || 'Não informado'}</p>
-              <p className="text-sm text-muted-foreground">Nome Completo / Razão Social</p>
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Dados Principais</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start gap-3">
+              <User className="h-5 w-5 text-muted-foreground mt-0.5" />
+              <div>
+                <p className="font-medium">{lead.name || 'Não informado'}</p>
+                <p className="text-sm text-muted-foreground">Nome Completo / Razão Social</p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-start gap-3">
-            <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
-            <div>
-              <p className="font-medium">{maskCPF(lead.document) || 'Não informado'}</p>
-              <p className="text-sm text-muted-foreground">CPF / CNPJ</p>
+            <div className="flex items-start gap-3">
+              <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
+              <div>
+                <p className="font-medium">{maskCPF(lead.document) || 'Não informado'}</p>
+                <p className="text-sm text-muted-foreground">CPF / CNPJ</p>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Contato</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start gap-3">
+              <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
+              <div>
+                <p className="font-medium">{maskPhone(lead.phone) || 'Não informado'}</p>
+                <p className="text-sm text-muted-foreground">Telefone Principal</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
+              <div>
+                <p className="font-medium">{lead.email || 'Não informado'}</p>
+                <p className="text-sm text-muted-foreground">E-mail</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Contato</CardTitle>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <MapPin className="h-5 w-5" /> Local de Instalação e Rede
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-start gap-3">
-            <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
-            <div>
-              <p className="font-medium">{maskPhone(lead.phone) || 'Não informado'}</p>
-              <p className="text-sm text-muted-foreground">Telefone Principal</p>
-            </div>
-          </div>
-          <div className="flex items-start gap-3">
-            <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
-            <div>
-              <p className="font-medium">{lead.email || 'Não informado'}</p>
-              <p className="text-sm text-muted-foreground">E-mail</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="md:col-span-2">
-        <CardHeader>
-          <CardTitle className="text-lg">Local de Instalação e Consumo</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid md:grid-cols-2 gap-6">
+        <CardContent>
+          <div className="grid md:grid-cols-2 gap-8">
             <div className="space-y-4">
-              <h3 className="font-medium flex items-center gap-2">
-                <MapPin className="h-4 w-4" /> Endereço da Instalação
-              </h3>
+              <h3 className="font-medium text-muted-foreground">Endereço</h3>
               <div className="space-y-3">
                 <div className="space-y-1">
                   <Label>CEP</Label>
@@ -363,9 +365,7 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
             </div>
 
             <div className="space-y-4">
-              <h3 className="font-medium flex items-center gap-2">
-                <Zap className="h-4 w-4" /> Dados da Rede
-              </h3>
+              <h3 className="font-medium text-muted-foreground">Concessionária e Rede</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Concessionária</Label>
@@ -460,68 +460,76 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
               </div>
             </div>
           </div>
-
-          <div className="border-t pt-6 mt-4">
-            <div className="flex flex-wrap gap-4 items-center justify-between mb-4">
-              <h3 className="text-md font-semibold">Histórico de Consumo</h3>
-              <div className="flex items-center space-x-2">
-                <Label
-                  htmlFor="consumption-mode"
-                  className="text-sm text-muted-foreground cursor-pointer"
-                >
-                  Média Única
-                </Label>
-                <Switch id="consumption-mode" checked={isMonthly} onCheckedChange={setIsMonthly} />
-                <Label
-                  htmlFor="consumption-mode"
-                  className="text-sm text-muted-foreground cursor-pointer"
-                >
-                  Mês a Mês
-                </Label>
-              </div>
-            </div>
-
-            {!isMonthly ? (
-              <div className="flex items-end gap-4 max-w-sm">
-                <div className="space-y-2 flex-1">
-                  <Label>Consumo Médio (kWh/mês)</Label>
-                  <Input
-                    type="number"
-                    value={avgConsumption}
-                    onChange={(e) => setAvgConsumption(e.target.value)}
-                    placeholder="Ex: 450"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                {months.map((m) => (
-                  <div key={m.k} className="space-y-1">
-                    <Label className="text-xs">{m.l}</Label>
-                    <Input
-                      type="number"
-                      className="h-8 text-sm"
-                      value={(monthlyData as any)[m.k]}
-                      onChange={(e) => setMonthlyData((p) => ({ ...p, [m.k]: e.target.value }))}
-                      placeholder="kWh"
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="mt-4 flex flex-wrap gap-4 items-center justify-between">
-              <p className="text-sm font-medium">
-                Média calculada/atual:{' '}
-                <span className="text-primary text-lg ml-1">{neg.avg_consumption || 0} kWh</span>
-              </p>
-              <Button onClick={handleSaveConsumption} disabled={loading} size="sm">
-                <Save className="h-4 w-4 mr-2" /> Salvar Dados
-              </Button>
-            </div>
-          </div>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Zap className="h-5 w-5" /> Histórico de Consumo
+          </CardTitle>
+          <div className="flex items-center space-x-2">
+            <Label
+              htmlFor="consumption-mode"
+              className="text-sm text-muted-foreground cursor-pointer"
+            >
+              Média Única
+            </Label>
+            <Switch id="consumption-mode" checked={isMonthly} onCheckedChange={setIsMonthly} />
+            <Label
+              htmlFor="consumption-mode"
+              className="text-sm text-muted-foreground cursor-pointer"
+            >
+              Mês a Mês
+            </Label>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {!isMonthly ? (
+            <div className="flex items-end gap-4 max-w-sm mt-4">
+              <div className="space-y-2 flex-1">
+                <Label>Consumo Médio (kWh/mês)</Label>
+                <Input
+                  type="number"
+                  value={avgConsumption}
+                  onChange={(e) => setAvgConsumption(e.target.value)}
+                  placeholder="Ex: 450"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 mt-4">
+              {months.map((m) => (
+                <div key={m.k} className="space-y-1">
+                  <Label className="text-xs">{m.l}</Label>
+                  <Input
+                    type="number"
+                    className="h-8 text-sm"
+                    value={(monthlyData as any)[m.k]}
+                    onChange={(e) => setMonthlyData((p) => ({ ...p, [m.k]: e.target.value }))}
+                    placeholder="kWh"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-sm text-muted-foreground mt-4">
+            Média registrada no sistema:{' '}
+            <strong className="text-primary">{neg.avg_consumption || 0} kWh</strong>
+          </p>
+        </CardContent>
+      </Card>
+
+      <div className="flex justify-end sticky bottom-0 pb-6 pt-2 bg-background/80 backdrop-blur-sm z-10 border-t mt-4">
+        <Button
+          onClick={handleSaveAll}
+          disabled={loading}
+          size="lg"
+          className="w-full sm:w-auto shadow-md"
+        >
+          <Save className="h-4 w-4 mr-2" /> Salvar Todas as Alterações
+        </Button>
+      </div>
     </div>
   )
 }

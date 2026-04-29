@@ -15,7 +15,16 @@ import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { updateNegotiation } from '@/services/db'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
-import { Save, Sun, Battery, Settings2, Plus, Trash2, AlertTriangle } from 'lucide-react'
+import {
+  Save,
+  Sun,
+  Battery,
+  Settings2,
+  Plus,
+  Trash2,
+  AlertTriangle,
+  HelpCircle,
+} from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -27,6 +36,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 const getHspByState = (state: string) => {
   if (!state) return 4.94
@@ -70,16 +80,21 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
   const [distributors, setDistributors] = useState<any[]>([])
   const [modules, setModules] = useState<any[]>([])
   const [inverters, setInverters] = useState<any[]>([])
-
   const [efficiencyRule, setEfficiencyRule] = useState<any>(null)
+  const [fetchedHsp, setFetchedHsp] = useState<number | null>(null)
 
-  const recommendedHsp = getHspByState(sizing.address_struct?.state)
   const parseNumber = (val: string) => (val ? Number(val.replace(',', '.')) : null)
   const formatNumber = (val: number | string | null | undefined) =>
     val !== null && val !== undefined ? val.toString().replace('.', ',') : ''
 
-  const [hsp, setHsp] = useState(
-    sizing.hsp !== undefined ? formatNumber(sizing.hsp) : formatNumber(recommendedHsp),
+  const [losses, setLosses] = useState(
+    sizing.losses !== undefined ? formatNumber(sizing.losses) : '23',
+  )
+  const [enableAdditionalLosses, setEnableAdditionalLosses] = useState(
+    sizing.enable_additional_losses || false,
+  )
+  const [additionalLosses, setAdditionalLosses] = useState(
+    sizing.additional_losses !== undefined ? formatNumber(sizing.additional_losses) : '0',
   )
 
   const [selectedDistributorId, setSelectedDistributorId] = useState(
@@ -92,9 +107,6 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
 
   const [moduleQty, setModuleQty] = useState(
     sizing.module_qty !== undefined ? String(sizing.module_qty) : '',
-  )
-  const [losses, setLosses] = useState(
-    sizing.losses !== undefined ? formatNumber(sizing.losses) : '23',
   )
 
   const [useRoofFaces, setUseRoofFaces] = useState(neg.use_roof_faces || false)
@@ -133,6 +145,19 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
       .catch(() => {})
   }, [neg.company_id, sizing.losses])
 
+  useEffect(() => {
+    const city = sizing.address_struct?.city || neg.city
+    const state = sizing.address_struct?.state || neg.state
+    if (city && state) {
+      pb.collection('pv_hsp_data')
+        .getFirstListItem(`city~'${city}' && state~'${state}'`)
+        .then((record) => {
+          if (record.annual_avg) setFetchedHsp(record.annual_avg)
+        })
+        .catch(() => setFetchedHsp(null))
+    }
+  }, [sizing.address_struct?.city, sizing.address_struct?.state, neg.city, neg.state])
+
   const handleNumberChange = (val: string, setter: (v: string) => void) => {
     let clean = val.replace(/[^0-9,]/g, '')
     const parts = clean.split(',')
@@ -158,8 +183,11 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
       : inverters.filter((i) => i.distributor_id === selectedDistributorId)
 
   const orientationOptions = efficiencyRule?.orientation_losses || []
-  const hspNum = parseNumber(hsp) || recommendedHsp
-  const lossesNum = parseNumber(losses) || 0
+
+  const hspNum = fetchedHsp || getHspByState(sizing.address_struct?.state || neg.state)
+  const nominalLossesNum = parseNumber(losses) || 0
+  const additionalLossesNum = enableAdditionalLosses ? parseNumber(additionalLosses) || 0 : 0
+  const totalLossesNum = nominalLossesNum + additionalLossesNum
   const avgConsumption = neg.avg_consumption || 0
 
   const selectedModule = modules.find((m) => m.id === selectedModuleId)
@@ -174,20 +202,20 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
       const facePowerKwp = ((Number(face.modules) || 0) * modulePowerW) / 1000
       const faceOrient = orientationOptions.find((o: any) => o.orientation === face.orientation)
       const orientLoss = faceOrient ? Number(faceOrient.loss) || 0 : 0
-      const totalLossFactor = (1 - lossesNum / 100) * (1 - orientLoss / 100)
+      const totalLossFactor = (1 - totalLossesNum / 100) * (1 - orientLoss / 100)
       estMonthlyGen += hspNum * facePowerKwp * totalLossFactor * 30
     })
   } else {
     const suggestedPowerKwp =
-      hspNum > 0 && 1 - lossesNum / 100 > 0
-        ? avgConsumption / 30 / (hspNum * (1 - lossesNum / 100))
+      hspNum > 0 && 1 - totalLossesNum / 100 > 0
+        ? avgConsumption / 30 / (hspNum * (1 - totalLossesNum / 100))
         : 0
     const suggestedModules =
       modulePowerW > 0 ? Math.ceil((suggestedPowerKwp * 1000) / modulePowerW) : 0
     actualModuleQty = moduleQty ? Number(moduleQty) : suggestedModules
 
     const kitPowerKwp = (actualModuleQty * modulePowerW) / 1000
-    const totalLossFactor = 1 - lossesNum / 100
+    const totalLossFactor = 1 - totalLossesNum / 100
     estMonthlyGen = hspNum * kitPowerKwp * totalLossFactor * 30
   }
 
@@ -209,7 +237,9 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
       const cleanSizing = {
         ...sizing,
         hsp: hspNum,
-        losses: lossesNum,
+        losses: nominalLossesNum,
+        enable_additional_losses: enableAdditionalLosses,
+        additional_losses: additionalLossesNum,
         selected_distributor_id: selectedDistributorId === 'none' ? null : selectedDistributorId,
         selected_module_id: selectedModuleId === 'none' ? null : selectedModuleId,
         selected_inverter_id: selectedInverterId === 'none' ? null : selectedInverterId,
@@ -271,27 +301,64 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>HSP (Horas de Sol Pico)</Label>
-                <div className="relative">
-                  <Input
-                    type="text"
-                    value={hsp}
-                    onChange={(e) => handleNumberChange(e.target.value, setHsp)}
-                    placeholder="Ex: 4,94"
-                  />
-                  <span className="absolute right-3 top-2 text-xs text-muted-foreground bg-background px-1">
-                    Rec: {recommendedHsp}
-                  </span>
-                </div>
+                <Input
+                  type="text"
+                  value={formatNumber(hspNum)}
+                  readOnly
+                  disabled
+                  className="bg-muted/50 cursor-not-allowed"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Perdas Nominais (%)</Label>
                 <Input
                   type="text"
-                  value={losses}
-                  onChange={(e) => handleNumberChange(e.target.value, setLosses)}
-                  placeholder="Ex: 23"
+                  value={formatNumber(nominalLossesNum)}
+                  readOnly
+                  disabled
+                  className="bg-muted/50 cursor-not-allowed"
                 />
               </div>
+            </div>
+
+            <div className="space-y-4 pt-4 border-t">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Label className="cursor-pointer" htmlFor="toggle-additional-losses">
+                    Habilitar Perdas Adicionais
+                  </Label>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p>
+                          Utilize este campo para reduzir a geração estimada manualmente em casos de
+                          sombreamento, relevo prejudicado ou outros fatores externos específicos do
+                          local.
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <Switch
+                  id="toggle-additional-losses"
+                  checked={enableAdditionalLosses}
+                  onCheckedChange={setEnableAdditionalLosses}
+                />
+              </div>
+              {enableAdditionalLosses && (
+                <div className="space-y-2 animate-fade-in">
+                  <Label>Perdas Adicionais (%)</Label>
+                  <Input
+                    type="text"
+                    value={additionalLosses}
+                    onChange={(e) => handleNumberChange(e.target.value, setAdditionalLosses)}
+                    placeholder="Ex: 5"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="pt-4 border-t space-y-4">
@@ -307,7 +374,7 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
               </div>
 
               {useRoofFaces && (
-                <div className="space-y-3 bg-muted/30 p-3 rounded-lg border">
+                <div className="space-y-3 bg-muted/30 p-3 rounded-lg border animate-fade-in">
                   {roofFaces.map((item, idx) => (
                     <div key={idx} className="flex items-center gap-2">
                       <div className="flex-1 space-y-1">

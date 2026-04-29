@@ -15,7 +15,6 @@ import { createNegotiation, getLeads, getPipelineStages } from '@/services/db'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { maskCEP } from '@/lib/masks'
 
 const NETWORK_TYPES = ['Monofásico', 'Bifásico', 'Trifásico', 'Monofásico rural']
@@ -182,7 +181,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
           <DialogTitle>Nova Negociação</DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col overflow-hidden h-full">
-          <ScrollArea className="px-6 flex-1 min-h-[50vh]">
+          <div className="px-6 flex-1 overflow-y-auto min-h-[50vh]">
             <div className="space-y-4 mt-2 pb-6">
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div className="space-y-2 sm:col-span-4">
@@ -333,7 +332,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
                 </div>
               </div>
             </div>
-          </ScrollArea>
+          </div>
           <div className="p-6 border-t bg-background mt-auto flex justify-end">
             <Button type="submit">Criar Negociação</Button>
           </div>
