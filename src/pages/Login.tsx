@@ -18,21 +18,20 @@ export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
 
+  const [systemName, setSystemName] = useState('Elektra CRM')
+
   useEffect(() => {
     const fetchLogo = async () => {
       try {
-        const domain = window.location.hostname
-        const res = await pb.send(
-          `/backend/v1/public/company?domain=${encodeURIComponent(domain)}`,
-          { method: 'GET' },
-        )
+        const res = await pb.send('/backend/v1/public/system-settings', { method: 'GET' })
+        if (res.system_name) setSystemName(res.system_name)
         if (res.logoUrl) {
           setLogoUrl(`${pb.baseUrl}${res.logoUrl}`)
         } else {
           setLogoUrl('')
         }
       } catch (err) {
-        console.error('Error fetching company logo:', err)
+        console.error('Error fetching system settings:', err)
         setLogoUrl('')
       }
     }
@@ -54,9 +53,9 @@ export default function Login() {
       <div className="w-full max-w-md animate-fade-in-up">
         <div className="flex flex-col items-center mb-8 text-center">
           {logoUrl ? (
-            <img src={logoUrl} alt="Elektra CRM" className="h-24 object-contain mb-4 rounded-xl" />
+            <img src={logoUrl} alt={systemName} className="h-24 object-contain mb-4 rounded-xl" />
           ) : (
-            <h1 className="text-4xl font-black text-primary mb-4 tracking-tighter">Elektra CRM</h1>
+            <h1 className="text-4xl font-black text-primary mb-4 tracking-tighter">{systemName}</h1>
           )}
           <p className="text-muted-foreground mt-2 font-medium">
             Plataforma de gestão de vendas solares

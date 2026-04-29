@@ -30,10 +30,22 @@ export function AppSidebar() {
   const { user } = useAuth()
 
   const isAdmin = user?.role === 'admin_elektra' || user?.role === 'admin_company'
+  const [sysLogo, setSysLogo] = useState(logoCrmIcon)
+  const [sysName, setSysName] = useState('Elektra CRM')
 
   useEffect(() => {
     setOpen(false)
   }, [setOpen])
+
+  useEffect(() => {
+    pb.collection('system_settings')
+      .getFirstListItem('')
+      .then((record) => {
+        if (record.system_name) setSysName(record.system_name)
+        if (record.logo) setSysLogo(pb.files.getURL(record, record.logo))
+      })
+      .catch(() => {})
+  }, [])
 
   return (
     <Sidebar
@@ -46,14 +58,10 @@ export function AppSidebar() {
         <div className="flex items-center justify-center w-full h-full px-2 overflow-hidden">
           <div className="flex items-center gap-3 w-full px-1">
             <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
-              <img
-                src={logoCrmIcon}
-                alt="Logo Elektra CRM"
-                className="h-full w-full object-contain"
-              />
+              <img src={sysLogo} alt={`Logo ${sysName}`} className="h-full w-full object-contain" />
             </div>
             <span className="font-bold text-lg tracking-tight truncate group-data-[collapsible=icon]:hidden transition-opacity duration-200">
-              Elektra CRM
+              {sysName}
             </span>
           </div>
         </div>

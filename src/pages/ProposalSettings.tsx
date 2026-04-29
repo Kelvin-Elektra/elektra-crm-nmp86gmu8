@@ -5,29 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
-import { Save, FileImage, BarChart, Zap, Palette, Layers, Trash2 } from 'lucide-react'
-
-const NETWORK_TYPES = ['Monofásico', 'Bifásico', 'Trifásico', 'Monofásico rural']
-const AVAILABLE_CLASSES = ['Residencial', 'Comercial', 'Industrial', 'Rural', 'Outros']
+import { Save, FileImage, BarChart, Palette, Layers } from 'lucide-react'
 
 export default function ProposalSettings() {
   const { user } = useAuth()
@@ -35,20 +16,6 @@ export default function ProposalSettings() {
   const [settingsId, setSettingsId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [activeTemplate, setActiveTemplate] = useState('modern')
-
-  const [distributors, setDistributors] = useState<any[]>([])
-  const [tariffRules, setTariffRules] = useState<any[]>([])
-  const [newDistName, setNewDistName] = useState('')
-
-  const [ruleForm, setRuleForm] = useState({
-    distributor_id: '',
-    network_type: '',
-    voltage: '',
-    tusd: '0,48',
-    te: '0,36',
-    icms_exemption: 'none',
-  })
-  const [ruleClasses, setRuleClasses] = useState<string[]>([])
 
   const [formData, setFormData] = useState({
     indicators: { inflation: '5', interest: '1' },
@@ -71,29 +38,8 @@ export default function ProposalSettings() {
     },
   })
 
-  const canManageTariffs = ['admin_elektra', 'admin_company'].includes(user?.role || '')
-
-  const loadTariffData = async () => {
-    if (!user?.company_id) return
-    try {
-      const dists = await pb
-        .collection('pv_distributors')
-        .getFullList({ filter: `company_id='${user.company_id}'` })
-      setDistributors(dists)
-      const rules = await pb.collection('pv_tariff_rules').getFullList({
-        filter: `company_id='${user.company_id}'`,
-        expand: 'distributor_id',
-      })
-      setTariffRules(rules)
-    } catch (e) {
-      console.error(e)
-    }
-  }
-
   useEffect(() => {
     if (!user?.company_id) return
-    loadTariffData()
-
     pb.collection('proposal_settings')
       .getFirstListItem(`company_id = '${user.company_id}'`)
       .then((record) => {
@@ -142,90 +88,13 @@ export default function ProposalSettings() {
     }))
   }
 
-  const handleNumberChange = (val: string, setter: (v: string) => void) => {
-    let clean = val.replace(/[^0-9,]/g, '')
-    const parts = clean.split(',')
-    if (parts.length > 2) {
-      clean = parts[0] + ',' + parts.slice(1).join('')
-    }
-    setter(clean)
-  }
-
-  const handleAddDistributor = async () => {
-    if (!newDistName) return
-    setLoading(true)
-    try {
-      await pb
-        .collection('pv_distributors')
-        .create({ company_id: user!.company_id, name: newDistName })
-      setNewDistName('')
-      loadTariffData()
-      toast({ title: 'Distribuidora adicionada com sucesso.' })
-    } catch (e) {
-      toast({ variant: 'destructive', title: 'Erro ao adicionar distribuidora' })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleAddRule = async () => {
-    if (!ruleForm.distributor_id || !ruleForm.network_type || ruleClasses.length === 0) {
-      toast({ variant: 'destructive', title: 'Preencha distribuidora, rede e ao menos 1 classe.' })
-      return
-    }
-    setLoading(true)
-    try {
-      for (const c of ruleClasses) {
-        const existing = tariffRules.find(
-          (r) =>
-            r.distributor_id === ruleForm.distributor_id &&
-            r.network_type === ruleForm.network_type &&
-            r.class === c,
-        )
-
-        const payload = {
-          company_id: user!.company_id,
-          distributor_id: ruleForm.distributor_id,
-          class: c,
-          network_type: ruleForm.network_type,
-          voltage: ruleForm.voltage,
-          tusd: parseFloat(ruleForm.tusd.replace(',', '.')),
-          te: parseFloat(ruleForm.te.replace(',', '.')),
-          icms_exemption: ruleForm.icms_exemption,
-        }
-
-        if (existing) {
-          await pb.collection('pv_tariff_rules').update(existing.id, payload)
-        } else {
-          await pb.collection('pv_tariff_rules').create(payload)
-        }
-      }
-      toast({ title: 'Regras de tarifa salvas com sucesso.' })
-      setRuleClasses([])
-      loadTariffData()
-    } catch (e) {
-      toast({ variant: 'destructive', title: 'Erro ao salvar regras' })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleDeleteRule = async (id: string) => {
-    try {
-      await pb.collection('pv_tariff_rules').delete(id)
-      loadTariffData()
-    } catch (e) {
-      toast({ variant: 'destructive', title: 'Erro ao remover regra' })
-    }
-  }
-
   return (
     <div className="flex flex-col gap-6 max-w-5xl animate-fade-in pb-12">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Configurações da Proposta PV</h2>
           <p className="text-muted-foreground text-sm">
-            Gerencie os padrões, cores, tarifas e páginas para geração de propostas.
+            Gerencie os padrões, cores e páginas para geração de propostas.
           </p>
         </div>
         <Button onClick={handleSave} disabled={loading}>
@@ -247,11 +116,6 @@ export default function ProposalSettings() {
           <TabsTrigger value="indicadores" className="py-2.5 rounded-lg flex-1 sm:flex-none">
             <BarChart className="mr-2 h-4 w-4" /> Indicadores
           </TabsTrigger>
-          {canManageTariffs && (
-            <TabsTrigger value="gestao-tarifaria" className="py-2.5 rounded-lg flex-1 sm:flex-none">
-              <Zap className="mr-2 h-4 w-4" /> Gestão Tarifária
-            </TabsTrigger>
-          )}
         </TabsList>
 
         <TabsContent value="templates" className="mt-6 space-y-6">
@@ -451,261 +315,6 @@ export default function ProposalSettings() {
             </CardContent>
           </Card>
         </TabsContent>
-
-        {canManageTariffs && (
-          <TabsContent value="gestao-tarifaria" className="mt-6 space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Concessionárias (Distribuidoras)</CardTitle>
-                <CardDescription>Cadastre as distribuidoras de energia atendidas.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex gap-2 max-w-md">
-                  <Input
-                    placeholder="Nome da distribuidora..."
-                    value={newDistName}
-                    onChange={(e) => setNewDistName(e.target.value)}
-                  />
-                  <Button onClick={handleAddDistributor} disabled={loading || !newDistName}>
-                    Adicionar
-                  </Button>
-                </div>
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {distributors.map((d) => (
-                    <div
-                      key={d.id}
-                      className="px-3 py-1 bg-secondary text-secondary-foreground rounded-full text-sm font-medium border"
-                    >
-                      {d.name}
-                    </div>
-                  ))}
-                  {distributors.length === 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      Nenhuma distribuidora cadastrada.
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Regras de Tarifas e Tensão</CardTitle>
-                <CardDescription>
-                  Defina os valores de TE, TUSD e isenções em lote por distribuidora e rede.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-8 bg-muted/20 p-6 rounded-lg border border-border">
-                  {/* Step 1 */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold border-b pb-2 flex items-center gap-2">
-                      <span className="bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-sm">
-                        1
-                      </span>
-                      Concessionária
-                    </h3>
-                    <div className="max-w-md space-y-2">
-                      <Label>Selecione a Distribuidora</Label>
-                      <Select
-                        value={ruleForm.distributor_id}
-                        onValueChange={(v) => setRuleForm({ ...ruleForm, distributor_id: v })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {distributors.map((d) => (
-                            <SelectItem key={d.id} value={d.id}>
-                              {d.name}
-                            </SelectItem>
-                          ))}
-                          {distributors.length === 0 && (
-                            <SelectItem value="none" disabled>
-                              Cadastre uma distribuidora antes
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {/* Step 2 */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold border-b pb-2 flex items-center gap-2">
-                      <span className="bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-sm">
-                        2
-                      </span>
-                      Tipo de Rede e Tensão
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
-                      <div className="space-y-2">
-                        <Label>Tipo de Rede</Label>
-                        <Select
-                          value={ruleForm.network_type}
-                          onValueChange={(v) => setRuleForm({ ...ruleForm, network_type: v })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {NETWORK_TYPES.map((n) => (
-                              <SelectItem key={n} value={n}>
-                                {n}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Tensão da Rede (Ex: 127V, 220V, 220-380V)</Label>
-                        <Input
-                          value={ruleForm.voltage}
-                          onChange={(e) => setRuleForm({ ...ruleForm, voltage: e.target.value })}
-                          placeholder="Ex: 220-380V"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Step 3 */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold border-b pb-2 flex items-center gap-2">
-                      <span className="bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-sm">
-                        3
-                      </span>
-                      Classes e Tarifas
-                    </h3>
-                    <div className="space-y-6">
-                      <div className="space-y-3">
-                        <Label>Classes de Consumo (Atribuição em Lote)</Label>
-                        <div className="flex flex-wrap gap-4 bg-background p-4 rounded-md border">
-                          {AVAILABLE_CLASSES.map((c) => (
-                            <div key={c} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`class-${c}`}
-                                checked={ruleClasses.includes(c)}
-                                onCheckedChange={(checked) => {
-                                  if (checked) setRuleClasses([...ruleClasses, c])
-                                  else setRuleClasses(ruleClasses.filter((x) => x !== c))
-                                }}
-                              />
-                              <Label htmlFor={`class-${c}`} className="cursor-pointer">
-                                {c}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-3xl">
-                        <div className="space-y-2">
-                          <Label>TE (R$/kWh)</Label>
-                          <Input
-                            value={ruleForm.te}
-                            onChange={(e) =>
-                              handleNumberChange(e.target.value, (v) =>
-                                setRuleForm({ ...ruleForm, te: v }),
-                              )
-                            }
-                            placeholder="0,36"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>TUSD (R$/kWh)</Label>
-                          <Input
-                            value={ruleForm.tusd}
-                            onChange={(e) =>
-                              handleNumberChange(e.target.value, (v) =>
-                                setRuleForm({ ...ruleForm, tusd: v }),
-                              )
-                            }
-                            placeholder="0,48"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Isenção de ICMS</Label>
-                          <Select
-                            value={ruleForm.icms_exemption}
-                            onValueChange={(v) => setRuleForm({ ...ruleForm, icms_exemption: v })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">Nenhuma</SelectItem>
-                              <SelectItem value="te">TE</SelectItem>
-                              <SelectItem value="tusd">TUSD</SelectItem>
-                              <SelectItem value="both">Ambas</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end pt-4 border-t">
-                    <Button onClick={handleAddRule} disabled={loading}>
-                      Salvar Regras
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="border rounded-md overflow-hidden mt-6">
-                  <Table>
-                    <TableHeader className="bg-muted/50">
-                      <TableRow>
-                        <TableHead>Distribuidora</TableHead>
-                        <TableHead>Rede</TableHead>
-                        <TableHead>Classe</TableHead>
-                        <TableHead>Tensão</TableHead>
-                        <TableHead>TE / TUSD (R$)</TableHead>
-                        <TableHead>ICMS</TableHead>
-                        <TableHead className="w-[50px]"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {tariffRules.map((r) => (
-                        <TableRow key={r.id}>
-                          <TableCell className="font-medium">
-                            {r.expand?.distributor_id?.name}
-                          </TableCell>
-                          <TableCell>{r.network_type}</TableCell>
-                          <TableCell>{r.class}</TableCell>
-                          <TableCell>{r.voltage}</TableCell>
-                          <TableCell>
-                            {r.te?.toFixed(2).replace('.', ',')} /{' '}
-                            {r.tusd?.toFixed(2).replace('.', ',')}
-                          </TableCell>
-                          <TableCell className="capitalize">
-                            {r.icms_exemption === 'none' ? 'Nenhuma' : r.icms_exemption}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive"
-                              onClick={() => handleDeleteRule(r.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {tariffRules.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
-                            Nenhuma regra cadastrada.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
       </Tabs>
     </div>
   )

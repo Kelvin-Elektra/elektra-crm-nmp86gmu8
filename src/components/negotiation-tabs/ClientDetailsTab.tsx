@@ -32,7 +32,7 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
   const [isMonthly, setIsMonthly] = useState(isMonthlyInit)
   const [avgConsumption, setAvgConsumption] = useState(neg.avg_consumption || '')
 
-  const [distributorId, setDistributorId] = useState(initialSizing.distributor_id || '')
+  const [utilityId, setUtilityId] = useState(neg.utility_id || initialSizing.utility_id || '')
   const [networkType, setNetworkType] = useState(initialSizing.network_type || '')
   const [consumerClass, setConsumerClass] = useState(initialSizing.consumer_class || '')
   const [tension, setTension] = useState(initialSizing.tension || '')
@@ -41,19 +41,17 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
   const [installationType, setInstallationType] = useState(initialSizing.installation_type || '')
 
   const [installations, setInstallations] = useState<any[]>([])
-  const [distributors, setDistributors] = useState<any[]>([])
+  const [utilities, setUtilities] = useState<any[]>([])
   const [tariffRules, setTariffRules] = useState<any[]>([])
 
-  const [addressStruct, setAddressStruct] = useState(
-    initialSizing.address_struct || {
-      street: '',
-      number: '',
-      neighborhood: '',
-      city: '',
-      state: '',
-      zip: '',
-    },
-  )
+  const [addressStruct, setAddressStruct] = useState({
+    street: initialSizing.address_struct?.street || '',
+    number: initialSizing.address_struct?.number || neg.number || '',
+    neighborhood: initialSizing.address_struct?.neighborhood || neg.neighborhood || '',
+    city: initialSizing.address_struct?.city || neg.city || '',
+    state: initialSizing.address_struct?.state || neg.state || '',
+    zip: initialSizing.address_struct?.zip || neg.cep || '',
+  })
 
   useEffect(() => {
     if (neg?.company_id) {
@@ -62,9 +60,9 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
         .then(setInstallations)
         .catch(console.error)
 
-      pb.collection('pv_distributors')
+      pb.collection('pv_utilities')
         .getFullList({ filter: `company_id='${neg.company_id}'` })
-        .then(setDistributors)
+        .then(setUtilities)
         .catch(console.error)
 
       pb.collection('pv_tariff_rules')
@@ -74,42 +72,68 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
     }
   }, [neg?.company_id])
 
-  // Derive available options based on rules
-  const availableNetworks = distributorId
+  // ViaCEP fetch
+  useEffect(() => {
+    const cep = addressStruct.zip.replace(/\D/g, '')
+    if (cep.length === 8) {
+      fetch(`https://viacep.com.br/ws/${cep}/json/`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (!data.erro) {
+            setAddressStruct((prev) => ({
+              ...prev,
+              street: prev.street || data.logradouro,
+              neighborhood: prev.neighborhood || data.bairro,
+              city: prev.city || data.localidade,
+              state: prev.state || data.uf,
+            }))
+          }
+        })
+        .catch(console.error)
+    }
+  }, [addressStruct.zip])
+
+  const availableNetworks = utilityId
     ? Array.from(
         new Set(
-          tariffRules.filter((r) => r.distributor_id === distributorId).map((r) => r.network_type),
+          tariffRules
+            .filter((r) => r.utility_id === utilityId)
+            .map((r) => r.network_type)
+            .filter(Boolean),
         ),
       )
     : []
   const networkOptions = availableNetworks.length > 0 ? availableNetworks : NETWORK_TYPES
 
   const availableClasses =
-    distributorId && networkType
+    utilityId && networkType
       ? Array.from(
           new Set(
             tariffRules
-              .filter((r) => r.distributor_id === distributorId && r.network_type === networkType)
-              .map((r) => r.class),
+              .filter((r) => r.utility_id === utilityId && r.network_type === networkType)
+              .map((r) => r.class)
+              .filter(Boolean),
           ),
         )
       : []
   const classOptions = availableClasses.length > 0 ? availableClasses : AVAILABLE_CLASSES
 
-  // Automatically update tension
-  useEffect(() => {
-    if (distributorId && networkType && consumerClass) {
-      const rule = tariffRules.find(
-        (r) =>
-          r.distributor_id === distributorId &&
-          r.network_type === networkType &&
-          r.class === consumerClass,
+  const availableVoltages = utilityId
+    ? Array.from(
+        new Set(
+          tariffRules
+            .filter(
+              (r) => r.utility_id === utilityId && (!networkType || r.network_type === networkType),
+            )
+            .map((r) => r.voltage)
+            .filter(Boolean),
+        ),
       )
-      if (rule && rule.voltage) {
-        setTension(rule.voltage)
-      }
-    }
-  }, [distributorId, networkType, consumerClass, tariffRules])
+    : []
+  const voltageOptions =
+    availableVoltages.length > 0
+      ? availableVoltages
+      : ['127/220V', '220/380V', '127/254V', '220/440V']
 
   const [monthlyData, setMonthlyData] = useState({
     jan: initialSizing.jan || '',
@@ -159,15 +183,13 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
 
       const ruleSnapshot = tariffRules.find(
         (r) =>
-          r.distributor_id === distributorId &&
-          r.network_type === networkType &&
-          r.class === consumerClass,
+          r.utility_id === utilityId && r.network_type === networkType && r.class === consumerClass,
       )
 
       const cleanSizing = {
         ...initialSizing,
         ...sizingPayload,
-        distributor_id: distributorId,
+        utility_id: utilityId,
         network_type: networkType,
         consumer_class: consumerClass,
         tension,
@@ -188,13 +210,19 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
           delete cleanSizing[key as keyof typeof cleanSizing],
       )
 
-      const selectedDistName = distributors.find((d) => d.id === distributorId)?.name || ''
+      const selectedUtilName = utilities.find((d) => d.id === utilityId)?.name || ''
 
       await updateNegotiation(neg.id, {
         avg_consumption: computedAvg,
-        concessionaire: selectedDistName,
+        concessionaire: selectedUtilName,
+        utility_id: utilityId,
         uc,
         address: fullAddress,
+        cep: addressStruct.zip,
+        city: addressStruct.city,
+        state: addressStruct.state,
+        neighborhood: addressStruct.neighborhood,
+        number: addressStruct.number,
         sizing: cleanSizing,
       })
 
@@ -271,32 +299,7 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
               <h3 className="font-medium flex items-center gap-2">
                 <MapPin className="h-4 w-4" /> Endereço da Instalação
               </h3>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-2 space-y-1">
-                  <Label>Rua / Av</Label>
-                  <Input
-                    value={addressStruct.street}
-                    onChange={(e) => setAddressStruct({ ...addressStruct, street: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Número</Label>
-                  <Input
-                    value={addressStruct.number}
-                    onChange={(e) => setAddressStruct({ ...addressStruct, number: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label>Bairro</Label>
-                  <Input
-                    value={addressStruct.neighborhood}
-                    onChange={(e) =>
-                      setAddressStruct({ ...addressStruct, neighborhood: e.target.value })
-                    }
-                  />
-                </div>
+              <div className="space-y-3">
                 <div className="space-y-1">
                   <Label>CEP</Label>
                   <Input
@@ -307,24 +310,53 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
                     maxLength={9}
                   />
                 </div>
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-2 space-y-1">
-                  <Label>Cidade</Label>
-                  <Input
-                    value={addressStruct.city}
-                    onChange={(e) => setAddressStruct({ ...addressStruct, city: e.target.value })}
-                  />
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2 space-y-1">
+                    <Label>Rua / Av</Label>
+                    <Input
+                      value={addressStruct.street}
+                      onChange={(e) =>
+                        setAddressStruct({ ...addressStruct, street: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Número</Label>
+                    <Input
+                      value={addressStruct.number}
+                      onChange={(e) =>
+                        setAddressStruct({ ...addressStruct, number: e.target.value })
+                      }
+                    />
+                  </div>
                 </div>
                 <div className="space-y-1">
-                  <Label>UF</Label>
+                  <Label>Bairro</Label>
                   <Input
-                    value={addressStruct.state}
+                    value={addressStruct.neighborhood}
                     onChange={(e) =>
-                      setAddressStruct({ ...addressStruct, state: e.target.value.toUpperCase() })
+                      setAddressStruct({ ...addressStruct, neighborhood: e.target.value })
                     }
-                    maxLength={2}
                   />
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2 space-y-1">
+                    <Label>Cidade</Label>
+                    <Input
+                      value={addressStruct.city}
+                      onChange={(e) => setAddressStruct({ ...addressStruct, city: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>UF</Label>
+                    <Input
+                      value={addressStruct.state}
+                      onChange={(e) =>
+                        setAddressStruct({ ...addressStruct, state: e.target.value.toUpperCase() })
+                      }
+                      maxLength={2}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -336,17 +368,17 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Concessionária</Label>
-                  <Select value={distributorId} onValueChange={setDistributorId}>
+                  <Select value={utilityId} onValueChange={setUtilityId}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {distributors.map((d: any) => (
+                      {utilities.map((d: any) => (
                         <SelectItem key={d.id} value={d.id}>
                           {d.name}
                         </SelectItem>
                       ))}
-                      {distributors.length === 0 && (
+                      {utilities.length === 0 && (
                         <SelectItem value="N/A" disabled>
                           Nenhuma configurada
                         </SelectItem>
@@ -396,11 +428,18 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Tensão da Instalação</Label>
-                  <Input
-                    value={tension}
-                    onChange={(e) => setTension(e.target.value)}
-                    placeholder="Ex: 220V"
-                  />
+                  <Select value={tension} onValueChange={setTension}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {voltageOptions.map((v: string) => (
+                        <SelectItem key={v} value={v}>
+                          {v}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-1">
                   <Label>Tipo de Instalação</Label>
@@ -481,8 +520,7 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
                 <span className="text-primary text-lg ml-1">{neg.avg_consumption || 0} kWh</span>
               </p>
               <Button onClick={handleSaveConsumption} disabled={loading} size="sm">
-                <Save className="h-4 w-4 mr-2" />
-                Salvar Dados
+                <Save className="h-4 w-4 mr-2" /> Salvar Dados
               </Button>
             </div>
           </div>

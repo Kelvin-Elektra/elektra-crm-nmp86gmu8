@@ -16,6 +16,7 @@ export const Collections = {
   PV_SUPPLIES: 'pv_supplies',
   PV_SUPPLY_RULES: 'pv_supply_rules',
   PV_COSTS: 'pv_costs',
+  SYSTEM_SETTINGS: 'system_settings',
 } as const
 
 export type CollectionName = (typeof Collections)[keyof typeof Collections]
