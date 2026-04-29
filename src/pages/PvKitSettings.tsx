@@ -10,7 +10,8 @@ import { InstallationsTab } from '@/components/pv-kit/InstallationsTab'
 import { CostsTab } from '@/components/pv-kit/CostsTab'
 import { SuppliesTab } from '@/components/pv-kit/SuppliesTab'
 import { TariffsTab } from '@/components/pv-kit/TariffsTab'
-import { Wrench, Building } from 'lucide-react'
+import { EfficiencyTab } from '@/components/pv-kit/EfficiencyTab'
+import { Wrench, Building, Percent } from 'lucide-react'
 
 export default function PvKitSettings() {
   const { user } = useAuth()
@@ -52,6 +53,9 @@ export default function PvKitSettings() {
           <TabsTrigger value="tariffs" className="py-2.5 rounded-lg flex-1 sm:flex-none">
             <Building className="mr-2 h-4 w-4" /> Concessionárias e Tarifas
           </TabsTrigger>
+          <TabsTrigger value="efficiency" className="py-2.5 rounded-lg flex-1 sm:flex-none">
+            <Percent className="mr-2 h-4 w-4" /> Eficiência PV
+          </TabsTrigger>
         </TabsList>
 
         <div className="mt-6">
@@ -75,6 +79,9 @@ export default function PvKitSettings() {
           </TabsContent>
           <TabsContent value="tariffs">
             <TariffsTab />
+          </TabsContent>
+          <TabsContent value="efficiency">
+            <EfficiencyTab />
           </TabsContent>
         </div>
       </Tabs>

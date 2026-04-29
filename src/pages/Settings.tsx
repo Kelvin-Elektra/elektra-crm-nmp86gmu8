@@ -41,6 +41,7 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState('profile')
   const [companyUsers, setCompanyUsers] = useState<any[]>([])
   const [company, setCompany] = useState<any>(null)
+  const [systemSettings, setSystemSettings] = useState<any>(null)
 
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
   const [newUser, setNewUser] = useState({
@@ -86,9 +87,28 @@ export default function Settings() {
     }
   }
 
+  const loadSystemSettings = async () => {
+    if (user?.role === 'admin_elektra') {
+      try {
+        const records = await pb.collection('system_settings').getFullList()
+        if (records.length > 0) {
+          setSystemSettings(records[0])
+        } else {
+          const newRecord = await pb
+            .collection('system_settings')
+            .create({ system_name: 'Elektra CRM' })
+          setSystemSettings(newRecord)
+        }
+      } catch (err) {
+        console.error(err)
+      }
+    }
+  }
+
   useEffect(() => {
     loadUsers()
     loadCompany()
+    loadSystemSettings()
   }, [user?.company_id, user?.role])
 
   useRealtime(Collections.USERS, loadUsers)
@@ -303,11 +323,119 @@ export default function Settings() {
                   <Users className="mr-2 h-4 w-4" /> Equipe e Plano
                 </TabsTrigger>
               )}
+              {user?.role === 'admin_elektra' && (
+                <TabsTrigger
+                  value="system"
+                  className="w-full justify-start rounded-none border-l-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:font-semibold transition-all hover:bg-muted/50"
+                >
+                  <Building2 className="mr-2 h-4 w-4" /> Configurações do Sistema
+                </TabsTrigger>
+              )}
             </TabsList>
           </Tabs>
         </div>
 
         <div className="md:col-span-3 space-y-6">
+          {activeTab === 'system' && user?.role === 'admin_elektra' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Configurações do Sistema</CardTitle>
+                <CardDescription>
+                  Gerencie o nome e a logomarca da aplicação (visível para todos os usuários e
+                  clientes).
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label>Nome do Sistema</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={systemSettings?.system_name || ''}
+                      onChange={(e) =>
+                        setSystemSettings({ ...systemSettings, system_name: e.target.value })
+                      }
+                    />
+                    <Button
+                      onClick={async () => {
+                        try {
+                          await pb
+                            .collection('system_settings')
+                            .update(systemSettings.id, { system_name: systemSettings.system_name })
+                          toast({ title: 'Sucesso', description: 'Nome atualizado com sucesso!' })
+                        } catch (err: any) {
+                          toast({ variant: 'destructive', title: 'Erro', description: err.message })
+                        }
+                      }}
+                    >
+                      Salvar
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2 mt-6">
+                  <Label>Logomarca Global</Label>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      className="flex-1"
+                      onChange={async (e) => {
+                        if (!e.target.files || !e.target.files[0]) return
+                        try {
+                          const formData = new FormData()
+                          formData.append('logo', e.target.files[0])
+                          const updated = await pb
+                            .collection('system_settings')
+                            .update(systemSettings.id, formData)
+                          setSystemSettings(updated)
+                          toast({
+                            title: 'Sucesso',
+                            description: 'Logomarca atualizada com sucesso!',
+                          })
+                        } catch (err: any) {
+                          toast({
+                            variant: 'destructive',
+                            title: 'Erro',
+                            description: 'Falha ao fazer upload da logo.',
+                          })
+                        }
+                      }}
+                    />
+                    {systemSettings?.logo && (
+                      <div className="flex items-center gap-4 border p-2 rounded-lg bg-slate-50">
+                        <img
+                          src={pb.files.getURL(systemSettings, systemSettings.logo)}
+                          alt="Logo"
+                          className="h-12 object-contain"
+                        />
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const updated = await pb
+                                .collection('system_settings')
+                                .update(systemSettings.id, { logo: null })
+                              setSystemSettings(updated)
+                              toast({ title: 'Sucesso', description: 'Logo removida.' })
+                            } catch (e) {
+                              toast({
+                                variant: 'destructive',
+                                title: 'Erro',
+                                description: 'Falha ao remover.',
+                              })
+                            }
+                          }}
+                        >
+                          Remover
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           {activeTab === 'profile' && (
             <Card>
               <CardHeader>

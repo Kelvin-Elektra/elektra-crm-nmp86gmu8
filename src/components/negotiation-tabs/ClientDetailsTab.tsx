@@ -72,20 +72,20 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
     }
   }, [neg?.company_id])
 
-  // ViaCEP fetch
   useEffect(() => {
     const cep = addressStruct.zip.replace(/\D/g, '')
     if (cep.length === 8) {
+      setAddressStruct((prev) => ({ ...prev, street: '', neighborhood: '', city: '', state: '' }))
       fetch(`https://viacep.com.br/ws/${cep}/json/`)
         .then((res) => res.json())
         .then((data) => {
           if (!data.erro) {
             setAddressStruct((prev) => ({
               ...prev,
-              street: prev.street || data.logradouro,
-              neighborhood: prev.neighborhood || data.bairro,
-              city: prev.city || data.localidade,
-              state: prev.state || data.uf,
+              street: data.logradouro || '',
+              neighborhood: data.bairro || '',
+              city: data.localidade || '',
+              state: data.uf || '',
             }))
           }
         })
@@ -105,6 +105,24 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
     : []
   const networkOptions = availableNetworks.length > 0 ? availableNetworks : NETWORK_TYPES
 
+  const matchedRule =
+    utilityId && networkType
+      ? tariffRules.find(
+          (r) =>
+            r.utility_id === utilityId &&
+            r.network_type === networkType &&
+            (!consumerClass || r.class === consumerClass),
+        ) || tariffRules.find((r) => r.utility_id === utilityId && r.network_type === networkType)
+      : null
+
+  useEffect(() => {
+    if (matchedRule && matchedRule.voltage) {
+      setTension(matchedRule.voltage)
+    } else {
+      setTension('')
+    }
+  }, [matchedRule])
+
   const availableClasses =
     utilityId && networkType
       ? Array.from(
@@ -117,23 +135,6 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
         )
       : []
   const classOptions = availableClasses.length > 0 ? availableClasses : AVAILABLE_CLASSES
-
-  const availableVoltages = utilityId
-    ? Array.from(
-        new Set(
-          tariffRules
-            .filter(
-              (r) => r.utility_id === utilityId && (!networkType || r.network_type === networkType),
-            )
-            .map((r) => r.voltage)
-            .filter(Boolean),
-        ),
-      )
-    : []
-  const voltageOptions =
-    availableVoltages.length > 0
-      ? availableVoltages
-      : ['127/220V', '220/380V', '127/254V', '220/440V']
 
   const [monthlyData, setMonthlyData] = useState({
     jan: initialSizing.jan || '',
@@ -428,18 +429,13 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Tensão da Instalação</Label>
-                  <Select value={tension} onValueChange={setTension}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {voltageOptions.map((v: string) => (
-                        <SelectItem key={v} value={v}>
-                          {v}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    value={tension}
+                    readOnly
+                    disabled
+                    className="bg-muted/50 cursor-not-allowed"
+                    placeholder="Auto..."
+                  />
                 </div>
                 <div className="space-y-1">
                   <Label>Tipo de Instalação</Label>

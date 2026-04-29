@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -14,7 +15,18 @@ import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { updateNegotiation } from '@/services/db'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
-import { Save, Sun, Battery, Settings2 } from 'lucide-react'
+import { Save, Sun, Battery, Settings2, Plus, Trash2, AlertTriangle } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 const getHspByState = (state: string) => {
   if (!state) return 4.94
@@ -59,26 +71,15 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
   const [modules, setModules] = useState<any[]>([])
   const [inverters, setInverters] = useState<any[]>([])
 
+  const [efficiencyRule, setEfficiencyRule] = useState<any>(null)
+
+  const recommendedHsp = getHspByState(sizing.address_struct?.state)
   const parseNumber = (val: string) => (val ? Number(val.replace(',', '.')) : null)
   const formatNumber = (val: number | string | null | undefined) =>
     val !== null && val !== undefined ? val.toString().replace('.', ',') : ''
 
-  const handleNumberChange = (val: string, setter: (v: string) => void) => {
-    let clean = val.replace(/[^0-9,]/g, '')
-    const parts = clean.split(',')
-    if (parts.length > 2) {
-      clean = parts[0] + ',' + parts.slice(1).join('')
-    }
-    setter(clean)
-  }
-
-  const recommendedHsp = getHspByState(sizing.address_struct?.state)
-
   const [hsp, setHsp] = useState(
     sizing.hsp !== undefined ? formatNumber(sizing.hsp) : formatNumber(recommendedHsp),
-  )
-  const [losses, setLosses] = useState(
-    sizing.losses !== undefined ? formatNumber(sizing.losses) : '25',
   )
 
   const [selectedDistributorId, setSelectedDistributorId] = useState(
@@ -92,6 +93,16 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
   const [moduleQty, setModuleQty] = useState(
     sizing.module_qty !== undefined ? String(sizing.module_qty) : '',
   )
+  const [losses, setLosses] = useState(
+    sizing.losses !== undefined ? formatNumber(sizing.losses) : '23',
+  )
+
+  const [useRoofFaces, setUseRoofFaces] = useState(neg.use_roof_faces || false)
+  const [roofFaces, setRoofFaces] = useState<any[]>(
+    neg.roof_faces_data?.length ? neg.roof_faces_data : [{ orientation: '', modules: '' }],
+  )
+
+  const [showWarningDialog, setShowWarningDialog] = useState(false)
 
   useEffect(() => {
     if (!neg.company_id) return
@@ -110,7 +121,26 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
       .getFullList({ filter: `company_id='${neg.company_id}'`, sort: '-power' })
       .then(setInverters)
       .catch(console.error)
-  }, [neg.company_id])
+
+    pb.collection('pv_efficiency_rules')
+      .getFirstListItem(`company_id='${neg.company_id}'`)
+      .then((rule) => {
+        setEfficiencyRule(rule)
+        if (sizing.losses === undefined && rule.nominal_loss !== undefined) {
+          setLosses(formatNumber(rule.nominal_loss))
+        }
+      })
+      .catch(() => {})
+  }, [neg.company_id, sizing.losses])
+
+  const handleNumberChange = (val: string, setter: (v: string) => void) => {
+    let clean = val.replace(/[^0-9,]/g, '')
+    const parts = clean.split(',')
+    if (parts.length > 2) {
+      clean = parts[0] + ',' + parts.slice(1).join('')
+    }
+    setter(clean)
+  }
 
   const handleDistributorChange = (val: string) => {
     setSelectedDistributorId(val)
@@ -122,31 +152,59 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
     selectedDistributorId === 'none'
       ? []
       : modules.filter((m) => m.distributor_id === selectedDistributorId)
-
   const filteredInverters =
     selectedDistributorId === 'none'
       ? []
       : inverters.filter((i) => i.distributor_id === selectedDistributorId)
 
+  const orientationOptions = efficiencyRule?.orientation_losses || []
   const hspNum = parseNumber(hsp) || recommendedHsp
-  const lossesNum = parseNumber(losses) || 25
-  const lossFactor = 1 - lossesNum / 100
-
+  const lossesNum = parseNumber(losses) || 0
   const avgConsumption = neg.avg_consumption || 0
-  const suggestedPowerKwp =
-    hspNum > 0 && lossFactor > 0 ? avgConsumption / 30 / (hspNum * lossFactor) : 0
 
   const selectedModule = modules.find((m) => m.id === selectedModuleId)
   const modulePowerW = selectedModule ? selectedModule.power : 0
-  const suggestedModules =
-    modulePowerW > 0 ? Math.ceil((suggestedPowerKwp * 1000) / modulePowerW) : 0
 
-  const actualModuleQty = moduleQty ? Number(moduleQty) : suggestedModules
+  let actualModuleQty = 0
+  let estMonthlyGen = 0
+
+  if (useRoofFaces) {
+    actualModuleQty = roofFaces.reduce((acc, f) => acc + (Number(f.modules) || 0), 0)
+    roofFaces.forEach((face) => {
+      const facePowerKwp = ((Number(face.modules) || 0) * modulePowerW) / 1000
+      const faceOrient = orientationOptions.find((o: any) => o.orientation === face.orientation)
+      const orientLoss = faceOrient ? Number(faceOrient.loss) || 0 : 0
+      const totalLossFactor = (1 - lossesNum / 100) * (1 - orientLoss / 100)
+      estMonthlyGen += hspNum * facePowerKwp * totalLossFactor * 30
+    })
+  } else {
+    const suggestedPowerKwp =
+      hspNum > 0 && 1 - lossesNum / 100 > 0
+        ? avgConsumption / 30 / (hspNum * (1 - lossesNum / 100))
+        : 0
+    const suggestedModules =
+      modulePowerW > 0 ? Math.ceil((suggestedPowerKwp * 1000) / modulePowerW) : 0
+    actualModuleQty = moduleQty ? Number(moduleQty) : suggestedModules
+
+    const kitPowerKwp = (actualModuleQty * modulePowerW) / 1000
+    const totalLossFactor = 1 - lossesNum / 100
+    estMonthlyGen = hspNum * kitPowerKwp * totalLossFactor * 30
+  }
+
   const kitPowerKwp = (actualModuleQty * modulePowerW) / 1000
-  const estMonthlyGen = hspNum * kitPowerKwp * lossFactor * 30
+  const isInsufficient = estMonthlyGen > 0 && estMonthlyGen < avgConsumption
 
-  const saveSystem = async () => {
+  const handleSaveBtn = () => {
+    if (isInsufficient) {
+      setShowWarningDialog(true)
+    } else {
+      executeSave()
+    }
+  }
+
+  const executeSave = async () => {
     setLoading(true)
+    setShowWarningDialog(false)
     try {
       const cleanSizing = {
         ...sizing,
@@ -156,10 +214,9 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
         selected_module_id: selectedModuleId === 'none' ? null : selectedModuleId,
         selected_inverter_id: selectedInverterId === 'none' ? null : selectedInverterId,
         module_qty: actualModuleQty,
-        suggested_power_kwp: suggestedPowerKwp,
         kit_power_kwp: kitPowerKwp,
         est_monthly_gen: estMonthlyGen,
-        totalPower: kitPowerKwp, // For compatibility
+        totalPower: kitPowerKwp,
       }
 
       Object.keys(cleanSizing).forEach(
@@ -168,7 +225,11 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
           delete cleanSizing[key as keyof typeof cleanSizing],
       )
 
-      await updateNegotiation(neg.id, { sizing: cleanSizing })
+      await updateNegotiation(neg.id, {
+        sizing: cleanSizing,
+        use_roof_faces: useRoofFaces,
+        roof_faces_data: useRoofFaces ? roofFaces : [],
+      })
       toast({ title: 'Dimensionamento salvo com sucesso!' })
       reload()
     } catch (e) {
@@ -184,6 +245,17 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
 
   return (
     <div className="space-y-6">
+      {isInsufficient && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Atenção</AlertTitle>
+          <AlertDescription>
+            A geração estimada ({estMonthlyGen.toFixed(0)} kWh/mês) está abaixo do consumo médio (
+            {avgConsumption} kWh/mês). A proposta pode não suprir a necessidade do cliente.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
@@ -217,16 +289,86 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
                   type="text"
                   value={losses}
                   onChange={(e) => handleNumberChange(e.target.value, setLosses)}
-                  placeholder="Ex: 25"
+                  placeholder="Ex: 23"
                 />
               </div>
             </div>
 
-            <div className="pt-4 border-t">
-              <p className="text-sm text-muted-foreground mb-1">Potência Sugerida do Gerador</p>
-              <p className="text-3xl font-bold text-primary">
-                {suggestedPowerKwp.toFixed(2)} <span className="text-lg font-normal">kWp</span>
-              </p>
+            <div className="pt-4 border-t space-y-4">
+              <div className="flex items-center justify-between">
+                <Label className="cursor-pointer" htmlFor="toggle-faces">
+                  Considerar faces do telhado
+                </Label>
+                <Switch
+                  id="toggle-faces"
+                  checked={useRoofFaces}
+                  onCheckedChange={setUseRoofFaces}
+                />
+              </div>
+
+              {useRoofFaces && (
+                <div className="space-y-3 bg-muted/30 p-3 rounded-lg border">
+                  {roofFaces.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <div className="flex-1 space-y-1">
+                        <Select
+                          value={item.orientation}
+                          onValueChange={(v) => {
+                            const arr = [...roofFaces]
+                            arr[idx].orientation = v
+                            setRoofFaces(arr)
+                          }}
+                        >
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue placeholder="Orientação" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {orientationOptions.map((o: any) => (
+                              <SelectItem key={o.orientation} value={o.orientation}>
+                                {o.orientation} (-{o.loss}%)
+                              </SelectItem>
+                            ))}
+                            {orientationOptions.length === 0 && (
+                              <SelectItem value="nenhuma" disabled>
+                                Sem regras config.
+                              </SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="w-24 space-y-1">
+                        <Input
+                          type="number"
+                          placeholder="Módulos"
+                          className="h-8 text-sm"
+                          value={item.modules}
+                          onChange={(e) => {
+                            const arr = [...roofFaces]
+                            arr[idx].modules = e.target.value
+                            setRoofFaces(arr)
+                          }}
+                        />
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive shrink-0 mt-1"
+                        onClick={() => setRoofFaces(roofFaces.filter((_, i) => i !== idx))}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-2"
+                    onClick={() => setRoofFaces([...roofFaces, { orientation: '', modules: '' }])}
+                  >
+                    <Plus className="h-4 w-4 mr-2" /> Adicionar Face
+                  </Button>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -310,20 +452,19 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 pt-2">
-              <div className="space-y-2">
-                <Label>Qtde. de Módulos</Label>
-                <Input
-                  type="number"
-                  value={moduleQty}
-                  onChange={(e) => setModuleQty(e.target.value)}
-                  placeholder={suggestedModules > 0 ? String(suggestedModules) : '0'}
-                />
-                {suggestedModules > 0 && (
-                  <p className="text-xs text-muted-foreground">Sugerido: {suggestedModules} un.</p>
-                )}
+            {!useRoofFaces && (
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                <div className="space-y-2">
+                  <Label>Qtde. de Módulos</Label>
+                  <Input
+                    type="number"
+                    value={moduleQty}
+                    onChange={(e) => setModuleQty(e.target.value)}
+                    placeholder="Auto"
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -348,19 +489,38 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
               <p className="text-sm text-muted-foreground font-medium mb-1 flex items-center justify-center sm:justify-start gap-1">
                 <Battery className="w-4 h-4" /> Geração Estimada
               </p>
-              <p className="text-xl font-bold text-green-600 dark:text-green-500">
+              <p
+                className={`text-xl font-bold ${isInsufficient ? 'text-destructive' : 'text-green-600 dark:text-green-500'}`}
+              >
                 {estMonthlyGen.toFixed(0)} <span className="text-sm font-normal">kWh/mês</span>
               </p>
             </div>
           </div>
 
           <div className="flex justify-end mt-6">
-            <Button onClick={saveSystem} disabled={loading} size="lg">
+            <Button onClick={handleSaveBtn} disabled={loading} size="lg">
               <Save className="w-4 h-4 mr-2" /> Salvar Dimensionamento
             </Button>
           </div>
         </CardContent>
       </Card>
+
+      <AlertDialog open={showWarningDialog} onOpenChange={setShowWarningDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Geração Insuficiente</AlertDialogTitle>
+            <AlertDialogDescription>
+              A geração calculada de {estMonthlyGen.toFixed(0)} kWh não atinge o consumo médio
+              informado de {avgConsumption} kWh. Tem certeza que deseja salvar o dimensionamento
+              assim mesmo?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Revisar Parâmetros</AlertDialogCancel>
+            <AlertDialogAction onClick={executeSave}>Salvar Mesmo Assim</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
