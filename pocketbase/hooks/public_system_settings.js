@@ -1,20 +1,13 @@
 routerAdd('GET', '/backend/v1/public/system-settings', (e) => {
   try {
-    const records = $app.findRecordsByFilter('system_settings', '1=1', 'created', 1, 0)
-    if (records.length > 0) {
-      const rec = records[0]
-      const logo = rec.getString('logo')
-      let logoUrl = ''
-      if (logo) {
-        logoUrl = `/api/files/${rec.collection().id}/${rec.id}/${logo}`
-      }
-      return e.json(200, {
-        system_name: rec.getString('system_name'),
-        logoUrl: logoUrl,
-      })
-    }
-    return e.json(200, { system_name: 'Elektra CRM', logoUrl: '' })
-  } catch (err) {
+    const record = $app.findFirstRecordByFilter('system_settings', "id != ''")
+    return e.json(200, {
+      system_name: record.getString('system_name'),
+      logoUrl: record.getString('logo')
+        ? `/api/files/system_settings/${record.id}/${record.getString('logo')}`
+        : '',
+    })
+  } catch (_) {
     return e.json(200, { system_name: 'Elektra CRM', logoUrl: '' })
   }
 })

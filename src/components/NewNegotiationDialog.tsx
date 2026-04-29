@@ -18,6 +18,8 @@ import pb from '@/lib/pocketbase/client'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { maskCEP } from '@/lib/masks'
 
+const NETWORK_TYPES = ['Monofásico', 'Bifásico', 'Trifásico', 'Monofásico rural']
+
 export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLeadId }: any) {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -33,6 +35,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
     cep: '',
     address: '',
     number: '',
+    neighborhood: '',
     city: '',
     state: '',
     utility_id: '',
@@ -69,6 +72,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
             setFormData((prev) => ({
               ...prev,
               address: prev.address || data.logradouro,
+              neighborhood: prev.neighborhood || data.bairro,
               city: prev.city || data.localidade,
               state: prev.state || data.uf,
             }))
@@ -77,6 +81,18 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
         .catch(console.error)
     }
   }, [formData.cep])
+
+  const availableNetworks = formData.utility_id
+    ? Array.from(
+        new Set(
+          tariffRules
+            .filter((r) => r.utility_id === formData.utility_id)
+            .map((r) => r.network_type)
+            .filter(Boolean),
+        ),
+      )
+    : []
+  const networkOptions = availableNetworks.length > 0 ? availableNetworks : NETWORK_TYPES
 
   const availableVoltages = formData.utility_id
     ? Array.from(
@@ -104,7 +120,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
       if (!firstStage) throw new Error('Nenhum estágio configurado no funil.')
 
       const utilityName = utilities.find((u) => u.id === formData.utility_id)?.name || ''
-      const fullAddress = `${formData.address}, ${formData.number} - ${formData.city} - ${formData.state}, ${formData.cep}`
+      const fullAddress = `${formData.address}, ${formData.number} - ${formData.neighborhood}, ${formData.city} - ${formData.state}, ${formData.cep}`
 
       const neg = await createNegotiation({
         company_id: user?.company_id,
@@ -116,6 +132,8 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
         cep: formData.cep,
         city: formData.city,
         state: formData.state,
+        neighborhood: formData.neighborhood,
+        number: formData.number,
         address: fullAddress,
         uc: formData.uc,
         avg_consumption: Number(formData.avg_consumption) || 0,
@@ -127,6 +145,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
           address_struct: {
             street: formData.address,
             number: formData.number,
+            neighborhood: formData.neighborhood,
             city: formData.city,
             state: formData.state,
             zip: formData.cep,
@@ -143,6 +162,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
         cep: '',
         address: '',
         number: '',
+        neighborhood: '',
         city: '',
         state: '',
         utility_id: '',
@@ -164,8 +184,8 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
         </DialogHeader>
         <ScrollArea className="px-6 pb-6">
           <form onSubmit={onSubmit} className="space-y-4 mt-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2 col-span-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2 sm:col-span-2">
                 <Label>Título (Identificador)</Label>
                 <Input
                   required
@@ -174,7 +194,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
                   placeholder="Ex: Sistema 5kWp Sr. João"
                 />
               </div>
-              <div className="space-y-2 col-span-2">
+              <div className="space-y-2 sm:col-span-2">
                 <Label>Lead / Cliente</Label>
                 <Select
                   value={formData.lead_id}
@@ -195,8 +215,8 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
                 </Select>
               </div>
 
-              {/* Endereço - Form Order 1-5 */}
-              <div className="space-y-2">
+              {/* Endereço - Form Order CEP first */}
+              <div className="space-y-2 sm:col-span-2">
                 <Label>CEP</Label>
                 <Input
                   value={formData.cep}
@@ -204,28 +224,35 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
                   maxLength={9}
                 />
               </div>
-              <div className="space-y-2 col-span-2 sm:col-span-1">
+              <div className="space-y-2 sm:col-span-1">
                 <Label>Rua / Av</Label>
                 <Input
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Número / Complemento</Label>
+              <div className="space-y-2 sm:col-span-1">
+                <Label>Número</Label>
                 <Input
                   value={formData.number}
                   onChange={(e) => setFormData({ ...formData, number: e.target.value })}
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Bairro</Label>
+                <Input
+                  value={formData.neighborhood}
+                  onChange={(e) => setFormData({ ...formData, neighborhood: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2 sm:col-span-1">
                 <Label>Cidade</Label>
                 <Input
                   value={formData.city}
                   onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 sm:col-span-1">
                 <Label>Estado (UF)</Label>
                 <Input
                   value={formData.state}
@@ -237,7 +264,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
               </div>
 
               {/* Concessionária & Tensão */}
-              <div className="space-y-2 col-span-2 sm:col-span-1">
+              <div className="space-y-2 sm:col-span-1">
                 <Label>Concessionária</Label>
                 <Select
                   value={formData.utility_id}
@@ -255,7 +282,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2 col-span-2 sm:col-span-1">
+              <div className="space-y-2 sm:col-span-1">
                 <Label>Tipo de Rede</Label>
                 <Select
                   value={formData.network_type}
@@ -265,14 +292,15 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Monofásico">Monofásico</SelectItem>
-                    <SelectItem value="Bifásico">Bifásico</SelectItem>
-                    <SelectItem value="Trifásico">Trifásico</SelectItem>
-                    <SelectItem value="Monofásico rural">Monofásico rural</SelectItem>
+                    {networkOptions.map((n) => (
+                      <SelectItem key={n} value={n}>
+                        {n}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 sm:col-span-1">
                 <Label>Tensão da Instalação</Label>
                 <Select
                   value={formData.tension}
@@ -290,14 +318,14 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 sm:col-span-1">
                 <Label>UC</Label>
                 <Input
                   value={formData.uc}
                   onChange={(e) => setFormData({ ...formData, uc: e.target.value })}
                 />
               </div>
-              <div className="space-y-2 col-span-2">
+              <div className="space-y-2 sm:col-span-2">
                 <Label>Consumo Médio (kWh)</Label>
                 <Input
                   type="number"
