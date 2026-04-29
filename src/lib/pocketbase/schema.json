@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-29T18:10:22.362Z",
+  "generatedAt": "2026-04-29T18:25:11.609Z",
   "collections": [
     {
       "name": "users",
@@ -189,7 +189,10 @@
         }
       ],
       "indexes": [
-        "CREATE UNIQUE INDEX `idx_leads_phone_company` ON `leads` (phone, company_id) WHERE phone != ''"
+        "CREATE UNIQUE INDEX `idx_leads_phone_company` ON `leads` (phone, company_id) WHERE phone != ''",
+        "CREATE INDEX `idx_leads_perf_owner` ON `leads` (owner_id)",
+        "CREATE INDEX `idx_leads_perf_company` ON `leads` (company_id)",
+        "CREATE INDEX `idx_leads_perf_created` ON `leads` (created DESC)"
       ]
     },
     {
@@ -293,7 +296,12 @@
           "system": false
         }
       ],
-      "indexes": []
+      "indexes": [
+        "CREATE INDEX `idx_neg_perf_owner` ON `negotiations` (owner_id)",
+        "CREATE INDEX `idx_neg_perf_company` ON `negotiations` (company_id)",
+        "CREATE INDEX `idx_neg_perf_stage` ON `negotiations` (stage)",
+        "CREATE INDEX `idx_neg_perf_created` ON `negotiations` (created DESC)"
+      ]
     },
     {
       "name": "proposals",
@@ -1286,13 +1294,6 @@
           "collectionRef": "companies"
         },
         {
-          "name": "distributor_id",
-          "type": "relation",
-          "required": true,
-          "system": false,
-          "collectionRef": "pv_distributors"
-        },
-        {
           "name": "class",
           "type": "text",
           "required": true,
@@ -1342,12 +1343,69 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "utility_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "pv_utilities"
         }
       ],
       "indexes": [
         "CREATE INDEX idx_pv_tariff_rules_company ON pv_tariff_rules (company_id)",
-        "CREATE INDEX idx_pv_tariff_rules_distributor ON pv_tariff_rules (distributor_id)",
-        "CREATE UNIQUE INDEX `idx_pv_tariff_rules_unique_class` ON `pv_tariff_rules` (distributor_id, class)"
+        "CREATE INDEX `idx_pv_tariff_rules_utility` ON `pv_tariff_rules` (utility_id)",
+        "CREATE UNIQUE INDEX `idx_pv_tariff_rules_unique_class_util` ON `pv_tariff_rules` (utility_id, class)"
+      ]
+    },
+    {
+      "name": "pv_utilities",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && company_id = @request.auth.company_id",
+        "view": "@request.auth.id != '' && company_id = @request.auth.company_id",
+        "create": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')",
+        "update": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')",
+        "delete": "@request.auth.id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'admin_elektra' || @request.auth.role = 'admin_company')"
+      },
+      "fields": [
+        {
+          "name": "company_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "companies"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "connections",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_pv_utilities_company ON pv_utilities (company_id)",
+        "CREATE UNIQUE INDEX idx_pv_utilities_unique_name ON pv_utilities (company_id, name)"
       ]
     }
   ]

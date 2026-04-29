@@ -38,6 +38,8 @@ export function AppHeader() {
         .then((record) => {
           if (record.logo) {
             setCompanyLogo(pb.files.getURL(record, record.logo))
+          } else {
+            setCompanyLogo('')
           }
         })
         .catch(console.error)
@@ -49,7 +51,7 @@ export function AppHeader() {
       if (e.record.logo) {
         setCompanyLogo(pb.files.getURL(e.record, e.record.logo))
       } else {
-        setCompanyLogo(DEFAULT_LOGO_URL)
+        setCompanyLogo('')
       }
     }
   })
@@ -65,11 +67,17 @@ export function AppHeader() {
       </div>
 
       <div className="flex items-center gap-4">
-        <img
-          src={companyLogo}
-          alt="Company Logo"
-          className="h-8 object-contain hidden md:block rounded-md"
-        />
+        {companyLogo ? (
+          <img
+            src={companyLogo}
+            alt="Company Logo"
+            className="h-8 object-contain hidden md:block rounded-md"
+          />
+        ) : (
+          <span className="font-bold text-lg hidden md:block text-primary tracking-tight">
+            Elektra CRM
+          </span>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-9 w-9 rounded-full">

@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Plus, Search, Filter, Pencil, Trash2, Briefcase } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -22,12 +23,20 @@ export default function Leads() {
   const [leadDialogOpen, setLeadDialogOpen] = useState(false)
   const [selectedLead, setSelectedLead] = useState<any>(null)
   const [newNegOpen, setNewNegOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
-  const load = async () => setLeads(await getLeads())
+  const load = async () => {
+    setIsLoading(true)
+    const data = await getLeads()
+    setLeads(data)
+    setIsLoading(false)
+  }
   useEffect(() => {
     load()
   }, [])
-  useRealtime('leads', load)
+  useRealtime('leads', () => {
+    getLeads().then(setLeads)
+  })
 
   const filtered = leads.filter(
     (l) =>
@@ -92,41 +101,64 @@ export default function Leads() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((lead) => (
-                <TableRow key={lead.id} className="hover:bg-muted/50 transition-colors">
-                  <TableCell className="font-medium">{lead.name}</TableCell>
-                  <TableCell>{lead.document || '-'}</TableCell>
-                  <TableCell>{lead.email || '-'}</TableCell>
-                  <TableCell>{lead.phone || '-'}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Nova Negociação"
-                        onClick={() => {
-                          setSelectedLead(lead)
-                          setNewNegOpen(true)
-                        }}
-                      >
-                        <Briefcase className="h-4 w-4 text-blue-500" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(lead)}>
-                        <Pencil className="h-4 w-4 text-muted-foreground" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(lead.id)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {filtered.length === 0 && (
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell>
+                      <Skeleton className="h-5 w-32" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-24" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-40" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-28" />
+                    </TableCell>
+                    <TableCell className="text-right flex justify-end gap-2">
+                      <Skeleton className="h-8 w-8" />
+                      <Skeleton className="h-8 w-8" />
+                      <Skeleton className="h-8 w-8" />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : filtered.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
                     Nenhum lead encontrado.
                   </TableCell>
                 </TableRow>
+              ) : (
+                filtered.map((lead) => (
+                  <TableRow key={lead.id} className="hover:bg-muted/50 transition-colors">
+                    <TableCell className="font-medium">{lead.name}</TableCell>
+                    <TableCell>{lead.document || '-'}</TableCell>
+                    <TableCell>{lead.email || '-'}</TableCell>
+                    <TableCell>{lead.phone || '-'}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Nova Negociação"
+                          onClick={() => {
+                            setSelectedLead(lead)
+                            setNewNegOpen(true)
+                          }}
+                        >
+                          <Briefcase className="h-4 w-4 text-blue-500" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(lead)}>
+                          <Pencil className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(lead.id)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
               )}
             </TableBody>
           </Table>

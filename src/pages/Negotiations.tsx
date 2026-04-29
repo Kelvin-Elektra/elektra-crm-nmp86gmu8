@@ -32,6 +32,7 @@ import {
   Trash2,
   Eye,
 } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Link } from 'react-router-dom'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -48,9 +49,11 @@ export default function Negotiations() {
   const [stages, setStages] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [view, setView] = useState<'list' | 'grid'>('list')
+  const [isLoading, setIsLoading] = useState(true)
 
   const load = async () => {
     try {
+      setIsLoading(true)
       const filter = user?.role === 'user' ? `owner_id = '${user?.id}'` : ''
       const records = await pb.collection('negotiations').getFullList({
         expand: 'lead_id,owner_id',
@@ -60,6 +63,8 @@ export default function Negotiations() {
       setNegotiations(records)
     } catch (err) {
       console.error(err)
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -147,7 +152,69 @@ export default function Negotiations() {
         </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {isLoading && view === 'list' ? (
+        <div className="rounded-md border bg-card overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Título</TableHead>
+                <TableHead>Lead</TableHead>
+                <TableHead>Responsável</TableHead>
+                <TableHead>Fase</TableHead>
+                <TableHead>Consumo</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell>
+                    <Skeleton className="h-5 w-40" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-5 w-32" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-5 w-24" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-6 w-20 rounded-full" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-5 w-16" />
+                  </TableCell>
+                  <TableCell className="text-right flex justify-end gap-2">
+                    <Skeleton className="h-8 w-8" />
+                    <Skeleton className="h-8 w-8" />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      ) : isLoading && view === 'grid' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i} className="flex flex-col border-border/50">
+              <CardContent className="p-6 flex-1 flex flex-col">
+                <div className="flex justify-between items-start mb-4">
+                  <Skeleton className="h-10 w-10 rounded-lg" />
+                  <Skeleton className="h-6 w-24 rounded-full" />
+                </div>
+                <Skeleton className="h-6 w-3/4 mb-4" />
+                <div className="space-y-2 mb-6">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-5/6" />
+                </div>
+                <div className="flex gap-2 w-full mt-auto">
+                  <Skeleton className="h-8 flex-1" />
+                  <Skeleton className="h-8 w-8" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="py-12 text-center text-muted-foreground border-2 border-dashed rounded-xl">
           Nenhuma negociação encontrada com os filtros atuais.
         </div>

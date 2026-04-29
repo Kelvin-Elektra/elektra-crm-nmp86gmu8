@@ -81,22 +81,22 @@ export function TariffsTab() {
   const { user } = useAuth()
   const { toast } = useToast()
 
-  const [distributors, setDistributors] = useState<any[]>([])
+  const [utilities, setUtilities] = useState<any[]>([])
   const [rules, setRules] = useState<any[]>([])
 
   // Tab 1: Concessionárias
-  const [distName, setDistName] = useState('')
-  const [searchDist, setSearchDist] = useState('')
-  const [openDistCombobox, setOpenDistCombobox] = useState(false)
-  const [deleteDistId, setDeleteDistId] = useState<string | null>(null)
+  const [utilName, setUtilName] = useState('')
+  const [searchUtil, setSearchUtil] = useState('')
+  const [openUtilCombobox, setOpenUtilCombobox] = useState(false)
+  const [deleteUtilId, setDeleteUtilId] = useState<string | null>(null)
 
   // Tab 2: Rede e Tensão
-  const [manageNetDist, setManageNetDist] = useState<any>(null)
+  const [manageNetUtil, setManageNetUtil] = useState<any>(null)
   const [netForm, setNetForm] = useState({ type: 'Monofásico', voltage: '127V' })
 
   // Tab 3: Form for Rules creation
   const [ruleForm, setRuleForm] = useState({
-    distributor_id: '',
+    utility_id: '',
     classes: [] as string[],
     te: '',
     tusd: '',
@@ -109,15 +109,13 @@ export function TariffsTab() {
 
   const loadData = async () => {
     try {
-      const [distRes, rulesRes] = await Promise.all([
-        pb
-          .collection('pv_distributors')
-          .getFullList({ filter: `company_id='${user?.company_id}'` }),
+      const [utilRes, rulesRes] = await Promise.all([
+        pb.collection('pv_utilities').getFullList({ filter: `company_id='${user?.company_id}'` }),
         pb
           .collection('pv_tariff_rules')
-          .getFullList({ filter: `company_id='${user?.company_id}'`, expand: 'distributor_id' }),
+          .getFullList({ filter: `company_id='${user?.company_id}'`, expand: 'utility_id' }),
       ])
-      setDistributors(distRes)
+      setUtilities(utilRes)
       setRules(rulesRes)
     } catch (e) {
       console.error(e)
@@ -143,34 +141,34 @@ export function TariffsTab() {
     val !== null && val !== undefined ? val.toString().replace('.', ',') : ''
 
   // --- Handlers for Tab 1: Concessionárias ---
-  const handleAddDistributor = async () => {
-    if (!distName) return toast({ variant: 'destructive', title: 'Nome inválido' })
+  const handleAddUtility = async () => {
+    if (!utilName) return toast({ variant: 'destructive', title: 'Nome inválido' })
 
-    const exists = distributors.some((d) => d.name.toLowerCase() === distName.toLowerCase())
+    const exists = utilities.some((d) => d.name.toLowerCase() === utilName.toLowerCase())
     if (exists) {
       return toast({
         variant: 'destructive',
-        title: `A concessionária ${distName} já está cadastrada.`,
+        title: `A concessionária ${utilName} já está cadastrada.`,
       })
     }
 
     try {
       await pb
-        .collection('pv_distributors')
-        .create({ name: distName, company_id: user?.company_id, connections: [] })
+        .collection('pv_utilities')
+        .create({ name: utilName, company_id: user?.company_id, connections: [] })
       toast({ title: 'Sucesso', description: 'Concessionária adicionada.' })
-      setDistName('')
+      setUtilName('')
       loadData()
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Erro', description: e.message })
     }
   }
 
-  const handleDeleteDist = async (id: string) => {
+  const handleDeleteUtil = async (id: string) => {
     try {
-      await pb.collection('pv_distributors').delete(id)
+      await pb.collection('pv_utilities').delete(id)
       toast({ title: 'Sucesso', description: 'Concessionária excluída.' })
-      setDeleteDistId(null)
+      setDeleteUtilId(null)
       loadData()
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Erro', description: e.message })
@@ -180,14 +178,14 @@ export function TariffsTab() {
   // --- Handlers for Tab 2: Rede e Tensão ---
   const handleAddNetwork = async () => {
     try {
-      const connections = manageNetDist.connections || []
+      const connections = manageNetUtil.connections || []
       const newConn = { id: Date.now().toString(), type: netForm.type, voltage: netForm.voltage }
-      const updated = { ...manageNetDist, connections: [...connections, newConn] }
+      const updated = { ...manageNetUtil, connections: [...connections, newConn] }
 
       await pb
-        .collection('pv_distributors')
-        .update(manageNetDist.id, { connections: updated.connections })
-      setManageNetDist(updated)
+        .collection('pv_utilities')
+        .update(manageNetUtil.id, { connections: updated.connections })
+      setManageNetUtil(updated)
       loadData()
       toast({ title: 'Sucesso', description: 'Conexão adicionada.' })
     } catch (e: any) {
@@ -197,10 +195,10 @@ export function TariffsTab() {
 
   const handleRemoveNetwork = async (connId: string) => {
     try {
-      const connections = manageNetDist.connections.filter((c: any) => c.id !== connId)
-      const updated = { ...manageNetDist, connections }
-      await pb.collection('pv_distributors').update(manageNetDist.id, { connections })
-      setManageNetDist(updated)
+      const connections = manageNetUtil.connections.filter((c: any) => c.id !== connId)
+      const updated = { ...manageNetUtil, connections }
+      await pb.collection('pv_utilities').update(manageNetUtil.id, { connections })
+      setManageNetUtil(updated)
       loadData()
       toast({ title: 'Sucesso', description: 'Conexão removida.' })
     } catch (e: any) {
@@ -220,7 +218,7 @@ export function TariffsTab() {
       for (const cls of classesToCreate) {
         await pb.collection('pv_tariff_rules').create({
           company_id: user?.company_id,
-          distributor_id: ruleForm.distributor_id,
+          utility_id: ruleForm.utility_id,
           class: cls,
           te: parseNumber(ruleForm.te),
           tusd: parseNumber(ruleForm.tusd),
@@ -248,17 +246,12 @@ export function TariffsTab() {
   }
 
   const handleCreateRule = async () => {
-    if (
-      !ruleForm.distributor_id ||
-      ruleForm.classes.length === 0 ||
-      !ruleForm.te ||
-      !ruleForm.tusd
-    ) {
+    if (!ruleForm.utility_id || ruleForm.classes.length === 0 || !ruleForm.te || !ruleForm.tusd) {
       return toast({ variant: 'destructive', title: 'Preencha todos os campos obrigatórios' })
     }
 
-    const existingForDist = rules.filter((r) => r.distributor_id === ruleForm.distributor_id)
-    const existingOverlaps = existingForDist.filter((r) => ruleForm.classes.includes(r.class))
+    const existingForUtil = rules.filter((r) => r.utility_id === ruleForm.utility_id)
+    const existingOverlaps = existingForUtil.filter((r) => ruleForm.classes.includes(r.class))
 
     if (existingOverlaps.length > 0) {
       const newClasses = ruleForm.classes.filter(
@@ -324,14 +317,14 @@ export function TariffsTab() {
               <div className="flex flex-col sm:flex-row items-end gap-4 bg-muted/30 p-4 rounded-lg">
                 <div className="w-full max-w-sm space-y-2">
                   <Label>Nome da Concessionária</Label>
-                  <Popover open={openDistCombobox} onOpenChange={setOpenDistCombobox}>
+                  <Popover open={openUtilCombobox} onOpenChange={setOpenUtilCombobox}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
                         role="combobox"
                         className="w-full justify-between bg-background"
                       >
-                        {distName || 'Selecione ou digite...'}
+                        {utilName || 'Selecione ou digite...'}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
@@ -339,7 +332,7 @@ export function TariffsTab() {
                       <Command>
                         <CommandInput
                           placeholder="Buscar concessionária..."
-                          onValueChange={setSearchDist}
+                          onValueChange={setSearchUtil}
                         />
                         <CommandList>
                           <CommandEmpty>
@@ -347,11 +340,11 @@ export function TariffsTab() {
                               variant="ghost"
                               className="w-full justify-start text-sm"
                               onClick={() => {
-                                setDistName(searchDist)
-                                setOpenDistCombobox(false)
+                                setUtilName(searchUtil)
+                                setOpenUtilCombobox(false)
                               }}
                             >
-                              Criar "{searchDist}"
+                              Criar "{searchUtil}"
                             </Button>
                           </CommandEmpty>
                           {STATES.map((state) => {
@@ -363,14 +356,14 @@ export function TariffsTab() {
                                   <CommandItem
                                     key={u.n}
                                     onSelect={() => {
-                                      setDistName(u.n)
-                                      setOpenDistCombobox(false)
+                                      setUtilName(u.n)
+                                      setOpenUtilCombobox(false)
                                     }}
                                   >
                                     <Check
                                       className={cn(
                                         'mr-2 h-4 w-4',
-                                        distName === u.n ? 'opacity-100' : 'opacity-0',
+                                        utilName === u.n ? 'opacity-100' : 'opacity-0',
                                       )}
                                     />
                                     {u.n}
@@ -384,7 +377,7 @@ export function TariffsTab() {
                     </PopoverContent>
                   </Popover>
                 </div>
-                <Button onClick={handleAddDistributor} disabled={!distName}>
+                <Button onClick={handleAddUtility} disabled={!utilName}>
                   <Plus className="mr-2 h-4 w-4" /> Adicionar
                 </Button>
               </div>
@@ -398,17 +391,17 @@ export function TariffsTab() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {distributors.map((d) => (
-                      <TableRow key={d.id}>
-                        <TableCell className="font-medium">{d.name}</TableCell>
+                    {utilities.map((u) => (
+                      <TableRow key={u.id}>
+                        <TableCell className="font-medium">{u.name}</TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" onClick={() => setDeleteDistId(d.id)}>
+                          <Button variant="ghost" size="icon" onClick={() => setDeleteUtilId(u.id)}>
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         </TableCell>
                       </TableRow>
                     ))}
-                    {distributors.length === 0 && (
+                    {utilities.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={2} className="text-center py-6 text-muted-foreground">
                           Nenhuma concessionária cadastrada.
@@ -442,26 +435,26 @@ export function TariffsTab() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {distributors.map((d) => (
-                      <TableRow key={d.id}>
-                        <TableCell className="font-medium">{d.name}</TableCell>
+                    {utilities.map((u) => (
+                      <TableRow key={u.id}>
+                        <TableCell className="font-medium">{u.name}</TableCell>
                         <TableCell>
-                          {d.connections && d.connections.length > 0
-                            ? d.connections.map((c: any) => `${c.type} (${c.voltage})`).join(', ')
+                          {u.connections && u.connections.length > 0
+                            ? u.connections.map((c: any) => `${c.type} (${c.voltage})`).join(', ')
                             : 'Nenhuma conexão configurada'}
                         </TableCell>
                         <TableCell className="text-right">
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setManageNetDist({ ...d })}
+                            onClick={() => setManageNetUtil({ ...u })}
                           >
                             Gerenciar Redes
                           </Button>
                         </TableCell>
                       </TableRow>
                     ))}
-                    {distributors.length === 0 && (
+                    {utilities.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={3} className="text-center py-6 text-muted-foreground">
                           Nenhuma concessionária encontrada.
@@ -489,16 +482,16 @@ export function TariffsTab() {
                 <div className="space-y-2 md:col-span-2">
                   <Label>Concessionária</Label>
                   <Select
-                    value={ruleForm.distributor_id}
-                    onValueChange={(v) => setRuleForm({ ...ruleForm, distributor_id: v })}
+                    value={ruleForm.utility_id}
+                    onValueChange={(v) => setRuleForm({ ...ruleForm, utility_id: v })}
                   >
                     <SelectTrigger className="bg-background max-w-md">
                       <SelectValue placeholder="Selecione a concessionária..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {distributors.map((d) => (
-                        <SelectItem key={d.id} value={d.id}>
-                          {d.name}
+                      {utilities.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -628,9 +621,7 @@ export function TariffsTab() {
                   <TableBody>
                     {rules.map((r) => (
                       <TableRow key={r.id}>
-                        <TableCell className="font-medium">
-                          {r.expand?.distributor_id?.name}
-                        </TableCell>
+                        <TableCell className="font-medium">{r.expand?.utility_id?.name}</TableCell>
                         <TableCell>{r.class}</TableCell>
                         <TableCell>R$ {formatNumber(r.te)}</TableCell>
                         <TableCell>R$ {formatNumber(r.tusd)}</TableCell>
@@ -671,10 +662,10 @@ export function TariffsTab() {
       </Tabs>
 
       {/* Manage Networks Modal */}
-      <Dialog open={!!manageNetDist} onOpenChange={(o) => !o && setManageNetDist(null)}>
+      <Dialog open={!!manageNetUtil} onOpenChange={(o) => !o && setManageNetUtil(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Gerenciar Redes - {manageNetDist?.name}</DialogTitle>
+            <DialogTitle>Gerenciar Redes - {manageNetUtil?.name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-6 py-4">
             <div className="flex gap-4 items-end">
@@ -727,7 +718,7 @@ export function TariffsTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(manageNetDist?.connections || []).map((conn: any) => (
+                  {(manageNetUtil?.connections || []).map((conn: any) => (
                     <TableRow key={conn.id}>
                       <TableCell>{conn.type}</TableCell>
                       <TableCell>{conn.voltage}</TableCell>
@@ -742,7 +733,7 @@ export function TariffsTab() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {(!manageNetDist?.connections || manageNetDist.connections.length === 0) && (
+                  {(!manageNetUtil?.connections || manageNetUtil.connections.length === 0) && (
                     <TableRow>
                       <TableCell
                         colSpan={3}
@@ -757,7 +748,7 @@ export function TariffsTab() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setManageNetDist(null)}>
+            <Button variant="outline" onClick={() => setManageNetUtil(null)}>
               Fechar
             </Button>
           </DialogFooter>
@@ -877,8 +868,8 @@ export function TariffsTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Distributor Confirmation Modal */}
-      <Dialog open={!!deleteDistId} onOpenChange={(o) => !o && setDeleteDistId(null)}>
+      {/* Delete Utility Confirmation Modal */}
+      <Dialog open={!!deleteUtilId} onOpenChange={(o) => !o && setDeleteUtilId(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirmar Exclusão</DialogTitle>
@@ -888,12 +879,12 @@ export function TariffsTab() {
             perdidas.
           </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDistId(null)}>
+            <Button variant="outline" onClick={() => setDeleteUtilId(null)}>
               Cancelar
             </Button>
             <Button
               variant="destructive"
-              onClick={() => deleteDistId && handleDeleteDist(deleteDistId)}
+              onClick={() => deleteUtilId && handleDeleteUtil(deleteUtilId)}
             >
               Excluir Concessionária
             </Button>

@@ -9,6 +9,7 @@ export const Collections = {
   BUDGETS: 'budgets',
   PROPOSAL_SETTINGS: 'proposal_settings',
   PV_DISTRIBUTORS: 'pv_distributors',
+  PV_UTILITIES: 'pv_utilities',
   PV_MODULES: 'pv_modules',
   PV_INVERTERS: 'pv_inverters',
   PV_INSTALLATIONS: 'pv_installations',

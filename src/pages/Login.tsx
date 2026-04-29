@@ -28,9 +28,12 @@ export default function Login() {
         )
         if (res.logoUrl) {
           setLogoUrl(`${pb.baseUrl}${res.logoUrl}`)
+        } else {
+          setLogoUrl('')
         }
       } catch (err) {
         console.error('Error fetching company logo:', err)
+        setLogoUrl('')
       }
     }
     fetchLogo()
@@ -50,7 +53,11 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
       <div className="w-full max-w-md animate-fade-in-up">
         <div className="flex flex-col items-center mb-8 text-center">
-          <img src={logoUrl} alt="Elektra CRM" className="h-24 object-contain mb-4 rounded-xl" />
+          {logoUrl ? (
+            <img src={logoUrl} alt="Elektra CRM" className="h-24 object-contain mb-4 rounded-xl" />
+          ) : (
+            <h1 className="text-4xl font-black text-primary mb-4 tracking-tighter">Elektra CRM</h1>
+          )}
           <p className="text-muted-foreground mt-2 font-medium">
             Plataforma de gestão de vendas solares
           </p>
