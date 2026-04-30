@@ -18,13 +18,15 @@ export function LocationCombobox({
   onChange,
   disabled,
 }: {
-  cities: string[]
+  cities: { id: string; city: string }[]
   value: string
-  onChange: (val: string) => void
+  onChange: (id: string, name: string) => void
   disabled?: boolean
 }) {
   const [open, setOpen] = React.useState(false)
   const [inputValue, setInputValue] = React.useState('')
+
+  const selectedCity = cities.find((c) => c.id === value)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -36,7 +38,7 @@ export function LocationCombobox({
           className="w-full justify-between font-normal bg-background"
           disabled={disabled}
         >
-          {value || 'Selecione ou digite...'}
+          {selectedCity ? selectedCity.city : 'Selecione a cidade...'}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -49,37 +51,24 @@ export function LocationCombobox({
           />
           <CommandList>
             <CommandEmpty>
-              {inputValue ? (
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start px-2 py-1.5 text-sm"
-                  onClick={() => {
-                    onChange(inputValue)
-                    setOpen(false)
-                  }}
-                >
-                  Usar "{inputValue}"
-                </Button>
-              ) : (
-                <div className="p-4 text-sm text-muted-foreground text-center">
-                  Nenhuma cidade encontrada.
-                </div>
-              )}
+              <div className="p-4 text-sm text-muted-foreground text-center">
+                Nenhuma cidade encontrada.
+              </div>
             </CommandEmpty>
             <CommandGroup>
               {cities.map((city) => (
                 <CommandItem
-                  key={city}
-                  value={city}
+                  key={city.id}
+                  value={city.city}
                   onSelect={() => {
-                    onChange(city)
+                    onChange(city.id, city.city)
                     setOpen(false)
                   }}
                 >
                   <Check
-                    className={cn('mr-2 h-4 w-4', value === city ? 'opacity-100' : 'opacity-0')}
+                    className={cn('mr-2 h-4 w-4', value === city.id ? 'opacity-100' : 'opacity-0')}
                   />
-                  {city}
+                  {city.city}
                 </CommandItem>
               ))}
             </CommandGroup>

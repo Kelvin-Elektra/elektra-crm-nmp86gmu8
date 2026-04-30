@@ -15,7 +15,6 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { useAuth } from '@/contexts/AuthContext'
-import logoCrmIcon from '../assets/logo-crm-3-icon-95c86.png'
 
 const navItems = [
   { title: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -31,7 +30,7 @@ export function AppSidebar() {
   const { user } = useAuth()
 
   const isAdmin = user?.role === 'admin_elektra' || user?.role === 'admin_company'
-  const [sysLogo, setSysLogo] = useState(logoCrmIcon)
+  const [sysLogo, setSysLogo] = useState<string | null>(null)
   const [sysName, setSysName] = useState('Elektra CRM')
 
   useEffect(() => {
@@ -62,8 +61,18 @@ export function AppSidebar() {
       <SidebarHeader className="h-16 flex items-center justify-center border-b border-sidebar-border/50 p-0">
         <div className="flex items-center justify-center w-full h-full px-2 overflow-hidden">
           <div className="flex items-center gap-3 w-full px-1">
-            <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
-              <img src={sysLogo} alt={`Logo ${sysName}`} className="h-full w-full object-contain" />
+            <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 overflow-hidden bg-primary/5">
+              {sysLogo ? (
+                <img
+                  src={sysLogo}
+                  alt={`Logo ${sysName}`}
+                  className="h-full w-full object-contain"
+                />
+              ) : (
+                <span className="font-bold text-primary text-xs">
+                  {sysName.substring(0, 2).toUpperCase()}
+                </span>
+              )}
             </div>
             <span className="font-bold text-lg tracking-tight truncate group-data-[collapsible=icon]:hidden transition-opacity duration-200">
               {sysName}

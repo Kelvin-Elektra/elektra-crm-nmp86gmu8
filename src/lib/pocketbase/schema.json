@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-30T13:33:14.828Z",
+  "generatedAt": "2026-04-30T14:10:23.509Z",
   "collections": [
     {
       "name": "users",
@@ -343,6 +343,13 @@
           "type": "json",
           "required": false,
           "system": false
+        },
+        {
+          "name": "city_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "pv_hsp_data"
         }
       ],
       "indexes": [

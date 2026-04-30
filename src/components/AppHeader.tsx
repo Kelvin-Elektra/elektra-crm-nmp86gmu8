@@ -15,8 +15,6 @@ import { LogOut, User as UserIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
-const DEFAULT_LOGO_URL = 'https://img.usecurling.com/i?q=elektra&color=azure'
-
 const routeNames: Record<string, string> = {
   '/dashboard': 'Dashboard',
   '/pipeline': 'Pipeline de Vendas',
@@ -29,12 +27,13 @@ const routeNames: Record<string, string> = {
 export function AppHeader() {
   const { user, logout } = useAuth()
   const location = useLocation()
-  const [companyLogo, setCompanyLogo] = useState<string>(DEFAULT_LOGO_URL)
+  const [companyLogo, setCompanyLogo] = useState<string | null>(null)
+  const [isLoaded, setIsLoaded] = useState(false)
 
   useEffect(() => {
     const loadLogos = async () => {
       try {
-        let logoUrl = ''
+        let logoUrl = null
         if (user?.company_id) {
           const company = await pb.collection('companies').getOne(user.company_id)
           if (company.logo) {
@@ -47,9 +46,11 @@ export function AppHeader() {
             logoUrl = pb.files.getURL(sysSettings, sysSettings.logo)
           }
         }
-        if (logoUrl) setCompanyLogo(logoUrl)
+        setCompanyLogo(logoUrl)
       } catch (err) {
         console.error(err)
+      } finally {
+        setIsLoaded(true)
       }
     }
     loadLogos()
@@ -79,17 +80,18 @@ export function AppHeader() {
       </div>
 
       <div className="flex items-center gap-4">
-        {companyLogo ? (
-          <img
-            src={companyLogo}
-            alt="Company Logo"
-            className="h-8 object-contain hidden md:block rounded-md"
-          />
-        ) : (
-          <span className="font-bold text-lg hidden md:block text-primary tracking-tight">
-            Elektra CRM
-          </span>
-        )}
+        {isLoaded &&
+          (companyLogo ? (
+            <img
+              src={companyLogo}
+              alt="Company Logo"
+              className="h-8 object-contain hidden md:block rounded-md"
+            />
+          ) : (
+            <span className="font-bold text-lg hidden md:block text-primary tracking-tight">
+              Elektra CRM
+            </span>
+          ))}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-9 w-9 rounded-full">

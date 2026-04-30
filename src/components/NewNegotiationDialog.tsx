@@ -28,7 +28,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
   const [stages, setStages] = useState<any[]>([])
   const [utilities, setUtilities] = useState<any[]>([])
   const [tariffRules, setTariffRules] = useState<any[]>([])
-  const [citiesForState, setCitiesForState] = useState<string[]>([])
+  const [citiesForState, setCitiesForState] = useState<{ id: string; city: string }[]>([])
 
   const [formData, setFormData] = useState({
     title: '',
@@ -39,6 +39,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
     neighborhood: '',
     city: '',
     state: '',
+    city_id: '',
     utility_id: '',
     network_type: '',
     tension: '',
@@ -67,17 +68,40 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
   useEffect(() => {
     const cep = formData.cep.replace(/\D/g, '')
     if (cep.length === 8) {
-      setFormData((prev) => ({ ...prev, address: '', neighborhood: '', city: '', state: '' }))
+      setFormData((prev) => ({
+        ...prev,
+        address: '',
+        neighborhood: '',
+        city: '',
+        state: '',
+        city_id: '',
+      }))
       fetch(`https://viacep.com.br/ws/${cep}/json/`)
         .then((res) => res.json())
-        .then((data) => {
+        .then(async (data) => {
           if (!data.erro) {
+            const uf = data.uf || ''
+            const cityName = data.localidade || ''
+            let matchedId = ''
+
+            if (uf && cityName) {
+              try {
+                const match = await pb
+                  .collection('pv_hsp_data')
+                  .getFirstListItem(`state='${uf}' && city~'${cityName}'`)
+                if (match) matchedId = match.id
+              } catch {
+                /* intentionally ignored */
+              }
+            }
+
             setFormData((prev) => ({
               ...prev,
               address: data.logradouro || '',
               neighborhood: data.bairro || '',
-              state: data.uf || '',
-              city: data.localidade || '',
+              state: uf,
+              city: matchedId ? cityName : '',
+              city_id: matchedId,
             }))
           }
         })
@@ -87,11 +111,9 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
 
   useEffect(() => {
     if (formData.state) {
-      fetch(
-        `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${formData.state}/municipios`,
-      )
-        .then((res) => res.json())
-        .then((data) => setCitiesForState(data.map((c: any) => c.nome)))
+      pb.collection('pv_hsp_data')
+        .getFullList({ filter: `state='${formData.state}'`, sort: 'city' })
+        .then((res) => setCitiesForState(res.map((r) => ({ id: r.id, city: r.city }))))
         .catch(() => setCitiesForState([]))
     } else {
       setCitiesForState([])
@@ -158,6 +180,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
+      if (!formData.city_id) throw new Error('Selecione uma cidade válida.')
       const firstStage = stages.sort((a, b) => a.order - b.order)[0]
       if (!firstStage) throw new Error('Nenhum estágio configurado no funil.')
 
@@ -174,6 +197,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
         cep: formData.cep,
         city: formData.city,
         state: formData.state,
+        city_id: formData.city_id,
         neighborhood: formData.neighborhood,
         number: formData.number,
         address: fullAddress,
@@ -223,12 +247,12 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
-        <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
+        <DialogHeader className="px-6 pt-6 pb-2 shrink-0 border-b">
           <DialogTitle>Nova Negociação</DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col flex-1 overflow-hidden">
-          <div className="px-6 flex-1 overflow-y-auto">
-            <div className="space-y-4 mt-2 pb-6">
+          <div className="px-6 py-4 flex-1 overflow-y-auto scrollbar-thin">
+            <div className="space-y-4 pb-6">
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div className="space-y-2 sm:col-span-4">
                   <Label>Título (Identificador)</Label>
@@ -315,8 +339,10 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
                   <Label>Cidade</Label>
                   <LocationCombobox
                     cities={citiesForState}
-                    value={formData.city}
-                    onChange={(city: string) => setFormData({ ...formData, city })}
+                    value={formData.city_id}
+                    onChange={(id: string, city: string) =>
+                      setFormData({ ...formData, city_id: id, city })
+                    }
                     disabled={!formData.state}
                   />
                 </div>
@@ -368,7 +394,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
                     readOnly
                     disabled
                     className="bg-muted/50 cursor-not-allowed"
-                    placeholder="Auto..."
+                    placeholder=""
                   />
                 </div>
                 <div className="space-y-2 sm:col-span-2">

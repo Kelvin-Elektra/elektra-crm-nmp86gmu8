@@ -41,10 +41,15 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
   const [uc, setUc] = useState(neg.uc || '')
   const [installationType, setInstallationType] = useState(initialSizing.installation_type || '')
 
+  const [leadDoc, setLeadDoc] = useState(lead.document || '')
+  const [leadPhone, setLeadPhone] = useState(lead.phone || '')
+  const [leadEmail, setLeadEmail] = useState(lead.email || '')
+
   const [installations, setInstallations] = useState<any[]>([])
   const [utilities, setUtilities] = useState<any[]>([])
   const [tariffRules, setTariffRules] = useState<any[]>([])
-  const [citiesForState, setCitiesForState] = useState<string[]>([])
+  const [citiesForState, setCitiesForState] = useState<{ id: string; city: string }[]>([])
+
   const BRAZIL_STATES = [
     'AC',
     'AL',
@@ -82,6 +87,7 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
     city: initialSizing.address_struct?.city || neg.city || '',
     state: initialSizing.address_struct?.state || neg.state || '',
     zip: initialSizing.address_struct?.zip || neg.cep || '',
+    city_id: initialSizing.address_struct?.city_id || neg.city_id || '',
   })
 
   useEffect(() => {
@@ -90,12 +96,10 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
         .getFullList({ filter: `company_id='${neg.company_id}'` })
         .then(setInstallations)
         .catch(console.error)
-
       pb.collection('pv_utilities')
         .getFullList({ filter: `company_id='${neg.company_id}'` })
         .then(setUtilities)
         .catch(console.error)
-
       pb.collection('pv_tariff_rules')
         .getFullList({ filter: `company_id='${neg.company_id}'` })
         .then(setTariffRules)
@@ -106,18 +110,44 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
   useEffect(() => {
     const cep = addressStruct.zip.replace(/\D/g, '')
     if (cep.length === 8) {
-      setAddressStruct((prev) => ({ ...prev, street: '', neighborhood: '', city: '', state: '' }))
+      setAddressStruct((prev) => ({
+        ...prev,
+        street: '',
+        neighborhood: '',
+        city: '',
+        state: '',
+        city_id: '',
+      }))
       fetch(`https://viacep.com.br/ws/${cep}/json/`)
         .then((res) => res.json())
-        .then((data) => {
+        .then(async (data) => {
           if (!data.erro) {
-            setAddressStruct((prev) => ({
-              ...prev,
+            const uf = data.uf || ''
+            const cityName = data.localidade || ''
+            let matchedId = ''
+
+            if (uf && cityName) {
+              try {
+                const match = await pb
+                  .collection('pv_hsp_data')
+                  .getFirstListItem(`state='${uf}' && city~'${cityName}'`)
+                if (match) matchedId = match.id
+              } catch {
+                /* intentionally ignored */
+              }
+            }
+
+            const newAddr = {
+              ...addressStruct,
               street: data.logradouro || '',
               neighborhood: data.bairro || '',
-              state: data.uf || '',
-              city: data.localidade || '',
-            }))
+              state: uf,
+              city: matchedId ? cityName : '',
+              city_id: matchedId,
+              zip: data.cep || addressStruct.zip,
+            }
+            setAddressStruct(newAddr)
+            saveAddress(newAddr)
           }
         })
         .catch(console.error)
@@ -126,11 +156,9 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
 
   useEffect(() => {
     if (addressStruct.state) {
-      fetch(
-        `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${addressStruct.state}/municipios`,
-      )
-        .then((res) => res.json())
-        .then((data) => setCitiesForState(data.map((c: any) => c.nome)))
+      pb.collection('pv_hsp_data')
+        .getFullList({ filter: `state='${addressStruct.state}'`, sort: 'city' })
+        .then((res) => setCitiesForState(res.map((r) => ({ id: r.id, city: r.city }))))
         .catch(() => setCitiesForState([]))
     } else {
       setCitiesForState([])
@@ -210,7 +238,58 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
     { k: 'dec', l: 'Dez' },
   ]
 
-  const handleSaveAll = async () => {
+  const handleLeadSave = async (field: string, value: any, label: string) => {
+    try {
+      await pb.collection('leads').update(lead.id, { [field]: value })
+      toast({ description: `Valor salvo: ${label}` })
+    } catch {
+      /* intentionally ignored */
+    }
+  }
+
+  const handleNegSave = async (field: string, value: any, label: string) => {
+    try {
+      await pb.collection('negotiations').update(neg.id, { [field]: value })
+      toast({ description: `Valor salvo: ${label}` })
+    } catch {
+      /* intentionally ignored */
+    }
+  }
+
+  const saveAddress = async (addr: any) => {
+    try {
+      const fullAddress = `${addr.street}, ${addr.number} - ${addr.neighborhood}, ${addr.city} - ${addr.state}, ${addr.zip}`
+      await pb.collection('negotiations').update(neg.id, {
+        cep: addr.zip,
+        city: addr.city,
+        state: addr.state,
+        neighborhood: addr.neighborhood,
+        number: addr.number,
+        address: fullAddress,
+        city_id: addr.city_id,
+        sizing: { ...neg.sizing, address_struct: addr },
+      })
+      toast({ description: 'Valor salvo: Endereço' })
+    } catch {
+      /* intentionally ignored */
+    }
+  }
+
+  const handleUtilitySave = async (uid: string) => {
+    setUtilityId(uid)
+    const selectedUtilName = utilities.find((d) => d.id === uid)?.name || ''
+    try {
+      await pb.collection('negotiations').update(neg.id, {
+        utility_id: uid,
+        concessionaire: selectedUtilName,
+      })
+      toast({ description: 'Valor salvo: Concessionária' })
+    } catch {
+      /* intentionally ignored */
+    }
+  }
+
+  const handleSaveConsumption = async () => {
     setLoading(true)
     try {
       let computedAvg = 0
@@ -223,8 +302,6 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
       } else {
         computedAvg = Number(avgConsumption) || 0
       }
-
-      const fullAddress = `${addressStruct.street}, ${addressStruct.number} - ${addressStruct.neighborhood}, ${addressStruct.city} - ${addressStruct.state}, ${addressStruct.zip}`
 
       const ruleSnapshot = tariffRules.find(
         (r) =>
@@ -255,34 +332,15 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
           delete cleanSizing[key as keyof typeof cleanSizing],
       )
 
-      const selectedUtilName = utilities.find((d) => d.id === utilityId)?.name || ''
-
       await updateNegotiation(neg.id, {
         avg_consumption: computedAvg,
-        concessionaire: selectedUtilName,
-        utility_id: utilityId,
-        uc,
-        address: fullAddress,
-        cep: addressStruct.zip,
-        city: addressStruct.city,
-        state: addressStruct.state,
-        neighborhood: addressStruct.neighborhood,
-        number: addressStruct.number,
         sizing: cleanSizing,
       })
 
-      toast({ title: 'Todos os dados foram atualizados com sucesso' })
-      if (reload) {
-        reload()
-      } else {
-        window.location.reload()
-      }
+      toast({ title: 'Consumo atualizado com sucesso' })
+      if (reload) reload()
     } catch (e) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao salvar',
-        description: getErrorMessage(e),
-      })
+      toast({ variant: 'destructive', title: 'Erro ao salvar', description: getErrorMessage(e) })
     } finally {
       setLoading(false)
     }
@@ -296,18 +354,22 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
             <CardTitle className="text-lg">Dados Principais</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-start gap-3">
-              <User className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>
-                <p className="font-medium">{lead.name || 'Não informado'}</p>
-                <p className="text-sm text-muted-foreground">Nome Completo / Razão Social</p>
+            <div className="space-y-2">
+              <Label>Nome Completo / Razão Social</Label>
+              <div className="flex items-center gap-3 bg-muted/50 p-2 rounded-md">
+                <User className="h-5 w-5 text-muted-foreground" />
+                <span className="font-medium">{lead.name || 'Não informado'}</span>
               </div>
             </div>
-            <div className="flex items-start gap-3">
-              <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>
-                <p className="font-medium">{maskCPF(lead.document) || 'Não informado'}</p>
-                <p className="text-sm text-muted-foreground">CPF / CNPJ</p>
+            <div className="space-y-1">
+              <Label>CPF / CNPJ</Label>
+              <div className="flex gap-2 items-center">
+                <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+                <Input
+                  value={leadDoc}
+                  onChange={(e) => setLeadDoc(maskCPF(e.target.value))}
+                  onBlur={() => handleLeadSave('document', leadDoc, 'CPF/CNPJ')}
+                />
               </div>
             </div>
           </CardContent>
@@ -318,18 +380,27 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
             <CardTitle className="text-lg">Contato</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-start gap-3">
-              <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>
-                <p className="font-medium">{maskPhone(lead.phone) || 'Não informado'}</p>
-                <p className="text-sm text-muted-foreground">Telefone Principal</p>
+            <div className="space-y-1">
+              <Label>Telefone Principal</Label>
+              <div className="flex gap-2 items-center">
+                <Phone className="h-5 w-5 text-muted-foreground shrink-0" />
+                <Input
+                  value={leadPhone}
+                  onChange={(e) => setLeadPhone(maskPhone(e.target.value))}
+                  onBlur={() => handleLeadSave('phone', leadPhone, 'Telefone')}
+                />
               </div>
             </div>
-            <div className="flex items-start gap-3">
-              <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>
-                <p className="font-medium">{lead.email || 'Não informado'}</p>
-                <p className="text-sm text-muted-foreground">E-mail</p>
+            <div className="space-y-1">
+              <Label>E-mail</Label>
+              <div className="flex gap-2 items-center">
+                <Mail className="h-5 w-5 text-muted-foreground shrink-0" />
+                <Input
+                  type="email"
+                  value={leadEmail}
+                  onChange={(e) => setLeadEmail(e.target.value)}
+                  onBlur={() => handleLeadSave('email', leadEmail, 'E-mail')}
+                />
               </div>
             </div>
           </CardContent>
@@ -355,6 +426,7 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
                       setAddressStruct({ ...addressStruct, zip: maskCEP(e.target.value) })
                     }
                     maxLength={9}
+                    onBlur={() => saveAddress(addressStruct)}
                   />
                 </div>
                 <div className="grid grid-cols-3 gap-3">
@@ -365,6 +437,7 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
                       onChange={(e) =>
                         setAddressStruct({ ...addressStruct, street: e.target.value })
                       }
+                      onBlur={() => saveAddress(addressStruct)}
                     />
                   </div>
                   <div className="space-y-1">
@@ -374,6 +447,7 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
                       onChange={(e) =>
                         setAddressStruct({ ...addressStruct, number: e.target.value })
                       }
+                      onBlur={() => saveAddress(addressStruct)}
                     />
                   </div>
                 </div>
@@ -384,6 +458,7 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
                     onChange={(e) =>
                       setAddressStruct({ ...addressStruct, neighborhood: e.target.value })
                     }
+                    onBlur={() => saveAddress(addressStruct)}
                   />
                 </div>
                 <div className="grid grid-cols-3 gap-3">
@@ -391,9 +466,11 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
                     <Label>UF</Label>
                     <Select
                       value={addressStruct.state}
-                      onValueChange={(val) =>
-                        setAddressStruct({ ...addressStruct, state: val, city: '' })
-                      }
+                      onValueChange={(val) => {
+                        const addr = { ...addressStruct, state: val, city: '', city_id: '' }
+                        setAddressStruct(addr)
+                        saveAddress(addr)
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="UF" />
@@ -411,8 +488,12 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
                     <Label>Cidade</Label>
                     <LocationCombobox
                       cities={citiesForState}
-                      value={addressStruct.city}
-                      onChange={(city: string) => setAddressStruct({ ...addressStruct, city })}
+                      value={addressStruct.city_id}
+                      onChange={(id: string, city: string) => {
+                        const addr = { ...addressStruct, city_id: id, city }
+                        setAddressStruct(addr)
+                        saveAddress(addr)
+                      }}
                       disabled={!addressStruct.state}
                     />
                   </div>
@@ -425,7 +506,7 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Concessionária</Label>
-                  <Select value={utilityId} onValueChange={setUtilityId}>
+                  <Select value={utilityId} onValueChange={handleUtilitySave}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
@@ -445,14 +526,24 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
                 </div>
                 <div className="space-y-1">
                   <Label>Unidade Consumidora (UC)</Label>
-                  <Input value={uc} onChange={(e) => setUc(e.target.value)} />
+                  <Input
+                    value={uc}
+                    onChange={(e) => setUc(e.target.value)}
+                    onBlur={() => handleNegSave('uc', uc, 'UC')}
+                  />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Tipo de Rede</Label>
-                  <Select value={networkType} onValueChange={setNetworkType}>
+                  <Select
+                    value={networkType}
+                    onValueChange={(val) => {
+                      setNetworkType(val)
+                      handleNegSave('sizing', { ...neg.sizing, network_type: val }, 'Tipo de Rede')
+                    }}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
@@ -467,7 +558,17 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
                 </div>
                 <div className="space-y-1">
                   <Label>Classe de Consumo</Label>
-                  <Select value={consumerClass} onValueChange={setConsumerClass}>
+                  <Select
+                    value={consumerClass}
+                    onValueChange={(val) => {
+                      setConsumerClass(val)
+                      handleNegSave(
+                        'sizing',
+                        { ...neg.sizing, consumer_class: val },
+                        'Classe de Consumo',
+                      )
+                    }}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
@@ -490,12 +591,22 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
                     readOnly
                     disabled
                     className="bg-muted/50 cursor-not-allowed"
-                    placeholder="Auto..."
+                    placeholder=""
                   />
                 </div>
                 <div className="space-y-1">
                   <Label>Tipo de Instalação</Label>
-                  <Select value={installationType} onValueChange={setInstallationType}>
+                  <Select
+                    value={installationType}
+                    onValueChange={(val) => {
+                      setInstallationType(val)
+                      handleNegSave(
+                        'sizing',
+                        { ...neg.sizing, installation_type: val },
+                        'Tipo de Instalação',
+                      )
+                    }}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
@@ -569,23 +680,15 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
               ))}
             </div>
           )}
-          <p className="text-sm text-muted-foreground mt-4">
+          <p className="text-sm text-muted-foreground mt-4 mb-4">
             Média registrada no sistema:{' '}
             <strong className="text-primary">{neg.avg_consumption || 0} kWh</strong>
           </p>
+          <Button onClick={handleSaveConsumption} disabled={loading}>
+            <Save className="h-4 w-4 mr-2" /> Salvar Consumo
+          </Button>
         </CardContent>
       </Card>
-
-      <div className="flex justify-end sticky bottom-0 pb-6 pt-2 bg-background/80 backdrop-blur-sm z-10 border-t mt-4">
-        <Button
-          onClick={handleSaveAll}
-          disabled={loading}
-          size="lg"
-          className="w-full sm:w-auto shadow-md"
-        >
-          <Save className="h-4 w-4 mr-2" /> Salvar Todas as Alterações
-        </Button>
-      </div>
     </div>
   )
 }
