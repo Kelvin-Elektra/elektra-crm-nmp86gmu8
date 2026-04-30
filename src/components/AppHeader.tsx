@@ -32,27 +32,39 @@ export function AppHeader() {
   const [companyLogo, setCompanyLogo] = useState<string>(DEFAULT_LOGO_URL)
 
   useEffect(() => {
-    if (user?.company_id) {
-      pb.collection('companies')
-        .getOne(user.company_id)
-        .then((record) => {
-          if (record.logo) {
-            setCompanyLogo(pb.files.getURL(record, record.logo))
-          } else {
-            setCompanyLogo('')
+    const loadLogos = async () => {
+      try {
+        let logoUrl = ''
+        if (user?.company_id) {
+          const company = await pb.collection('companies').getOne(user.company_id)
+          if (company.logo) {
+            logoUrl = pb.files.getURL(company, company.logo)
           }
-        })
-        .catch(console.error)
+        }
+        if (!logoUrl) {
+          const sysSettings = await pb.collection('system_settings').getFirstListItem('')
+          if (sysSettings?.logo) {
+            logoUrl = pb.files.getURL(sysSettings, sysSettings.logo)
+          }
+        }
+        if (logoUrl) setCompanyLogo(logoUrl)
+      } catch (err) {
+        console.error(err)
+      }
     }
+    loadLogos()
   }, [user?.company_id])
 
   useRealtime('companies', (e) => {
     if (e.record.id === user?.company_id) {
       if (e.record.logo) {
         setCompanyLogo(pb.files.getURL(e.record, e.record.logo))
-      } else {
-        setCompanyLogo('')
       }
+    }
+  })
+  useRealtime('system_settings', (e) => {
+    if (e.record.logo && (!user?.company_id || !companyLogo)) {
+      setCompanyLogo(pb.files.getURL(e.record, e.record.logo))
     }
   })
 

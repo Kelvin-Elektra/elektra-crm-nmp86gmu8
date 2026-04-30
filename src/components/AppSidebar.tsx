@@ -43,7 +43,11 @@ export function AppSidebar() {
       .getFirstListItem('')
       .then((record) => {
         if (record.system_name) setSysName(record.system_name)
-        if (record.logo) setSysLogo(pb.files.getURL(record, record.logo))
+        if (record.sidebar_icon) {
+          setSysLogo(pb.files.getURL(record, record.sidebar_icon))
+        } else if (record.logo) {
+          setSysLogo(pb.files.getURL(record, record.logo))
+        }
       })
       .catch(() => {})
   }, [])

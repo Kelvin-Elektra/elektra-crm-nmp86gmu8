@@ -372,7 +372,7 @@ export default function Settings() {
                   </div>
                 </div>
                 <div className="space-y-2 mt-6">
-                  <Label>Logomarca Global</Label>
+                  <Label>Logomarca Global (Cabeçalho)</Label>
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                     <Input
                       type="file"
@@ -418,6 +418,68 @@ export default function Settings() {
                                 .update(systemSettings.id, { logo: null })
                               setSystemSettings(updated)
                               toast({ title: 'Sucesso', description: 'Logo removida.' })
+                            } catch (e) {
+                              toast({
+                                variant: 'destructive',
+                                title: 'Erro',
+                                description: 'Falha ao remover.',
+                              })
+                            }
+                          }}
+                        >
+                          Remover
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-2 mt-6 border-t pt-6">
+                  <Label>Ícone da Barra Lateral (Sidebar)</Label>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      className="flex-1"
+                      onChange={async (e) => {
+                        if (!e.target.files || !e.target.files[0]) return
+                        try {
+                          const formData = new FormData()
+                          formData.append('sidebar_icon', e.target.files[0])
+                          const updated = await pb
+                            .collection('system_settings')
+                            .update(systemSettings.id, formData)
+                          setSystemSettings(updated)
+                          toast({
+                            title: 'Sucesso',
+                            description: 'Ícone atualizado com sucesso!',
+                          })
+                        } catch (err: any) {
+                          toast({
+                            variant: 'destructive',
+                            title: 'Erro',
+                            description: 'Falha ao fazer upload do ícone.',
+                          })
+                        }
+                      }}
+                    />
+                    {systemSettings?.sidebar_icon && (
+                      <div className="flex items-center gap-4 border p-2 rounded-lg bg-slate-50">
+                        <img
+                          src={pb.files.getURL(systemSettings, systemSettings.sidebar_icon)}
+                          alt="Sidebar Icon"
+                          className="h-12 object-contain"
+                        />
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const updated = await pb
+                                .collection('system_settings')
+                                .update(systemSettings.id, { sidebar_icon: null })
+                              setSystemSettings(updated)
+                              toast({ title: 'Sucesso', description: 'Ícone removido.' })
                             } catch (e) {
                               toast({
                                 variant: 'destructive',

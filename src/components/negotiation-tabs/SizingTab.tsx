@@ -308,6 +308,9 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
                   disabled
                   className="bg-muted/50 cursor-not-allowed"
                 />
+                <p className="text-[10px] text-muted-foreground leading-tight mt-1">
+                  Fonte: Atlas Brasileiro de Energia Solar (2017) - LABREN / CCST / INPE
+                </p>
               </div>
               <div className="space-y-2">
                 <Label>Perdas Nominais (%)</Label>
@@ -334,9 +337,10 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">
                         <p>
-                          Utilize este campo para reduzir a geração estimada manualmente em casos de
-                          sombreamento, relevo prejudicado ou outros fatores externos específicos do
-                          local.
+                          Perdas Adicionais / Fatores Locais: Utilize este campo para reduzir a
+                          geração estimada manualmente em casos de sombreamento por árvores/prédios
+                          próximos, acúmulo de sujeira (soiling) severo ou fatores climáticos
+                          atípicos.
                         </p>
                       </TooltipContent>
                     </Tooltip>
@@ -374,8 +378,10 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs">
                         <p>
-                          Define a quantidade de módulos por orientação. Cada face terá sua perda
-                          específica descontada, conforme as regras de eficiência.
+                          Perdas de Face de Telhado: Permite distribuir os módulos em diferentes
+                          águas do telhado. O sistema aplicará a perda de eficiência correspondente
+                          à orientação (Norte, Sul, Leste, Oeste) e inclinação, ajustando a geração
+                          final.
                         </p>
                       </TooltipContent>
                     </Tooltip>
@@ -428,7 +434,7 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
                           onChange={(e) => {
                             const arr = [...roofFaces]
                             const val = Number(e.target.value)
-                            arr[idx].modules = val < 0 ? '0' : e.target.value
+                            arr[idx].modules = val < 0 ? '0' : String(val)
                             setRoofFaces(arr)
                           }}
                         />
@@ -546,7 +552,7 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
                     value={moduleQty}
                     onChange={(e) => {
                       const val = Number(e.target.value)
-                      if (val >= 0) setModuleQty(e.target.value)
+                      if (val >= 0) setModuleQty(String(val))
                     }}
                     placeholder="Auto"
                   />

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-29T22:05:22.514Z",
+  "generatedAt": "2026-04-30T13:33:14.828Z",
   "collections": [
     {
       "name": "users",
@@ -1490,6 +1490,12 @@
         },
         {
           "name": "logo",
+          "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sidebar_icon",
           "type": "file",
           "required": false,
           "system": false

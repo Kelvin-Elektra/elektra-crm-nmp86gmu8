@@ -44,7 +44,36 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
   const [installations, setInstallations] = useState<any[]>([])
   const [utilities, setUtilities] = useState<any[]>([])
   const [tariffRules, setTariffRules] = useState<any[]>([])
-  const [hspCities, setHspCities] = useState<string[]>([])
+  const [citiesForState, setCitiesForState] = useState<string[]>([])
+  const BRAZIL_STATES = [
+    'AC',
+    'AL',
+    'AP',
+    'AM',
+    'BA',
+    'CE',
+    'DF',
+    'ES',
+    'GO',
+    'MA',
+    'MT',
+    'MS',
+    'MG',
+    'PA',
+    'PB',
+    'PR',
+    'PE',
+    'PI',
+    'RJ',
+    'RN',
+    'RS',
+    'RO',
+    'RR',
+    'SC',
+    'SP',
+    'SE',
+    'TO',
+  ]
 
   const [addressStruct, setAddressStruct] = useState({
     street: initialSizing.address_struct?.street || '',
@@ -71,11 +100,6 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
         .getFullList({ filter: `company_id='${neg.company_id}'` })
         .then(setTariffRules)
         .catch(console.error)
-
-      pb.collection('pv_hsp_data')
-        .getFullList({ sort: 'city' })
-        .then((records) => setHspCities(Array.from(new Set(records.map((r) => r.city)))))
-        .catch(console.error)
     }
   }, [neg?.company_id])
 
@@ -91,14 +115,27 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
               ...prev,
               street: data.logradouro || '',
               neighborhood: data.bairro || '',
-              city: data.localidade || '',
               state: data.uf || '',
+              city: data.localidade || '',
             }))
           }
         })
         .catch(console.error)
     }
   }, [addressStruct.zip])
+
+  useEffect(() => {
+    if (addressStruct.state) {
+      fetch(
+        `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${addressStruct.state}/municipios`,
+      )
+        .then((res) => res.json())
+        .then((data) => setCitiesForState(data.map((c: any) => c.nome)))
+        .catch(() => setCitiesForState([]))
+    } else {
+      setCitiesForState([])
+    }
+  }, [addressStruct.state])
 
   const availableNetworks = utilityId
     ? Array.from(
@@ -350,22 +387,33 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
                   />
                 </div>
                 <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label>UF</Label>
+                    <Select
+                      value={addressStruct.state}
+                      onValueChange={(val) =>
+                        setAddressStruct({ ...addressStruct, state: val, city: '' })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="UF" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BRAZIL_STATES.map((st) => (
+                          <SelectItem key={st} value={st}>
+                            {st}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="col-span-2 space-y-1">
                     <Label>Cidade</Label>
                     <LocationCombobox
-                      cities={hspCities}
+                      cities={citiesForState}
                       value={addressStruct.city}
                       onChange={(city: string) => setAddressStruct({ ...addressStruct, city })}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>UF</Label>
-                    <Input
-                      value={addressStruct.state}
-                      onChange={(e) =>
-                        setAddressStruct({ ...addressStruct, state: e.target.value.toUpperCase() })
-                      }
-                      maxLength={2}
+                      disabled={!addressStruct.state}
                     />
                   </div>
                 </div>

@@ -28,7 +28,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
   const [stages, setStages] = useState<any[]>([])
   const [utilities, setUtilities] = useState<any[]>([])
   const [tariffRules, setTariffRules] = useState<any[]>([])
-  const [hspCities, setHspCities] = useState<string[]>([])
+  const [citiesForState, setCitiesForState] = useState<string[]>([])
 
   const [formData, setFormData] = useState({
     title: '',
@@ -58,10 +58,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
           .getFullList({ filter: `company_id='${user.company_id}'` })
           .then(setTariffRules)
       }
-      pb.collection('pv_hsp_data')
-        .getFullList({ sort: 'city' })
-        .then((records) => setHspCities(Array.from(new Set(records.map((r) => r.city)))))
-        .catch(console.error)
+
       if (initialLeadId) setFormData((prev) => ({ ...prev, lead_id: initialLeadId }))
       else setFormData((prev) => ({ ...prev, lead_id: '' }))
     }
@@ -79,14 +76,57 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
               ...prev,
               address: data.logradouro || '',
               neighborhood: data.bairro || '',
-              city: data.localidade || '',
               state: data.uf || '',
+              city: data.localidade || '',
             }))
           }
         })
         .catch(console.error)
     }
   }, [formData.cep])
+
+  useEffect(() => {
+    if (formData.state) {
+      fetch(
+        `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${formData.state}/municipios`,
+      )
+        .then((res) => res.json())
+        .then((data) => setCitiesForState(data.map((c: any) => c.nome)))
+        .catch(() => setCitiesForState([]))
+    } else {
+      setCitiesForState([])
+    }
+  }, [formData.state])
+
+  const BRAZIL_STATES = [
+    'AC',
+    'AL',
+    'AP',
+    'AM',
+    'BA',
+    'CE',
+    'DF',
+    'ES',
+    'GO',
+    'MA',
+    'MT',
+    'MS',
+    'MG',
+    'PA',
+    'PB',
+    'PR',
+    'PE',
+    'PI',
+    'RJ',
+    'RN',
+    'RS',
+    'RO',
+    'RR',
+    'SC',
+    'SP',
+    'SE',
+    'TO',
+  ]
 
   const availableNetworks = formData.utility_id
     ? Array.from(
@@ -254,21 +294,30 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
                   />
                 </div>
                 <div className="space-y-2 sm:col-span-1">
-                  <Label>Cidade</Label>
-                  <LocationCombobox
-                    cities={hspCities}
-                    value={formData.city}
-                    onChange={(city: string) => setFormData({ ...formData, city })}
-                  />
+                  <Label>Estado (UF)</Label>
+                  <Select
+                    value={formData.state}
+                    onValueChange={(val) => setFormData({ ...formData, state: val, city: '' })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="UF" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BRAZIL_STATES.map((st) => (
+                        <SelectItem key={st} value={st}>
+                          {st}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2 sm:col-span-1">
-                  <Label>Estado (UF)</Label>
-                  <Input
-                    value={formData.state}
-                    onChange={(e) =>
-                      setFormData({ ...formData, state: e.target.value.toUpperCase() })
-                    }
-                    maxLength={2}
+                  <Label>Cidade</Label>
+                  <LocationCombobox
+                    cities={citiesForState}
+                    value={formData.city}
+                    onChange={(city: string) => setFormData({ ...formData, city })}
+                    disabled={!formData.state}
                   />
                 </div>
 
