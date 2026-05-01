@@ -29,6 +29,9 @@ import { SizingTab } from '@/components/negotiation-tabs/SizingTab'
 import { BudgetsTab } from '@/components/negotiation-tabs/BudgetsTab'
 import { FilesTab } from '@/components/negotiation-tabs/FilesTab'
 import { ProposalsTab } from '@/components/negotiation-tabs/ProposalsTab'
+import { useKitCalculator } from '@/hooks/use-kit-calculator'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Info } from 'lucide-react'
 
 export default function NegotiationDetail() {
   const { user } = useAuth()
@@ -63,6 +66,8 @@ export default function NegotiationDetail() {
   useRealtime('proposals', loadData)
 
   const isAdmin = user?.role === 'admin_company' || user?.role === 'admin_elektra'
+
+  const { kitPrice, kitComposition, loading: calcLoading } = useKitCalculator(neg)
 
   useEffect(() => {
     if (neg && isAdmin) {
