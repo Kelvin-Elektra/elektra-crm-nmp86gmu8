@@ -124,4 +124,35 @@
   .hover-lift {
     @apply transition-transform duration-200 hover:-translate-y-1 hover:shadow-lg;
   }
+
+  @media print {
+    body {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    @page {
+      margin: 0;
+      size: A4;
+    }
+    body > *:not([role='dialog']) {
+      display: none !important;
+    }
+    [role='dialog'] {
+      position: relative !important;
+      inset: auto !important;
+      transform: none !important;
+      max-width: 100% !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: visible !important;
+      background: transparent !important;
+    }
+    div[data-state='open'][class*='fixed inset-0'] {
+      display: none !important;
+    }
+    .page-break-after {
+      page-break-after: always;
+    }
+  }
 }

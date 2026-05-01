@@ -21,7 +21,7 @@ import { updateNegotiation } from '@/services/db'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 
-export function SizingEquipmentModal({ open, onOpenChange, neg, reload }: any) {
+export function SizingEquipmentModal({ open, onOpenChange, neg, reload, recommendedModules }: any) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const sizing = neg.sizing || {}
@@ -153,6 +153,12 @@ export function SizingEquipmentModal({ open, onOpenChange, neg, reload }: any) {
                 value={moduleQty}
                 onChange={(e) => setModuleQty(e.target.value)}
               />
+              {recommendedModules > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Quantidade recomendada pelo sistema:{' '}
+                  <strong className="text-foreground">{recommendedModules}</strong>
+                </p>
+              )}
             </div>
           )}
           <div className="space-y-3 pt-4 border-t">

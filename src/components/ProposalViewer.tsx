@@ -58,8 +58,8 @@ export function ProposalViewer({ open, onOpenChange, proposal, negotiation }: an
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl h-[95vh] overflow-y-auto p-0 border-none bg-zinc-100/50">
-        <div className="bg-white mx-auto max-w-4xl min-h-full shadow-2xl flex flex-col print:shadow-none print:w-full print:max-w-full print:bg-white">
+      <DialogContent className="max-w-5xl h-[95vh] overflow-y-auto p-0 border-none bg-zinc-100/50 print:h-auto print:overflow-visible">
+        <div className="bg-white mx-auto max-w-4xl min-h-full shadow-2xl flex flex-col print:shadow-none print:w-full print:max-w-full print:bg-white print:m-0">
           {/* Page 1: Cover */}
           {pages.cover && (
             <div
@@ -419,23 +419,45 @@ export function ProposalViewer({ open, onOpenChange, proposal, negotiation }: an
 
           {/* Page 7: Terms */}
           {pages.terms && (
-            <div className="p-16 flex flex-col h-[29.7cm]">
+            <div className="p-16 flex flex-col h-[29.7cm] page-break-after">
               <div className="border-b-2 pb-4 mb-8" style={{ borderColor: brand.primaryColor }}>
                 <h2 className="text-3xl font-bold text-slate-800">Termos e Condições</h2>
                 <p className="text-slate-500">Condições comerciais da proposta</p>
               </div>
-              <div className="bg-slate-50 p-8 rounded-2xl border border-slate-200 mb-8">
-                <h3 className="font-bold text-lg mb-4 text-slate-800">Escopo do Fornecimento</h3>
-                <p className="text-sm text-slate-600 leading-relaxed mb-4">
-                  Esta proposta inclui todos os equipamentos, materiais complementares, estrutura de
-                  fixação, frete, projeto de engenharia com emissão de ART, mão de obra de
-                  instalação e homologação junto à concessionária de energia.
-                </p>
-                <h3 className="font-bold text-lg mb-4 text-slate-800">Validade</h3>
-                <p className="text-sm text-slate-600 leading-relaxed">
-                  Proposta válida por 10 dias corridos a partir da data de emissão. Sujeita a
-                  alteração sem aviso prévio devido a flutuações cambiais.
-                </p>
+              <div className="bg-slate-50 p-8 rounded-2xl border border-slate-200 mb-8 space-y-6">
+                <div>
+                  <h3 className="font-bold text-lg mb-2 text-slate-800">Escopo do Fornecimento</h3>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    Esta proposta inclui todos os equipamentos, materiais complementares, estrutura
+                    de fixação, frete, projeto de engenharia com emissão de ART, mão de obra de
+                    instalação e homologação junto à concessionária de energia.
+                  </p>
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg mb-2 text-slate-800">Validade da Proposta</h3>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    {proposal?.validity_date
+                      ? `Válida até ${format(new Date(proposal.validity_date), 'dd/MM/yyyy')}`
+                      : '10 dias corridos a partir da data de emissão'}
+                    . Sujeita a alteração sem aviso prévio devido a flutuações cambiais.
+                  </p>
+                </div>
+                {proposal?.payment_terms && (
+                  <div>
+                    <h3 className="font-bold text-lg mb-2 text-slate-800">
+                      Condições de Pagamento
+                    </h3>
+                    <p className="text-sm text-slate-600 leading-relaxed">
+                      {proposal.payment_terms}
+                    </p>
+                  </div>
+                )}
+                {proposal?.notes && (
+                  <div>
+                    <h3 className="font-bold text-lg mb-2 text-slate-800">Observações</h3>
+                    <p className="text-sm text-slate-600 leading-relaxed">{proposal.notes}</p>
+                  </div>
+                )}
               </div>
 
               <div className="mt-auto pt-12 border-t text-center print:hidden flex flex-col items-center justify-center">

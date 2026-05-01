@@ -28,7 +28,7 @@ const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
   const sizing = neg.sizing || {}
   const [efficiencyRule, setEfficiencyRule] = useState<any>(null)
-  const [hspNum, setHspNum] = useState(4.94)
+  const [hspData, setHspData] = useState<any>(null)
   const [monthlyGeneration, setMonthlyGeneration] = useState<any[]>([])
 
   const [genModalOpen, setGenModalOpen] = useState(false)
@@ -57,42 +57,76 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
     if (city && state) {
       getOrFetchHsp(city, state)
         .then((rec) => {
-          if (rec) setHspNum(rec.annual_avg || 4.94)
+          if (rec) setHspData(rec)
         })
         .catch(() => {})
     }
   }, [sizing, neg])
 
+  const avgConsumption = neg.avg_consumption || 0
+  const totalLossesNum =
+    (Number(sizing.losses) || 23) +
+    (sizing.enable_additional_losses ? Number(sizing.additional_losses) || 0 : 0)
+  const totalLossFactor = 1 - totalLossesNum / 100
+  const modulePowerW = modules.find((m) => m.id === sizing.selected_module_id)?.power || 0
+
+  const hspNum = hspData?.annual_avg || 4.94
+  const avgDaysPerMonth = 365 / 12
+  const avgDailyGenPerKwp = hspNum * totalLossFactor
+  const requiredKwp =
+    avgDailyGenPerKwp > 0 ? avgConsumption / (avgDailyGenPerKwp * avgDaysPerMonth) : 0
+  const recommendedModules = modulePowerW > 0 ? Math.ceil((requiredKwp * 1000) / modulePowerW) : 0
+
   useEffect(() => {
-    const totalLossesNum =
-      (Number(sizing.losses) || 23) +
-      (sizing.enable_additional_losses ? Number(sizing.additional_losses) || 0 : 0)
-    const modulePowerW = modules.find((m) => m.id === sizing.selected_module_id)?.power || 0
     const orientationOptions = efficiencyRule?.orientation_losses || []
     const kitPowerKwp = sizing.kit_power_kwp || 0
+    const hspMonths = [
+      'jan',
+      'feb',
+      'mar',
+      'apr',
+      'may',
+      'jun',
+      'jul',
+      'aug',
+      'sep',
+      'oct',
+      'nov',
+      'dec',
+    ]
 
     const monthly = MONTH_LABELS.map((month, idx) => {
       const days = DAYS_IN_MONTH[idx]
+      const hspMonth = hspData ? hspData[hspMonths[idx]] || hspNum : hspNum
+
       let gen = 0
       if (neg.use_roof_faces && neg.roof_faces_data) {
         neg.roof_faces_data.forEach((face: any) => {
           const facePowerKwp = ((Number(face.modules) || 0) * modulePowerW) / 1000
           const faceOrient = orientationOptions.find((o: any) => o.orientation === face.orientation)
           const orientLoss = faceOrient ? Number(faceOrient.loss) || 0 : 0
-          const totalLossFactor = (1 - totalLossesNum / 100) * (1 - orientLoss / 100)
-          gen += hspNum * facePowerKwp * totalLossFactor * days
+          const faceLossFactor = (1 - totalLossesNum / 100) * (1 - orientLoss / 100)
+          gen += hspMonth * facePowerKwp * faceLossFactor * days
         })
       } else {
-        const totalLossFactor = 1 - totalLossesNum / 100
-        gen = hspNum * kitPowerKwp * totalLossFactor * days
+        gen = hspMonth * kitPowerKwp * totalLossFactor * days
       }
       return { month, geracao: Math.round(gen) }
     })
     setMonthlyGeneration(monthly)
-  }, [sizing, neg, hspNum, modules, efficiencyRule])
+  }, [
+    sizing,
+    neg,
+    hspData,
+    hspNum,
+    modules,
+    efficiencyRule,
+    totalLossesNum,
+    totalLossFactor,
+    modulePowerW,
+  ])
 
   const estMonthlyGen = monthlyGeneration.reduce((acc, curr) => acc + curr.geracao, 0) / 12 || 0
-  const avgConsumption = neg.avg_consumption || 0
   const isInsufficient = estMonthlyGen > 0 && estMonthlyGen < avgConsumption
 
   const selectedMod = modules.find((m) => m.id === sizing.selected_module_id)
@@ -250,12 +284,14 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
         neg={neg}
         reload={reload}
         efficiencyRule={efficiencyRule}
+        recommendedModules={recommendedModules}
       />
       <SizingEquipmentModal
         open={equipModalOpen}
         onOpenChange={setEquipModalOpen}
         neg={neg}
         reload={reload}
+        recommendedModules={recommendedModules}
       />
     </div>
   )

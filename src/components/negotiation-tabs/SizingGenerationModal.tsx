@@ -21,12 +21,19 @@ import { Plus, Trash2 } from 'lucide-react'
 import { updateNegotiation } from '@/services/db'
 import { useToast } from '@/hooks/use-toast'
 
-export function SizingGenerationModal({ open, onOpenChange, neg, reload, efficiencyRule }: any) {
+export function SizingGenerationModal({
+  open,
+  onOpenChange,
+  neg,
+  reload,
+  efficiencyRule,
+  recommendedModules,
+}: any) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const sizing = neg.sizing || {}
 
-  const [losses, setLosses] = useState(sizing.losses ?? (efficiencyRule?.nominal_loss || 23))
+  const losses = sizing.losses ?? (efficiencyRule?.nominal_loss || 23)
   const [enableAdditional, setEnableAdditional] = useState(sizing.enable_additional_losses || false)
   const [additional, setAdditional] = useState(sizing.additional_losses || 0)
   const [useRoofFaces, setUseRoofFaces] = useState(neg.use_roof_faces || false)
@@ -69,7 +76,7 @@ export function SizingGenerationModal({ open, onOpenChange, neg, reload, efficie
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label>Perdas Nominais (%)</Label>
-            <Input type="number" value={losses} onChange={(e) => setLosses(e.target.value)} />
+            <Input type="number" value={losses} readOnly className="bg-muted" />
           </div>
           <div className="flex items-center justify-between">
             <Label>Habilitar Perdas Adicionais</Label>
@@ -91,6 +98,12 @@ export function SizingGenerationModal({ open, onOpenChange, neg, reload, efficie
           </div>
           {useRoofFaces && (
             <div className="space-y-3 bg-muted/30 p-3 rounded-lg border">
+              {recommendedModules > 0 && (
+                <div className="text-sm text-muted-foreground mb-2">
+                  Quantidade ideal de módulos recomendada:{' '}
+                  <strong className="text-foreground">{recommendedModules}</strong>
+                </div>
+              )}
               {roofFaces.map((item, idx) => (
                 <div key={idx} className="flex items-center gap-2">
                   <Select
