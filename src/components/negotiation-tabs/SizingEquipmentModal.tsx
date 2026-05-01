@@ -168,7 +168,7 @@ export function SizingEquipmentModal({ open, onOpenChange, neg, reload, recommen
                       <Info className="h-4 w-4 text-muted-foreground cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent>
-                      A quantidade de módulos foi definida na seção Faces do Telhado.
+                      A quantidade de módulos é definida na seção 'Orientação das Faces'.
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>

@@ -10,6 +10,7 @@ import { ProposalViewer } from '@/components/ProposalViewer'
 import { ProposalWizardModal } from './ProposalWizardModal'
 import { ProposalEditModal } from './ProposalEditModal'
 import { AdminCostsModal } from './AdminCostsModal'
+import { ProposalCostModal } from './ProposalCostModal'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -28,6 +29,7 @@ export function ProposalsTab({
   const [wizardOpen, setWizardOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [costsOpen, setCostsOpen] = useState(false)
+  const [proposalCostOpen, setProposalCostOpen] = useState(false)
   const [selectedProposal, setSelectedProposal] = useState<any>(null)
 
   const isAdmin = user?.role === 'admin_elektra' || user?.role === 'admin_company'
@@ -51,6 +53,11 @@ export function ProposalsTab({
   const openEditor = (proposal: any) => {
     setSelectedProposal(proposal)
     setEditOpen(true)
+  }
+
+  const openProposalCosts = (proposal: any) => {
+    setSelectedProposal(proposal)
+    setProposalCostOpen(true)
   }
 
   return (
@@ -139,6 +146,16 @@ export function ProposalsTab({
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
+                      {isAdmin && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Custos da Proposta"
+                          onClick={() => openProposalCosts(p)}
+                        >
+                          <DollarSign className="h-4 w-4 text-green-600" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -186,6 +203,15 @@ export function ProposalsTab({
       )}
 
       {costsOpen && <AdminCostsModal open={costsOpen} onOpenChange={setCostsOpen} negId={neg.id} />}
+
+      {selectedProposal && proposalCostOpen && (
+        <ProposalCostModal
+          open={proposalCostOpen}
+          onOpenChange={setProposalCostOpen}
+          proposal={selectedProposal}
+          reload={reload}
+        />
+      )}
     </>
   )
 }

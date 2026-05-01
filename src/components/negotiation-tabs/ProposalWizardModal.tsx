@@ -72,6 +72,50 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
     try {
       const finalPrice = totalValue * (1 - discount / 100)
 
+      let settings: any = {}
+      try {
+        settings = await pb
+          .collection('proposal_settings')
+          .getFirstListItem(`company_id='${neg.company_id}'`)
+      } catch {
+        /* intentionally ignored */
+      }
+
+      let budgets: any[] = []
+      try {
+        budgets = await pb
+          .collection('budgets')
+          .getFullList({ filter: `negotiation_id='${neg.id}'` })
+      } catch {
+        /* intentionally ignored */
+      }
+
+      const snapshot = {
+        sizing: neg.sizing || {},
+        settings: {
+          branding: settings.branding || {},
+          pages_layout: settings.pages_layout || [],
+          template: settings.active_template_id || settings.template || 'modern',
+          visible_pages: settings.visible_pages || [],
+        },
+      }
+
+      const cost_breakdown = budgets.map((b) => ({
+        name: b.name,
+        cost: b.cost,
+        margin: b.margin,
+        price: b.price,
+      }))
+
+      if (cost_breakdown.length === 0) {
+        cost_breakdown.push({
+          name: 'Sistema Fotovoltaico (Estimado)',
+          cost: totalValue,
+          margin: discount,
+          price: finalPrice,
+        })
+      }
+
       const rec = await pb.collection('proposals').create({
         company_id: neg.company_id,
         negotiation_id: neg.id,
@@ -83,7 +127,8 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         notes: notes,
         discount_amount: discount,
         total_value: finalPrice,
-        kit_details: JSON.stringify(neg.sizing || {}),
+        kit_details: JSON.stringify(snapshot),
+        cost_breakdown: cost_breakdown,
       })
 
       toast({ title: 'Proposta gerada com sucesso' })

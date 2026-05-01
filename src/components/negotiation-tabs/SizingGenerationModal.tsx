@@ -10,14 +10,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Plus, Trash2 } from 'lucide-react'
 import { updateNegotiation } from '@/services/db'
 import { useToast } from '@/hooks/use-toast'
 
@@ -39,12 +31,10 @@ export function SizingGenerationModal({
   const losses = sizing.losses ?? (efficiencyRule?.nominal_loss || 23)
   const [enableAdditional, setEnableAdditional] = useState(sizing.enable_additional_losses || false)
   const [additional, setAdditional] = useState(sizing.additional_losses || 0)
-  const [useRoofFaces, setUseRoofFaces] = useState(neg.use_roof_faces || false)
-  const [roofFaces, setRoofFaces] = useState<any[]>(
-    neg.roof_faces_data?.length ? neg.roof_faces_data : [{ orientation: '', modules: '' }],
-  )
 
   const orientationOptions = efficiencyRule?.orientation_losses || []
+  const useRoofFaces = neg.use_roof_faces || false
+  const roofFaces = neg.roof_faces_data || []
 
   const estGeneration = useMemo(() => {
     const totalLossesNum = Number(losses) + (enableAdditional ? Number(additional) : 0)
@@ -53,7 +43,7 @@ export function SizingGenerationModal({
     let gen = 0
 
     if (useRoofFaces) {
-      roofFaces.forEach((f) => {
+      roofFaces.forEach((f: any) => {
         const facePowerKwp = ((Number(f.modules) || 0) * modulePowerW) / 1000
         const o = orientationOptions.find((opt: any) => opt.orientation === f.orientation)
         const orientLoss = o ? Number(o.loss) || 0 : 0
@@ -89,8 +79,6 @@ export function SizingGenerationModal({
       }
       await updateNegotiation(neg.id, {
         sizing: newSizing,
-        use_roof_faces: useRoofFaces,
-        roof_faces_data: useRoofFaces ? roofFaces : [],
       })
       toast({ title: 'Salvo com sucesso' })
       reload()
@@ -140,69 +128,6 @@ export function SizingGenerationModal({
                 value={additional}
                 onChange={(e) => setAdditional(e.target.value)}
               />
-            </div>
-          )}
-          <div className="flex items-center justify-between border-t pt-4">
-            <Label>Considerar faces do telhado</Label>
-            <Switch checked={useRoofFaces} onCheckedChange={setUseRoofFaces} />
-          </div>
-          {useRoofFaces && (
-            <div className="space-y-3 bg-muted/30 p-3 rounded-lg border">
-              {recommendedModules > 0 && (
-                <div className="text-sm text-muted-foreground mb-2">
-                  Quantidade mínima de módulos recomendada:{' '}
-                  <strong className="text-foreground">{recommendedModules}</strong>
-                </div>
-              )}
-              {roofFaces.map((item, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <Select
-                    value={item.orientation}
-                    onValueChange={(v) => {
-                      const arr = [...roofFaces]
-                      arr[idx].orientation = v
-                      setRoofFaces(arr)
-                    }}
-                  >
-                    <SelectTrigger className="flex-1 h-8">
-                      <SelectValue placeholder="Orientação" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {orientationOptions.map((o: any) => (
-                        <SelectItem key={o.orientation} value={o.orientation}>
-                          {o.orientation} (-{o.loss}%)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    type="number"
-                    className="w-20 h-8"
-                    value={item.modules}
-                    onChange={(e) => {
-                      const arr = [...roofFaces]
-                      arr[idx].modules = e.target.value
-                      setRoofFaces(arr)
-                    }}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive"
-                    onClick={() => setRoofFaces(roofFaces.filter((_, i) => i !== idx))}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={() => setRoofFaces([...roofFaces, { orientation: '', modules: '' }])}
-              >
-                <Plus className="h-4 w-4 mr-2" /> Adicionar Face
-              </Button>
             </div>
           )}
         </div>

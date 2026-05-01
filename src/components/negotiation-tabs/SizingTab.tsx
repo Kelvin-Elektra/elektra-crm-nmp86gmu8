@@ -3,11 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from 'recharts'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
-import { Settings2, Sun, Battery, BarChart3, Edit } from 'lucide-react'
+import { Settings2, Sun, Battery, BarChart3, Edit, Compass } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { getOrFetchHsp } from '@/services/hsp'
 import { SizingGenerationModal } from './SizingGenerationModal'
 import { SizingEquipmentModal } from './SizingEquipmentModal'
+import { SizingOrientationModal } from './SizingOrientationModal'
 
 const MONTH_LABELS = [
   'Jan',
@@ -31,8 +32,9 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
   const [hspData, setHspData] = useState<any>(null)
   const [monthlyGeneration, setMonthlyGeneration] = useState<any[]>([])
 
-  const [genModalOpen, setGenModalOpen] = useState(false)
   const [equipModalOpen, setEquipModalOpen] = useState(false)
+  const [orientationModalOpen, setOrientationModalOpen] = useState(false)
+  const [genModalOpen, setGenModalOpen] = useState(false)
 
   const [modules, setModules] = useState<any[]>([])
   const [inverters, setInverters] = useState<any[]>([])
@@ -128,64 +130,27 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
 
   const estMonthlyGen = monthlyGeneration.reduce((acc, curr) => acc + curr.geracao, 0) / 12 || 0
   const isInsufficient = estMonthlyGen > 0 && estMonthlyGen < avgConsumption
-
   const selectedMod = modules.find((m) => m.id === sizing.selected_module_id)
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row justify-between items-start">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* 1. Seleção de Equipamentos */}
+        <Card className="flex flex-col">
+          <CardHeader className="flex flex-row justify-between items-start pb-2">
             <div>
               <CardTitle className="flex items-center gap-2 text-lg">
-                <Settings2 className="w-5 h-5 text-muted-foreground" /> Parâmetros de Geração
+                <Sun className="w-5 h-5 text-muted-foreground" /> 1. Equipamentos
               </CardTitle>
-              <CardDescription>
-                Consumo Médio: <strong className="text-primary">{avgConsumption} kWh/mês</strong>
-              </CardDescription>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => setGenModalOpen(true)}>
-              <Edit className="w-4 h-4 mr-2" /> Editar
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex justify-between border-b pb-2">
-              <span className="text-muted-foreground">HSP Anual:</span>{' '}
-              <span className="font-medium">{hspNum.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between border-b pb-2">
-              <span className="text-muted-foreground">Perdas Nominais:</span>{' '}
-              <span className="font-medium">{sizing.losses || 23}%</span>
-            </div>
-            <div className="flex justify-between border-b pb-2">
-              <span className="text-muted-foreground">Perdas Adicionais:</span>{' '}
-              <span className="font-medium">
-                {sizing.enable_additional_losses ? `${sizing.additional_losses}%` : 'Não'}
-              </span>
-            </div>
-            <div className="flex justify-between pb-2">
-              <span className="text-muted-foreground">Faces do Telhado:</span>{' '}
-              <span className="font-medium">{neg.use_roof_faces ? 'Ativado' : 'Não'}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row justify-between items-start">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Sun className="w-5 h-5 text-muted-foreground" /> Seleção de Equipamentos
-              </CardTitle>
-              <CardDescription>Módulos e Inversores</CardDescription>
             </div>
             <Button variant="outline" size="sm" onClick={() => setEquipModalOpen(true)}>
               <Edit className="w-4 h-4 mr-2" /> Editar
             </Button>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-2 flex-1">
             <div className="flex justify-between border-b pb-2">
               <span className="text-muted-foreground">Módulo:</span>
-              <span className="font-medium text-right">
+              <span className="font-medium text-right text-sm">
                 {selectedMod ? `${selectedMod.brand} ${selectedMod.power}W` : 'Nenhum'}
               </span>
             </div>
@@ -194,13 +159,13 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
               <span className="font-medium text-right">{sizing.module_qty || 0}</span>
             </div>
             <div className="pt-2">
-              <span className="text-muted-foreground">Inversores:</span>
-              <ul className="mt-1 text-sm">
+              <span className="text-muted-foreground text-sm block mb-1">Inversores:</span>
+              <ul className="text-sm">
                 {(sizing.inverters || []).map((inv: any, i: number) => {
                   const data = inverters.find((x) => x.id === inv.id)
                   return (
                     <li key={i} className="flex justify-between">
-                      <span>{data ? `${data.brand} ${data.power}kW` : 'Desconhecido'}</span>{' '}
+                      <span>{data ? `${data.brand} ${data.power}kW` : 'Desconhecido'}</span>
                       <span>x{inv.qty}</span>
                     </li>
                   )
@@ -209,9 +174,70 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
             </div>
           </CardContent>
         </Card>
+
+        {/* 2. Orientação das Faces */}
+        <Card className="flex flex-col">
+          <CardHeader className="flex flex-row justify-between items-start pb-2">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Compass className="w-5 h-5 text-muted-foreground" /> 2. Orientação
+              </CardTitle>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setOrientationModalOpen(true)}>
+              <Edit className="w-4 h-4 mr-2" /> Editar
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-2 flex-1">
+            <div className="flex justify-between border-b pb-2">
+              <span className="text-muted-foreground">Ativo:</span>
+              <span className="font-medium text-right">{neg.use_roof_faces ? 'Sim' : 'Não'}</span>
+            </div>
+            {neg.use_roof_faces && neg.roof_faces_data?.length > 0 && (
+              <div className="pt-2 space-y-1">
+                <span className="text-muted-foreground text-sm block mb-1">Faces Definidas:</span>
+                {neg.roof_faces_data.map((f: any, i: number) => (
+                  <div key={i} className="flex justify-between text-sm">
+                    <span>{f.orientation || 'Indefinida'}</span>
+                    <span>{f.modules} mods</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 3. Parâmetros de Geração */}
+        <Card className="flex flex-col">
+          <CardHeader className="flex flex-row justify-between items-start pb-2">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Settings2 className="w-5 h-5 text-muted-foreground" /> 3. Geração
+              </CardTitle>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setGenModalOpen(true)}>
+              <Edit className="w-4 h-4 mr-2" /> Editar
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-2 flex-1">
+            <div className="flex justify-between border-b pb-2">
+              <span className="text-muted-foreground">HSP Anual:</span>
+              <span className="font-medium">{hspNum.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between border-b pb-2">
+              <span className="text-muted-foreground">Perdas Nominais:</span>
+              <span className="font-medium">{sizing.losses || 23}%</span>
+            </div>
+            <div className="flex justify-between pb-2">
+              <span className="text-muted-foreground">Perdas Adicionais:</span>
+              <span className="font-medium">
+                {sizing.enable_additional_losses ? `${sizing.additional_losses}%` : 'Não'}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <Card className="bg-primary/5 border-primary/20">
+      <Card className="bg-primary/5 border-primary/20 mt-6">
         <CardContent className="p-6">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center sm:text-left mb-6">
             <div>
@@ -278,6 +304,21 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
         </CardContent>
       </Card>
 
+      <SizingEquipmentModal
+        open={equipModalOpen}
+        onOpenChange={setEquipModalOpen}
+        neg={neg}
+        reload={reload}
+        recommendedModules={recommendedModules}
+      />
+      <SizingOrientationModal
+        open={orientationModalOpen}
+        onOpenChange={setOrientationModalOpen}
+        neg={neg}
+        reload={reload}
+        efficiencyRule={efficiencyRule}
+        recommendedModules={recommendedModules}
+      />
       <SizingGenerationModal
         open={genModalOpen}
         onOpenChange={setGenModalOpen}
@@ -288,13 +329,6 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
         avgConsumption={avgConsumption}
         modulePowerW={modulePowerW}
         hspData={hspData}
-      />
-      <SizingEquipmentModal
-        open={equipModalOpen}
-        onOpenChange={setEquipModalOpen}
-        neg={neg}
-        reload={reload}
-        recommendedModules={recommendedModules}
       />
     </div>
   )

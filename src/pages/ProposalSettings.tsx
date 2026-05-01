@@ -4,58 +4,30 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
-import { Save, FileImage, BarChart, Palette, Layers, GripVertical } from 'lucide-react'
+import {
+  Save,
+  FileImage,
+  BarChart,
+  Palette,
+  Layers,
+  GripVertical,
+  Trash2,
+  Plus,
+} from 'lucide-react'
 
-const AVAILABLE_PAGES = [
-  {
-    id: 'cover',
-    label: 'Página de Capa',
-    img: 'https://img.usecurling.com/p/200/300?q=document%20cover&color=blue',
-  },
-  {
-    id: 'facade',
-    label: 'Foto da Fachada',
-    img: 'https://img.usecurling.com/p/200/300?q=house%20roof&color=gray',
-  },
-  {
-    id: 'technical',
-    label: 'Dados Técnicos',
-    img: 'https://img.usecurling.com/p/200/300?q=data%20table&color=gray',
-  },
-  {
-    id: 'charts',
-    label: 'Gráficos de Geração',
-    img: 'https://img.usecurling.com/p/200/300?q=bar%20chart&color=blue',
-  },
-  {
-    id: 'system',
-    label: 'Sistema Proposto',
-    img: 'https://img.usecurling.com/p/200/300?q=solar%20panels&color=gray',
-  },
-  {
-    id: 'financial',
-    label: 'Análise Financeira',
-    img: 'https://img.usecurling.com/p/200/300?q=money%20growth&color=green',
-  },
-  {
-    id: 'warranty',
-    label: 'Garantias',
-    img: 'https://img.usecurling.com/p/200/300?q=certificate&color=orange',
-  },
-  {
-    id: 'schedule',
-    label: 'Cronograma',
-    img: 'https://img.usecurling.com/p/200/300?q=calendar%20schedule&color=blue',
-  },
-  {
-    id: 'terms',
-    label: 'Termos e Condições',
-    img: 'https://img.usecurling.com/p/200/300?q=contract%20signature&color=gray',
-  },
+const ELEMENTS = [
+  { id: 'cover', label: 'Capa' },
+  { id: 'facade', label: 'Foto da Fachada' },
+  { id: 'technical', label: 'Dados Técnicos' },
+  { id: 'charts', label: 'Gráficos de Geração' },
+  { id: 'system', label: 'Sistema Proposto' },
+  { id: 'financial', label: 'Análise Financeira' },
+  { id: 'warranty', label: 'Garantias' },
+  { id: 'schedule', label: 'Cronograma' },
+  { id: 'terms', label: 'Termos e Condições' },
 ]
 
 export default function ProposalSettings() {
@@ -65,16 +37,13 @@ export default function ProposalSettings() {
   const [loading, setLoading] = useState(false)
   const [activeTemplate, setActiveTemplate] = useState('modern')
 
-  const [formData, setFormData] = useState({
-    indicators: { inflation: '5', interest: '1' },
-    pricing: { margin: '30', tax: '12' },
-    visible_pages: [] as any[],
-    branding: {
-      primaryColor: '#2563eb',
-      secondaryColor: '#1e40af',
-      gradientColor: '#3b82f6',
-    },
+  const [indicators, setIndicators] = useState({ inflation: '5', interest: '1' })
+  const [branding, setBranding] = useState({
+    primaryColor: '#2563eb',
+    secondaryColor: '#1e40af',
+    gradientColor: '#3b82f6',
   })
+  const [pagesLayout, setPagesLayout] = useState<{ id: string; elements: string[] }[]>([])
 
   useEffect(() => {
     if (!user?.company_id) return
@@ -82,33 +51,34 @@ export default function ProposalSettings() {
       .getFirstListItem(`company_id = '${user.company_id}'`)
       .then((record) => {
         setSettingsId(record.id)
-        if (record.template) setActiveTemplate(record.template)
+        if (record.active_template_id || record.template)
+          setActiveTemplate(record.active_template_id || record.template)
+        if (record.indicators) setIndicators(record.indicators as any)
+        if (record.branding) setBranding(record.branding as any)
 
-        let pages = []
-        if (Array.isArray(record.visible_pages) && record.visible_pages.length > 0) {
-          pages = record.visible_pages
+        if (
+          record.pages_layout &&
+          Array.isArray(record.pages_layout) &&
+          record.pages_layout.length > 0
+        ) {
+          setPagesLayout(record.pages_layout)
         } else {
-          const oldObj = record.visible_pages || {}
-          pages = AVAILABLE_PAGES.map((p) => ({
-            id: p.id,
-            label: p.label,
-            img: p.img,
-            visible: oldObj[p.id] ?? true,
-          }))
+          // default layout mapping
+          setPagesLayout([
+            { id: 'p1', elements: ['cover'] },
+            { id: 'p2', elements: ['technical', 'system'] },
+            { id: 'p3', elements: ['financial', 'charts'] },
+            { id: 'p4', elements: ['terms'] },
+          ])
         }
-
-        setFormData({
-          indicators: record.indicators || formData.indicators,
-          pricing: record.pricing || formData.pricing,
-          visible_pages: pages,
-          branding: record.branding || formData.branding,
-        })
       })
-      .catch((e) => {
-        setFormData((prev) => ({
-          ...prev,
-          visible_pages: AVAILABLE_PAGES.map((p) => ({ ...p, visible: true })),
-        }))
+      .catch(() => {
+        setPagesLayout([
+          { id: 'p1', elements: ['cover'] },
+          { id: 'p2', elements: ['technical', 'system'] },
+          { id: 'p3', elements: ['financial', 'charts'] },
+          { id: 'p4', elements: ['terms'] },
+        ])
       })
   }, [user])
 
@@ -118,11 +88,10 @@ export default function ProposalSettings() {
     try {
       const data = {
         company_id: user.company_id,
-        template: activeTemplate,
-        indicators: formData.indicators,
-        pricing: formData.pricing,
-        visible_pages: formData.visible_pages,
-        branding: formData.branding,
+        active_template_id: activeTemplate,
+        indicators,
+        branding,
+        pages_layout: pagesLayout,
       }
       if (settingsId) {
         await pb.collection('proposal_settings').update(settingsId, data)
@@ -130,7 +99,7 @@ export default function ProposalSettings() {
         const record = await pb.collection('proposal_settings').create(data)
         setSettingsId(record.id)
       }
-      toast({ title: 'Sucesso', description: 'Configurações gerais salvas.' })
+      toast({ title: 'Sucesso', description: 'Configurações salvas.' })
     } catch (e) {
       toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível salvar.' })
     } finally {
@@ -138,43 +107,61 @@ export default function ProposalSettings() {
     }
   }
 
-  const handleNestedChange = (category: keyof typeof formData, field: string, value: any) => {
-    setFormData((prev) => ({
-      ...prev,
-      [category]: { ...(prev[category as keyof typeof formData] as any), [field]: value },
-    }))
+  const onDragStartElement = (e: any, elId: string, fromPageIdx: number) => {
+    e.dataTransfer.setData('elId', elId)
+    e.dataTransfer.setData('fromPageIdx', fromPageIdx.toString())
   }
 
-  const togglePageVisible = (idx: number, val: boolean) => {
-    const arr = [...formData.visible_pages]
-    arr[idx].visible = val
-    setFormData((prev) => ({ ...prev, visible_pages: arr }))
+  const onDropElement = (e: any, toPageIdx: number) => {
+    const elId = e.dataTransfer.getData('elId')
+    const fromPageIdx = parseInt(e.dataTransfer.getData('fromPageIdx'))
+
+    if (!elId) return
+
+    setPagesLayout((prev) => {
+      const newLayout = [...prev]
+      if (!isNaN(fromPageIdx) && fromPageIdx !== -1) {
+        newLayout[fromPageIdx].elements = newLayout[fromPageIdx].elements.filter(
+          (id) => id !== elId,
+        )
+      }
+      if (!newLayout[toPageIdx].elements.includes(elId)) {
+        newLayout[toPageIdx].elements.push(elId)
+      }
+      return newLayout
+    })
   }
 
-  const onDragStart = (e: any, idx: number) => {
-    e.dataTransfer.setData('idx', idx.toString())
+  const handleRemoveElement = (pageIdx: number, elId: string) => {
+    setPagesLayout((prev) => {
+      const newLayout = [...prev]
+      newLayout[pageIdx].elements = newLayout[pageIdx].elements.filter((id) => id !== elId)
+      return newLayout
+    })
   }
 
-  const onDrop = (e: any, toIdx: number) => {
-    const fromIdx = parseInt(e.dataTransfer.getData('idx'))
-    if (isNaN(fromIdx)) return
-    const arr = [...formData.visible_pages]
-    const [moved] = arr.splice(fromIdx, 1)
-    arr.splice(toIdx, 0, moved)
-    setFormData((prev) => ({ ...prev, visible_pages: arr }))
+  const handleAddPage = () => {
+    setPagesLayout([...pagesLayout, { id: `p${Date.now()}`, elements: [] }])
   }
+
+  const handleRemovePage = (idx: number) => {
+    setPagesLayout((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  const usedElements = new Set(pagesLayout.flatMap((p) => p.elements))
+  const availableElements = ELEMENTS.filter((e) => !usedElements.has(e.id))
 
   return (
-    <div className="flex flex-col gap-6 max-w-5xl animate-fade-in pb-12">
+    <div className="flex flex-col gap-6 max-w-6xl animate-fade-in pb-12">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Configurações da Proposta PV</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Construtor de Propostas</h2>
           <p className="text-muted-foreground text-sm">
-            Gerencie os padrões, cores e páginas para geração de propostas.
+            Monte o layout das páginas e ajuste o branding.
           </p>
         </div>
         <Button onClick={handleSave} disabled={loading}>
-          <Save className="mr-2 h-4 w-4" /> Salvar Configurações
+          <Save className="mr-2 h-4 w-4" /> Salvar Alterações
         </Button>
       </div>
 
@@ -183,176 +170,191 @@ export default function ProposalSettings() {
           <TabsTrigger value="templates" className="py-2.5 rounded-lg flex-1 sm:flex-none">
             <FileImage className="mr-2 h-4 w-4" /> Templates
           </TabsTrigger>
+          <TabsTrigger value="pages" className="py-2.5 rounded-lg flex-1 sm:flex-none">
+            <Layers className="mr-2 h-4 w-4" /> Composição de Páginas
+          </TabsTrigger>
           <TabsTrigger value="branding" className="py-2.5 rounded-lg flex-1 sm:flex-none">
             <Palette className="mr-2 h-4 w-4" /> Branding
-          </TabsTrigger>
-          <TabsTrigger value="pages" className="py-2.5 rounded-lg flex-1 sm:flex-none">
-            <Layers className="mr-2 h-4 w-4" /> Páginas
           </TabsTrigger>
           <TabsTrigger value="indicadores" className="py-2.5 rounded-lg flex-1 sm:flex-none">
             <BarChart className="mr-2 h-4 w-4" /> Indicadores
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="templates" className="mt-6 space-y-6">
+        <TabsContent value="templates" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Templates Profissionais</CardTitle>
-              <CardDescription>Selecione o layout padrão das propostas.</CardDescription>
+              <CardTitle>Templates Visuais</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
               {[
                 {
                   id: 'modern',
-                  name: 'Modern Solar',
-                  desc: 'Foco em gráficos e ROI',
-                  img: 'https://img.usecurling.com/p/400/500?q=modern%20document%20solar%20energy&color=blue',
+                  name: 'Modern',
+                  img: 'https://img.usecurling.com/p/300/400?q=modern%20document&color=blue',
                 },
                 {
-                  id: 'technical',
-                  name: 'Technical Detail',
-                  desc: 'Layout técnico',
-                  img: 'https://img.usecurling.com/p/400/500?q=technical%20blueprint%20document&color=gray',
+                  id: 'elegant',
+                  name: 'Elegant',
+                  img: 'https://img.usecurling.com/p/300/400?q=elegant%20paper&color=gray',
                 },
                 {
                   id: 'compact',
-                  name: 'Compact Quote',
-                  desc: 'Proposta direta',
-                  img: 'https://img.usecurling.com/p/400/500?q=clean%20minimal%20document&color=white',
+                  name: 'Compact',
+                  img: 'https://img.usecurling.com/p/300/400?q=minimalist%20report&color=white',
+                },
+                {
+                  id: 'corporate',
+                  name: 'Corporate',
+                  img: 'https://img.usecurling.com/p/300/400?q=business%20presentation&color=blue',
+                },
+                {
+                  id: 'technical',
+                  name: 'Technical',
+                  img: 'https://img.usecurling.com/p/300/400?q=blueprint%20data&color=cyan',
+                },
+                {
+                  id: 'custom',
+                  name: 'Custom',
+                  img: 'https://img.usecurling.com/p/300/400?q=blank%20canvas&color=purple',
                 },
               ].map((tpl) => (
                 <div
                   key={tpl.id}
-                  className={`border-2 rounded-xl p-3 cursor-pointer transition-all group ${
-                    activeTemplate === tpl.id
-                      ? 'border-primary bg-primary/5 shadow-md'
-                      : 'border-muted hover:border-primary/50 bg-card'
-                  }`}
+                  className={`border-2 rounded-xl p-3 cursor-pointer transition-all group ${activeTemplate === tpl.id ? 'border-primary bg-primary/5' : 'border-muted hover:border-primary/50'}`}
                   onClick={() => setActiveTemplate(tpl.id)}
                 >
-                  <div className="aspect-[3/4] bg-muted rounded-lg overflow-hidden mb-4 relative shadow-inner">
-                    <img
-                      src={tpl.img}
-                      alt={tpl.name}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4 gap-2">
-                      <Button
-                        variant="default"
-                        size="sm"
-                        className="w-full"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setActiveTemplate(tpl.id)
-                        }}
-                      >
-                        Selecionar
-                      </Button>
-                    </div>
-                    {activeTemplate === tpl.id && (
-                      <div className="absolute top-3 right-3 bg-primary text-primary-foreground text-xs px-2.5 py-1 rounded-full font-bold shadow-md">
-                        Ativo
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-center">
-                    <p className="font-semibold text-lg">{tpl.name}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{tpl.desc}</p>
-                  </div>
+                  <img
+                    src={tpl.img}
+                    alt={tpl.name}
+                    className="w-full aspect-[3/4] object-cover rounded-md mb-3"
+                  />
+                  <div className="text-center font-semibold">{tpl.name}</div>
                 </div>
               ))}
             </CardContent>
           </Card>
         </TabsContent>
 
+        <TabsContent value="pages" className="mt-6">
+          <div className="flex gap-6 flex-col md:flex-row items-start">
+            <Card className="w-full md:w-1/3 sticky top-4">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Elementos Disponíveis</CardTitle>
+                <CardDescription>Arraste para as páginas ao lado</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 max-h-[60vh] overflow-y-auto">
+                {availableElements.length === 0 && (
+                  <p className="text-sm text-muted-foreground italic">
+                    Todos os elementos já foram utilizados.
+                  </p>
+                )}
+                {availableElements.map((el) => (
+                  <div
+                    key={el.id}
+                    draggable
+                    onDragStart={(e) => onDragStartElement(e, el.id, -1)}
+                    className="p-3 border rounded-md bg-white cursor-grab hover:border-primary shadow-sm flex items-center gap-2"
+                  >
+                    <GripVertical className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium text-sm">{el.label}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            <div className="w-full md:w-2/3 space-y-6">
+              {pagesLayout.map((page, pIdx) => (
+                <Card
+                  key={page.id}
+                  className="bg-slate-50 border-dashed"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => onDropElement(e, pIdx)}
+                >
+                  <CardHeader className="flex flex-row items-center justify-between pb-2 bg-slate-100 rounded-t-xl border-b">
+                    <CardTitle className="text-base text-slate-600">Página {pIdx + 1}</CardTitle>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive h-8 w-8"
+                      onClick={() => handleRemovePage(pIdx)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </CardHeader>
+                  <CardContent className="p-4 min-h-[120px] flex flex-col gap-2">
+                    {page.elements.length === 0 && (
+                      <div className="flex-1 flex items-center justify-center border-2 border-dashed rounded-md text-muted-foreground text-sm opacity-50">
+                        Arraste elementos para cá
+                      </div>
+                    )}
+                    {page.elements.map((elId) => {
+                      const el = ELEMENTS.find((e) => e.id === elId)
+                      if (!el) return null
+                      return (
+                        <div
+                          key={elId}
+                          draggable
+                          onDragStart={(e) => onDragStartElement(e, elId, pIdx)}
+                          className="p-3 border rounded-md bg-white shadow-sm flex items-center justify-between cursor-grab hover:border-primary"
+                        >
+                          <div className="flex items-center gap-2">
+                            <GripVertical className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium text-sm">{el.label}</span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-destructive"
+                            onClick={() => handleRemoveElement(pIdx, elId)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </CardContent>
+                </Card>
+              ))}
+              <Button variant="outline" className="w-full border-dashed" onClick={handleAddPage}>
+                <Plus className="mr-2 h-4 w-4" /> Adicionar Nova Página
+              </Button>
+            </div>
+          </div>
+        </TabsContent>
+
         <TabsContent value="branding" className="mt-6">
           <Card>
             <CardHeader>
               <CardTitle>Cores da Marca</CardTitle>
-              <CardDescription>
-                Personalize a proposta com a identidade visual da sua empresa.
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6 max-w-md">
               <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Cor Primária</Label>
-                  <p className="text-xs text-muted-foreground">Usada em títulos e destaques.</p>
-                </div>
+                <Label>Cor Primária</Label>
                 <Input
                   type="color"
-                  value={formData.branding.primaryColor}
-                  onChange={(e) => handleNestedChange('branding', 'primaryColor', e.target.value)}
+                  value={branding.primaryColor}
+                  onChange={(e) => setBranding({ ...branding, primaryColor: e.target.value })}
                   className="w-16 h-10 p-1 cursor-pointer"
                 />
               </div>
               <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Cor Secundária</Label>
-                  <p className="text-xs text-muted-foreground">Usada em gráficos e detalhes.</p>
-                </div>
+                <Label>Cor Secundária</Label>
                 <Input
                   type="color"
-                  value={formData.branding.secondaryColor}
-                  onChange={(e) => handleNestedChange('branding', 'secondaryColor', e.target.value)}
+                  value={branding.secondaryColor}
+                  onChange={(e) => setBranding({ ...branding, secondaryColor: e.target.value })}
                   className="w-16 h-10 p-1 cursor-pointer"
                 />
               </div>
               <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Cor de Gradiente</Label>
-                  <p className="text-xs text-muted-foreground">Usada em efeitos de fundo.</p>
-                </div>
+                <Label>Cor de Gradiente</Label>
                 <Input
                   type="color"
-                  value={formData.branding.gradientColor || '#3b82f6'}
-                  onChange={(e) => handleNestedChange('branding', 'gradientColor', e.target.value)}
+                  value={branding.gradientColor}
+                  onChange={(e) => setBranding({ ...branding, gradientColor: e.target.value })}
                   className="w-16 h-10 p-1 cursor-pointer"
                 />
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="pages" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Organizador de Páginas</CardTitle>
-              <CardDescription>
-                Arraste as páginas para reordená-las ou ative/desative seções específicas.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {formData.visible_pages.map((page, idx) => (
-                  <div
-                    key={page.id}
-                    draggable
-                    onDragStart={(e) => onDragStart(e, idx)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => onDrop(e, idx)}
-                    className={`border-2 rounded-xl p-3 bg-card transition-all relative ${
-                      page.visible ? 'border-primary/40' : 'border-muted opacity-60 grayscale'
-                    }`}
-                  >
-                    <div className="flex justify-between items-center mb-3">
-                      <div className="flex items-center gap-1 cursor-move text-muted-foreground hover:text-foreground">
-                        <GripVertical className="h-4 w-4" />
-                        <span className="font-bold text-sm">{idx + 1}</span>
-                      </div>
-                      <Switch
-                        checked={page.visible}
-                        onCheckedChange={(val) => togglePageVisible(idx, val)}
-                      />
-                    </div>
-                    <div className="aspect-[3/4] bg-muted rounded-lg border overflow-hidden">
-                      <img src={page.img} alt={page.label} className="object-cover w-full h-full" />
-                    </div>
-                    <div className="mt-2 text-center">
-                      <p className="font-semibold text-sm leading-tight">{page.label}</p>
-                    </div>
-                  </div>
-                ))}
               </div>
             </CardContent>
           </Card>
@@ -367,16 +369,16 @@ export default function ProposalSettings() {
               <div className="space-y-2">
                 <Label>Inflação Energética Anual (%)</Label>
                 <Input
-                  value={formData.indicators.inflation}
-                  onChange={(e) => handleNestedChange('indicators', 'inflation', e.target.value)}
+                  value={indicators.inflation}
+                  onChange={(e) => setIndicators({ ...indicators, inflation: e.target.value })}
                   type="number"
                 />
               </div>
               <div className="space-y-2">
                 <Label>Taxa de Juros de Oportunidade (%)</Label>
                 <Input
-                  value={formData.indicators.interest}
-                  onChange={(e) => handleNestedChange('indicators', 'interest', e.target.value)}
+                  value={indicators.interest}
+                  onChange={(e) => setIndicators({ ...indicators, interest: e.target.value })}
                   type="number"
                 />
               </div>
