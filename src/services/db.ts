@@ -44,6 +44,18 @@ export const deleteLead = async (id: string) => {
   return await pb.collection('leads').delete(id)
 }
 
+export const getCepCache = async (cep: string) => {
+  try {
+    return await pb.collection('cep_cache').getFirstListItem(`cep='${cep}'`)
+  } catch {
+    return null
+  }
+}
+
+export const createCepCache = async (data: any) => {
+  return await pb.collection('cep_cache').create(data)
+}
+
 export const getProposals = async () => {
   return await pb.collection('proposals').getFullList({ sort: '-created' })
 }

@@ -18,6 +18,7 @@ export const Collections = {
   PV_COSTS: 'pv_costs',
   SYSTEM_SETTINGS: 'system_settings',
   PV_EFFICIENCY_RULES: 'pv_efficiency_rules',
+  CEP_CACHE: 'cep_cache',
 } as const
 
 export type CollectionName = (typeof Collections)[keyof typeof Collections]

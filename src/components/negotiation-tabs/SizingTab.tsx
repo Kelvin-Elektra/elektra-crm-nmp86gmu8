@@ -111,30 +111,31 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
   useEffect(() => {
     if (!neg.company_id) return
 
-    pb.collection('pv_distributors')
-      .getFullList({ filter: `company_id='${neg.company_id}'` })
-      .then(setDistributors)
-      .catch(console.error)
-
-    pb.collection('pv_modules')
-      .getFullList({ filter: `company_id='${neg.company_id}'`, sort: '-power' })
-      .then(setModules)
-      .catch(console.error)
-
-    pb.collection('pv_inverters')
-      .getFullList({ filter: `company_id='${neg.company_id}'`, sort: '-power' })
-      .then(setInverters)
-      .catch(console.error)
-
-    pb.collection('pv_efficiency_rules')
-      .getFirstListItem(`company_id='${neg.company_id}'`)
-      .then((rule) => {
-        setEfficiencyRule(rule)
-        if (sizing.losses === undefined && rule.nominal_loss !== undefined) {
-          setLosses(formatNumber(rule.nominal_loss))
+    Promise.all([
+      pb.collection('pv_distributors').getFullList({ filter: `company_id='${neg.company_id}'` }),
+      pb
+        .collection('pv_modules')
+        .getFullList({ filter: `company_id='${neg.company_id}'`, sort: '-power' }),
+      pb
+        .collection('pv_inverters')
+        .getFullList({ filter: `company_id='${neg.company_id}'`, sort: '-power' }),
+      pb
+        .collection('pv_efficiency_rules')
+        .getFirstListItem(`company_id='${neg.company_id}'`)
+        .catch(() => null),
+    ])
+      .then(([dists, mods, invs, rule]) => {
+        setDistributors(dists)
+        setModules(mods)
+        setInverters(invs)
+        if (rule) {
+          setEfficiencyRule(rule)
+          if (sizing.losses === undefined && rule.nominal_loss !== undefined) {
+            setLosses(formatNumber(rule.nominal_loss))
+          }
         }
       })
-      .catch(() => {})
+      .catch(console.error)
   }, [neg.company_id, sizing.losses])
 
   useEffect(() => {
