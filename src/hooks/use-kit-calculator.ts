@@ -17,16 +17,37 @@ export async function calculateKitPrice(
   try {
     const sizing = neg.sizing || {}
     const installationId = sizing.installation_id || null
-    const totalModules = Number(sizing.total_modules || 0)
-    const totalKwp = Number(sizing.system_power || sizing.total_kwp || sizing.power || 0)
-    const totalMppt = Number(sizing.total_mppt || 0)
-    const distributorId = sizing.distributor_id || null
+    const distributorId = sizing.selected_distributor_id || sizing.distributor_id || null
 
-    const [supplies, rules] = await Promise.all([
+    const [supplies, rules, allInverters, allModules] = await Promise.all([
       pb.collection('pv_supplies').getFullList({ filter: `company_id = '${neg.company_id}'` }),
       pb.collection('pv_supply_rules').getFullList({ filter: `company_id = '${neg.company_id}'` }),
+      pb.collection('pv_inverters').getFullList({ filter: `company_id = '${neg.company_id}'` }),
+      pb.collection('pv_modules').getFullList({ filter: `company_id = '${neg.company_id}'` }),
     ])
 
+    let totalModules = Number(sizing.module_qty || sizing.total_modules || 0)
+    if (neg.use_roof_faces && Array.isArray(neg.roof_faces_data)) {
+      totalModules = neg.roof_faces_data.reduce(
+        (acc: number, f: any) => acc + (Number(f.modules) || 0),
+        0,
+      )
+    }
+
+    let totalKwp = Number(
+      sizing.kit_power_kwp || sizing.system_power || sizing.total_kwp || sizing.power || 0,
+    )
+    let modPowerW = 0
+    if (sizing.selected_module_id) {
+      const mod = allModules.find((m) => m.id === sizing.selected_module_id)
+      if (mod) modPowerW = Number(mod.power || 0)
+    }
+
+    if (neg.use_roof_faces && Array.isArray(neg.roof_faces_data) && modPowerW > 0) {
+      totalKwp = (totalModules * modPowerW) / 1000
+    }
+
+    let totalMppt = Number(sizing.total_mppt || 0)
     let total = 0
     const composition: KitCompositionItem[] = []
 
@@ -40,16 +61,48 @@ export async function calculateKitPrice(
           composition.push({ name: m.name || 'Módulo', qty, total: cost, type: 'module' })
         }
       })
+    } else if (sizing.selected_module_id && totalModules > 0) {
+      const mod = allModules.find((m) => m.id === sizing.selected_module_id)
+      if (mod) {
+        const qty = totalModules
+        const price = Number(mod.price || 0)
+        const cost = qty * price
+        total += cost
+        composition.push({
+          name: mod.brand ? `${mod.brand} ${mod.power}W` : 'Módulo',
+          qty,
+          total: cost,
+          type: 'module',
+        })
+      }
     }
 
     if (Array.isArray(sizing.inverters)) {
       sizing.inverters.forEach((inv: any) => {
-        const qty = Number(inv.quantity || 0)
-        const price = Number(inv.price || 0)
-        if (qty > 0) {
-          const cost = qty * price
-          total += cost
-          composition.push({ name: inv.name || 'Inversor', qty, total: cost, type: 'inverter' })
+        const iData = allInverters.find((i) => i.id === inv.id)
+        if (iData) {
+          const qty = Number(inv.qty || inv.quantity || 0)
+          const price = Number(iData.price || inv.price || 0)
+          const mppt = Number(iData.mppt || 0)
+          totalMppt += mppt * qty
+          if (qty > 0) {
+            const cost = qty * price
+            total += cost
+            composition.push({
+              name: iData.brand ? `${iData.brand} ${iData.power}kW` : inv.name || 'Inversor',
+              qty,
+              total: cost,
+              type: 'inverter',
+            })
+          }
+        } else {
+          const qty = Number(inv.quantity || inv.qty || 0)
+          const price = Number(inv.price || 0)
+          if (qty > 0) {
+            const cost = qty * price
+            total += cost
+            composition.push({ name: inv.name || 'Inversor', qty, total: cost, type: 'inverter' })
+          }
         }
       })
     }
@@ -76,19 +129,45 @@ export async function calculateKitPrice(
       }
 
       const appliedRule = exactInstRules.find(checkRange) || anyInstRules.find(checkRange)
-
       const calcBase = appliedRule ? appliedRule.calc_base : supply.calc_base
-      const multiplier = appliedRule ? appliedRule.multiplier : supply.multiplier
-      const price = Number(supply.price || 0)
 
       let qty = 0
-      if (calcBase === 'modules') qty = totalModules * multiplier
-      else if (calcBase === 'kwp') qty = totalKwp * multiplier
-      else if (calcBase === 'mppt') qty = totalMppt * multiplier
-      else if (calcBase === 'fixed') qty = multiplier
+      let cost = 0
 
-      if (qty > 0) {
-        const cost = qty * price
+      if (appliedRule) {
+        const ruleMultiplier = Number(appliedRule.multiplier || 0)
+        if (calcBase === 'modules') {
+          qty = totalModules
+          cost = ruleMultiplier * totalModules
+        } else if (calcBase === 'kwp') {
+          qty = totalKwp
+          cost = ruleMultiplier * totalKwp
+        } else if (calcBase === 'mppt') {
+          qty = totalMppt
+          cost = ruleMultiplier * totalMppt
+        } else if (calcBase === 'fixed') {
+          qty = 1
+          cost = ruleMultiplier
+        }
+      } else {
+        const supplyMultiplier = Number(supply.multiplier || 1)
+        const supplyPrice = Number(supply.price || 0)
+        if (calcBase === 'modules') {
+          qty = totalModules * supplyMultiplier
+          cost = qty * supplyPrice
+        } else if (calcBase === 'kwp') {
+          qty = totalKwp * supplyMultiplier
+          cost = qty * supplyPrice
+        } else if (calcBase === 'mppt') {
+          qty = totalMppt * supplyMultiplier
+          cost = qty * supplyPrice
+        } else if (calcBase === 'fixed') {
+          qty = supplyMultiplier
+          cost = qty * supplyPrice
+        }
+      }
+
+      if (qty > 0 && cost > 0) {
         total += cost
         composition.push({
           name: supply.name,
@@ -113,6 +192,8 @@ export function useKitCalculator(neg: any) {
   const [loading, setLoading] = useState(false)
 
   const sizingStr = JSON.stringify(neg?.sizing || {})
+  const roofFacesStr = JSON.stringify(neg?.roof_faces_data || [])
+  const useRoofFaces = neg?.use_roof_faces
 
   useEffect(() => {
     let isMounted = true
@@ -135,7 +216,7 @@ export function useKitCalculator(neg: any) {
       isMounted = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sizingStr, neg?.company_id])
+  }, [sizingStr, roofFacesStr, useRoofFaces, neg?.company_id])
 
   return { kitPrice, kitComposition, loading }
 }
