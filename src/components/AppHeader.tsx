@@ -34,17 +34,13 @@ export function AppHeader() {
     const loadLogos = async () => {
       try {
         let logoUrl = null
-        if (user?.company_id) {
-          const company = await pb.collection('companies').getOne(user.company_id)
-          if (company.logo) {
-            logoUrl = pb.files.getURL(company, company.logo)
-          }
-        }
-        if (!logoUrl) {
+        try {
           const sysSettings = await pb.collection('system_settings').getFirstListItem('')
           if (sysSettings?.logo) {
             logoUrl = pb.files.getURL(sysSettings, sysSettings.logo)
           }
+        } catch {
+          /* intentionally ignored */
         }
         setCompanyLogo(logoUrl)
       } catch (err) {
@@ -56,15 +52,8 @@ export function AppHeader() {
     loadLogos()
   }, [user?.company_id])
 
-  useRealtime('companies', (e) => {
-    if (e.record.id === user?.company_id) {
-      if (e.record.logo) {
-        setCompanyLogo(pb.files.getURL(e.record, e.record.logo))
-      }
-    }
-  })
   useRealtime('system_settings', (e) => {
-    if (e.record.logo && (!user?.company_id || !companyLogo)) {
+    if (e.record.logo) {
       setCompanyLogo(pb.files.getURL(e.record, e.record.logo))
     }
   })
@@ -80,18 +69,13 @@ export function AppHeader() {
       </div>
 
       <div className="flex items-center gap-4">
-        {isLoaded &&
-          (companyLogo ? (
-            <img
-              src={companyLogo}
-              alt="Company Logo"
-              className="h-8 object-contain hidden md:block rounded-md"
-            />
-          ) : (
-            <span className="font-bold text-lg hidden md:block text-primary tracking-tight">
-              Elektra CRM
-            </span>
-          ))}
+        {isLoaded && companyLogo && (
+          <img
+            src={companyLogo}
+            alt="Company Logo"
+            className="h-8 object-contain hidden md:block rounded-md"
+          />
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-9 w-9 rounded-full">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -24,6 +24,7 @@ import {
   Trash2,
   AlertTriangle,
   HelpCircle,
+  BarChart3,
 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -38,40 +39,25 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { getOrFetchHsp } from '@/services/hsp'
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from 'recharts'
 
-const getHspByState = (state: string) => {
-  if (!state) return 4.94
-  const map: Record<string, number> = {
-    AC: 4.8,
-    AL: 4.6,
-    AP: 4.5,
-    AM: 4.8,
-    BA: 4.7,
-    CE: 5.3,
-    DF: 4.5,
-    ES: 5.1,
-    GO: 5.2,
-    MA: 4.6,
-    MT: 5.2,
-    MS: 5.1,
-    MG: 5.3,
-    PA: 5.0,
-    PB: 4.8,
-    PR: 5.2,
-    PE: 5.4,
-    PI: 5.4,
-    RJ: 4.8,
-    RN: 5.4,
-    RS: 4.5,
-    RO: 5.5,
-    RR: 4.7,
-    SC: 4.3,
-    SP: 4.6,
-    SE: 5.3,
-    TO: 4.7,
-  }
-  return map[state.toUpperCase()] || 4.94
-}
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+const MONTH_LABELS = [
+  'Jan',
+  'Fev',
+  'Mar',
+  'Abr',
+  'Mai',
+  'Jun',
+  'Jul',
+  'Ago',
+  'Set',
+  'Out',
+  'Nov',
+  'Dez',
+]
+const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
 export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
   const { toast } = useToast()
@@ -82,7 +68,7 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
   const [modules, setModules] = useState<any[]>([])
   const [inverters, setInverters] = useState<any[]>([])
   const [efficiencyRule, setEfficiencyRule] = useState<any>(null)
-  const [fetchedHsp, setFetchedHsp] = useState<number | null>(null)
+  const [fetchedHspRecord, setFetchedHspRecord] = useState<any>(null)
 
   const parseNumber = (val: string) => (val ? Number(val.replace(',', '.')) : null)
   const formatNumber = (val: number | string | null | undefined) =>
@@ -102,11 +88,16 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
     sizing.selected_distributor_id || 'none',
   )
   const [selectedModuleId, setSelectedModuleId] = useState(sizing.selected_module_id || 'none')
-  const [selectedInverterId, setSelectedInverterId] = useState(
-    sizing.selected_inverter_id || 'none',
+
+  const [selectedInverters, setSelectedInverters] = useState<{ id: string; qty: number }[]>(
+    sizing.inverters?.length
+      ? sizing.inverters
+      : sizing.selected_inverter_id
+        ? [{ id: sizing.selected_inverter_id, qty: 1 }]
+        : [],
   )
 
-  const [moduleQty, setModuleQty] = useState(
+  const [manualModuleQty, setManualModuleQty] = useState(
     sizing.module_qty !== undefined ? String(sizing.module_qty) : '',
   )
 
@@ -151,10 +142,10 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
     const state = sizing.address_struct?.state || neg.state
     if (city && state) {
       getOrFetchHsp(city, state)
-        .then((ann) => {
-          if (ann) setFetchedHsp(ann)
+        .then((rec) => {
+          if (rec) setFetchedHspRecord(rec)
         })
-        .catch(() => setFetchedHsp(null))
+        .catch(() => setFetchedHspRecord(null))
     }
   }, [sizing.address_struct?.city, sizing.address_struct?.state, neg.city, neg.state])
 
@@ -170,7 +161,7 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
   const handleDistributorChange = (val: string) => {
     setSelectedDistributorId(val)
     setSelectedModuleId('none')
-    setSelectedInverterId('none')
+    setSelectedInverters([])
   }
 
   const filteredModules =
@@ -184,7 +175,7 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
 
   const orientationOptions = efficiencyRule?.orientation_losses || []
 
-  const hspNum = fetchedHsp || getHspByState(sizing.address_struct?.state || neg.state)
+  const hspNum = fetchedHspRecord?.annual_avg || 4.94
   const nominalLossesNum = parseNumber(losses) || 0
   const additionalLossesNum = enableAdditionalLosses ? parseNumber(additionalLosses) || 0 : 0
   const totalLossesNum = nominalLossesNum + additionalLossesNum
@@ -193,6 +184,7 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
   const selectedModule = modules.find((m) => m.id === selectedModuleId)
   const modulePowerW = selectedModule ? selectedModule.power : 0
 
+  let suggestedModules = 0
   let actualModuleQty = 0
   let estMonthlyGen = 0
 
@@ -210,9 +202,8 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
       hspNum > 0 && 1 - totalLossesNum / 100 > 0
         ? avgConsumption / 30 / (hspNum * (1 - totalLossesNum / 100))
         : 0
-    const suggestedModules =
-      modulePowerW > 0 ? Math.ceil((suggestedPowerKwp * 1000) / modulePowerW) : 0
-    actualModuleQty = moduleQty ? Number(moduleQty) : suggestedModules
+    suggestedModules = modulePowerW > 0 ? Math.ceil((suggestedPowerKwp * 1000) / modulePowerW) : 0
+    actualModuleQty = manualModuleQty ? Number(manualModuleQty) : suggestedModules
 
     const kitPowerKwp = (actualModuleQty * modulePowerW) / 1000
     const totalLossFactor = 1 - totalLossesNum / 100
@@ -221,6 +212,57 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
 
   const kitPowerKwp = (actualModuleQty * modulePowerW) / 1000
   const isInsufficient = estMonthlyGen > 0 && estMonthlyGen < avgConsumption
+
+  const monthlyGeneration = useMemo(() => {
+    return MONTHS.map((monthKey, idx) => {
+      const days = DAYS_IN_MONTH[idx]
+      const hspM = fetchedHspRecord?.[monthKey] || hspNum
+      let gen = 0
+      if (useRoofFaces) {
+        roofFaces.forEach((face) => {
+          const facePowerKwp = ((Number(face.modules) || 0) * modulePowerW) / 1000
+          const faceOrient = orientationOptions.find((o: any) => o.orientation === face.orientation)
+          const orientLoss = faceOrient ? Number(faceOrient.loss) || 0 : 0
+          const totalLossFactor = (1 - totalLossesNum / 100) * (1 - orientLoss / 100)
+          gen += hspM * facePowerKwp * totalLossFactor * days
+        })
+      } else {
+        const totalLossFactor = 1 - totalLossesNum / 100
+        gen = hspM * kitPowerKwp * totalLossFactor * days
+      }
+      return { month: MONTH_LABELS[idx], geracao: Math.round(gen) }
+    })
+  }, [
+    fetchedHspRecord,
+    hspNum,
+    useRoofFaces,
+    roofFaces,
+    modulePowerW,
+    kitPowerKwp,
+    totalLossesNum,
+    orientationOptions,
+  ])
+
+  const chartConfig = {
+    geracao: {
+      label: 'Geração (kWh)',
+      color: 'hsl(var(--primary))',
+    },
+  }
+
+  const handleAddInverter = () => {
+    setSelectedInverters([...selectedInverters, { id: 'none', qty: 1 }])
+  }
+  const handleRemoveInverter = (idx: number) => {
+    const newInvs = [...selectedInverters]
+    newInvs.splice(idx, 1)
+    setSelectedInverters(newInvs)
+  }
+  const handleInverterChange = (idx: number, field: string, val: string | number) => {
+    const newInvs = [...selectedInverters]
+    newInvs[idx] = { ...newInvs[idx], [field]: val }
+    setSelectedInverters(newInvs)
+  }
 
   const handleSaveBtn = () => {
     if (isInsufficient) {
@@ -234,6 +276,8 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
     setLoading(true)
     setShowWarningDialog(false)
     try {
+      const cleanInverters = selectedInverters.filter((i) => i.id !== 'none' && i.qty > 0)
+
       const cleanSizing = {
         ...sizing,
         hsp: hspNum,
@@ -242,7 +286,8 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
         additional_losses: additionalLossesNum,
         selected_distributor_id: selectedDistributorId === 'none' ? null : selectedDistributorId,
         selected_module_id: selectedModuleId === 'none' ? null : selectedModuleId,
-        selected_inverter_id: selectedInverterId === 'none' ? null : selectedInverterId,
+        inverters: cleanInverters,
+        selected_inverter_id: cleanInverters.length > 0 ? cleanInverters[0].id : null,
         module_qty: actualModuleQty,
         kit_power_kwp: kitPowerKwp,
         est_monthly_gen: estMonthlyGen,
@@ -300,7 +345,7 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>HSP (Horas de Sol Pico)</Label>
+                <Label>HSP Anual</Label>
                 <Input
                   type="text"
                   value={formatNumber(hspNum)}
@@ -308,9 +353,6 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
                   disabled
                   className="bg-muted/50 cursor-not-allowed"
                 />
-                <p className="text-[10px] text-muted-foreground leading-tight mt-1">
-                  Fonte: Atlas Brasileiro de Energia Solar (2017) - LABREN / CCST / INPE
-                </p>
               </div>
               <div className="space-y-2">
                 <Label>Perdas Nominais (%)</Label>
@@ -472,7 +514,7 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Distribuidora (Filtro)</Label>
+              <Label>Distribuidora</Label>
               <Select value={selectedDistributorId} onValueChange={handleDistributorChange}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o distribuidor..." />
@@ -488,8 +530,8 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>Módulo Fotovoltaico</Label>
+            <div className="space-y-2 pt-2 border-t">
+              <Label className="font-semibold text-base">Módulo Fotovoltaico</Label>
               <Select
                 value={selectedModuleId}
                 onValueChange={setSelectedModuleId}
@@ -499,7 +541,7 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
                   <SelectValue
                     placeholder={
                       selectedDistributorId === 'none'
-                        ? 'Selecione o distribuidor primeiro'
+                        ? 'Selecione a distribuidora'
                         : 'Selecione o módulo...'
                     }
                   />
@@ -515,57 +557,102 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>Inversor</Label>
-              <Select
-                value={selectedInverterId}
-                onValueChange={setSelectedInverterId}
-                disabled={selectedDistributorId === 'none'}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      selectedDistributorId === 'none'
-                        ? 'Selecione o distribuidor primeiro'
-                        : 'Selecione o inversor...'
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Não selecionado</SelectItem>
-                  {filteredInverters.map((i) => (
-                    <SelectItem key={i.id} value={i.id}>
-                      {i.brand} - {i.name} ({i.power}kW)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             {!useRoofFaces && (
-              <div className="grid grid-cols-2 gap-4 pt-2">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Qtde. de Módulos</Label>
+                  <Label>Módulos (Sugerido)</Label>
+                  <Input
+                    type="number"
+                    value={suggestedModules}
+                    readOnly
+                    disabled
+                    className="bg-muted/50 cursor-not-allowed"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Módulos (Final)</Label>
                   <Input
                     type="number"
                     min="0"
-                    value={moduleQty}
+                    value={manualModuleQty}
                     onChange={(e) => {
                       const val = Number(e.target.value)
-                      if (val >= 0) setModuleQty(String(val))
+                      if (val >= 0) setManualModuleQty(String(val))
+                      else if (e.target.value === '') setManualModuleQty('')
                     }}
-                    placeholder="Auto"
+                    placeholder="Auto..."
                   />
                 </div>
               </div>
             )}
+
+            <div className="space-y-3 pt-4 border-t">
+              <div className="flex items-center justify-between">
+                <Label className="font-semibold text-base">Inversores</Label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddInverter}
+                  disabled={selectedDistributorId === 'none'}
+                >
+                  <Plus className="h-4 w-4 mr-2" /> Inversor
+                </Button>
+              </div>
+
+              {selectedInverters.length === 0 && (
+                <div className="text-sm text-muted-foreground italic">
+                  Nenhum inversor selecionado.
+                </div>
+              )}
+
+              {selectedInverters.map((inv, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <Select
+                      value={inv.id}
+                      onValueChange={(val) => handleInverterChange(idx, 'id', val)}
+                      disabled={selectedDistributorId === 'none'}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Selecione o inversor..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Não selecionado</SelectItem>
+                        {filteredInverters.map((i) => (
+                          <SelectItem key={i.id} value={i.id}>
+                            {i.brand} - {i.name} ({i.power}kW)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="w-20">
+                    <Input
+                      type="number"
+                      min="1"
+                      className="h-9 text-center"
+                      value={inv.qty}
+                      onChange={(e) => handleInverterChange(idx, 'qty', Number(e.target.value))}
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 text-destructive"
+                    onClick={() => handleRemoveInverter(idx)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       </div>
 
       <Card className="bg-primary/5 border-primary/20">
         <CardContent className="p-6">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center sm:text-left">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center sm:text-left mb-6">
             <div>
               <p className="text-sm text-muted-foreground font-medium mb-1">Arranjo Fotovoltaico</p>
               <p className="text-xl font-semibold">
@@ -581,7 +668,7 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
             </div>
             <div>
               <p className="text-sm text-muted-foreground font-medium mb-1 flex items-center justify-center sm:justify-start gap-1">
-                <Battery className="w-4 h-4" /> Geração Estimada
+                <Battery className="w-4 h-4" /> Geração Estimada Média
               </p>
               <p
                 className={`text-xl font-bold ${isInsufficient ? 'text-destructive' : 'text-green-600 dark:text-green-500'}`}
@@ -591,7 +678,41 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
             </div>
           </div>
 
-          <div className="flex justify-end mt-6">
+          <div className="pt-6 border-t border-primary/10">
+            <h3 className="flex items-center gap-2 font-semibold text-lg mb-4">
+              <BarChart3 className="w-5 h-5 text-primary" /> Estimativa de Geração Mensal
+            </h3>
+            <div className="h-[250px] w-full">
+              <ChartContainer config={chartConfig} className="h-[250px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={monthlyGeneration}
+                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      stroke="hsl(var(--muted))"
+                    />
+                    <XAxis
+                      dataKey="month"
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 12 }}
+                    />
+                    <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="geracao" fill="var(--color-geracao)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            </div>
+            <p className="text-[10px] text-muted-foreground text-center mt-2">
+              Fonte: Atlas Brasileiro de Energia Solar (2017) - LABREN / CCST / INPE
+            </p>
+          </div>
+
+          <div className="flex justify-end mt-6 pt-4 border-t border-primary/10">
             <Button onClick={handleSaveBtn} disabled={loading} size="lg">
               <Save className="w-4 h-4 mr-2" /> Salvar Dimensionamento
             </Button>

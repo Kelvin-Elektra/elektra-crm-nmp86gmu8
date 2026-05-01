@@ -241,7 +241,7 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
   const handleLeadSave = async (field: string, value: any, label: string) => {
     try {
       await pb.collection('leads').update(lead.id, { [field]: value })
-      toast({ description: `Valor salvo: ${label}` })
+      toast({ description: `Valor salvo com sucesso: ${label}` })
     } catch {
       /* intentionally ignored */
     }
@@ -250,7 +250,7 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
   const handleNegSave = async (field: string, value: any, label: string) => {
     try {
       await pb.collection('negotiations').update(neg.id, { [field]: value })
-      toast({ description: `Valor salvo: ${label}` })
+      toast({ description: `Valor salvo com sucesso: ${label}` })
     } catch {
       /* intentionally ignored */
     }
@@ -269,7 +269,7 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
         city_id: addr.city_id,
         sizing: { ...neg.sizing, address_struct: addr },
       })
-      toast({ description: 'Valor salvo: Endereço' })
+      toast({ description: 'Valor salvo com sucesso: Endereço' })
     } catch {
       /* intentionally ignored */
     }
@@ -283,7 +283,7 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
         utility_id: uid,
         concessionaire: selectedUtilName,
       })
-      toast({ description: 'Valor salvo: Concessionária' })
+      toast({ description: 'Valor salvo com sucesso: Concessionária' })
     } catch {
       /* intentionally ignored */
     }
@@ -356,9 +356,12 @@ export function ClientDetailsTab({ neg, reload }: { neg: any; reload?: () => voi
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>Nome Completo / Razão Social</Label>
-              <div className="flex items-center gap-3 bg-muted/50 p-2 rounded-md">
-                <User className="h-5 w-5 text-muted-foreground" />
-                <span className="font-medium">{lead.name || 'Não informado'}</span>
+              <div className="flex gap-2 items-center">
+                <User className="h-5 w-5 text-muted-foreground shrink-0" />
+                <Input
+                  defaultValue={lead.name || ''}
+                  onBlur={(e) => handleLeadSave('name', e.target.value, 'Nome')}
+                />
               </div>
             </div>
             <div className="space-y-1">

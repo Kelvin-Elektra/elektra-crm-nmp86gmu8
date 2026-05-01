@@ -14,7 +14,7 @@ export async function getOrFetchHsp(city: string, state: string) {
     const record = await pb
       .collection('pv_hsp_data')
       .getFirstListItem(`state='${state}' && city~'${city}'`)
-    return record.annual_avg
+    return record
   } catch (error) {
     return null
   }

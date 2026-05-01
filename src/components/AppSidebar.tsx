@@ -31,7 +31,7 @@ export function AppSidebar() {
 
   const isAdmin = user?.role === 'admin_elektra' || user?.role === 'admin_company'
   const [sysLogo, setSysLogo] = useState<string | null>(null)
-  const [sysName, setSysName] = useState('Elektra CRM')
+  const [sysName, setSysName] = useState('')
 
   useEffect(() => {
     setOpen(false)
@@ -61,22 +61,20 @@ export function AppSidebar() {
       <SidebarHeader className="h-16 flex items-center justify-center border-b border-sidebar-border/50 p-0">
         <div className="flex items-center justify-center w-full h-full px-2 overflow-hidden">
           <div className="flex items-center gap-3 w-full px-1">
-            <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 overflow-hidden bg-primary/5">
-              {sysLogo ? (
+            {sysLogo ? (
+              <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 overflow-hidden bg-primary/5">
                 <img
                   src={sysLogo}
                   alt={`Logo ${sysName}`}
                   className="h-full w-full object-contain"
                 />
-              ) : (
-                <span className="font-bold text-primary text-xs">
-                  {sysName.substring(0, 2).toUpperCase()}
-                </span>
-              )}
-            </div>
-            <span className="font-bold text-lg tracking-tight truncate group-data-[collapsible=icon]:hidden transition-opacity duration-200">
-              {sysName}
-            </span>
+              </div>
+            ) : null}
+            {sysName && (
+              <span className="font-bold text-lg tracking-tight truncate group-data-[collapsible=icon]:hidden transition-opacity duration-200">
+                {sysName}
+              </span>
+            )}
           </div>
         </div>
       </SidebarHeader>
