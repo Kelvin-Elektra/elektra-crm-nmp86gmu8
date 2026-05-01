@@ -47,6 +47,8 @@ export async function calculateKitPrice(
       totalKwp = (totalModules * modPowerW) / 1000
     }
 
+    totalKwp = Math.round(totalKwp * 10000) / 10000
+
     let totalMppt = Number(sizing.total_mppt || 0)
     let total = 0
     const composition: KitCompositionItem[] = []
@@ -111,8 +113,14 @@ export async function calculateKitPrice(
       if (supply.distributor_id && distributorId && supply.distributor_id !== distributorId) return
 
       const matchingRules = rules.filter((r) => r.supply_id === supply.id)
-      const exactInstRules = matchingRules.filter((r) => r.installation_id === installationId)
-      const anyInstRules = matchingRules.filter((r) => !r.installation_id)
+
+      const normInstId = (id: any) => id || ''
+      const safeInstId = normInstId(installationId)
+
+      const exactInstRules = matchingRules.filter(
+        (r) => normInstId(r.installation_id) === safeInstId,
+      )
+      const anyInstRules = matchingRules.filter((r) => !normInstId(r.installation_id))
 
       const checkRange = (r: any) => {
         if (r.range_type === 'modules') {
@@ -129,43 +137,26 @@ export async function calculateKitPrice(
       }
 
       const appliedRule = exactInstRules.find(checkRange) || anyInstRules.find(checkRange)
-      const calcBase = appliedRule ? appliedRule.calc_base : supply.calc_base
+
+      if (!appliedRule) return // Strict rule-based calculation, no fallbacks
+
+      const calcBase = appliedRule.calc_base
+      const ruleMultiplier = Number(appliedRule.multiplier || 0)
+      const supplyPrice = Number(supply.price || 0)
 
       let qty = 0
-      let cost = 0
 
-      if (appliedRule) {
-        const ruleMultiplier = Number(appliedRule.multiplier || 0)
-        if (calcBase === 'modules') {
-          qty = totalModules
-          cost = ruleMultiplier * totalModules
-        } else if (calcBase === 'kwp') {
-          qty = totalKwp
-          cost = ruleMultiplier * totalKwp
-        } else if (calcBase === 'mppt') {
-          qty = totalMppt
-          cost = ruleMultiplier * totalMppt
-        } else if (calcBase === 'fixed') {
-          qty = 1
-          cost = ruleMultiplier
-        }
-      } else {
-        const supplyMultiplier = Number(supply.multiplier || 1)
-        const supplyPrice = Number(supply.price || 0)
-        if (calcBase === 'modules') {
-          qty = totalModules * supplyMultiplier
-          cost = qty * supplyPrice
-        } else if (calcBase === 'kwp') {
-          qty = totalKwp * supplyMultiplier
-          cost = qty * supplyPrice
-        } else if (calcBase === 'mppt') {
-          qty = totalMppt * supplyMultiplier
-          cost = qty * supplyPrice
-        } else if (calcBase === 'fixed') {
-          qty = supplyMultiplier
-          cost = qty * supplyPrice
-        }
+      if (calcBase === 'modules') {
+        qty = totalModules * ruleMultiplier
+      } else if (calcBase === 'kwp') {
+        qty = totalKwp * ruleMultiplier
+      } else if (calcBase === 'mppt') {
+        qty = totalMppt * ruleMultiplier
+      } else if (calcBase === 'fixed') {
+        qty = ruleMultiplier
       }
+
+      const cost = qty * supplyPrice
 
       if (qty > 0 && cost > 0) {
         total += cost
@@ -174,7 +165,7 @@ export async function calculateKitPrice(
           qty,
           total: cost,
           type: 'supply',
-          ruleApplied: !!appliedRule,
+          ruleApplied: true,
         })
       }
     })
