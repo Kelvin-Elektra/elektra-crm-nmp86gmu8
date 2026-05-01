@@ -28,6 +28,8 @@ export function SizingOrientationModal({
   reload,
   efficiencyRule,
   recommendedModules,
+  estMonthlyGen,
+  avgConsumption,
 }: any) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
@@ -76,6 +78,21 @@ export function SizingOrientationModal({
             <Label>Considerar orientação das faces</Label>
             <Switch checked={useRoofFaces} onCheckedChange={setUseRoofFaces} />
           </div>
+          {estMonthlyGen !== undefined && avgConsumption !== undefined && (
+            <div className="flex justify-between items-center text-sm p-3 rounded bg-muted/30 border">
+              <span>
+                Geração Estimada:{' '}
+                <strong
+                  className={estMonthlyGen < avgConsumption ? 'text-destructive' : 'text-green-600'}
+                >
+                  {Math.round(estMonthlyGen)} kWh/mês
+                </strong>
+              </span>
+              <span>
+                Consumo Médio: <strong>{Math.round(avgConsumption)} kWh/mês</strong>
+              </span>
+            </div>
+          )}
           {useRoofFaces && (
             <div className="space-y-3 bg-muted/30 p-3 rounded-lg border">
               {recommendedModules > 0 && (

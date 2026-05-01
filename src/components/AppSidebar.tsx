@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { LayoutDashboard, Columns3, Users, Briefcase, FileText, Settings, Zap } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import {
   Sidebar,
   SidebarContent,
@@ -62,13 +63,22 @@ export function AppSidebar() {
         <div className="flex items-center justify-center w-full h-full px-2 overflow-hidden">
           <div className="flex items-center gap-3 w-full px-1">
             {sysLogo ? (
-              <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 overflow-hidden bg-primary/5">
-                <img
-                  src={sysLogo}
-                  alt={`Logo ${sysName}`}
-                  className="h-full w-full object-contain"
-                />
-              </div>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 overflow-hidden bg-transparent cursor-help">
+                      <img
+                        src={sysLogo}
+                        alt={`Logo ${sysName}`}
+                        className="h-full w-full object-contain bg-transparent"
+                      />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    <p>CRM de Vendas. Uma solução do grupo Elektra Engenharia & Soluções</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             ) : null}
             {sysName && (
               <span className="font-bold text-lg tracking-tight truncate group-data-[collapsible=icon]:hidden transition-opacity duration-200">

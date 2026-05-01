@@ -28,31 +28,175 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
   const [discount, setDiscount] = useState<number>(0)
 
   const [totalValue, setTotalValue] = useState(0)
+  const [pricingDetails, setPricingDetails] = useState<any>(null)
 
   useEffect(() => {
     if (open && step === 1) {
       setValidity(new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0])
       setStep(1)
-
-      pb.collection('pv_modules')
-        .getOne(neg.sizing?.selected_module_id || '')
-        .then((mod) => {
-          pb.collection('pv_inverters')
-            .getOne(neg.sizing?.selected_inverter_id || '')
-            .then((inv) => {
-              const baseCost = (mod?.price || 0) * (neg.sizing?.module_qty || 0) + (inv?.price || 0)
-              const price = baseCost > 0 ? baseCost * 1.4 : (neg.sizing?.kit_power_kwp || 0) * 3500
-              setTotalValue(price)
-            })
-            .catch(() => {
-              setTotalValue((neg.sizing?.kit_power_kwp || 0) * 3500)
-            })
-        })
-        .catch(() => {
-          setTotalValue((neg.sizing?.kit_power_kwp || 0) * 3500)
-        })
+      calculatePricing()
     }
-  }, [open, neg.sizing])
+  }, [open])
+
+  const calculatePricing = async () => {
+    try {
+      setLoading(true)
+      const companyId = neg.company_id
+      const sizing = neg.sizing || {}
+
+      const modRec = sizing.selected_module_id
+        ? await pb
+            .collection('pv_modules')
+            .getOne(sizing.selected_module_id)
+            .catch(() => null)
+        : null
+      const invs = await Promise.all(
+        (sizing.inverters || []).map(async (i: any) => {
+          const rec = await pb
+            .collection('pv_inverters')
+            .getOne(i.id)
+            .catch(() => null)
+          return { ...rec, qty: i.qty }
+        }),
+      )
+
+      const settings = await pb
+        .collection('proposal_settings')
+        .getFirstListItem(`company_id='${companyId}'`)
+        .catch(() => ({}))
+      const pv_supplies = await pb
+        .collection('pv_supplies')
+        .getFullList({ filter: `company_id='${companyId}'` })
+        .catch(() => [])
+      const pv_costs = await pb
+        .collection('pv_costs')
+        .getFullList({ filter: `company_id='${companyId}'` })
+        .catch(() => [])
+
+      const moduleCost = (modRec?.price || 0) * (sizing.module_qty || 0)
+      const inverterCost = invs.reduce((acc, i) => acc + (i?.price || 0) * i.qty, 0)
+
+      let suppliesCost = 0
+      const baseKwp = sizing.kit_power_kwp || 0
+      const baseMods = sizing.module_qty || 0
+      const baseKw = invs.reduce((acc, i) => acc + (i?.power || 0) * i.qty, 0)
+      const instId = sizing.installation_id || 'none'
+
+      pv_supplies.forEach((s) => {
+        let matched = true
+        if (
+          s.range_type === 'kwp' &&
+          (baseKwp < (s.min_val || 0) || (s.max_val && baseKwp > s.max_val))
+        )
+          matched = false
+        if (
+          s.range_type === 'modules' &&
+          (baseMods < (s.min_val || 0) || (s.max_val && baseMods > s.max_val))
+        )
+          matched = false
+        if (matched) {
+          if (s.calc_base === 'fixed') suppliesCost += s.price
+          else if (s.calc_base === 'modules')
+            suppliesCost += s.price * baseMods * (s.multiplier || 1)
+          else if (s.calc_base === 'kwp') suppliesCost += s.price * baseKwp * (s.multiplier || 1)
+        }
+      })
+
+      const kitPrice = moduleCost + inverterCost + suppliesCost
+
+      let fixedCosts = 0
+      let varCosts = 0
+      let rateSum = 0
+      let taxSum = 0
+      let marginSum = 0
+
+      const appliedCosts: any[] = []
+
+      pv_costs.forEach((c) => {
+        let matched = true
+        if (
+          c.range_type === 'kwp' &&
+          (baseKwp < (c.min_val || 0) || (c.max_val && baseKwp > c.max_val))
+        )
+          matched = false
+        if (
+          c.range_type === 'modules' &&
+          (baseMods < (c.min_val || 0) || (c.max_val && baseMods > c.max_val))
+        )
+          matched = false
+        if (
+          c.range_type === 'kw' &&
+          (baseKw < (c.min_val || 0) || (c.max_val && baseKw > c.max_val))
+        )
+          matched = false
+        if (c.installation_id && c.installation_id !== instId) matched = false
+
+        if (matched) {
+          let amount = 0
+          if (c.calc_method === 'fixed') {
+            fixedCosts += c.value
+            amount = c.value
+          }
+          if (c.calc_method === 'variable') {
+            let baseVal = 0
+            if (c.calc_base === 'kwp') baseVal = baseKwp
+            else if (c.calc_base === 'modules') baseVal = baseMods
+            else if (c.calc_base === 'kw') baseVal = baseKw
+            amount = (c.multiplier || c.value) * baseVal
+            varCosts += amount
+          }
+          if (c.calc_method === 'rate') rateSum += c.value / 100
+          if (c.calc_method === 'tax') taxSum += c.value / 100
+          if (c.calc_method === 'margin') marginSum += c.value / 100
+
+          appliedCosts.push({ name: c.name, method: c.calc_method, value: c.value, amount })
+        }
+      })
+
+      const C = kitPrice + fixedCosts + varCosts
+      const R = rateSum
+      const M = marginSum
+      const T = taxSum
+
+      let salePrice = 0
+      const billingModel = settings.billing_model || 'direct'
+
+      if (1 - R - M - T <= 0) {
+        toast({
+          variant: 'destructive',
+          title: 'Erro Matemático',
+          description:
+            'A soma das taxas, impostos e margens é >= 100%. Verifique as configurações de custos.',
+        })
+        salePrice = baseKwp * 3500 // fallback
+      } else {
+        if (billingModel === 'intermediated') {
+          salePrice = (C - kitPrice * T) / (1 - R - M - T)
+        } else {
+          salePrice = C / (1 - R - M - T)
+        }
+      }
+
+      setTotalValue(salePrice)
+      setPricingDetails({
+        kitPrice,
+        fixedCosts,
+        varCosts,
+        rateSum,
+        marginSum,
+        taxSum,
+        salePrice,
+        equipment: { modules: modRec, inverters: invs },
+        supplies: suppliesCost,
+        appliedCosts,
+        settings,
+      })
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleNext = () => setStep(2)
   const handlePrev = () => setStep(1)
@@ -72,49 +216,41 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
     try {
       const finalPrice = totalValue * (1 - discount / 100)
 
-      let settings: any = {}
-      try {
-        settings = await pb
-          .collection('proposal_settings')
-          .getFirstListItem(`company_id='${neg.company_id}'`)
-      } catch {
-        /* intentionally ignored */
-      }
-
-      let budgets: any[] = []
-      try {
-        budgets = await pb
-          .collection('budgets')
-          .getFullList({ filter: `negotiation_id='${neg.id}'` })
-      } catch {
-        /* intentionally ignored */
-      }
-
-      const snapshot = {
+      const snapshotData = {
         sizing: neg.sizing || {},
-        settings: {
-          branding: settings.branding || {},
-          pages_layout: settings.pages_layout || [],
-          template: settings.active_template_id || settings.template || 'modern',
-          visible_pages: settings.visible_pages || [],
+        pricing: pricingDetails,
+        template:
+          pricingDetails?.settings?.active_template_id ||
+          pricingDetails?.settings?.template ||
+          'modern',
+        branding: pricingDetails?.settings?.branding || {},
+        pages_layout: pricingDetails?.settings?.pages_layout || [],
+      }
+
+      const cost_breakdown = [
+        {
+          name: 'Kit Fotovoltaico (Equipamentos e Insumos)',
+          cost: pricingDetails.kitPrice,
+          margin: 0,
+          price: pricingDetails.kitPrice,
         },
-      }
-
-      const cost_breakdown = budgets.map((b) => ({
-        name: b.name,
-        cost: b.cost,
-        margin: b.margin,
-        price: b.price,
-      }))
-
-      if (cost_breakdown.length === 0) {
-        cost_breakdown.push({
-          name: 'Sistema Fotovoltaico (Estimado)',
-          cost: totalValue,
-          margin: discount,
-          price: finalPrice,
-        })
-      }
+        {
+          name: 'Custos Operacionais e Serviços',
+          cost: pricingDetails.fixedCosts + pricingDetails.varCosts,
+          margin: 0,
+          price: pricingDetails.fixedCosts + pricingDetails.varCosts,
+        },
+        {
+          name: 'Margens e Taxas Aplicadas',
+          cost: 0,
+          margin: 0,
+          price:
+            totalValue -
+            pricingDetails.kitPrice -
+            pricingDetails.fixedCosts -
+            pricingDetails.varCosts,
+        },
+      ]
 
       const rec = await pb.collection('proposals').create({
         company_id: neg.company_id,
@@ -127,8 +263,9 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         notes: notes,
         discount_amount: discount,
         total_value: finalPrice,
-        kit_details: JSON.stringify(snapshot),
+        kit_details: JSON.stringify(snapshotData),
         cost_breakdown: cost_breakdown,
+        snapshot_data: snapshotData,
       })
 
       toast({ title: 'Proposta gerada com sucesso' })
@@ -148,7 +285,9 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         <DialogHeader>
           <DialogTitle>Gerador de Proposta - Passo {step} de 2</DialogTitle>
           <DialogDescription>
-            {step === 1 ? 'Revisão do Dimensionamento' : 'Ajustes Financeiros e Condições'}
+            {step === 1
+              ? 'Revisão do Dimensionamento Financeiro'
+              : 'Ajustes Financeiros e Condições'}
           </DialogDescription>
         </DialogHeader>
 
@@ -165,15 +304,32 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
                 <span className="text-muted-foreground">Qtd. Módulos:</span>
                 <span className="font-semibold">{neg.sizing?.module_qty || 0}</span>
               </div>
+              <div className="flex justify-between border-b pb-2">
+                <span className="text-muted-foreground">Custo Formado do Kit:</span>
+                <span className="font-semibold">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                    pricingDetails?.kitPrice || 0,
+                  )}
+                </span>
+              </div>
+              <div className="flex justify-between pb-2">
+                <span className="text-muted-foreground">Preço de Venda Base Calculado:</span>
+                <span className="font-bold text-primary">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                    totalValue || 0,
+                  )}
+                </span>
+              </div>
               <p className="text-xs text-muted-foreground mt-4 italic">
-                Para alterar estes itens, retorne à aba "Dimensionamento".
+                A formação de preços utiliza os insumos, regras de custo, impostos e margens
+                configurados no painel de administração.
               </p>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
-              <Button onClick={handleNext}>
+              <Button onClick={handleNext} disabled={loading}>
                 Avançar <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </DialogFooter>
@@ -188,7 +344,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
                 <Input type="date" value={validity} onChange={(e) => setValidity(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label>Desconto (%)</Label>
+                <Label>Desconto Aplicado (%)</Label>
                 <Input
                   type="number"
                   min="0"
@@ -226,7 +382,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
                 <ArrowLeft className="w-4 h-4 mr-2" /> Voltar
               </Button>
               <Button onClick={handleGenerate} disabled={loading}>
-                <FileText className="w-4 h-4 mr-2" /> Gerar PDF
+                <FileText className="w-4 h-4 mr-2" /> Gerar Proposta Congelada
               </Button>
             </DialogFooter>
           </div>

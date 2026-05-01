@@ -11,12 +11,21 @@ import {
   Save,
   FileImage,
   BarChart,
-  Palette,
   Layers,
   GripVertical,
   Trash2,
   Plus,
+  Eye,
+  Settings2,
 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 
 const ELEMENTS = [
   { id: 'cover', label: 'Capa' },
@@ -45,6 +54,10 @@ export default function ProposalSettings() {
   })
   const [pagesLayout, setPagesLayout] = useState<{ id: string; elements: string[] }[]>([])
 
+  const [previewOpen, setPreviewOpen] = useState<string | null>(null)
+  const [brandingModalOpen, setBrandingModalOpen] = useState(false)
+  const [livePreviewOpen, setLivePreviewOpen] = useState<number | null>(null)
+
   useEffect(() => {
     if (!user?.company_id) return
     pb.collection('proposal_settings')
@@ -63,7 +76,6 @@ export default function ProposalSettings() {
         ) {
           setPagesLayout(record.pages_layout)
         } else {
-          // default layout mapping
           setPagesLayout([
             { id: 'p1', elements: ['cover'] },
             { id: 'p2', elements: ['technical', 'system'] },
@@ -100,6 +112,7 @@ export default function ProposalSettings() {
         setSettingsId(record.id)
       }
       toast({ title: 'Sucesso', description: 'Configurações salvas.' })
+      setBrandingModalOpen(false)
     } catch (e) {
       toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível salvar.' })
     } finally {
@@ -115,7 +128,6 @@ export default function ProposalSettings() {
   const onDropElement = (e: any, toPageIdx: number) => {
     const elId = e.dataTransfer.getData('elId')
     const fromPageIdx = parseInt(e.dataTransfer.getData('fromPageIdx'))
-
     if (!elId) return
 
     setPagesLayout((prev) => {
@@ -140,16 +152,46 @@ export default function ProposalSettings() {
     })
   }
 
-  const handleAddPage = () => {
-    setPagesLayout([...pagesLayout, { id: `p${Date.now()}`, elements: [] }])
-  }
-
-  const handleRemovePage = (idx: number) => {
-    setPagesLayout((prev) => prev.filter((_, i) => i !== idx))
+  const selectTemplate = (tplId: string) => {
+    setActiveTemplate(tplId)
+    setBrandingModalOpen(true)
   }
 
   const usedElements = new Set(pagesLayout.flatMap((p) => p.elements))
   const availableElements = ELEMENTS.filter((e) => !usedElements.has(e.id))
+
+  const templates = [
+    {
+      id: 'modern',
+      name: 'Modern',
+      img: 'https://img.usecurling.com/p/300/400?q=modern%20document&color=blue',
+    },
+    {
+      id: 'elegant',
+      name: 'Elegant',
+      img: 'https://img.usecurling.com/p/300/400?q=elegant%20paper&color=gray',
+    },
+    {
+      id: 'compact',
+      name: 'Compact',
+      img: 'https://img.usecurling.com/p/300/400?q=minimalist%20report&color=white',
+    },
+    {
+      id: 'corporate',
+      name: 'Corporate',
+      img: 'https://img.usecurling.com/p/300/400?q=business%20presentation&color=blue',
+    },
+    {
+      id: 'technical',
+      name: 'Technical',
+      img: 'https://img.usecurling.com/p/300/400?q=blueprint%20data&color=cyan',
+    },
+    {
+      id: 'custom',
+      name: 'Custom',
+      img: 'https://img.usecurling.com/p/300/400?q=blank%20canvas&color=purple',
+    },
+  ]
 
   return (
     <div className="flex flex-col gap-6 max-w-6xl animate-fade-in pb-12">
@@ -157,7 +199,7 @@ export default function ProposalSettings() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Construtor de Propostas</h2>
           <p className="text-muted-foreground text-sm">
-            Monte o layout das páginas e ajuste o branding.
+            Selecione o template e ajuste os indicadores comerciais.
           </p>
         </div>
         <Button onClick={handleSave} disabled={loading}>
@@ -168,196 +210,161 @@ export default function ProposalSettings() {
       <Tabs defaultValue="templates" className="w-full">
         <TabsList className="flex flex-wrap w-full h-auto gap-2 p-1 bg-muted/50 rounded-xl justify-start">
           <TabsTrigger value="templates" className="py-2.5 rounded-lg flex-1 sm:flex-none">
-            <FileImage className="mr-2 h-4 w-4" /> Templates
-          </TabsTrigger>
-          <TabsTrigger value="pages" className="py-2.5 rounded-lg flex-1 sm:flex-none">
-            <Layers className="mr-2 h-4 w-4" /> Composição de Páginas
-          </TabsTrigger>
-          <TabsTrigger value="branding" className="py-2.5 rounded-lg flex-1 sm:flex-none">
-            <Palette className="mr-2 h-4 w-4" /> Branding
+            <FileImage className="mr-2 h-4 w-4" /> Templates e Design
           </TabsTrigger>
           <TabsTrigger value="indicadores" className="py-2.5 rounded-lg flex-1 sm:flex-none">
             <BarChart className="mr-2 h-4 w-4" /> Indicadores
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="templates" className="mt-6">
+        <TabsContent value="templates" className="mt-6 space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Templates Visuais</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              {[
-                {
-                  id: 'modern',
-                  name: 'Modern',
-                  img: 'https://img.usecurling.com/p/300/400?q=modern%20document&color=blue',
-                },
-                {
-                  id: 'elegant',
-                  name: 'Elegant',
-                  img: 'https://img.usecurling.com/p/300/400?q=elegant%20paper&color=gray',
-                },
-                {
-                  id: 'compact',
-                  name: 'Compact',
-                  img: 'https://img.usecurling.com/p/300/400?q=minimalist%20report&color=white',
-                },
-                {
-                  id: 'corporate',
-                  name: 'Corporate',
-                  img: 'https://img.usecurling.com/p/300/400?q=business%20presentation&color=blue',
-                },
-                {
-                  id: 'technical',
-                  name: 'Technical',
-                  img: 'https://img.usecurling.com/p/300/400?q=blueprint%20data&color=cyan',
-                },
-                {
-                  id: 'custom',
-                  name: 'Custom',
-                  img: 'https://img.usecurling.com/p/300/400?q=blank%20canvas&color=purple',
-                },
-              ].map((tpl) => (
+              {templates.map((tpl) => (
                 <div
                   key={tpl.id}
-                  className={`border-2 rounded-xl p-3 cursor-pointer transition-all group ${activeTemplate === tpl.id ? 'border-primary bg-primary/5' : 'border-muted hover:border-primary/50'}`}
-                  onClick={() => setActiveTemplate(tpl.id)}
+                  className={`border-2 rounded-xl p-3 transition-all flex flex-col ${activeTemplate === tpl.id ? 'border-primary bg-primary/5' : 'border-muted hover:border-primary/50'}`}
                 >
-                  <img
-                    src={tpl.img}
-                    alt={tpl.name}
-                    className="w-full aspect-[3/4] object-cover rounded-md mb-3"
-                  />
-                  <div className="text-center font-semibold">{tpl.name}</div>
+                  <div className="relative group">
+                    <img
+                      src={tpl.img}
+                      alt={tpl.name}
+                      className="w-full aspect-[3/4] object-cover rounded-md mb-3"
+                    />
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-md gap-2">
+                      <Button variant="secondary" size="sm" onClick={() => setPreviewOpen(tpl.img)}>
+                        <Eye className="h-4 w-4 mr-2" /> Preview
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="text-center font-semibold mb-3">{tpl.name}</div>
+                  <Button
+                    variant={activeTemplate === tpl.id ? 'default' : 'outline'}
+                    className="mt-auto"
+                    onClick={() => selectTemplate(tpl.id)}
+                  >
+                    {activeTemplate === tpl.id ? (
+                      <>
+                        <Settings2 className="w-4 h-4 mr-2" /> Configurar
+                      </>
+                    ) : (
+                      'Selecionar'
+                    )}
+                  </Button>
                 </div>
               ))}
             </CardContent>
           </Card>
-        </TabsContent>
 
-        <TabsContent value="pages" className="mt-6">
-          <div className="flex gap-6 flex-col md:flex-row items-start">
-            <Card className="w-full md:w-1/3 sticky top-4">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Elementos Disponíveis</CardTitle>
-                <CardDescription>Arraste para as páginas ao lado</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2 max-h-[60vh] overflow-y-auto">
-                {availableElements.length === 0 && (
-                  <p className="text-sm text-muted-foreground italic">
-                    Todos os elementos já foram utilizados.
-                  </p>
-                )}
-                {availableElements.map((el) => (
-                  <div
-                    key={el.id}
-                    draggable
-                    onDragStart={(e) => onDragStartElement(e, el.id, -1)}
-                    className="p-3 border rounded-md bg-white cursor-grab hover:border-primary shadow-sm flex items-center gap-2"
-                  >
-                    <GripVertical className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium text-sm">{el.label}</span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            <div className="w-full md:w-2/3 space-y-6">
-              {pagesLayout.map((page, pIdx) => (
-                <Card
-                  key={page.id}
-                  className="bg-slate-50 border-dashed"
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => onDropElement(e, pIdx)}
-                >
-                  <CardHeader className="flex flex-row items-center justify-between pb-2 bg-slate-100 rounded-t-xl border-b">
-                    <CardTitle className="text-base text-slate-600">Página {pIdx + 1}</CardTitle>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-destructive h-8 w-8"
-                      onClick={() => handleRemovePage(pIdx)}
+          {activeTemplate === 'custom' && (
+            <div className="flex gap-6 flex-col md:flex-row items-start animate-fade-in-up">
+              <Card className="w-full md:w-1/3 sticky top-4">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg">Elementos Disponíveis</CardTitle>
+                  <CardDescription>Arraste para as páginas ao lado</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2 max-h-[60vh] overflow-y-auto">
+                  {availableElements.length === 0 && (
+                    <p className="text-sm text-muted-foreground italic">
+                      Todos os elementos já foram utilizados.
+                    </p>
+                  )}
+                  {availableElements.map((el) => (
+                    <div
+                      key={el.id}
+                      draggable
+                      onDragStart={(e) => onDragStartElement(e, el.id, -1)}
+                      className="p-3 border rounded-md bg-white cursor-grab hover:border-primary shadow-sm flex items-center gap-2"
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </CardHeader>
-                  <CardContent className="p-4 min-h-[120px] flex flex-col gap-2">
-                    {page.elements.length === 0 && (
-                      <div className="flex-1 flex items-center justify-center border-2 border-dashed rounded-md text-muted-foreground text-sm opacity-50">
-                        Arraste elementos para cá
-                      </div>
-                    )}
-                    {page.elements.map((elId) => {
-                      const el = ELEMENTS.find((e) => e.id === elId)
-                      if (!el) return null
-                      return (
-                        <div
-                          key={elId}
-                          draggable
-                          onDragStart={(e) => onDragStartElement(e, elId, pIdx)}
-                          className="p-3 border rounded-md bg-white shadow-sm flex items-center justify-between cursor-grab hover:border-primary"
-                        >
-                          <div className="flex items-center gap-2">
-                            <GripVertical className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium text-sm">{el.label}</span>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-destructive"
-                            onClick={() => handleRemoveElement(pIdx, elId)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      )
-                    })}
-                  </CardContent>
-                </Card>
-              ))}
-              <Button variant="outline" className="w-full border-dashed" onClick={handleAddPage}>
-                <Plus className="mr-2 h-4 w-4" /> Adicionar Nova Página
-              </Button>
-            </div>
-          </div>
-        </TabsContent>
+                      <GripVertical className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium text-sm">{el.label}</span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
 
-        <TabsContent value="branding" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Cores da Marca</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6 max-w-md">
-              <div className="flex items-center justify-between">
-                <Label>Cor Primária</Label>
-                <Input
-                  type="color"
-                  value={branding.primaryColor}
-                  onChange={(e) => setBranding({ ...branding, primaryColor: e.target.value })}
-                  className="w-16 h-10 p-1 cursor-pointer"
-                />
+              <div className="w-full md:w-2/3 space-y-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <Layers className="h-5 w-5 text-primary" />
+                  <h3 className="text-xl font-bold">Composição de Páginas (Custom)</h3>
+                </div>
+                {pagesLayout.map((page, pIdx) => (
+                  <Card
+                    key={page.id}
+                    className="bg-slate-50 border-dashed"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => onDropElement(e, pIdx)}
+                  >
+                    <CardHeader className="flex flex-row items-center justify-between pb-2 bg-slate-100 rounded-t-xl border-b">
+                      <CardTitle className="text-base text-slate-600 flex items-center gap-4">
+                        Página {pIdx + 1}
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="h-auto p-0 text-primary"
+                          onClick={() => setLivePreviewOpen(pIdx)}
+                        >
+                          Live Preview
+                        </Button>
+                      </CardTitle>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive h-8 w-8"
+                        onClick={() => setPagesLayout(pagesLayout.filter((_, i) => i !== pIdx))}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </CardHeader>
+                    <CardContent className="p-4 min-h-[120px] flex flex-col gap-2">
+                      {page.elements.length === 0 && (
+                        <div className="flex-1 flex items-center justify-center border-2 border-dashed rounded-md text-muted-foreground text-sm opacity-50">
+                          Arraste elementos para cá
+                        </div>
+                      )}
+                      {page.elements.map((elId) => {
+                        const el = ELEMENTS.find((e) => e.id === elId)
+                        if (!el) return null
+                        return (
+                          <div
+                            key={elId}
+                            draggable
+                            onDragStart={(e) => onDragStartElement(e, elId, pIdx)}
+                            className="p-3 border rounded-md bg-white shadow-sm flex items-center justify-between cursor-grab hover:border-primary"
+                          >
+                            <div className="flex items-center gap-2">
+                              <GripVertical className="h-4 w-4 text-muted-foreground" />
+                              <span className="font-medium text-sm">{el.label}</span>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-destructive"
+                              onClick={() => handleRemoveElement(pIdx, elId)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )
+                      })}
+                    </CardContent>
+                  </Card>
+                ))}
+                <Button
+                  variant="outline"
+                  className="w-full border-dashed"
+                  onClick={() =>
+                    setPagesLayout([...pagesLayout, { id: `p${Date.now()}`, elements: [] }])
+                  }
+                >
+                  <Plus className="mr-2 h-4 w-4" /> Adicionar Nova Página
+                </Button>
               </div>
-              <div className="flex items-center justify-between">
-                <Label>Cor Secundária</Label>
-                <Input
-                  type="color"
-                  value={branding.secondaryColor}
-                  onChange={(e) => setBranding({ ...branding, secondaryColor: e.target.value })}
-                  className="w-16 h-10 p-1 cursor-pointer"
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label>Cor de Gradiente</Label>
-                <Input
-                  type="color"
-                  value={branding.gradientColor}
-                  onChange={(e) => setBranding({ ...branding, gradientColor: e.target.value })}
-                  className="w-16 h-10 p-1 cursor-pointer"
-                />
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="indicadores" className="mt-6">
@@ -386,6 +393,86 @@ export default function ProposalSettings() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Modals */}
+      <Dialog open={!!previewOpen} onOpenChange={() => setPreviewOpen(null)}>
+        <DialogContent className="max-w-2xl bg-transparent border-0 shadow-none p-0">
+          <img
+            src={previewOpen || ''}
+            alt="Preview"
+            className="w-full rounded-xl shadow-2xl object-cover"
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={brandingModalOpen} onOpenChange={setBrandingModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Personalizar Template</DialogTitle>
+            <DialogDescription>
+              Ajuste as cores da marca para que se apliquem ao template selecionado.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            <div className="flex items-center justify-between">
+              <Label>Cor Primária</Label>
+              <Input
+                type="color"
+                value={branding.primaryColor}
+                onChange={(e) => setBranding({ ...branding, primaryColor: e.target.value })}
+                className="w-16 h-10 p-1 cursor-pointer"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label>Cor Secundária</Label>
+              <Input
+                type="color"
+                value={branding.secondaryColor}
+                onChange={(e) => setBranding({ ...branding, secondaryColor: e.target.value })}
+                className="w-16 h-10 p-1 cursor-pointer"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label>Cor de Gradiente</Label>
+              <Input
+                type="color"
+                value={branding.gradientColor}
+                onChange={(e) => setBranding({ ...branding, gradientColor: e.target.value })}
+                className="w-16 h-10 p-1 cursor-pointer"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBrandingModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSave}>Salvar Preferências</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={livePreviewOpen !== null} onOpenChange={() => setLivePreviewOpen(null)}>
+        <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>
+              Live Preview - Página {livePreviewOpen !== null ? livePreviewOpen + 1 : ''}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 bg-muted/20 border rounded-xl flex items-center justify-center p-8 overflow-y-auto">
+            <div className="bg-white w-full max-w-3xl aspect-[1/1.4] shadow-lg rounded p-12 space-y-6">
+              {livePreviewOpen !== null &&
+                pagesLayout[livePreviewOpen]?.elements.map((elId) => (
+                  <div
+                    key={elId}
+                    className="border-2 border-dashed border-primary/30 p-8 text-center rounded text-primary/60 font-semibold text-lg bg-primary/5"
+                  >
+                    Elemento Rendering Placeholder: {ELEMENTS.find((e) => e.id === elId)?.label}
+                  </div>
+                ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

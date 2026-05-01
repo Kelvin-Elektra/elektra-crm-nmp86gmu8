@@ -20,6 +20,7 @@ export function CostsTab() {
   const { user } = useAuth()
   const { toast } = useToast()
   const [data, setData] = useState<any[]>([])
+  const [installations, setInstallations] = useState<any[]>([])
   const [settingsId, setSettingsId] = useState<string | null>(null)
   const [billingModel, setBillingModel] = useState('direct')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -32,6 +33,9 @@ export function CostsTab() {
     value: '',
     min_val: '',
     max_val: '',
+    installation_id: 'none',
+    calc_base: 'fixed',
+    multiplier: '',
   }
   const [form, setForm] = useState(initialForm)
 
@@ -45,7 +49,7 @@ export function CostsTab() {
   ]
 
   const handleNumberChange = (field: string, value: string) => {
-    let clean = value.replace(/[^0-9,]/g, '')
+    let clean = value.replace(/[^0-9,.-]/g, '')
     const parts = clean.split(',')
     if (parts.length > 2) {
       clean = parts[0] + ',' + parts.slice(1).join('')
@@ -63,6 +67,10 @@ export function CostsTab() {
     try {
       const res = await pb.collection('pv_costs').getFullList()
       setData(res)
+      const inst = await pb
+        .collection('pv_installations')
+        .getFullList({ filter: `company_id='${user.company_id}'` })
+      setInstallations(inst)
 
       try {
         const settings = await pb
@@ -72,8 +80,8 @@ export function CostsTab() {
           setSettingsId(settings.id)
           if (settings.billing_model) setBillingModel(settings.billing_model)
         }
-      } catch (_) {
-        /* ignore */
+      } catch {
+        /* intentionally ignored */
       }
     } finally {
       setLoading(false)
@@ -113,6 +121,9 @@ export function CostsTab() {
       range_type: form.range_type,
       min_val: form.range_type !== 'none' && form.min_val ? parseNumber(form.min_val) : null,
       max_val: form.range_type !== 'none' && form.max_val ? parseNumber(form.max_val) : null,
+      installation_id: form.installation_id !== 'none' ? form.installation_id : null,
+      calc_base: form.calc_base,
+      multiplier: parseNumber(form.multiplier) || null,
       company_id: user.company_id,
     }
 
@@ -139,6 +150,9 @@ export function CostsTab() {
       value: formatNumber(item.value),
       min_val: formatNumber(item.min_val),
       max_val: formatNumber(item.max_val),
+      installation_id: item.installation_id || 'none',
+      calc_base: item.calc_base || 'fixed',
+      multiplier: formatNumber(item.multiplier),
     })
     setEditingId(item.id)
   }
@@ -195,7 +209,7 @@ export function CostsTab() {
         <CardContent className="space-y-6">
           <form
             onSubmit={handleAdd}
-            className="grid grid-cols-1 md:grid-cols-5 gap-4 items-start bg-muted/30 p-5 rounded-xl border border-border/50"
+            className="grid grid-cols-1 md:grid-cols-6 gap-4 items-start bg-muted/30 p-5 rounded-xl border border-border/50"
           >
             <div className="space-y-2 md:col-span-2">
               <Label className="font-semibold">Nome do Custo/Imposto</Label>
@@ -218,6 +232,7 @@ export function CostsTab() {
                 ))}
               </div>
             </div>
+
             <div className="space-y-2 md:col-span-2">
               <Label className="font-semibold">Método de Cálculo</Label>
               <Select
@@ -236,7 +251,8 @@ export function CostsTab() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
+
+            <div className="space-y-2 md:col-span-2">
               <Label className="font-semibold">Valor / %</Label>
               <Input
                 required
@@ -246,44 +262,99 @@ export function CostsTab() {
                 className="bg-background"
               />
             </div>
-            <div className="space-y-2 md:col-span-5">
+
+            {form.calc_method === 'variable' && (
+              <>
+                <div className="space-y-2 md:col-span-3">
+                  <Label className="font-semibold">Base de Cálculo Variável</Label>
+                  <Select
+                    value={form.calc_base}
+                    onValueChange={(v) => setForm({ ...form, calc_base: v })}
+                  >
+                    <SelectTrigger className="bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="modules">Quantidade de Módulos</SelectItem>
+                      <SelectItem value="kwp">Potência (kWp)</SelectItem>
+                      <SelectItem value="kw">Potência do Inversor (kW)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 md:col-span-3">
+                  <Label className="font-semibold">Multiplicador (R$)</Label>
+                  <Input
+                    type="text"
+                    value={form.multiplier}
+                    onChange={(e) => handleNumberChange('multiplier', e.target.value)}
+                    className="bg-background"
+                  />
+                </div>
+              </>
+            )}
+
+            <div className="space-y-2 md:col-span-3">
               <Label className="font-semibold">Condição (Faixa de Aplicação)</Label>
-              <div className="flex flex-col sm:flex-row items-center gap-2">
-                <Select
-                  value={form.range_type}
-                  onValueChange={(v) => setForm({ ...form, range_type: v })}
-                >
-                  <SelectTrigger className="w-full sm:w-[250px] bg-background">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Sempre aplicar (Geral)</SelectItem>
-                    <SelectItem value="modules">Qtde. de Módulos</SelectItem>
-                    <SelectItem value="kwp">Potência Total (kWp)</SelectItem>
-                    <SelectItem value="kw">Potência do Inversor (kW)</SelectItem>
-                  </SelectContent>
-                </Select>
-                {form.range_type !== 'none' && (
-                  <div className="flex w-full gap-2 transition-all">
-                    <Input
-                      type="text"
-                      placeholder="Mínimo"
-                      value={form.min_val}
-                      onChange={(e) => handleNumberChange('min_val', e.target.value)}
-                      className="w-full bg-background"
-                    />
-                    <Input
-                      type="text"
-                      placeholder="Máximo"
-                      value={form.max_val}
-                      onChange={(e) => handleNumberChange('max_val', e.target.value)}
-                      className="w-full bg-background"
-                    />
-                  </div>
-                )}
-              </div>
+              <Select
+                value={form.range_type}
+                onValueChange={(v) => setForm({ ...form, range_type: v })}
+              >
+                <SelectTrigger className="bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sempre aplicar (Geral)</SelectItem>
+                  <SelectItem value="modules">Qtde. de Módulos</SelectItem>
+                  <SelectItem value="kwp">Potência Total (kWp)</SelectItem>
+                  <SelectItem value="kw">Potência do Inversor (kW)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div className="md:col-span-5 flex justify-end gap-2 mt-2">
+
+            {form.range_type !== 'none' && (
+              <div className="space-y-2 md:col-span-3 flex items-end gap-2">
+                <div className="flex-1">
+                  <Label className="text-xs">Mínimo</Label>
+                  <Input
+                    type="text"
+                    value={form.min_val}
+                    onChange={(e) => handleNumberChange('min_val', e.target.value)}
+                    className="bg-background"
+                  />
+                </div>
+                <div className="flex-1">
+                  <Label className="text-xs">Máximo</Label>
+                  <Input
+                    type="text"
+                    value={form.max_val}
+                    onChange={(e) => handleNumberChange('max_val', e.target.value)}
+                    className="bg-background"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2 md:col-span-3">
+              <Label className="font-semibold">Tipo de Instalação Específica (Opcional)</Label>
+              <Select
+                value={form.installation_id}
+                onValueChange={(v) => setForm({ ...form, installation_id: v })}
+              >
+                <SelectTrigger className="bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Todas as Instalações</SelectItem>
+                  {installations.map((inst) => (
+                    <SelectItem key={inst.id} value={inst.id}>
+                      {inst.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="md:col-span-6 flex justify-end gap-2 mt-2">
               {editingId && (
                 <Button type="button" variant="outline" onClick={resetForm}>
                   Cancelar
@@ -301,14 +372,14 @@ export function CostsTab() {
             </div>
           </form>
 
-          <div className="rounded-md border">
-            <table className="w-full text-sm text-left">
+          <div className="rounded-md border overflow-x-auto">
+            <table className="w-full text-sm text-left whitespace-nowrap">
               <thead className="bg-muted">
                 <tr>
                   <th className="p-3 font-medium">Nome</th>
                   <th className="p-3 font-medium">Método</th>
                   <th className="p-3 font-medium">Valor / %</th>
-                  <th className="p-3 font-medium">Faixa / Aplicação</th>
+                  <th className="p-3 font-medium">Faixa / Condição</th>
                   <th className="p-3 font-medium text-right">Ações</th>
                 </tr>
               </thead>
@@ -316,20 +387,8 @@ export function CostsTab() {
                 {loading ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <tr key={i} className="border-t">
-                      <td className="p-3">
-                        <Skeleton className="h-4 w-32" />
-                      </td>
-                      <td className="p-3">
-                        <Skeleton className="h-4 w-24" />
-                      </td>
-                      <td className="p-3">
-                        <Skeleton className="h-4 w-16" />
-                      </td>
-                      <td className="p-3">
-                        <Skeleton className="h-4 w-32" />
-                      </td>
-                      <td className="p-3 text-right">
-                        <Skeleton className="h-8 w-16 ml-auto" />
+                      <td colSpan={5} className="p-3">
+                        <Skeleton className="h-8 w-full" />
                       </td>
                     </tr>
                   ))
@@ -343,22 +402,17 @@ export function CostsTab() {
                   data.map((d) => (
                     <tr key={d.id} className="border-t hover:bg-muted/30 transition-colors">
                       <td className="p-3 font-medium">{d.name}</td>
-                      <td className="p-3 capitalize">
-                        {d.calc_method === 'fixed' && 'Fixo'}
-                        {d.calc_method === 'variable' && 'Variável'}
-                        {d.calc_method === 'rate' && 'Percentual'}
-                        {d.calc_method === 'tax' && 'Imposto'}
-                        {d.calc_method === 'margin' && 'Margem'}
-                      </td>
+                      <td className="p-3 capitalize">{d.calc_method}</td>
                       <td className="p-3 font-medium">
-                        {d.calc_method === 'fixed' || d.calc_method === 'variable' ? 'R$ ' : ''}
+                        {['fixed', 'variable'].includes(d.calc_method) ? 'R$ ' : ''}
                         {formatNumber(d.value)}
-                        {d.calc_method !== 'fixed' && d.calc_method !== 'variable' ? '%' : ''}
+                        {!['fixed', 'variable'].includes(d.calc_method) ? '%' : ''}
                       </td>
                       <td className="p-3 capitalize text-muted-foreground">
                         {d.range_type === 'none'
                           ? 'Geral'
-                          : `${d.range_type} (${formatNumber(d.min_val) || 0} - ${formatNumber(d.max_val) || '∞'})`}
+                          : `${d.range_type} (${d.min_val || 0}-${d.max_val || '∞'})`}
+                        {d.installation_id ? ` • Inst. Específica` : ''}
                       </td>
                       <td className="p-3 text-right">
                         <Button variant="ghost" size="icon" onClick={() => handleEdit(d)}>

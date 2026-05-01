@@ -140,7 +140,7 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
           <CardHeader className="flex flex-row justify-between items-start pb-2">
             <div>
               <CardTitle className="flex items-center gap-2 text-lg">
-                <Sun className="w-5 h-5 text-muted-foreground" /> 1. Equipamentos
+                <Sun className="w-5 h-5 text-muted-foreground" /> 1. Seleção de Equipamentos
               </CardTitle>
             </div>
             <Button variant="outline" size="sm" onClick={() => setEquipModalOpen(true)}>
@@ -180,7 +180,7 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
           <CardHeader className="flex flex-row justify-between items-start pb-2">
             <div>
               <CardTitle className="flex items-center gap-2 text-lg">
-                <Compass className="w-5 h-5 text-muted-foreground" /> 2. Orientação
+                <Compass className="w-5 h-5 text-muted-foreground" /> 2. Faces de Orientação
               </CardTitle>
             </div>
             <Button variant="outline" size="sm" onClick={() => setOrientationModalOpen(true)}>
@@ -211,7 +211,7 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
           <CardHeader className="flex flex-row justify-between items-start pb-2">
             <div>
               <CardTitle className="flex items-center gap-2 text-lg">
-                <Settings2 className="w-5 h-5 text-muted-foreground" /> 3. Geração
+                <Settings2 className="w-5 h-5 text-muted-foreground" /> 3. Parâmetros de Geração
               </CardTitle>
             </div>
             <Button variant="outline" size="sm" onClick={() => setGenModalOpen(true)}>
@@ -318,6 +318,8 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
         reload={reload}
         efficiencyRule={efficiencyRule}
         recommendedModules={recommendedModules}
+        estMonthlyGen={estMonthlyGen}
+        avgConsumption={avgConsumption}
       />
       <SizingGenerationModal
         open={genModalOpen}

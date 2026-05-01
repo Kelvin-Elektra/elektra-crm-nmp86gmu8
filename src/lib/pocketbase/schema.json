@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-01T19:15:36.634Z",
+  "generatedAt": "2026-05-01T22:24:47.788Z",
   "collections": [
     {
       "name": "users",
@@ -466,6 +466,12 @@
         },
         {
           "name": "cost_breakdown",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "snapshot_data",
           "type": "json",
           "required": false,
           "system": false
@@ -1182,6 +1188,26 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "installation_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "pv_installations"
+        },
+        {
+          "name": "calc_base",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["modules", "kwp", "kw", "fixed"]
+        },
+        {
+          "name": "multiplier",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": ["CREATE INDEX idx_pv_costs_company ON pv_costs (company_id)"]
