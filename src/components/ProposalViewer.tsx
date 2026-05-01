@@ -36,7 +36,8 @@ export function ProposalViewer({ open, onOpenChange, proposal, negotiation }: an
     { name: 'Jun', consumo: Number(sizing.jun) || cons, geracao: cons * 1.02 },
   ]
 
-  const totalInv = proposal?.price || (sizing.totalPower ? sizing.totalPower * 3500 : 0)
+  const totalInv =
+    proposal?.total_value || proposal?.price || (sizing.totalPower ? sizing.totalPower * 3500 : 0)
 
   const pages = settings?.visible_pages || {
     cover: true,

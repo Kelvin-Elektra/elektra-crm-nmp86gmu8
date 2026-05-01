@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { maskCEP } from '@/lib/masks'
 import { LocationCombobox } from '@/components/LocationCombobox'
+import { Search } from 'lucide-react'
 
 const NETWORK_TYPES = ['Monofásico', 'Bifásico', 'Trifásico', 'Monofásico rural']
 
@@ -29,6 +30,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
   const [utilities, setUtilities] = useState<any[]>([])
   const [tariffRules, setTariffRules] = useState<any[]>([])
   const [citiesForState, setCitiesForState] = useState<{ id: string; city: string }[]>([])
+  const [isSearchingCep, setIsSearchingCep] = useState(false)
 
   const [formData, setFormData] = useState({
     title: '',
@@ -59,55 +61,90 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
           .getFullList({ filter: `company_id='${user.company_id}'` })
           .then(setTariffRules)
       }
-
       if (initialLeadId) setFormData((prev) => ({ ...prev, lead_id: initialLeadId }))
       else setFormData((prev) => ({ ...prev, lead_id: '' }))
     }
   }, [open, initialLeadId, user?.company_id])
 
-  useEffect(() => {
-    const cep = formData.cep.replace(/\D/g, '')
-    if (cep.length === 8) {
-      setFormData((prev) => ({
-        ...prev,
-        address: '',
-        neighborhood: '',
-        city: '',
-        state: '',
-        city_id: '',
-      }))
-      fetch(`https://viacep.com.br/ws/${cep}/json/`)
-        .then((res) => res.json())
-        .then(async (data) => {
-          if (!data.erro) {
-            const uf = data.uf || ''
-            const cityName = data.localidade || ''
-            let matchedId = ''
-
-            if (uf && cityName) {
-              try {
-                const match = await pb
-                  .collection('pv_hsp_data')
-                  .getFirstListItem(`state='${uf}' && city~'${cityName}'`)
-                if (match) matchedId = match.id
-              } catch {
-                /* intentionally ignored */
-              }
-            }
-
-            setFormData((prev) => ({
-              ...prev,
-              address: data.logradouro || '',
-              neighborhood: data.bairro || '',
-              state: uf,
-              city: matchedId ? cityName : '',
-              city_id: matchedId,
-            }))
-          }
-        })
-        .catch(console.error)
+  const searchCep = async () => {
+    const cepStr = formData.cep.replace(/\D/g, '')
+    if (cepStr.length !== 8) {
+      toast({ title: 'Atenção', description: 'CEP deve ter 8 dígitos.', variant: 'destructive' })
+      return
     }
-  }, [formData.cep])
+
+    setIsSearchingCep(true)
+    try {
+      try {
+        const cached = await pb.collection('cep_cache').getFirstListItem(`cep='${cepStr}'`)
+        let cityName = ''
+        if (cached.city_id) {
+          const hsp = await pb.collection('pv_hsp_data').getOne(cached.city_id)
+          cityName = hsp.city
+        }
+        setFormData((prev) => ({
+          ...prev,
+          address: cached.street || '',
+          neighborhood: cached.neighborhood || '',
+          state: cached.state || '',
+          city_id: cached.city_id || '',
+          city: cityName,
+        }))
+        setIsSearchingCep(false)
+        return
+      } catch {
+        /* intentionally ignored */
+      }
+
+      const res = await fetch(`https://viacep.com.br/ws/${cepStr}/json/`)
+      const data = await res.json()
+      if (!data.erro) {
+        const uf = data.uf || ''
+        const cityName = data.localidade || ''
+        let matchedId = ''
+
+        if (uf && cityName) {
+          try {
+            const match = await pb
+              .collection('pv_hsp_data')
+              .getFirstListItem(`state='${uf}' && city~'${cityName}'`)
+            if (match) matchedId = match.id
+          } catch {
+            /* intentionally ignored */
+          }
+        }
+
+        setFormData((prev) => ({
+          ...prev,
+          address: data.logradouro || '',
+          neighborhood: data.bairro || '',
+          state: uf,
+          city: matchedId ? cityName : '',
+          city_id: matchedId,
+        }))
+
+        if (matchedId) {
+          try {
+            await pb.collection('cep_cache').create({
+              cep: cepStr,
+              city_id: matchedId,
+              state: uf,
+              neighborhood: data.bairro || '',
+              street: data.logradouro || '',
+            })
+          } catch {
+            /* intentionally ignored */
+          }
+        }
+      } else {
+        toast({ title: 'Erro', description: 'CEP não encontrado.', variant: 'destructive' })
+      }
+    } catch (err) {
+      toast({ title: 'Erro', description: 'Falha ao buscar CEP.', variant: 'destructive' })
+    } finally {
+      setIsSearchingCep(false)
+    }
+  }
 
   useEffect(() => {
     if (formData.state) {
@@ -170,11 +207,9 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
       : null
 
   useEffect(() => {
-    if (matchedRule && matchedRule.voltage) {
+    if (matchedRule && matchedRule.voltage)
       setFormData((prev) => ({ ...prev, tension: matchedRule.voltage }))
-    } else {
-      setFormData((prev) => ({ ...prev, tension: '' }))
-    }
+    else setFormData((prev) => ({ ...prev, tension: '' }))
   }, [matchedRule])
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -288,13 +323,23 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
                   <h4 className="text-sm font-semibold mb-3">Endereço de Instalação</h4>
                 </div>
 
-                <div className="space-y-2 sm:col-span-1">
+                <div className="space-y-2 sm:col-span-2">
                   <Label>CEP</Label>
-                  <Input
-                    value={formData.cep}
-                    onChange={(e) => setFormData({ ...formData, cep: maskCEP(e.target.value) })}
-                    maxLength={9}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      value={formData.cep}
+                      onChange={(e) => setFormData({ ...formData, cep: maskCEP(e.target.value) })}
+                      maxLength={9}
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={searchCep}
+                      disabled={isSearchingCep}
+                    >
+                      <Search className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2 sm:col-span-2">
                   <Label>Rua / Av</Label>
@@ -310,7 +355,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
                     onChange={(e) => setFormData({ ...formData, number: e.target.value })}
                   />
                 </div>
-                <div className="space-y-2 sm:col-span-2">
+                <div className="space-y-2 sm:col-span-1">
                   <Label>Bairro</Label>
                   <Input
                     value={formData.neighborhood}
@@ -394,7 +439,6 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
                     readOnly
                     disabled
                     className="bg-muted/50 cursor-not-allowed"
-                    placeholder=""
                   />
                 </div>
                 <div className="space-y-2 sm:col-span-2">

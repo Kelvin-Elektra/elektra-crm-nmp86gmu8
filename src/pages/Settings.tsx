@@ -50,6 +50,8 @@ export default function Settings() {
     password: '',
     passwordConfirm: '',
     role: 'user',
+    max_discount: 0,
+    commission_rate: 0,
   })
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -186,6 +188,8 @@ export default function Settings() {
           password: newUser.password,
           role: newUser.role,
           company_id: user?.company_id,
+          max_discount: Number(newUser.max_discount),
+          commission_rate: Number(newUser.commission_rate),
         }),
         headers: { 'Content-Type': 'application/json' },
       })
@@ -195,7 +199,15 @@ export default function Settings() {
         description: 'Usuário criado com sucesso! Credenciais enviadas por email.',
       })
       setIsUserModalOpen(false)
-      setNewUser({ name: '', email: '', password: '', passwordConfirm: '', role: 'user' })
+      setNewUser({
+        name: '',
+        email: '',
+        password: '',
+        passwordConfirm: '',
+        role: 'user',
+        max_discount: 0,
+        commission_rate: 0,
+      })
       loadUsers()
     } catch (err: any) {
       const fieldErrors = extractFieldErrors(err)
@@ -235,6 +247,8 @@ export default function Settings() {
         name: editUser.name,
         role: editUser.role,
         email: editUser.email,
+        max_discount: Number(editUser.max_discount || 0),
+        commission_rate: Number(editUser.commission_rate || 0),
         ...(editUser.password
           ? { password: editUser.password, passwordConfirm: editUser.passwordConfirm }
           : {}),
@@ -761,6 +775,35 @@ export default function Settings() {
                               />
                             </div>
                           </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Desconto Máx. (%)</Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={newUser.max_discount}
+                                onChange={(e) =>
+                                  setNewUser({ ...newUser, max_discount: Number(e.target.value) })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Comissão (%)</Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={newUser.commission_rate}
+                                onChange={(e) =>
+                                  setNewUser({
+                                    ...newUser,
+                                    commission_rate: Number(e.target.value),
+                                  })
+                                }
+                              />
+                            </div>
+                          </div>
                           <div className="space-y-2">
                             <Label>Permissão</Label>
                             <Select
@@ -887,6 +930,32 @@ export default function Settings() {
                     minLength={8}
                     value={editUser.passwordConfirm || ''}
                     onChange={(e) => setEditUser({ ...editUser, passwordConfirm: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Desconto Máx. (%)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={editUser.max_discount || 0}
+                    onChange={(e) =>
+                      setEditUser({ ...editUser, max_discount: Number(e.target.value) })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Comissão (%)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={editUser.commission_rate || 0}
+                    onChange={(e) =>
+                      setEditUser({ ...editUser, commission_rate: Number(e.target.value) })
+                    }
                   />
                 </div>
               </div>
