@@ -1,14 +1,17 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { FileText, Calendar, Eye, Download, Trash2 } from 'lucide-react'
+import { FileText, Calendar, Eye, Download, Trash2, Edit, DollarSign } from 'lucide-react'
 import { format } from 'date-fns'
 
 import { useState } from 'react'
 import pb from '@/lib/pocketbase/client'
 import { ProposalViewer } from '@/components/ProposalViewer'
 import { ProposalWizardModal } from './ProposalWizardModal'
+import { ProposalEditModal } from './ProposalEditModal'
+import { AdminCostsModal } from './AdminCostsModal'
 import { useToast } from '@/hooks/use-toast'
+import { useAuth } from '@/contexts/AuthContext'
 
 export function ProposalsTab({
   proposals,
@@ -20,9 +23,14 @@ export function ProposalsTab({
   reload: () => void
 }) {
   const { toast } = useToast()
+  const { user } = useAuth()
   const [viewerOpen, setViewerOpen] = useState(false)
   const [wizardOpen, setWizardOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [costsOpen, setCostsOpen] = useState(false)
   const [selectedProposal, setSelectedProposal] = useState<any>(null)
+
+  const isAdmin = user?.role === 'admin_elektra' || user?.role === 'admin_company'
 
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir esta proposta?')) return
@@ -40,6 +48,11 @@ export function ProposalsTab({
     setViewerOpen(true)
   }
 
+  const openEditor = (proposal: any) => {
+    setSelectedProposal(proposal)
+    setEditOpen(true)
+  }
+
   return (
     <>
       <Card>
@@ -48,9 +61,16 @@ export function ProposalsTab({
             <CardTitle>Propostas Fotovoltaicas</CardTitle>
             <CardDescription>Histórico de propostas comerciais enviadas.</CardDescription>
           </div>
-          <Button size="sm" onClick={() => setWizardOpen(true)}>
-            <FileText className="h-4 w-4 mr-2" /> Gerar Proposta
-          </Button>
+          <div className="flex gap-2">
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={() => setCostsOpen(true)}>
+                <DollarSign className="h-4 w-4 mr-2" /> Ver Custos
+              </Button>
+            )}
+            <Button size="sm" onClick={() => setWizardOpen(true)}>
+              <FileText className="h-4 w-4 mr-2" /> Gerar Proposta
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {proposals.length === 0 ? (
@@ -112,12 +132,12 @@ export function ProposalsTab({
                         <Eye className="h-4 w-4" />
                       </Button>
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="icon"
-                        title="Baixar PDF"
-                        onClick={() => openViewer(p)}
+                        title="Editar Termos"
+                        onClick={() => openEditor(p)}
                       >
-                        <Download className="h-4 w-4" />
+                        <Edit className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -147,7 +167,7 @@ export function ProposalsTab({
         />
       )}
 
-      {selectedProposal && (
+      {selectedProposal && viewerOpen && (
         <ProposalViewer
           open={viewerOpen}
           onOpenChange={setViewerOpen}
@@ -155,6 +175,17 @@ export function ProposalsTab({
           negotiation={neg}
         />
       )}
+
+      {selectedProposal && editOpen && (
+        <ProposalEditModal
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          proposal={selectedProposal}
+          reload={reload}
+        />
+      )}
+
+      {costsOpen && <AdminCostsModal open={costsOpen} onOpenChange={setCostsOpen} negId={neg.id} />}
     </>
   )
 }

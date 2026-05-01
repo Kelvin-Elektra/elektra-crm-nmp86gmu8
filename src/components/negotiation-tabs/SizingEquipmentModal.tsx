@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -16,7 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Trash2 } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Plus, Trash2, Info } from 'lucide-react'
 import { updateNegotiation } from '@/services/db'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
@@ -32,7 +33,7 @@ export function SizingEquipmentModal({ open, onOpenChange, neg, reload, recommen
 
   const [selectedDist, setSelectedDist] = useState(sizing.selected_distributor_id || 'none')
   const [selectedMod, setSelectedMod] = useState(sizing.selected_module_id || 'none')
-  const [moduleQty, setModuleQty] = useState(sizing.module_qty || '')
+  const [moduleQty, setModuleQty] = useState(sizing.module_qty?.toString() || '')
 
   const initialInvs = sizing.inverters?.length
     ? sizing.inverters
@@ -58,6 +59,17 @@ export function SizingEquipmentModal({ open, onOpenChange, neg, reload, recommen
       })
     }
   }, [open, neg.company_id])
+
+  const faceModulesTotal = useMemo(() => {
+    if (!neg.use_roof_faces || !neg.roof_faces_data) return 0
+    return neg.roof_faces_data.reduce((acc: number, f: any) => acc + (Number(f.modules) || 0), 0)
+  }, [neg.use_roof_faces, neg.roof_faces_data])
+
+  useEffect(() => {
+    if (neg.use_roof_faces) {
+      setModuleQty(faceModulesTotal.toString())
+    }
+  }, [neg.use_roof_faces, faceModulesTotal])
 
   const filteredMods =
     selectedDist === 'none' ? [] : modules.filter((m) => m.distributor_id === selectedDist)
@@ -145,22 +157,38 @@ export function SizingEquipmentModal({ open, onOpenChange, neg, reload, recommen
               </SelectContent>
             </Select>
           </div>
-          {!neg.use_roof_faces && (
-            <div className="space-y-2">
-              <Label>Quantidade de Módulos</Label>
-              <Input
-                type="number"
-                value={moduleQty}
-                onChange={(e) => setModuleQty(e.target.value)}
-              />
-              {recommendedModules > 0 && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Quantidade recomendada pelo sistema:{' '}
-                  <strong className="text-foreground">{recommendedModules}</strong>
-                </p>
+
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              Quantidade de Módulos
+              {neg.use_roof_faces && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      A quantidade de módulos foi definida na seção Faces do Telhado.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
-            </div>
-          )}
+            </Label>
+            <Input
+              type="number"
+              value={moduleQty}
+              readOnly={neg.use_roof_faces}
+              className={neg.use_roof_faces ? 'bg-muted pointer-events-none' : ''}
+              onChange={(e) => setModuleQty(e.target.value)}
+            />
+            {recommendedModules > 0 && !neg.use_roof_faces && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Quantidade recomendada pelo sistema:{' '}
+                <strong className="text-foreground">{recommendedModules}</strong>
+              </p>
+            )}
+          </div>
+
           <div className="space-y-3 pt-4 border-t">
             <div className="flex justify-between items-center">
               <Label>Inversores</Label>

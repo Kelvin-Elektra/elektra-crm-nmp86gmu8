@@ -102,7 +102,7 @@ export function AddressCard({ neg, reload }: { neg: any; reload?: () => void }) 
           city_id: cached.city_id,
           city: cityRec.city,
         }))
-        toast({ description: 'CEP encontrado!', duration: 2000 })
+        toast({ description: 'CEP encontrado!', duration: 1500 })
         return
       }
 
@@ -146,7 +146,7 @@ export function AddressCard({ neg, reload }: { neg: any; reload?: () => void }) 
             /* intentionally ignored */
           }
         }
-        toast({ description: 'CEP encontrado!', duration: 2000 })
+        toast({ description: 'CEP encontrado!', duration: 1500 })
       } else {
         toast({ description: 'CEP não encontrado na base.', variant: 'destructive' })
       }

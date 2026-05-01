@@ -285,6 +285,9 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
         reload={reload}
         efficiencyRule={efficiencyRule}
         recommendedModules={recommendedModules}
+        avgConsumption={avgConsumption}
+        modulePowerW={modulePowerW}
+        hspData={hspData}
       />
       <SizingEquipmentModal
         open={equipModalOpen}

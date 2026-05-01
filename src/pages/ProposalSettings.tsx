@@ -8,7 +8,55 @@ import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
-import { Save, FileImage, BarChart, Palette, Layers } from 'lucide-react'
+import { Save, FileImage, BarChart, Palette, Layers, GripVertical } from 'lucide-react'
+
+const AVAILABLE_PAGES = [
+  {
+    id: 'cover',
+    label: 'Página de Capa',
+    img: 'https://img.usecurling.com/p/200/300?q=document%20cover&color=blue',
+  },
+  {
+    id: 'facade',
+    label: 'Foto da Fachada',
+    img: 'https://img.usecurling.com/p/200/300?q=house%20roof&color=gray',
+  },
+  {
+    id: 'technical',
+    label: 'Dados Técnicos',
+    img: 'https://img.usecurling.com/p/200/300?q=data%20table&color=gray',
+  },
+  {
+    id: 'charts',
+    label: 'Gráficos de Geração',
+    img: 'https://img.usecurling.com/p/200/300?q=bar%20chart&color=blue',
+  },
+  {
+    id: 'system',
+    label: 'Sistema Proposto',
+    img: 'https://img.usecurling.com/p/200/300?q=solar%20panels&color=gray',
+  },
+  {
+    id: 'financial',
+    label: 'Análise Financeira',
+    img: 'https://img.usecurling.com/p/200/300?q=money%20growth&color=green',
+  },
+  {
+    id: 'warranty',
+    label: 'Garantias',
+    img: 'https://img.usecurling.com/p/200/300?q=certificate&color=orange',
+  },
+  {
+    id: 'schedule',
+    label: 'Cronograma',
+    img: 'https://img.usecurling.com/p/200/300?q=calendar%20schedule&color=blue',
+  },
+  {
+    id: 'terms',
+    label: 'Termos e Condições',
+    img: 'https://img.usecurling.com/p/200/300?q=contract%20signature&color=gray',
+  },
+]
 
 export default function ProposalSettings() {
   const { user } = useAuth()
@@ -20,17 +68,7 @@ export default function ProposalSettings() {
   const [formData, setFormData] = useState({
     indicators: { inflation: '5', interest: '1' },
     pricing: { margin: '30', tax: '12' },
-    visible_pages: {
-      cover: true,
-      facade: true,
-      technical: true,
-      charts: true,
-      system: true,
-      financial: true,
-      warranty: true,
-      schedule: true,
-      terms: true,
-    },
+    visible_pages: [] as any[],
     branding: {
       primaryColor: '#2563eb',
       secondaryColor: '#1e40af',
@@ -45,14 +83,33 @@ export default function ProposalSettings() {
       .then((record) => {
         setSettingsId(record.id)
         if (record.template) setActiveTemplate(record.template)
+
+        let pages = []
+        if (Array.isArray(record.visible_pages) && record.visible_pages.length > 0) {
+          pages = record.visible_pages
+        } else {
+          const oldObj = record.visible_pages || {}
+          pages = AVAILABLE_PAGES.map((p) => ({
+            id: p.id,
+            label: p.label,
+            img: p.img,
+            visible: oldObj[p.id] ?? true,
+          }))
+        }
+
         setFormData({
           indicators: record.indicators || formData.indicators,
           pricing: record.pricing || formData.pricing,
-          visible_pages: record.visible_pages || formData.visible_pages,
+          visible_pages: pages,
           branding: record.branding || formData.branding,
         })
       })
-      .catch((e) => console.error(e))
+      .catch((e) => {
+        setFormData((prev) => ({
+          ...prev,
+          visible_pages: AVAILABLE_PAGES.map((p) => ({ ...p, visible: true })),
+        }))
+      })
   }, [user])
 
   const handleSave = async () => {
@@ -86,6 +143,25 @@ export default function ProposalSettings() {
       ...prev,
       [category]: { ...(prev[category as keyof typeof formData] as any), [field]: value },
     }))
+  }
+
+  const togglePageVisible = (idx: number, val: boolean) => {
+    const arr = [...formData.visible_pages]
+    arr[idx].visible = val
+    setFormData((prev) => ({ ...prev, visible_pages: arr }))
+  }
+
+  const onDragStart = (e: any, idx: number) => {
+    e.dataTransfer.setData('idx', idx.toString())
+  }
+
+  const onDrop = (e: any, toIdx: number) => {
+    const fromIdx = parseInt(e.dataTransfer.getData('idx'))
+    if (isNaN(fromIdx)) return
+    const arr = [...formData.visible_pages]
+    const [moved] = arr.splice(fromIdx, 1)
+    arr.splice(toIdx, 0, moved)
+    setFormData((prev) => ({ ...prev, visible_pages: arr }))
   }
 
   return (
@@ -147,7 +223,11 @@ export default function ProposalSettings() {
               ].map((tpl) => (
                 <div
                   key={tpl.id}
-                  className={`border-2 rounded-xl p-3 cursor-pointer transition-all group ${activeTemplate === tpl.id ? 'border-primary bg-primary/5 shadow-md' : 'border-muted hover:border-primary/50 bg-card'}`}
+                  className={`border-2 rounded-xl p-3 cursor-pointer transition-all group ${
+                    activeTemplate === tpl.id
+                      ? 'border-primary bg-primary/5 shadow-md'
+                      : 'border-muted hover:border-primary/50 bg-card'
+                  }`}
                   onClick={() => setActiveTemplate(tpl.id)}
                 >
                   <div className="aspect-[3/4] bg-muted rounded-lg overflow-hidden mb-4 relative shadow-inner">
@@ -237,55 +317,43 @@ export default function ProposalSettings() {
         <TabsContent value="pages" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Páginas da Proposta</CardTitle>
-              <CardDescription>Ative ou desative seções específicas do PDF final.</CardDescription>
+              <CardTitle>Organizador de Páginas</CardTitle>
+              <CardDescription>
+                Arraste as páginas para reordená-las ou ative/desative seções específicas.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6 max-w-lg">
-              {[
-                {
-                  id: 'cover',
-                  label: 'Página de Capa',
-                  desc: 'Logo, dados do cliente e vendedor.',
-                },
-                { id: 'facade', label: 'Foto da Fachada', desc: 'Imagem ilustrativa do local.' },
-                {
-                  id: 'technical',
-                  label: 'Dados Técnicos',
-                  desc: 'Local de instalação e consumo.',
-                },
-                {
-                  id: 'charts',
-                  label: 'Gráficos de Geração',
-                  desc: 'Comparativo Consumo vs Geração.',
-                },
-                {
-                  id: 'system',
-                  label: 'Sistema Proposto',
-                  desc: 'Equipamentos e valor do investimento.',
-                },
-                { id: 'financial', label: 'Análise Financeira', desc: 'Payback, economia e ROI.' },
-                { id: 'warranty', label: 'Garantias', desc: 'Tempo de garantia dos equipamentos.' },
-                { id: 'schedule', label: 'Cronograma', desc: 'Etapas de execução do projeto.' },
-                {
-                  id: 'terms',
-                  label: 'Termos e Condições',
-                  desc: 'Formas de pagamento e validade.',
-                },
-              ].map((page) => (
-                <div
-                  key={page.id}
-                  className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
-                >
-                  <div className="space-y-0.5">
-                    <Label className="text-base">{page.label}</Label>
-                    <p className="text-sm text-muted-foreground">{page.desc}</p>
+            <CardContent>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {formData.visible_pages.map((page, idx) => (
+                  <div
+                    key={page.id}
+                    draggable
+                    onDragStart={(e) => onDragStart(e, idx)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => onDrop(e, idx)}
+                    className={`border-2 rounded-xl p-3 bg-card transition-all relative ${
+                      page.visible ? 'border-primary/40' : 'border-muted opacity-60 grayscale'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center mb-3">
+                      <div className="flex items-center gap-1 cursor-move text-muted-foreground hover:text-foreground">
+                        <GripVertical className="h-4 w-4" />
+                        <span className="font-bold text-sm">{idx + 1}</span>
+                      </div>
+                      <Switch
+                        checked={page.visible}
+                        onCheckedChange={(val) => togglePageVisible(idx, val)}
+                      />
+                    </div>
+                    <div className="aspect-[3/4] bg-muted rounded-lg border overflow-hidden">
+                      <img src={page.img} alt={page.label} className="object-cover w-full h-full" />
+                    </div>
+                    <div className="mt-2 text-center">
+                      <p className="font-semibold text-sm leading-tight">{page.label}</p>
+                    </div>
                   </div>
-                  <Switch
-                    checked={(formData.visible_pages as any)[page.id]}
-                    onCheckedChange={(val) => handleNestedChange('visible_pages', page.id, val)}
-                  />
-                </div>
-              ))}
+                ))}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
