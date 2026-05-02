@@ -110,11 +110,22 @@ export async function calculateKitPrice(
     }
 
     supplies.forEach((supply) => {
-      if (supply.distributor_id && distributorId && supply.distributor_id !== distributorId) return
+      console.group(`Supply Check: ${supply.name}`)
+      console.log(
+        `Negotiation Params -> Installation ID: ${installationId || 'None'}, kWp: ${totalKwp}, Modules: ${totalModules}, MPPTs: ${totalMppt}`,
+      )
+
+      if (supply.distributor_id && distributorId && supply.distributor_id !== distributorId) {
+        console.log(
+          `Excluded: Distributor mismatch (Supply: ${supply.distributor_id}, Selected: ${distributorId})`,
+        )
+        console.groupEnd()
+        return
+      }
 
       const matchingRules = rules.filter((r) => r.supply_id === supply.id)
 
-      const normInstId = (id: any) => id || ''
+      const normInstId = (id: any) => (id === '-' ? '' : id || '')
       const safeInstId = normInstId(installationId)
 
       const exactInstRules = matchingRules.filter(
@@ -126,48 +137,77 @@ export async function calculateKitPrice(
         if (r.range_type === 'modules') {
           const min = Number(r.min_val) || 0
           const max = r.max_val !== null && r.max_val !== '' ? Number(r.max_val) : Infinity
-          return totalModules >= min && totalModules <= max
+          const match = totalModules >= min && totalModules <= max
+          if (!match)
+            console.log(
+              `Excluded rule ${r.id}: outside modules range (${min} - ${max === Infinity ? '∞' : max})`,
+            )
+          return match
         }
         if (r.range_type === 'kwp') {
           const min = Number(r.min_val) || 0
           const max = r.max_val !== null && r.max_val !== '' ? Number(r.max_val) : Infinity
-          return totalKwp >= min && totalKwp <= max
+          const match = totalKwp >= min && totalKwp <= max
+          if (!match)
+            console.log(
+              `Excluded rule ${r.id}: outside kWp range (${min} - ${max === Infinity ? '∞' : max})`,
+            )
+          return match
         }
         return true
       }
 
-      const appliedRule = exactInstRules.find(checkRange) || anyInstRules.find(checkRange)
+      let validRules = exactInstRules.filter(checkRange)
+      let matchType = validRules.length > 0 ? 'Matched specific installation' : ''
 
-      if (!appliedRule) return // Strict rule-based calculation, no fallbacks
-
-      const calcBase = appliedRule.calc_base
-      const ruleMultiplier = Number(appliedRule.multiplier || 0)
-      const supplyPrice = Number(supply.price || 0)
-
-      let qty = 0
-
-      if (calcBase === 'modules') {
-        qty = totalModules * ruleMultiplier
-      } else if (calcBase === 'kwp') {
-        qty = totalKwp * ruleMultiplier
-      } else if (calcBase === 'mppt') {
-        qty = totalMppt * ruleMultiplier
-      } else if (calcBase === 'fixed') {
-        qty = ruleMultiplier
+      if (validRules.length === 0) {
+        validRules = anyInstRules.filter(checkRange)
+        if (validRules.length > 0) {
+          matchType = 'Matched global rule'
+        }
       }
 
-      const cost = qty * supplyPrice
+      if (validRules.length === 0) {
+        console.log('Excluded: No matching rules found for the given parameters.')
+      } else {
+        validRules.forEach((appliedRule) => {
+          const calcBase = appliedRule.calc_base
+          const ruleMultiplier = Number(appliedRule.multiplier || 0)
+          const supplyPrice = Number(supply.price || 0)
 
-      if (qty > 0 && cost > 0) {
-        total += cost
-        composition.push({
-          name: supply.name,
-          qty,
-          total: cost,
-          type: 'supply',
-          ruleApplied: true,
+          let qty = 0
+
+          if (calcBase === 'modules') {
+            qty = totalModules * ruleMultiplier
+          } else if (calcBase === 'kwp') {
+            qty = totalKwp * ruleMultiplier
+          } else if (calcBase === 'mppt') {
+            qty = totalMppt * ruleMultiplier
+          } else if (calcBase === 'fixed') {
+            qty = ruleMultiplier
+          }
+
+          console.log(`${matchType} (Rule: ${appliedRule.id})`)
+          console.log(
+            `Calculation -> Base: ${calcBase}, Multiplier: ${ruleMultiplier}, Final Quantity: ${qty}`,
+          )
+
+          const cost = qty * supplyPrice
+
+          if (qty > 0) {
+            total += cost
+            composition.push({
+              name: supply.name,
+              qty,
+              total: cost,
+              type: 'supply',
+              ruleApplied: true,
+            })
+          }
         })
       }
+
+      console.groupEnd()
     })
 
     return { kitPrice: total, kitComposition: composition }
