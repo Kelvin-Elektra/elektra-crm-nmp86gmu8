@@ -5,6 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -59,6 +60,9 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Editar Termos da Proposta</DialogTitle>
+          <DialogDescription className="sr-only">
+            Edite os termos financeiros e validade da proposta.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">

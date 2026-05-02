@@ -5,6 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -95,6 +96,9 @@ export function SizingGenerationModal({
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Editar Parâmetros de Geração</DialogTitle>
+          <DialogDescription className="sr-only">
+            Ajuste os parâmetros de perdas e geração.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="flex items-center justify-between border p-3 rounded-lg bg-card mb-4">

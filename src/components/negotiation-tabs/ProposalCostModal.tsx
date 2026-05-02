@@ -5,6 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -64,6 +65,9 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
       <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Custos da Proposta #{proposal?.id}</DialogTitle>
+          <DialogDescription className="sr-only">
+            Visualize e edite os custos específicos desta proposta.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
           {costs.length === 0 ? (

@@ -128,11 +128,6 @@ export async function calculateKitPrice(
       const normInstId = (id: any) => (id === '-' ? '' : id || '')
       const safeInstId = normInstId(installationId)
 
-      const exactInstRules = matchingRules.filter(
-        (r) => normInstId(r.installation_id) === safeInstId,
-      )
-      const anyInstRules = matchingRules.filter((r) => !normInstId(r.installation_id))
-
       const checkRange = (r: any) => {
         if (r.range_type === 'modules') {
           const min = Number(r.min_val) || 0
@@ -157,23 +152,22 @@ export async function calculateKitPrice(
         return true
       }
 
-      let validRules = exactInstRules.filter(checkRange)
-      let matchType = validRules.length > 0 ? 'Matched specific installation' : ''
+      const validRules = matchingRules.filter((r) => {
+        const rInstId = normInstId(r.installation_id)
+        const matchesInst = rInstId === safeInstId || rInstId === ''
+        if (!matchesInst) return false
 
-      if (validRules.length === 0) {
-        validRules = anyInstRules.filter(checkRange)
-        if (validRules.length > 0) {
-          matchType = 'Matched global rule'
-        }
-      }
+        return checkRange(r)
+      })
 
       if (validRules.length === 0) {
         console.log('Excluded: No matching rules found for the given parameters.')
       } else {
+        let totalQty = 0
+
         validRules.forEach((appliedRule) => {
           const calcBase = appliedRule.calc_base
           const ruleMultiplier = Number(appliedRule.multiplier || 0)
-          const supplyPrice = Number(supply.price || 0)
 
           let qty = 0
 
@@ -187,24 +181,26 @@ export async function calculateKitPrice(
             qty = ruleMultiplier
           }
 
-          console.log(`${matchType} (Rule: ${appliedRule.id})`)
+          console.log(`Matched Rule: ${appliedRule.id}`)
           console.log(
-            `Calculation -> Base: ${calcBase}, Multiplier: ${ruleMultiplier}, Final Quantity: ${qty}`,
+            `Calculation -> Base: ${calcBase}, Multiplier: ${ruleMultiplier}, Added Quantity: ${qty}`,
           )
 
-          const cost = qty * supplyPrice
-
-          if (qty > 0) {
-            total += cost
-            composition.push({
-              name: supply.name,
-              qty,
-              total: cost,
-              type: 'supply',
-              ruleApplied: true,
-            })
-          }
+          totalQty += qty
         })
+
+        if (totalQty > 0) {
+          const supplyPrice = Number(supply.price || 0)
+          const cost = totalQty * supplyPrice
+          total += cost
+          composition.push({
+            name: supply.name,
+            qty: totalQty,
+            total: cost,
+            type: 'supply',
+            ruleApplied: true,
+          })
+        }
       }
 
       console.groupEnd()

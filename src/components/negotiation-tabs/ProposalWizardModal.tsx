@@ -382,7 +382,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
                 <ArrowLeft className="w-4 h-4 mr-2" /> Voltar
               </Button>
               <Button onClick={handleGenerate} disabled={loading}>
-                <FileText className="w-4 h-4 mr-2" /> Gerar Proposta Congelada
+                <FileText className="w-4 h-4 mr-2" /> Gerar Proposta
               </Button>
             </DialogFooter>
           </div>
