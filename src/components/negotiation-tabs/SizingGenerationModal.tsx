@@ -7,6 +7,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog'
+import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -96,9 +97,9 @@ export function SizingGenerationModal({
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Editar Parâmetros de Geração</DialogTitle>
-          <DialogDescription className="sr-only">
-            Ajuste os parâmetros de perdas e geração.
-          </DialogDescription>
+          <VisuallyHidden>
+            <DialogDescription>Ajuste os parâmetros de perdas e geração.</DialogDescription>
+          </VisuallyHidden>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="flex items-center justify-between border p-3 rounded-lg bg-card mb-4">

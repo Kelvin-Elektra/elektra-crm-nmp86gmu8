@@ -7,6 +7,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog'
+import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -113,9 +114,11 @@ export function SizingEquipmentModal({ open, onOpenChange, neg, reload, recommen
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Editar Equipamentos</DialogTitle>
-          <DialogDescription className="sr-only">
-            Selecione e ajuste os equipamentos para este dimensionamento.
-          </DialogDescription>
+          <VisuallyHidden>
+            <DialogDescription>
+              Selecione e ajuste os equipamentos para este dimensionamento.
+            </DialogDescription>
+          </VisuallyHidden>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">

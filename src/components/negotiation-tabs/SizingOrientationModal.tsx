@@ -7,6 +7,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog'
+import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -73,9 +74,9 @@ export function SizingOrientationModal({
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Orientação das Faces</DialogTitle>
-          <DialogDescription className="sr-only">
-            Configure a orientação das faces do telhado.
-          </DialogDescription>
+          <VisuallyHidden>
+            <DialogDescription>Configure a orientação das faces do telhado.</DialogDescription>
+          </VisuallyHidden>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="flex items-center justify-between">

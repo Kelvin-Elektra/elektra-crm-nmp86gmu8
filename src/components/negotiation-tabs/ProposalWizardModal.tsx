@@ -64,45 +64,21 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         .collection('proposal_settings')
         .getFirstListItem(`company_id='${companyId}'`)
         .catch(() => ({}))
-      const pv_supplies = await pb
-        .collection('pv_supplies')
-        .getFullList({ filter: `company_id='${companyId}'` })
-        .catch(() => [])
       const pv_costs = await pb
         .collection('pv_costs')
         .getFullList({ filter: `company_id='${companyId}'` })
         .catch(() => [])
 
-      const moduleCost = (modRec?.price || 0) * (sizing.module_qty || 0)
-      const inverterCost = invs.reduce((acc, i) => acc + (i?.price || 0) * i.qty, 0)
+      const { calculateKitPrice } = await import('@/hooks/use-kit-calculator')
+      const { kitPrice, kitComposition } = await calculateKitPrice(neg)
+      const suppliesCost = kitComposition
+        .filter((c) => c.type === 'supply')
+        .reduce((acc, c) => acc + c.total, 0)
 
-      let suppliesCost = 0
       const baseKwp = sizing.kit_power_kwp || 0
       const baseMods = sizing.module_qty || 0
       const baseKw = invs.reduce((acc, i) => acc + (i?.power || 0) * i.qty, 0)
       const instId = sizing.installation_id || 'none'
-
-      pv_supplies.forEach((s) => {
-        let matched = true
-        if (
-          s.range_type === 'kwp' &&
-          (baseKwp < (s.min_val || 0) || (s.max_val && baseKwp > s.max_val))
-        )
-          matched = false
-        if (
-          s.range_type === 'modules' &&
-          (baseMods < (s.min_val || 0) || (s.max_val && baseMods > s.max_val))
-        )
-          matched = false
-        if (matched) {
-          if (s.calc_base === 'fixed') suppliesCost += s.price
-          else if (s.calc_base === 'modules')
-            suppliesCost += s.price * baseMods * (s.multiplier || 1)
-          else if (s.calc_base === 'kwp') suppliesCost += s.price * baseKwp * (s.multiplier || 1)
-        }
-      })
-
-      const kitPrice = moduleCost + inverterCost + suppliesCost
 
       let fixedCosts = 0
       let varCosts = 0

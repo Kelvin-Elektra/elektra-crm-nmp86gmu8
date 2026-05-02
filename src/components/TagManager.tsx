@@ -1,5 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { getTags, createTag, deleteTag } from '@/services/db'
@@ -30,6 +37,11 @@ export function TagManager({ open, onOpenChange }: any) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Gerenciar Tags</DialogTitle>
+          <VisuallyHidden>
+            <DialogDescription>
+              Adicione ou remova tags para organizar suas negociações.
+            </DialogDescription>
+          </VisuallyHidden>
         </DialogHeader>
         <div className="space-y-4">
           <div className="flex gap-2">

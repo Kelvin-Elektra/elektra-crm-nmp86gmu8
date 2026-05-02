@@ -110,100 +110,102 @@ export async function calculateKitPrice(
     }
 
     supplies.forEach((supply) => {
-      console.group(`Supply Check: ${supply.name}`)
-      console.log(
-        `Negotiation Params -> Installation ID: ${installationId || 'None'}, kWp: ${totalKwp}, Modules: ${totalModules}, MPPTs: ${totalMppt}`,
-      )
-
       if (supply.distributor_id && distributorId && supply.distributor_id !== distributorId) {
-        console.log(
-          `Excluded: Distributor mismatch (Supply: ${supply.distributor_id}, Selected: ${distributorId})`,
-        )
-        console.groupEnd()
         return
       }
 
       const matchingRules = rules.filter((r) => r.supply_id === supply.id)
-
-      const normInstId = (id: any) => (id === '-' ? '' : id || '')
-      const safeInstId = normInstId(installationId)
+      const safeInstId = installationId || ''
 
       const checkRange = (r: any) => {
         if (r.range_type === 'modules') {
-          const min = Number(r.min_val) || 0
-          const max = r.max_val !== null && r.max_val !== '' ? Number(r.max_val) : Infinity
-          const match = totalModules >= min && totalModules <= max
-          if (!match)
-            console.log(
-              `Excluded rule ${r.id}: outside modules range (${min} - ${max === Infinity ? '∞' : max})`,
-            )
-          return match
+          const min = parseFloat(r.min_val) || 0
+          const max = r.max_val !== null && r.max_val !== '' ? parseFloat(r.max_val) : Infinity
+          return totalModules >= min && totalModules <= max
         }
         if (r.range_type === 'kwp') {
-          const min = Number(r.min_val) || 0
-          const max = r.max_val !== null && r.max_val !== '' ? Number(r.max_val) : Infinity
-          const match = totalKwp >= min && totalKwp <= max
-          if (!match)
-            console.log(
-              `Excluded rule ${r.id}: outside kWp range (${min} - ${max === Infinity ? '∞' : max})`,
-            )
-          return match
+          const min = parseFloat(r.min_val) || 0
+          const max = r.max_val !== null && r.max_val !== '' ? parseFloat(r.max_val) : Infinity
+          return totalKwp >= min && totalKwp <= max
         }
         return true
       }
 
-      const validRules = matchingRules.filter((r) => {
-        const rInstId = normInstId(r.installation_id)
-        const matchesInst = rInstId === safeInstId || rInstId === ''
-        if (!matchesInst) return false
+      if (matchingRules.length === 0) {
+        // Legacy fallback to supply's own fields if no rules exist
+        let matched = true
+        if (
+          supply.installation_id &&
+          supply.installation_id !== '-' &&
+          supply.installation_id !== safeInstId
+        ) {
+          matched = false
+        }
+        if (matched && !checkRange(supply)) {
+          matched = false
+        }
 
-        return checkRange(r)
-      })
-
-      if (validRules.length === 0) {
-        console.log('Excluded: No matching rules found for the given parameters.')
-      } else {
-        let totalQty = 0
-
-        validRules.forEach((appliedRule) => {
-          const calcBase = appliedRule.calc_base
-          const ruleMultiplier = Number(appliedRule.multiplier || 0)
-
+        if (matched) {
+          const calcBase = supply.calc_base
+          const ruleMultiplier = parseFloat(supply.multiplier) || 1
           let qty = 0
 
-          if (calcBase === 'modules') {
-            qty = totalModules * ruleMultiplier
-          } else if (calcBase === 'kwp') {
-            qty = totalKwp * ruleMultiplier
-          } else if (calcBase === 'mppt') {
-            qty = totalMppt * ruleMultiplier
-          } else if (calcBase === 'fixed') {
-            qty = ruleMultiplier
+          if (calcBase === 'modules') qty = totalModules * ruleMultiplier
+          else if (calcBase === 'kwp') qty = totalKwp * ruleMultiplier
+          else if (calcBase === 'mppt') qty = totalMppt * ruleMultiplier
+          else if (calcBase === 'fixed') qty = ruleMultiplier
+
+          if (qty > 0) {
+            const supplyPrice = parseFloat(supply.price) || 0
+            const cost = qty * supplyPrice
+            total += cost
+            composition.push({
+              name: supply.name,
+              qty,
+              total: cost,
+              type: 'supply',
+              ruleApplied: false,
+            })
           }
-
-          console.log(`Matched Rule: ${appliedRule.id}`)
-          console.log(
-            `Calculation -> Base: ${calcBase}, Multiplier: ${ruleMultiplier}, Added Quantity: ${qty}`,
-          )
-
-          totalQty += qty
+        }
+      } else {
+        const validRules = matchingRules.filter((r) => {
+          const rInstId = r.installation_id || ''
+          const matchesInst = rInstId === '-' || rInstId === '' || rInstId === safeInstId
+          if (!matchesInst) return false
+          return checkRange(r)
         })
 
-        if (totalQty > 0) {
-          const supplyPrice = Number(supply.price || 0)
-          const cost = totalQty * supplyPrice
-          total += cost
-          composition.push({
-            name: supply.name,
-            qty: totalQty,
-            total: cost,
-            type: 'supply',
-            ruleApplied: true,
+        if (validRules.length > 0) {
+          let totalQty = 0
+
+          validRules.forEach((appliedRule) => {
+            const calcBase = appliedRule.calc_base
+            const ruleMultiplier = parseFloat(appliedRule.multiplier) || 0
+            let qty = 0
+
+            if (calcBase === 'modules') qty = totalModules * ruleMultiplier
+            else if (calcBase === 'kwp') qty = totalKwp * ruleMultiplier
+            else if (calcBase === 'mppt') qty = totalMppt * ruleMultiplier
+            else if (calcBase === 'fixed') qty = ruleMultiplier
+
+            totalQty += qty
           })
+
+          if (totalQty > 0) {
+            const supplyPrice = parseFloat(supply.price) || 0
+            const cost = totalQty * supplyPrice
+            total += cost
+            composition.push({
+              name: supply.name,
+              qty: totalQty,
+              total: cost,
+              type: 'supply',
+              ruleApplied: true,
+            })
+          }
         }
       }
-
-      console.groupEnd()
     })
 
     return { kitPrice: total, kitComposition: composition }

@@ -1,5 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -74,6 +81,9 @@ export function StageManager({ open, onOpenChange }: any) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Estágios do Funil</DialogTitle>
+          <VisuallyHidden>
+            <DialogDescription>Gerencie os estágios do funil de vendas.</DialogDescription>
+          </VisuallyHidden>
         </DialogHeader>
         {!isAdmin ? (
           <p className="text-sm text-muted-foreground">

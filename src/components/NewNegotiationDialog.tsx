@@ -1,6 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -284,6 +291,11 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-2 shrink-0 border-b">
           <DialogTitle>Nova Negociação</DialogTitle>
+          <VisuallyHidden>
+            <DialogDescription>
+              Crie uma nova negociação preenchendo os dados abaixo.
+            </DialogDescription>
+          </VisuallyHidden>
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col flex-1 overflow-hidden">
           <div className="px-6 py-4 flex-1 overflow-y-auto scrollbar-thin">

@@ -1,5 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -101,6 +108,9 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{lead ? 'Editar Lead' : 'Novo Lead'}</DialogTitle>
+          <VisuallyHidden>
+            <DialogDescription>Formulário para adicionar ou editar um lead.</DialogDescription>
+          </VisuallyHidden>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">

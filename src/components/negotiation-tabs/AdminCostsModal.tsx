@@ -7,6 +7,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog'
+import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -62,9 +63,11 @@ export function AdminCostsModal({ open, onOpenChange, negId }: any) {
       <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Gerenciamento de Custos (Admin)</DialogTitle>
-          <DialogDescription className="sr-only">
-            Gerencie os orçamentos e custos vinculados a esta negociação.
-          </DialogDescription>
+          <VisuallyHidden>
+            <DialogDescription>
+              Gerencie os orçamentos e custos vinculados a esta negociação.
+            </DialogDescription>
+          </VisuallyHidden>
         </DialogHeader>
         <div className="space-y-4 py-4">
           {budgets.length === 0 ? (
