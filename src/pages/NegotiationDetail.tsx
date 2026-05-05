@@ -64,6 +64,7 @@ export default function NegotiationDetail() {
     if (e.record.id === id) loadData()
   })
   useRealtime('proposals', loadData)
+  useRealtime('leads', loadData)
 
   const isAdmin = user?.role === 'admin_company' || user?.role === 'admin_elektra'
 

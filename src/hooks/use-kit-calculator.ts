@@ -176,14 +176,6 @@ export async function calculateKitPrice(
           return checkRange(r)
         })
 
-        // Prioritize specific installation match over "All" (empty)
-        const specificRules = validRules.filter(
-          (r) => (r.installation_id || '') === safeInstId && safeInstId !== '',
-        )
-        if (specificRules.length > 0) {
-          validRules = specificRules
-        }
-
         if (validRules.length > 0) {
           let totalQty = 0
 

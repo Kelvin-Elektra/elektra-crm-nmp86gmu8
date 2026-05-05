@@ -28,7 +28,7 @@ export function TechnicalCard({ neg, reload }: { neg: any; reload?: () => void }
   const { toast } = useToast()
   const [installations, setInstallations] = useState<any[]>([])
   const [formData, setFormData] = useState({
-    installation_type: initialSizing.installation_type || '',
+    installation_id: initialSizing.installation_id || initialSizing.installation_type || '',
   })
 
   useEffect(() => {
@@ -45,7 +45,8 @@ export function TechnicalCard({ neg, reload }: { neg: any; reload?: () => void }
     try {
       const newSizing = {
         ...neg.sizing,
-        installation_type: formData.installation_type,
+        installation_id: formData.installation_id,
+        installation_type: formData.installation_id, // mantido por compatibilidade
       }
       await updateNegotiation(neg.id, { sizing: newSizing })
       toast({ description: 'Dados salvos com sucesso' })
@@ -58,10 +59,9 @@ export function TechnicalCard({ neg, reload }: { neg: any; reload?: () => void }
     }
   }
 
+  const currentInstId = initialSizing.installation_id || initialSizing.installation_type || ''
   const selectedInstName =
-    installations.find((i) => i.id === initialSizing.installation_type)?.name ||
-    initialSizing.installation_type ||
-    '-'
+    installations.find((i) => i.id === currentInstId)?.name || currentInstId || '-'
 
   return (
     <Card>
@@ -89,8 +89,8 @@ export function TechnicalCard({ neg, reload }: { neg: any; reload?: () => void }
             <div className="space-y-2">
               <Label>Tipo de Instalação</Label>
               <Select
-                value={formData.installation_type}
-                onValueChange={(v) => setFormData({ ...formData, installation_type: v })}
+                value={formData.installation_id}
+                onValueChange={(v) => setFormData({ ...formData, installation_id: v })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione..." />

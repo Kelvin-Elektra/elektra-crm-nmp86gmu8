@@ -25,6 +25,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
   const [validity, setValidity] = useState('')
   const [paymentTerms, setPaymentTerms] = useState('')
   const [notes, setNotes] = useState('')
+  const [description, setDescription] = useState('')
   const [discount, setDiscount] = useState<number>(0)
 
   const [totalValue, setTotalValue] = useState(0)
@@ -33,10 +34,11 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
   useEffect(() => {
     if (open && step === 1) {
       setValidity(new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0])
+      setDescription(`Proposta Sistema ${(neg.sizing?.kit_power_kwp || 0).toFixed(2)} kWp`)
       setStep(1)
       calculatePricing()
     }
-  }, [open])
+  }, [open, neg.sizing])
 
   const calculatePricing = async () => {
     try {
@@ -231,7 +233,8 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
       const rec = await pb.collection('proposals').create({
         company_id: neg.company_id,
         negotiation_id: neg.id,
-        description: `Proposta Sistema ${(neg.sizing?.kit_power_kwp || 0).toFixed(2)} kWp`,
+        description:
+          description || `Proposta Sistema ${(neg.sizing?.kit_power_kwp || 0).toFixed(2)} kWp`,
         price: finalPrice,
         status: 'draft',
         validity_date: validity ? new Date(validity).toISOString() : null,
@@ -314,6 +317,14 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
 
         {step === 2 && (
           <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Descrição da Proposta</Label>
+              <Input
+                placeholder="Ex: Sistema 10 kWp - Telhado Cerâmico"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Validade da Proposta</Label>
