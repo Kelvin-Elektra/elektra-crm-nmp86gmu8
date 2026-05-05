@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { FileText, ArrowRight, ArrowLeft } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
@@ -30,17 +31,56 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
 
   const [totalValue, setTotalValue] = useState(0)
   const [pricingDetails, setPricingDetails] = useState<any>(null)
+  const [rawPricingData, setRawPricingData] = useState<any>(null)
+
+  const [pricingMode, setPricingMode] = useState<'automatic' | 'manual'>('automatic')
+  const [manualKitValue, setManualKitValue] = useState<number>(0)
 
   useEffect(() => {
     if (open && step === 1) {
       setValidity(new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0])
       setDescription(`Proposta Sistema ${(neg.sizing?.kit_power_kwp || 0).toFixed(2)} kWp`)
       setStep(1)
-      calculatePricing()
+      loadPricingData()
     }
   }, [open, neg.sizing])
 
-  const calculatePricing = async () => {
+  useEffect(() => {
+    if (!rawPricingData) return
+
+    const { autoKitPrice, fixedCosts, varCosts, rateSum, taxSum, marginSum, settings } =
+      rawPricingData
+    const currentKitPrice = pricingMode === 'manual' ? manualKitValue : autoKitPrice
+
+    const C = currentKitPrice + fixedCosts + varCosts
+    const R = rateSum
+    const M = marginSum
+    const T = taxSum
+
+    let salePrice = 0
+    const billingModel = settings.billing_model || 'direct'
+
+    if (1 - R - M - T <= 0) {
+      salePrice = (neg.sizing?.kit_power_kwp || 0) * 3500 // fallback
+    } else {
+      if (billingModel === 'intermediated') {
+        salePrice = (C - currentKitPrice * T) / (1 - R - M - T)
+      } else {
+        salePrice = C / (1 - R - M - T)
+      }
+    }
+
+    setTotalValue(salePrice)
+    setPricingDetails({
+      ...rawPricingData,
+      pricingMode,
+      manualKitValue,
+      kitPrice: currentKitPrice,
+      salePrice,
+    })
+  }, [rawPricingData, pricingMode, manualKitValue, neg.sizing])
+
+  const loadPricingData = async () => {
     try {
       setLoading(true)
       const companyId = neg.company_id
@@ -72,7 +112,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         .catch(() => [])
 
       const { calculateKitPrice } = await import('@/hooks/use-kit-calculator')
-      const { kitPrice, kitComposition } = await calculateKitPrice(neg)
+      const { kitPrice: autoKitPrice, kitComposition } = await calculateKitPrice(neg)
       const suppliesCost = kitComposition
         .filter((c) => c.type === 'supply')
         .reduce((acc, c) => acc + c.total, 0)
@@ -131,45 +171,27 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         }
       })
 
-      const C = kitPrice + fixedCosts + varCosts
-      const R = rateSum
-      const M = marginSum
-      const T = taxSum
-
-      let salePrice = 0
-      const billingModel = settings.billing_model || 'direct'
-
-      if (1 - R - M - T <= 0) {
-        toast({
-          variant: 'destructive',
-          title: 'Erro Matemático',
-          description:
-            'A soma das taxas, impostos e margens é >= 100%. Verifique as configurações de custos.',
-        })
-        salePrice = baseKwp * 3500 // fallback
-      } else {
-        if (billingModel === 'intermediated') {
-          salePrice = (C - kitPrice * T) / (1 - R - M - T)
-        } else {
-          salePrice = C / (1 - R - M - T)
-        }
-      }
-
-      setTotalValue(salePrice)
-      setPricingDetails({
-        kitPrice,
+      setRawPricingData({
+        autoKitPrice,
         fixedCosts,
         varCosts,
         rateSum,
-        marginSum,
         taxSum,
-        salePrice,
+        marginSum,
+        settings,
+        appliedCosts,
+        kitComposition,
         equipment: { modules: modRec, inverters: invs },
         supplies: suppliesCost,
-        appliedCosts,
-        settings,
-        kitComposition,
       })
+
+      const defMode = settings.default_pricing_mode || 'automatic'
+      setPricingMode(defMode)
+      if (defMode === 'manual') {
+        setManualKitValue(autoKitPrice)
+      } else {
+        setManualKitValue(autoKitPrice)
+      }
     } catch (e) {
       console.error(e)
     } finally {
@@ -284,15 +306,62 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
                 <span className="text-muted-foreground">Qtd. Módulos:</span>
                 <span className="font-semibold">{neg.sizing?.module_qty || 0}</span>
               </div>
-              <div className="flex justify-between border-b pb-2">
-                <span className="text-muted-foreground">Custo Formado do Kit:</span>
-                <span className="font-semibold">
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                    pricingDetails?.kitPrice || 0,
-                  )}
-                </span>
+              <div className="flex justify-between border-b pb-2 items-center">
+                <span className="text-muted-foreground">Modo de Precificação:</span>
+                <RadioGroup
+                  value={pricingMode}
+                  onValueChange={(v) => setPricingMode(v as 'automatic' | 'manual')}
+                  className="flex gap-4"
+                  disabled={user?.role === 'user'}
+                >
+                  <div className="flex items-center space-x-1">
+                    <RadioGroupItem value="automatic" id="mode-auto" />
+                    <Label
+                      htmlFor="mode-auto"
+                      className={`cursor-pointer ${user?.role === 'user' ? 'opacity-50' : ''}`}
+                    >
+                      Automático
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <RadioGroupItem value="manual" id="mode-manual" />
+                    <Label
+                      htmlFor="mode-manual"
+                      className={`cursor-pointer ${user?.role === 'user' ? 'opacity-50' : ''}`}
+                    >
+                      Manual
+                    </Label>
+                  </div>
+                </RadioGroup>
               </div>
-              <div className="flex justify-between pb-2">
+
+              {pricingMode === 'manual' ? (
+                <div className="flex justify-between border-b pb-2 items-center">
+                  <span className="text-muted-foreground">Custo Base do Kit (Manual):</span>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                      R$
+                    </span>
+                    <Input
+                      type="number"
+                      className="w-36 text-right pl-8 font-medium"
+                      value={manualKitValue || ''}
+                      onChange={(e) => setManualKitValue(Number(e.target.value))}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex justify-between border-b pb-2">
+                  <span className="text-muted-foreground">Custo Formado do Kit (Auto):</span>
+                  <span className="font-semibold">
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                      rawPricingData?.autoKitPrice || 0,
+                    )}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex justify-between pb-2 pt-2">
                 <span className="text-muted-foreground">Preço de Venda Base Calculado:</span>
                 <span className="font-bold text-primary">
                   {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(

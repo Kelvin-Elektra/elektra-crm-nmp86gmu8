@@ -56,6 +56,7 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
     ? snapshotPricing.kitComposition
     : calcResult.kitComposition
   const calcLoading = snapshotPricing ? false : calcResult.loading
+  const isManualMode = snapshotPricing?.pricingMode === 'manual'
 
   useEffect(() => {
     if (open && proposal) {
@@ -131,11 +132,21 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
                       <AccordionItem value="kit" className="border rounded-lg bg-card shadow-sm">
                         <AccordionTrigger className="hover:no-underline px-5 py-4">
                           <div className="flex items-center justify-between w-full pr-4">
-                            <span className="font-semibold text-base">
-                              {b.name === 'Kit Fotovoltaico'
-                                ? 'Kit Fotovoltaico (Equipamentos e Insumos)'
-                                : b.name}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-base">
+                                {b.name === 'Kit Fotovoltaico'
+                                  ? 'Kit Fotovoltaico (Equipamentos e Insumos)'
+                                  : b.name}
+                              </span>
+                              {isManualMode && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] bg-yellow-50 text-yellow-800 border-yellow-200"
+                                >
+                                  Modo Manual
+                                </Badge>
+                              )}
+                            </div>
                             <span className="font-bold text-primary text-lg">
                               {new Intl.NumberFormat('pt-BR', {
                                 style: 'currency',
@@ -176,7 +187,9 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
                           </div>
 
                           <h4 className="font-medium text-sm mb-3 text-muted-foreground">
-                            Itens Inclusos no Kit:
+                            {isManualMode
+                              ? 'Itens Considerados no Dimensionamento Técnico:'
+                              : 'Itens Inclusos no Kit:'}
                           </h4>
                           {calcLoading ? (
                             <div className="flex justify-center p-4 text-muted-foreground animate-pulse bg-muted/20 rounded-md">
@@ -242,7 +255,9 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
                                     ))}
                                   <tr className="bg-muted/30 font-semibold text-sm border-t-2">
                                     <td colSpan={3} className="p-3 text-right">
-                                      Soma Estimada do Kit (Referência):
+                                      {isManualMode
+                                        ? 'Valor Base Manual Informado:'
+                                        : 'Soma Estimada do Kit:'}
                                     </td>
                                     <td className="p-3 text-right text-foreground tabular-nums">
                                       {new Intl.NumberFormat('pt-BR', {

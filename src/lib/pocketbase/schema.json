@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-05T14:35:09.454Z",
+  "generatedAt": "2026-05-05T23:23:18.575Z",
   "collections": [
     {
       "name": "users",
@@ -732,6 +732,13 @@
           "type": "text",
           "required": false,
           "system": false
+        },
+        {
+          "name": "default_pricing_mode",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["automatic", "manual"]
         }
       ],
       "indexes": []
