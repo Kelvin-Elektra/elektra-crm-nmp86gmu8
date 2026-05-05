@@ -168,6 +168,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         supplies: suppliesCost,
         appliedCosts,
         settings,
+        kitComposition,
       })
     } catch (e) {
       console.error(e)

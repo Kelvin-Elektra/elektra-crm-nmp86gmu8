@@ -7,32 +7,17 @@ import pb from '@/lib/pocketbase/client'
 import { format } from 'date-fns'
 import { ProposalViewer } from '../ProposalViewer'
 import { ProposalCostModal } from './ProposalCostModal'
+import { ProposalWizardModal } from './ProposalWizardModal'
 import { Badge } from '@/components/ui/badge'
 
 export function ProposalsTab({ proposals, neg, reload }: any) {
   const { toast } = useToast()
-  const [loading, setLoading] = useState(false)
   const [viewerOpen, setViewerOpen] = useState<any>(null)
   const [costModalOpen, setCostModalOpen] = useState<any>(null)
+  const [wizardOpen, setWizardOpen] = useState(false)
 
-  const handleGenerate = async () => {
-    setLoading(true)
-    try {
-      const newProp = await pb.collection('proposals').create({
-        company_id: neg.company_id,
-        negotiation_id: neg.id,
-        status: 'Gerada',
-        validity_date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
-        price: 0,
-        total_value: 0,
-      })
-      toast({ title: 'Proposta gerada com sucesso!' })
-      reload()
-    } catch (e) {
-      toast({ variant: 'destructive', title: 'Erro ao gerar proposta' })
-    } finally {
-      setLoading(false)
-    }
+  const handleGenerate = () => {
+    setWizardOpen(true)
   }
 
   const handleDelete = async (id: string) => {
@@ -49,7 +34,7 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <Button onClick={handleGenerate} disabled={loading}>
+        <Button onClick={handleGenerate}>
           <Plus className="h-4 w-4 mr-2" /> Gerar Proposta
         </Button>
       </div>
@@ -65,24 +50,32 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="flex flex-col gap-4">
           {proposals.map((p: any) => (
             <Card key={p.id} className="relative overflow-hidden">
               <CardHeader className="pb-2">
-                <div className="flex justify-between items-start">
+                <div className="flex justify-between items-center flex-wrap gap-2">
                   <div>
                     <CardTitle className="text-base flex items-center gap-2">
-                      Proposta #{p.id.slice(0, 5)}
+                      {p.description || `Proposta #${p.id.slice(0, 5)}`}
                     </CardTitle>
-                    <CardDescription className="mt-1">
-                      Gerada em: {format(new Date(p.created), 'dd/MM/yyyy')}
+                    <CardDescription className="mt-1 flex items-center gap-4">
+                      <span>Gerada em: {format(new Date(p.created), 'dd/MM/yyyy')}</span>
+                      <span className="font-semibold text-primary">
+                        {new Intl.NumberFormat('pt-BR', {
+                          style: 'currency',
+                          currency: 'BRL',
+                        }).format(p.total_value || p.price || 0)}
+                      </span>
                     </CardDescription>
                   </div>
-                  <Badge variant="secondary">{p.status || 'Gerada'}</Badge>
+                  <div className="flex items-center gap-3">
+                    <Badge variant="secondary">{p.status || 'Gerada'}</Badge>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center gap-2 mt-4 pt-4 border-t">
+                <div className="flex items-center gap-2 mt-2 pt-4 border-t">
                   <Button
                     variant="outline"
                     size="sm"
@@ -93,25 +86,35 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
                   </Button>
                   <Button
                     variant="outline"
-                    size="icon"
+                    size="sm"
                     onClick={() => setCostModalOpen(p)}
                     title="Editar Custos"
                   >
-                    <DollarSign className="h-4 w-4 text-green-600" />
+                    <DollarSign className="h-4 w-4 mr-2 text-green-600" /> Custos
                   </Button>
                   <Button
                     variant="ghost"
-                    size="icon"
+                    size="sm"
                     onClick={() => handleDelete(p.id)}
                     className="text-destructive hover:bg-destructive/10"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-4 w-4 mr-2" /> Excluir
                   </Button>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
+      )}
+
+      {wizardOpen && (
+        <ProposalWizardModal
+          open={wizardOpen}
+          onOpenChange={setWizardOpen}
+          neg={neg}
+          reload={reload}
+          openViewer={setViewerOpen}
+        />
       )}
 
       {viewerOpen && (

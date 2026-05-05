@@ -32,13 +32,13 @@ export function TechnicalCard({ neg, reload }: { neg: any; reload?: () => void }
   })
 
   useEffect(() => {
-    if (open && neg.company_id) {
+    if (neg.company_id) {
       pb.collection('pv_installations')
         .getFullList({ filter: `company_id='${neg.company_id}'` })
         .then(setInstallations)
         .catch(console.error)
     }
-  }, [open, neg.company_id])
+  }, [neg.company_id])
 
   const handleSave = async () => {
     setLoading(true)

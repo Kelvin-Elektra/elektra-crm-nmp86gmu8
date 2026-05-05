@@ -39,7 +39,23 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
     }
   }, [open, proposal, neg])
 
-  const { kitPrice, kitComposition, loading: calcLoading } = useKitCalculator(negData)
+  const [snapshotPricing, setSnapshotPricing] = useState<any>(null)
+
+  useEffect(() => {
+    if (proposal?.snapshot_data?.pricing) {
+      setSnapshotPricing(proposal.snapshot_data.pricing)
+    } else {
+      setSnapshotPricing(null)
+    }
+  }, [proposal])
+
+  const calcResult = useKitCalculator(negData)
+
+  const kitPrice = snapshotPricing ? snapshotPricing.kitPrice : calcResult.kitPrice
+  const kitComposition = snapshotPricing?.kitComposition
+    ? snapshotPricing.kitComposition
+    : calcResult.kitComposition
+  const calcLoading = snapshotPricing ? false : calcResult.loading
 
   useEffect(() => {
     if (open && proposal) {
