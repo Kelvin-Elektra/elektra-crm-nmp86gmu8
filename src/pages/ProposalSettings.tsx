@@ -48,7 +48,6 @@ export default function ProposalSettings() {
   const [activeTemplate, setActiveTemplate] = useState('modern')
 
   const [indicators, setIndicators] = useState({ inflation: '5', interest: '1' })
-  const [defaultPricingMode, setDefaultPricingMode] = useState('automatic')
   const [branding, setBranding] = useState({
     primaryColor: '#2563eb',
     secondaryColor: '#1e40af',
@@ -106,7 +105,6 @@ export default function ProposalSettings() {
         if (record.active_template_id || record.template)
           setActiveTemplate(record.active_template_id || record.template)
         if (record.indicators) setIndicators(record.indicators as any)
-        if (record.default_pricing_mode) setDefaultPricingMode(record.default_pricing_mode)
         if (record.branding) setBranding(record.branding as any)
 
         if (
@@ -144,7 +142,6 @@ export default function ProposalSettings() {
         indicators,
         branding,
         pages_layout: pagesLayout,
-        default_pricing_mode: defaultPricingMode,
       }
       if (settingsId) {
         await pb.collection('proposal_settings').update(settingsId, data)
@@ -429,31 +426,6 @@ export default function ProposalSettings() {
                   onChange={(e) => setIndicators({ ...indicators, interest: e.target.value })}
                   type="number"
                 />
-              </div>
-              <div className="space-y-3 pt-4 border-t mt-4">
-                <Label className="text-base">Modo de Precificação Padrão</Label>
-                <p className="text-sm text-muted-foreground">
-                  Define se o valor do kit será calculado automaticamente pelas regras de insumos e
-                  equipamentos, ou inserido manualmente na geração da proposta.
-                </p>
-                <RadioGroup
-                  value={defaultPricingMode}
-                  onValueChange={setDefaultPricingMode}
-                  className="flex gap-4 mt-2"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="automatic" id="pm-auto" />
-                    <Label htmlFor="pm-auto" className="cursor-pointer">
-                      Automático (Recomendado)
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="manual" id="pm-manual" />
-                    <Label htmlFor="pm-manual" className="cursor-pointer">
-                      Manual
-                    </Label>
-                  </div>
-                </RadioGroup>
               </div>
             </CardContent>
           </Card>

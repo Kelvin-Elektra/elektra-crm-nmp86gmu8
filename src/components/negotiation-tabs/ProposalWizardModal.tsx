@@ -296,17 +296,27 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         {step === 1 && (
           <div className="space-y-4 py-4">
             <div className="bg-muted/30 p-4 rounded-lg border space-y-2">
+              <h4 className="font-semibold text-sm border-b pb-2 mb-2">
+                Dados Técnicos do Dimensionamento
+              </h4>
               <div className="flex justify-between border-b pb-2">
                 <span className="text-muted-foreground">Potência do Kit:</span>
                 <span className="font-semibold">
                   {(neg.sizing?.kit_power_kwp || 0).toFixed(2)} kWp
                 </span>
               </div>
-              <div className="flex justify-between border-b pb-2">
+              <div className="flex justify-between pb-2">
                 <span className="text-muted-foreground">Qtd. Módulos:</span>
                 <span className="font-semibold">{neg.sizing?.module_qty || 0}</span>
               </div>
-              <div className="flex justify-between border-b pb-2 items-center">
+            </div>
+
+            <div className="bg-primary/5 p-4 rounded-lg border border-primary/20 space-y-4">
+              <h4 className="font-semibold text-sm border-b border-primary/10 pb-2">
+                Composição do Custo do Kit
+              </h4>
+
+              <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Modo de Precificação:</span>
                 <RadioGroup
                   value={pricingMode}
@@ -315,7 +325,11 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
                   disabled={user?.role === 'user'}
                 >
                   <div className="flex items-center space-x-1">
-                    <RadioGroupItem value="automatic" id="mode-auto" />
+                    <RadioGroupItem
+                      value="automatic"
+                      id="mode-auto"
+                      disabled={user?.role === 'user'}
+                    />
                     <Label
                       htmlFor="mode-auto"
                       className={`cursor-pointer ${user?.role === 'user' ? 'opacity-50' : ''}`}
@@ -324,7 +338,11 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
                     </Label>
                   </div>
                   <div className="flex items-center space-x-1">
-                    <RadioGroupItem value="manual" id="mode-manual" />
+                    <RadioGroupItem
+                      value="manual"
+                      id="mode-manual"
+                      disabled={user?.role === 'user'}
+                    />
                     <Label
                       htmlFor="mode-manual"
                       className={`cursor-pointer ${user?.role === 'user' ? 'opacity-50' : ''}`}
@@ -336,8 +354,10 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
               </div>
 
               {pricingMode === 'manual' ? (
-                <div className="flex justify-between border-b pb-2 items-center">
-                  <span className="text-muted-foreground">Custo Base do Kit (Manual):</span>
+                <div className="flex justify-between items-center bg-white p-3 rounded-md border shadow-sm">
+                  <span className="text-muted-foreground font-medium">
+                    Custo Base do Kit (Manual):
+                  </span>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
                       R$
@@ -347,29 +367,36 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
                       className="w-36 text-right pl-8 font-medium"
                       value={manualKitValue || ''}
                       onChange={(e) => setManualKitValue(Number(e.target.value))}
+                      disabled={user?.role === 'user'}
                     />
                   </div>
                 </div>
               ) : (
-                <div className="flex justify-between border-b pb-2">
-                  <span className="text-muted-foreground">Custo Formado do Kit (Auto):</span>
-                  <span className="font-semibold">
+                <div className="flex justify-between items-center bg-white p-3 rounded-md border shadow-sm">
+                  <span className="text-muted-foreground font-medium">
+                    Custo Formado do Kit (Auto):
+                  </span>
+                  <span className="font-semibold text-lg">
                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
                       rawPricingData?.autoKitPrice || 0,
                     )}
                   </span>
                 </div>
               )}
+            </div>
 
-              <div className="flex justify-between pb-2 pt-2">
-                <span className="text-muted-foreground">Preço de Venda Base Calculado:</span>
-                <span className="font-bold text-primary">
+            <div className="bg-muted/30 p-4 rounded-lg border">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground font-medium">
+                  Preço de Venda Base Calculado:
+                </span>
+                <span className="font-bold text-primary text-xl">
                   {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
                     totalValue || 0,
                   )}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground mt-4 italic">
+              <p className="text-xs text-muted-foreground mt-2 italic">
                 A formação de preços utiliza os insumos, regras de custo, impostos e margens
                 configurados no painel de administração.
               </p>
