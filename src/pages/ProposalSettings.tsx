@@ -55,6 +55,43 @@ export default function ProposalSettings() {
   const [pagesLayout, setPagesLayout] = useState<{ id: string; elements: string[] }[]>([])
 
   const [previewOpen, setPreviewOpen] = useState<string | null>(null)
+
+  const dummyNegotiation = {
+    company_id: user?.company_id,
+    avg_consumption: 500,
+    address: 'Rua Exemplo, 123, Centro',
+    expand: {
+      lead_id: {
+        name: 'Cliente Exemplo',
+        document: '000.000.000-00',
+      },
+    },
+    sizing: {
+      jan: 500,
+      feb: 500,
+      mar: 500,
+      apr: 500,
+      may: 500,
+      jun: 500,
+      module_qty: 12,
+      kit_power_kwp: 6.6,
+    },
+  }
+
+  const dummyProposal = {
+    id: 'TPL-001',
+    created: new Date().toISOString(),
+    total_value: 25000,
+    validity_date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
+    payment_terms: '50% na assinatura, 50% na instalação.',
+    kit_details: {
+      settings: {
+        branding: branding,
+        template: previewOpen,
+        pages_layout: previewOpen === 'custom' ? pagesLayout : [],
+      },
+    },
+  }
   const [brandingModalOpen, setBrandingModalOpen] = useState(false)
   const [livePreviewOpen, setLivePreviewOpen] = useState<number | null>(null)
 
@@ -235,7 +272,7 @@ export default function ProposalSettings() {
                       className="w-full aspect-[3/4] object-cover rounded-md mb-3"
                     />
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-md gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => setPreviewOpen(tpl.img)}>
+                      <Button variant="secondary" size="sm" onClick={() => setPreviewOpen(tpl.id)}>
                         <Eye className="h-4 w-4 mr-2" /> Preview
                       </Button>
                     </div>
@@ -395,15 +432,14 @@ export default function ProposalSettings() {
       </Tabs>
 
       {/* Modals */}
-      <Dialog open={!!previewOpen} onOpenChange={() => setPreviewOpen(null)}>
-        <DialogContent className="max-w-2xl bg-transparent border-0 shadow-none p-0">
-          <img
-            src={previewOpen || ''}
-            alt="Preview"
-            className="w-full rounded-xl shadow-2xl object-cover"
-          />
-        </DialogContent>
-      </Dialog>
+      {previewOpen && (
+        <ProposalViewer
+          open={!!previewOpen}
+          onOpenChange={(v: boolean) => !v && setPreviewOpen(null)}
+          proposal={dummyProposal}
+          negotiation={dummyNegotiation}
+        />
+      )}
 
       <Dialog open={brandingModalOpen} onOpenChange={setBrandingModalOpen}>
         <DialogContent>

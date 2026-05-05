@@ -41,19 +41,16 @@ export function UtilityCard({ neg, reload }: { neg: any; reload?: () => void }) 
     network_type: initialSizing.network_type || '',
     consumer_class: initialSizing.consumer_class || '',
     tension: initialSizing.tension || '',
-    installation_type: initialSizing.installation_type || '',
   })
 
   useEffect(() => {
     if (open && neg.company_id) {
       Promise.all([
         pb.collection('pv_utilities').getFullList({ filter: `company_id='${neg.company_id}'` }),
-        pb.collection('pv_installations').getFullList({ filter: `company_id='${neg.company_id}'` }),
         pb.collection('pv_tariff_rules').getFullList({ filter: `company_id='${neg.company_id}'` }),
       ])
-        .then(([utils, insts, rules]) => {
+        .then(([utils, rules]) => {
           setUtilities(utils)
-          setInstallations(insts)
           setTariffRules(rules)
         })
         .catch(console.error)
@@ -93,7 +90,6 @@ export function UtilityCard({ neg, reload }: { neg: any; reload?: () => void }) 
         network_type: formData.network_type,
         consumer_class: formData.consumer_class,
         tension: formData.tension,
-        installation_type: formData.installation_type,
         tariff_snapshot: ruleSnapshot
           ? {
               te: ruleSnapshot.te,
@@ -251,28 +247,10 @@ export function UtilityCard({ neg, reload }: { neg: any; reload?: () => void }) 
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div className="space-y-2">
                 <Label>Tensão da Instalação</Label>
                 <Input value={formData.tension} readOnly disabled className="bg-muted/50" />
-              </div>
-              <div className="space-y-2">
-                <Label>Tipo de Instalação</Label>
-                <Select
-                  value={formData.installation_type}
-                  onValueChange={(v) => setFormData({ ...formData, installation_type: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {installations.map((i: any) => (
-                      <SelectItem key={i.id} value={i.id}>
-                        {i.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
             </div>
           </div>

@@ -14,6 +14,8 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
 import { updateNegotiation } from '@/services/db'
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 
 export function ConsumptionCard({ neg, reload }: { neg: any; reload?: () => void }) {
   const initialSizing = neg.sizing || {}
@@ -54,6 +56,11 @@ export function ConsumptionCard({ neg, reload }: { neg: any; reload?: () => void
     { k: 'dec', l: 'Dez' },
   ]
 
+  const chartData = months.map((m) => ({
+    name: m.l,
+    consumo: isMonthly ? Number((monthlyData as any)[m.k]) || 0 : Number(avgConsumption) || 0,
+  }))
+
   const handleSave = async () => {
     setLoading(true)
     try {
@@ -93,7 +100,7 @@ export function ConsumptionCard({ neg, reload }: { neg: any; reload?: () => void
         </Button>
       </CardHeader>
       <CardContent className="mt-2">
-        <div className="flex items-center gap-8">
+        <div className="flex flex-col md:flex-row gap-8 mb-6">
           <div>
             <p className="text-sm text-muted-foreground">Modo de Entrada</p>
             <p className="font-medium">
@@ -107,6 +114,23 @@ export function ConsumptionCard({ neg, reload }: { neg: any; reload?: () => void
               <span className="text-sm font-normal text-muted-foreground">kWh/mês</span>
             </p>
           </div>
+        </div>
+
+        <div className="h-48 w-full mt-4">
+          <ChartContainer
+            config={{ consumo: { label: 'Consumo', color: 'hsl(var(--primary))' } }}
+            className="w-full h-full"
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.5} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="consumo" fill="var(--color-consumo)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartContainer>
         </div>
       </CardContent>
 

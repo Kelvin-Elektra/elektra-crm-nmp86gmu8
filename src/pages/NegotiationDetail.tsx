@@ -29,7 +29,6 @@ import { SizingTab } from '@/components/negotiation-tabs/SizingTab'
 import { BudgetsTab } from '@/components/negotiation-tabs/BudgetsTab'
 import { FilesTab } from '@/components/negotiation-tabs/FilesTab'
 import { ProposalsTab } from '@/components/negotiation-tabs/ProposalsTab'
-import { useKitCalculator } from '@/hooks/use-kit-calculator'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Info } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -67,8 +66,6 @@ export default function NegotiationDetail() {
   useRealtime('proposals', loadData)
 
   const isAdmin = user?.role === 'admin_company' || user?.role === 'admin_elektra'
-
-  const { kitPrice, kitComposition, loading: calcLoading } = useKitCalculator(neg)
 
   useEffect(() => {
     if (neg && isAdmin) {
@@ -178,81 +175,6 @@ export default function NegotiationDetail() {
             <ProposalsTab proposals={proposals} neg={neg} reload={loadData} />
           </TabsContent>
           <TabsContent value="orcamentos" className="mt-0 flex flex-col gap-6">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <ShoppingCart className="h-5 w-5 text-muted-foreground" />
-                  Composição do Kit
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {calcLoading ? (
-                  <div className="flex justify-center p-4 text-muted-foreground animate-pulse">
-                    Carregando composição...
-                  </div>
-                ) : kitComposition.length === 0 ? (
-                  <p className="text-muted-foreground text-sm text-center p-4">
-                    Nenhum equipamento definido no dimensionamento.
-                  </p>
-                ) : (
-                  <div className="border rounded-lg overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted/50 border-b">
-                        <tr>
-                          <th className="text-left p-3 font-medium">Equipamento/Insumo</th>
-                          <th className="text-center p-3 font-medium">Tipo</th>
-                          <th className="text-right p-3 font-medium">Quantidade base</th>
-                          <th className="text-right p-3 font-medium">Custo Calculado</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {kitComposition.map((item: any, idx: number) => (
-                          <tr key={idx} className="border-b last:border-0 hover:bg-muted/20">
-                            <td className="p-3">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">{item.name}</span>
-                                {item.ruleApplied && (
-                                  <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
-                                    Regra Multiplicadora
-                                  </Badge>
-                                )}
-                              </div>
-                            </td>
-                            <td className="p-3 text-center text-muted-foreground capitalize">
-                              {item.type === 'supply'
-                                ? 'Insumo'
-                                : item.type === 'module'
-                                  ? 'Módulo'
-                                  : 'Inversor'}
-                            </td>
-                            <td className="p-3 text-right">
-                              {item.qty.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}
-                            </td>
-                            <td className="p-3 text-right font-semibold">
-                              {new Intl.NumberFormat('pt-BR', {
-                                style: 'currency',
-                                currency: 'BRL',
-                              }).format(item.total)}
-                            </td>
-                          </tr>
-                        ))}
-                        <tr className="bg-muted/10 font-bold text-base border-t-2">
-                          <td colSpan={3} className="p-4 text-right">
-                            Custo Estimado do Kit:
-                          </td>
-                          <td className="p-4 text-right text-primary">
-                            {new Intl.NumberFormat('pt-BR', {
-                              style: 'currency',
-                              currency: 'BRL',
-                            }).format(kitPrice)}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
             <BudgetsTab neg={neg} />
           </TabsContent>
           <TabsContent value="documentos" className="mt-0">

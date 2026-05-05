@@ -13,11 +13,33 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
+import { Badge } from '@/components/ui/badge'
+import { useKitCalculator } from '@/hooks/use-kit-calculator'
 
-export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any) {
+export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }: any) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [costs, setCosts] = useState<any[]>([])
+  const [negData, setNegData] = useState<any>(neg)
+
+  useEffect(() => {
+    if (open && proposal?.negotiation_id && !neg) {
+      pb.collection('negotiations')
+        .getOne(proposal.negotiation_id)
+        .then(setNegData)
+        .catch(console.error)
+    } else if (neg) {
+      setNegData(neg)
+    }
+  }, [open, proposal, neg])
+
+  const { kitPrice, kitComposition, loading: calcLoading } = useKitCalculator(negData)
 
   useEffect(() => {
     if (open && proposal) {
@@ -73,6 +95,84 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
           </VisuallyHidden>
         </DialogHeader>
         <div className="space-y-4 py-4">
+          <Accordion type="single" collapsible className="w-full mb-6">
+            <AccordionItem value="kit">
+              <AccordionTrigger className="hover:no-underline px-4 py-3 bg-muted/30 rounded-lg border">
+                <span className="font-semibold text-base">
+                  Kit Fotovoltaico (Equipamentos e Insumos)
+                </span>
+              </AccordionTrigger>
+              <AccordionContent className="pt-4 pb-2 px-2">
+                {calcLoading ? (
+                  <div className="flex justify-center p-4 text-muted-foreground animate-pulse">
+                    Carregando composição...
+                  </div>
+                ) : kitComposition.length === 0 ? (
+                  <p className="text-muted-foreground text-sm text-center p-4">
+                    Nenhum equipamento definido.
+                  </p>
+                ) : (
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50 border-b">
+                        <tr>
+                          <th className="text-left p-3 font-medium">Equipamento/Insumo</th>
+                          <th className="text-center p-3 font-medium">Tipo</th>
+                          <th className="text-right p-3 font-medium">Qtd</th>
+                          <th className="text-right p-3 font-medium">Custo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {kitComposition.map((item: any, idx: number) => (
+                          <tr key={idx} className="border-b last:border-0 hover:bg-muted/20">
+                            <td className="p-3">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{item.name}</span>
+                                {item.ruleApplied && (
+                                  <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
+                                    Regra
+                                  </Badge>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-3 text-center text-muted-foreground capitalize">
+                              {item.type === 'supply'
+                                ? 'Insumo'
+                                : item.type === 'module'
+                                  ? 'Módulo'
+                                  : 'Inversor'}
+                            </td>
+                            <td className="p-3 text-right">
+                              {item.qty.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="p-3 text-right font-semibold">
+                              {new Intl.NumberFormat('pt-BR', {
+                                style: 'currency',
+                                currency: 'BRL',
+                              }).format(item.total)}
+                            </td>
+                          </tr>
+                        ))}
+                        <tr className="bg-muted/10 font-bold text-base border-t-2">
+                          <td colSpan={3} className="p-4 text-right">
+                            Custo Estimado do Kit:
+                          </td>
+                          <td className="p-4 text-right text-primary">
+                            {new Intl.NumberFormat('pt-BR', {
+                              style: 'currency',
+                              currency: 'BRL',
+                            }).format(kitPrice)}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+
+          <h3 className="font-semibold text-base mb-2">Custos Adicionais e Orçamento</h3>
           {costs.length === 0 ? (
             <p className="text-muted-foreground text-center p-6 border rounded-lg bg-muted/20">
               Nenhum detalhamento de custo salvo para esta proposta.
