@@ -110,126 +110,198 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
             </DialogDescription>
           </VisuallyHidden>
         </DialogHeader>
-        <div className="space-y-4 py-4">
-          <Accordion type="single" collapsible className="w-full mb-6">
-            <AccordionItem value="kit">
-              <AccordionTrigger className="hover:no-underline px-4 py-3 bg-muted/30 rounded-lg border">
-                <span className="font-semibold text-base">
-                  Kit Fotovoltaico (Equipamentos e Insumos)
-                </span>
-              </AccordionTrigger>
-              <AccordionContent className="pt-4 pb-2 px-2">
-                {calcLoading ? (
-                  <div className="flex justify-center p-4 text-muted-foreground animate-pulse">
-                    Carregando composição...
-                  </div>
-                ) : kitComposition.length === 0 ? (
-                  <p className="text-muted-foreground text-sm text-center p-4">
-                    Nenhum equipamento definido.
-                  </p>
-                ) : (
-                  <div className="border rounded-lg overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted/50 border-b">
-                        <tr>
-                          <th className="text-left p-3 font-medium">Equipamento/Insumo</th>
-                          <th className="text-center p-3 font-medium">Tipo</th>
-                          <th className="text-right p-3 font-medium">Qtd</th>
-                          <th className="text-right p-3 font-medium">Custo</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {kitComposition.map((item: any, idx: number) => (
-                          <tr key={idx} className="border-b last:border-0 hover:bg-muted/20">
-                            <td className="p-3">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">{item.name}</span>
-                                {item.ruleApplied && (
-                                  <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
-                                    Regra
-                                  </Badge>
-                                )}
-                              </div>
-                            </td>
-                            <td className="p-3 text-center text-muted-foreground capitalize">
-                              {item.type === 'supply'
-                                ? 'Insumo'
-                                : item.type === 'module'
-                                  ? 'Módulo'
-                                  : 'Inversor'}
-                            </td>
-                            <td className="p-3 text-right">
-                              {item.qty.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}
-                            </td>
-                            <td className="p-3 text-right font-semibold">
-                              {new Intl.NumberFormat('pt-BR', {
-                                style: 'currency',
-                                currency: 'BRL',
-                              }).format(item.total)}
-                            </td>
-                          </tr>
-                        ))}
-                        <tr className="bg-muted/10 font-bold text-base border-t-2">
-                          <td colSpan={3} className="p-4 text-right">
-                            Custo Estimado do Kit:
-                          </td>
-                          <td className="p-4 text-right text-primary">
-                            {new Intl.NumberFormat('pt-BR', {
-                              style: 'currency',
-                              currency: 'BRL',
-                            }).format(kitPrice)}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
+        <div className="space-y-6 py-4">
+          <h3 className="font-semibold text-lg mb-2">Composição e Detalhamento de Custos</h3>
 
-          <h3 className="font-semibold text-base mb-2">Custos Adicionais e Orçamento</h3>
           {costs.length === 0 ? (
             <p className="text-muted-foreground text-center p-6 border rounded-lg bg-muted/20">
               Nenhum detalhamento de custo salvo para esta proposta.
             </p>
           ) : (
-            <div className="space-y-4">
-              {costs.map((b, idx) => (
-                <div key={idx} className="flex gap-4 items-end border-b pb-4 last:border-0">
-                  <div className="flex-1">
-                    <Label className="text-muted-foreground text-xs">Item</Label>
-                    <p className="font-medium mt-1 truncate" title={b.name}>
-                      {b.name}
-                    </p>
+            <div className="space-y-6">
+              {costs.map((b, idx) => {
+                const isKit =
+                  b.name === 'Kit Fotovoltaico' ||
+                  b.name === 'Kit Fotovoltaico (Equipamentos e Insumos)' ||
+                  b.type === 'kit'
+
+                if (isKit) {
+                  return (
+                    <Accordion type="single" collapsible className="w-full" key={idx}>
+                      <AccordionItem value="kit" className="border rounded-lg bg-card shadow-sm">
+                        <AccordionTrigger className="hover:no-underline px-5 py-4">
+                          <div className="flex items-center justify-between w-full pr-4">
+                            <span className="font-semibold text-base">
+                              {b.name === 'Kit Fotovoltaico'
+                                ? 'Kit Fotovoltaico (Equipamentos e Insumos)'
+                                : b.name}
+                            </span>
+                            <span className="font-bold text-primary text-lg">
+                              {new Intl.NumberFormat('pt-BR', {
+                                style: 'currency',
+                                currency: 'BRL',
+                              }).format(b.price || 0)}
+                            </span>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pt-0 pb-5 px-5">
+                          <div className="flex gap-4 items-end mb-6 border-b pb-6">
+                            <div className="w-1/3">
+                              <Label>Custo Base (R$)</Label>
+                              <Input
+                                type="number"
+                                value={b.cost}
+                                onChange={(e) => handleUpdate(idx, 'cost', e.target.value)}
+                                className="mt-1"
+                              />
+                            </div>
+                            <div className="w-1/3">
+                              <Label>Margem (%)</Label>
+                              <Input
+                                type="number"
+                                value={b.margin}
+                                onChange={(e) => handleUpdate(idx, 'margin', e.target.value)}
+                                className="mt-1"
+                              />
+                            </div>
+                            <div className="w-1/3">
+                              <Label>Preço Calculado (R$)</Label>
+                              <Input
+                                type="number"
+                                value={b.price?.toFixed(2)}
+                                readOnly
+                                className="bg-muted mt-1 font-medium"
+                              />
+                            </div>
+                          </div>
+
+                          <h4 className="font-medium text-sm mb-3 text-muted-foreground">
+                            Itens Inclusos no Kit:
+                          </h4>
+                          {calcLoading ? (
+                            <div className="flex justify-center p-4 text-muted-foreground animate-pulse bg-muted/20 rounded-md">
+                              Carregando composição...
+                            </div>
+                          ) : kitComposition.filter((i: any) => i.qty > 0).length === 0 ? (
+                            <p className="text-muted-foreground text-sm text-center p-4 bg-muted/20 rounded-md">
+                              Nenhum equipamento ou insumo válido definido.
+                            </p>
+                          ) : (
+                            <div className="border rounded-md overflow-hidden bg-background">
+                              <table className="w-full text-sm">
+                                <thead className="bg-muted/50 border-b">
+                                  <tr>
+                                    <th className="text-left p-3 font-medium">
+                                      Equipamento/Insumo
+                                    </th>
+                                    <th className="text-center p-3 font-medium">Tipo</th>
+                                    <th className="text-right p-3 font-medium">Qtd</th>
+                                    <th className="text-right p-3 font-medium">Custo Estimado</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {kitComposition
+                                    .filter((item: any) => item.qty > 0)
+                                    .map((item: any, itemIdx: number) => (
+                                      <tr
+                                        key={itemIdx}
+                                        className="border-b last:border-0 hover:bg-muted/20 transition-colors"
+                                      >
+                                        <td className="p-3">
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-medium">{item.name}</span>
+                                            {item.ruleApplied && (
+                                              <Badge
+                                                variant="secondary"
+                                                className="text-[10px] h-5 px-1.5 font-normal"
+                                              >
+                                                Regra Aplicada
+                                              </Badge>
+                                            )}
+                                          </div>
+                                        </td>
+                                        <td className="p-3 text-center text-muted-foreground capitalize">
+                                          {item.type === 'supply'
+                                            ? 'Insumo'
+                                            : item.type === 'module'
+                                              ? 'Módulo'
+                                              : 'Inversor'}
+                                        </td>
+                                        <td className="p-3 text-right tabular-nums">
+                                          {item.qty.toLocaleString('pt-BR', {
+                                            maximumFractionDigits: 2,
+                                          })}
+                                        </td>
+                                        <td className="p-3 text-right font-medium tabular-nums text-muted-foreground">
+                                          {new Intl.NumberFormat('pt-BR', {
+                                            style: 'currency',
+                                            currency: 'BRL',
+                                          }).format(item.total)}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  <tr className="bg-muted/30 font-semibold text-sm border-t-2">
+                                    <td colSpan={3} className="p-3 text-right">
+                                      Soma Estimada do Kit (Referência):
+                                    </td>
+                                    <td className="p-3 text-right text-foreground tabular-nums">
+                                      {new Intl.NumberFormat('pt-BR', {
+                                        style: 'currency',
+                                        currency: 'BRL',
+                                      }).format(kitPrice)}
+                                    </td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+                  )
+                }
+
+                return (
+                  <div
+                    key={idx}
+                    className="flex gap-4 items-end border-b pb-4 last:border-0 bg-card p-4 rounded-lg border shadow-sm"
+                  >
+                    <div className="flex-1">
+                      <Label className="text-muted-foreground text-xs">Item Adicional</Label>
+                      <p className="font-medium mt-1 truncate text-base" title={b.name}>
+                        {b.name}
+                      </p>
+                    </div>
+                    <div className="w-28">
+                      <Label>Custo (R$)</Label>
+                      <Input
+                        type="number"
+                        value={b.cost}
+                        onChange={(e) => handleUpdate(idx, 'cost', e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div className="w-24">
+                      <Label>Margem (%)</Label>
+                      <Input
+                        type="number"
+                        value={b.margin}
+                        onChange={(e) => handleUpdate(idx, 'margin', e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div className="w-32">
+                      <Label>Preço (R$)</Label>
+                      <Input
+                        type="number"
+                        value={b.price?.toFixed(2)}
+                        readOnly
+                        className="bg-muted mt-1 font-medium text-primary"
+                      />
+                    </div>
                   </div>
-                  <div className="w-24">
-                    <Label>Custo (R$)</Label>
-                    <Input
-                      type="number"
-                      value={b.cost}
-                      onChange={(e) => handleUpdate(idx, 'cost', e.target.value)}
-                    />
-                  </div>
-                  <div className="w-24">
-                    <Label>Margem (%)</Label>
-                    <Input
-                      type="number"
-                      value={b.margin}
-                      onChange={(e) => handleUpdate(idx, 'margin', e.target.value)}
-                    />
-                  </div>
-                  <div className="w-32">
-                    <Label>Preço (R$)</Label>
-                    <Input
-                      type="number"
-                      value={b.price?.toFixed(2)}
-                      readOnly
-                      className="bg-muted"
-                    />
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

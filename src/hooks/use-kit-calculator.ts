@@ -131,44 +131,7 @@ export async function calculateKitPrice(
         return true
       }
 
-      if (matchingRules.length === 0) {
-        // Legacy fallback to supply's own fields if no rules exist
-        let matched = true
-        if (
-          supply.installation_id &&
-          supply.installation_id !== '-' &&
-          supply.installation_id !== safeInstId
-        ) {
-          matched = false
-        }
-        if (matched && !checkRange(supply)) {
-          matched = false
-        }
-
-        if (matched) {
-          const calcBase = supply.calc_base
-          const ruleMultiplier = parseFloat(supply.multiplier) || 1
-          let qty = 0
-
-          if (calcBase === 'modules') qty = totalModules * ruleMultiplier
-          else if (calcBase === 'kwp') qty = totalKwp * ruleMultiplier
-          else if (calcBase === 'mppt') qty = totalMppt * ruleMultiplier
-          else if (calcBase === 'fixed') qty = ruleMultiplier
-
-          if (qty > 0) {
-            const supplyPrice = parseFloat(supply.price) || 0
-            const cost = qty * supplyPrice
-            total += cost
-            composition.push({
-              name: supply.name,
-              qty,
-              total: cost,
-              type: 'supply',
-              ruleApplied: false,
-            })
-          }
-        }
-      } else {
+      if (matchingRules.length > 0) {
         let validRules = matchingRules.filter((r) => {
           const rInstId = r.installation_id || ''
           const matchesInst = rInstId === '-' || rInstId === '' || rInstId === safeInstId
