@@ -27,6 +27,7 @@ import {
   ThumbsUp,
   Calendar,
   Download,
+  Info,
 } from 'lucide-react'
 import {
   Select,
@@ -35,9 +36,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { generateDashboardPDF } from '@/lib/pdf-generator'
 
 export default function Dashboard() {
   const { user } = useAuth()
@@ -165,10 +168,24 @@ export default function Dashboard() {
     .map((id) => acceptedProposals.find((p) => p.negotiation_id === id)?.expand?.negotiation_id)
     .filter(Boolean)
 
-  const totalKwp = wonNegs.reduce((acc, neg) => {
-    if (neg?.sizing?.system_power) return acc + Number(neg.sizing.system_power)
-    return acc
-  }, 0)
+  const getSystemPower = (sizing: any) => {
+    if (!sizing) return 0
+    let parsed = sizing
+    if (typeof sizing === 'string') {
+      try {
+        parsed = JSON.parse(sizing)
+      } catch {
+        return 0
+      }
+    }
+    let power = parsed?.system_power
+    if (typeof power === 'string') {
+      power = power.replace(',', '.')
+    }
+    return Number(power) || 0
+  }
+
+  const totalKwp = wonNegs.reduce((acc, neg) => acc + getSystemPower(neg?.sizing), 0)
 
   const wonNegsCount = wonNegsIds.length
   const taxaConversao = novasNegociacoes > 0 ? (wonNegsCount / novasNegociacoes) * 100 : 0
@@ -215,26 +232,32 @@ export default function Dashboard() {
     .slice(0, 15)
 
   const generateReport = () => {
-    const lines = [
-      'Relatório de Desempenho - Elektra CRM',
-      `Período: ${filter === 'month' ? monthYear : filter}`,
-      '',
-      `Vendas Fechadas: R$ ${vendasFechadas.toFixed(2)}`,
-      `Novas Negociações: ${novasNegociacoes}`,
-      `Novos Leads: ${novosLeads}`,
-      `Potência Vendida: ${totalKwp.toFixed(2)} kWp`,
-      `Taxa de Conversão: ${taxaConversao.toFixed(1)}%`,
-      `Aproveitamento de Leads: ${aproveitamento.toFixed(1)}%`,
-      `Propostas por Negociação: ${propNegRatio.toFixed(1)}`,
-      `Ticket Médio (Aprovadas): R$ ${ticketMedioAprovadas.toFixed(2)}`,
-      `Ticket Médio (Propostas Feitas): R$ ${ticketMedioFeitas.toFixed(2)}`,
-    ]
+    const reportData = {
+      period: filter === 'month' ? monthYear : filter,
+      vendasFechadas: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+        vendasFechadas,
+      ),
+      novasNegociacoes: novasNegociacoes.toString(),
+      novosLeads: novosLeads.toString(),
+      totalKwp: `${totalKwp.toFixed(2)} kWp`,
+      taxaConversao: `${taxaConversao.toFixed(1)}%`,
+      aproveitamento: `${aproveitamento.toFixed(1)}%`,
+      propNegRatio: propNegRatio.toFixed(1),
+      ticketMedioAprovadas: new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+      }).format(ticketMedioAprovadas),
+      ticketMedioFeitas: new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+      }).format(ticketMedioFeitas),
+    }
 
-    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
+    const blob = generateDashboardPDF(reportData)
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `relatorio-${new Date().toISOString().split('T')[0]}.txt`
+    a.download = `relatorio-${new Date().toISOString().split('T')[0]}.pdf`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -455,7 +478,19 @@ export default function Dashboard() {
           <CardContent className="space-y-6">
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Aproveitamento de Leads</span>
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <span>Aproveitamento de Leads</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-[200px] text-xs text-center">
+                        Percentual de leads convertidos em negociações.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <span className="font-medium">{aproveitamento.toFixed(1)}%</span>
               </div>
               <div className="h-2 bg-secondary rounded-full overflow-hidden">
@@ -468,7 +503,19 @@ export default function Dashboard() {
 
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Propostas / Negociações</span>
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <span>Propostas / Negociações</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-[200px] text-xs text-center">
+                        Média de propostas geradas por negociação única (mede o esforço comercial).
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <span className="font-medium">{propNegRatio.toFixed(1)}</span>
               </div>
               <div className="h-2 bg-secondary rounded-full overflow-hidden">
@@ -483,7 +530,19 @@ export default function Dashboard() {
 
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Taxa de Fechamento</span>
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <span>Taxa de Fechamento</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-[200px] text-xs text-center">
+                        Taxa de vitória (win rate) das propostas/negociações no período.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <span className="font-medium">{taxaConversao.toFixed(1)}%</span>
               </div>
               <div className="h-2 bg-secondary rounded-full overflow-hidden">
