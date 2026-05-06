@@ -1,5 +1,6 @@
-export function generateDashboardPDF(data: Record<string, string>): Blob {
+export function generateDashboardPDF(data: Record<string, any>): Blob {
   const sanitize = (str: string) => {
+    if (str == null) return ''
     return String(str)
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '') // remove accents
@@ -30,7 +31,7 @@ export function generateDashboardPDF(data: Record<string, string>): Blob {
     content += `${font} ${size} Tf\n1 0 0 1 ${x} ${y} Tm\n(${sanitize(text)}) Tj\n`
   }
 
-  drawText('Relatorio de Desempenho - Elektra CRM', 50, true, 20)
+  drawText('Elektra CRM - Relatorio de Desempenho', 50, true, 20)
   y -= 30
   drawText(`Periodo: ${data.period}`, 50, false, 12)
   y -= 20
@@ -43,15 +44,46 @@ export function generateDashboardPDF(data: Record<string, string>): Blob {
     y -= 25
   }
 
+  drawText('Resumo de Metricas', 50, true, 14)
+  y -= 25
+
   drawRow('Vendas Fechadas:', data.vendasFechadas)
   drawRow('Novas Negociacoes:', data.novasNegociacoes)
   drawRow('Novos Leads:', data.novosLeads)
   drawRow('Potencia Vendida:', data.totalKwp)
-  drawRow('Taxa de Conversao:', data.taxaConversao)
+  drawRow('Taxa de Fechamento:', data.taxaConversao)
   drawRow('Aproveitamento de Leads:', data.aproveitamento)
   drawRow('Propostas / Negociacoes:', data.propNegRatio)
   drawRow('Ticket Medio (Aprovadas):', data.ticketMedioAprovadas)
-  drawRow('Ticket Medio (Propostas Feitas):', data.ticketMedioFeitas)
+  drawRow('Ticket Medio (Propostas):', data.ticketMedioFeitas)
+
+  y -= 20
+  drawText('Vendas Fechadas no Periodo', 50, true, 14)
+  y -= 25
+
+  drawText('Data', 50, true, 10)
+  drawText('Negociacao', 120, true, 10)
+  drawText('Potencia', 360, true, 10)
+  drawText('Valor', 450, true, 10)
+  y -= 15
+
+  if (data.sales && data.sales.length > 0) {
+    const maxItems = 25
+    const items = data.sales.slice(0, maxItems)
+    items.forEach((s: any) => {
+      drawText(s.date, 50, false, 10)
+      drawText(s.title.substring(0, 40), 120, false, 10)
+      drawText(s.power, 360, false, 10)
+      drawText(s.value, 450, false, 10)
+      y -= 15
+    })
+    if (data.sales.length > maxItems) {
+      y -= 5
+      drawText(`... e mais ${data.sales.length - maxItems} vendas.`, 50, false, 10)
+    }
+  } else {
+    drawText('Nenhuma venda fechada neste periodo.', 50, false, 10)
+  }
 
   content += 'ET'
   addObj(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`)

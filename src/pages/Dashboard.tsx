@@ -168,24 +168,27 @@ export default function Dashboard() {
     .map((id) => acceptedProposals.find((p) => p.negotiation_id === id)?.expand?.negotiation_id)
     .filter(Boolean)
 
-  const getSystemPower = (sizing: any) => {
-    if (!sizing) return 0
-    let parsed = sizing
-    if (typeof sizing === 'string') {
+  const getSnapshotPower = (snapshot: any) => {
+    if (!snapshot) return 0
+    let parsed = snapshot
+    if (typeof snapshot === 'string') {
       try {
-        parsed = JSON.parse(sizing)
+        parsed = JSON.parse(snapshot)
       } catch {
         return 0
       }
     }
-    let power = parsed?.system_power
+    let power = parsed?.sizing?.totalPower ?? parsed?.sizing?.kit_power_kwp
     if (typeof power === 'string') {
       power = power.replace(',', '.')
     }
     return Number(power) || 0
   }
 
-  const totalKwp = wonNegs.reduce((acc, neg) => acc + getSystemPower(neg?.sizing), 0)
+  const totalKwp = acceptedProposals.reduce(
+    (acc, prop) => acc + getSnapshotPower(prop.snapshot_data),
+    0,
+  )
 
   const wonNegsCount = wonNegsIds.length
   const taxaConversao = novasNegociacoes > 0 ? (wonNegsCount / novasNegociacoes) * 100 : 0
@@ -232,6 +235,18 @@ export default function Dashboard() {
     .slice(0, 15)
 
   const generateReport = () => {
+    const salesList = acceptedProposals.map((p) => {
+      const power = getSnapshotPower(p.snapshot_data)
+      const val = p.total_value || p.price || 0
+      const title = p.expand?.negotiation_id?.title || 'Negociação'
+      return {
+        title,
+        date: format(new Date(p.closing_date || p.updated), 'dd/MM/yyyy'),
+        power: `${power.toFixed(2)} kWp`,
+        value: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val),
+      }
+    })
+
     const reportData = {
       period: filter === 'month' ? monthYear : filter,
       vendasFechadas: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
@@ -251,6 +266,7 @@ export default function Dashboard() {
         style: 'currency',
         currency: 'BRL',
       }).format(ticketMedioFeitas),
+      sales: salesList,
     }
 
     const blob = generateDashboardPDF(reportData)
@@ -486,7 +502,7 @@ export default function Dashboard() {
                     </TooltipTrigger>
                     <TooltipContent>
                       <p className="max-w-[200px] text-xs text-center">
-                        Percentual de leads convertidos em negociações.
+                        Percentual de leads que avançaram para a fase de negociação.
                       </p>
                     </TooltipContent>
                   </Tooltip>
@@ -511,7 +527,7 @@ export default function Dashboard() {
                     </TooltipTrigger>
                     <TooltipContent>
                       <p className="max-w-[200px] text-xs text-center">
-                        Média de propostas geradas por negociação única (mede o esforço comercial).
+                        Média de propostas geradas para cada negociação aberta.
                       </p>
                     </TooltipContent>
                   </Tooltip>
@@ -538,7 +554,7 @@ export default function Dashboard() {
                     </TooltipTrigger>
                     <TooltipContent>
                       <p className="max-w-[200px] text-xs text-center">
-                        Taxa de vitória (win rate) das propostas/negociações no período.
+                        Percentual de negociações convertidas em vendas (propostas aceitas).
                       </p>
                     </TooltipContent>
                   </Tooltip>
