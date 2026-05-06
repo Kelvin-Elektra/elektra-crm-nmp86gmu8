@@ -42,6 +42,7 @@ export default function NegotiationDetail() {
   const [proposals, setProposals] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [users, setUsers] = useState<any[]>([])
+  const [pipelineStages, setPipelineStages] = useState<any[]>([])
 
   const loadData = async () => {
     if (!id) return
@@ -50,6 +51,8 @@ export default function NegotiationDetail() {
       setNeg(data)
       const props = await getProposalsByNeg(id)
       setProposals(props)
+      const stgs = await pb.collection('pipeline_stages').getFullList()
+      setPipelineStages(stgs)
     } catch (err) {
       console.error(err)
     } finally {
@@ -105,8 +108,17 @@ export default function NegotiationDetail() {
           <div>
             <h2 className="text-2xl font-bold tracking-tight">{neg.title}</h2>
             <div className="flex items-center gap-2 mt-1">
-              <Badge variant="secondary">{neg.stage}</Badge>
-              <span className="text-sm text-muted-foreground flex items-center">
+              <Badge
+                variant="outline"
+                className="font-mono text-xs text-muted-foreground border-border/50 bg-background"
+              >
+                ID: {neg.id}
+              </Badge>
+              <Badge variant="secondary">
+                {pipelineStages.find((s) => s.id === neg.stage)?.name ||
+                  (neg.stage === 'Venda Fechada' ? 'Venda Fechada' : neg.stage)}
+              </Badge>
+              <span className="text-sm text-muted-foreground flex items-center ml-2">
                 <User className="h-3 w-3 mr-1" />
                 Responsável:{' '}
                 {isAdmin ? (

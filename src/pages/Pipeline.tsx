@@ -76,15 +76,16 @@ export default function Pipeline() {
 
   const getNegValue = (negId: string) => {
     const negProps = proposals.filter((p) => p.negotiation_id === negId)
-    const wonProp = negProps.find((p) => p.status === 'accepted')
-    if (wonProp) return wonProp.total_value || wonProp.price || 0
-    if (negProps.length > 0) {
-      const latest = negProps.sort(
-        (a, b) => new Date(b.created).getTime() - new Date(a.created).getTime(),
-      )[0]
-      return latest.total_value || latest.price || 0
-    }
-    return 0
+    if (negProps.length === 0) return 0
+    const sum = negProps.reduce((acc, p) => acc + (p.total_value || p.price || 0), 0)
+    return sum / negProps.length
+  }
+
+  const saleStage = stages.find((s) => s.is_sale_stage)
+
+  const getEffectiveStage = (n: any) => {
+    if (n.stage === 'Venda Fechada' && saleStage) return saleStage.id
+    return n.stage
   }
 
   const filtered = negotiations.filter((n) => {
@@ -261,7 +262,7 @@ export default function Pipeline() {
       <div className="flex-1 flex gap-4 overflow-x-auto pb-4 items-start">
         {stages.map((stage) => {
           const isCollapsed = collapsed.has(stage.id)
-          const colNegs = filtered.filter((n) => n.stage === stage.id)
+          const colNegs = filtered.filter((n) => getEffectiveStage(n) === stage.id)
           const colTotal = colNegs.reduce((acc, n) => acc + getNegValue(n.id), 0)
 
           if (isCollapsed) {

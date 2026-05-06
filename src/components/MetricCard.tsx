@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { LucideIcon, TrendingUp, TrendingDown } from 'lucide-react'
+import { LucideIcon, TrendingUp, TrendingDown, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface MetricCardProps {
   title: string
@@ -10,6 +11,7 @@ interface MetricCardProps {
   trendValue?: string
   className?: string
   delay?: number
+  tooltip?: string
 }
 
 export function MetricCard({
@@ -20,6 +22,7 @@ export function MetricCard({
   trendValue,
   className,
   delay = 0,
+  tooltip,
 }: MetricCardProps) {
   return (
     <Card
@@ -27,7 +30,19 @@ export function MetricCard({
       style={{ animationDelay: `${delay}ms` }}
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+        <div className="flex items-center gap-2">
+          <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+          {tooltip && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-4 w-4 text-muted-foreground/40 hover:text-muted-foreground cursor-help transition-colors" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-[250px] text-center p-2">
+                <p className="text-xs">{tooltip}</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
         <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
           <Icon className="h-4 w-4" />
         </div>

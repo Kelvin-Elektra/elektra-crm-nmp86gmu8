@@ -18,7 +18,16 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { ChevronLeft, ChevronRight, CalendarIcon } from 'lucide-react'
 import { MetricCard } from '@/components/MetricCard'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { DollarSign, LineChart, Target, Zap, FileSignature, ThumbsUp, Calendar } from 'lucide-react'
+import {
+  DollarSign,
+  LineChart,
+  Target,
+  Zap,
+  FileSignature,
+  ThumbsUp,
+  Calendar,
+  Download,
+} from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -63,7 +72,8 @@ export default function Dashboard() {
     else if (filter === '60d') start = startOfDay(subDays(end, 60))
     else if (filter === '90d') start = startOfDay(subDays(end, 90))
     else {
-      const d = parseISO(monthYear + '-01')
+      const [year, month] = monthYear.split('-').map(Number)
+      const d = new Date(year, month - 1, 1)
       start = startOfMonth(d)
       end = endOfDay(endOfMonth(d))
     }
@@ -110,7 +120,8 @@ export default function Dashboard() {
   else if (filter === '60d') start = startOfDay(subDays(end, 60))
   else if (filter === '90d') start = startOfDay(subDays(end, 90))
   else {
-    const d = parseISO(monthYear + '-01')
+    const [year, month] = monthYear.split('-').map(Number)
+    const d = new Date(year, month - 1, 1)
     start = startOfMonth(d)
     end = endOfDay(endOfMonth(d))
   }
@@ -148,15 +159,20 @@ export default function Dashboard() {
   const novosLeads = filteredLeads.filter((l) => inPeriod(l.created)).length
   const novasNegociacoes = filteredNegotiations.filter((n) => inPeriod(n.created)).length
 
-  const totalKwp = acceptedProposals.reduce((acc, p) => {
-    const neg = p.expand?.negotiation_id
+  const wonNegsIds = Array.from(new Set(acceptedProposals.map((p) => p.negotiation_id)))
+  const wonNegs = wonNegsIds
+    .map((id) => acceptedProposals.find((p) => p.negotiation_id === id)?.expand?.negotiation_id)
+    .filter(Boolean)
+
+  const totalKwp = wonNegs.reduce((acc, neg) => {
     if (neg?.sizing?.system_power) return acc + Number(neg.sizing.system_power)
     return acc
   }, 0)
 
-  const wonNegsCount = new Set(acceptedProposals.map((p) => p.negotiation_id)).size
+  const wonNegsCount = wonNegsIds.length
   const taxaConversao = novasNegociacoes > 0 ? (wonNegsCount / novasNegociacoes) * 100 : 0
   const aproveitamento = novosLeads > 0 ? (novasNegociacoes / novosLeads) * 100 : 0
+  const propNegRatio = novasNegociacoes > 0 ? createdProposals.length / novasNegociacoes : 0
 
   const ticketMedioFeitas =
     createdProposals.length > 0
@@ -197,6 +213,33 @@ export default function Dashboard() {
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 15)
 
+  const generateReport = () => {
+    const lines = [
+      'Relatório de Desempenho - Elektra CRM',
+      `Período: ${filter === 'month' ? monthYear : filter}`,
+      '',
+      `Vendas Fechadas: R$ ${vendasFechadas.toFixed(2)}`,
+      `Novas Negociações: ${novasNegociacoes}`,
+      `Novos Leads: ${novosLeads}`,
+      `Potência Vendida: ${totalKwp.toFixed(2)} kWp`,
+      `Taxa de Conversão: ${taxaConversao.toFixed(1)}%`,
+      `Aproveitamento de Leads: ${aproveitamento.toFixed(1)}%`,
+      `Propostas por Negociação: ${propNegRatio.toFixed(1)}`,
+      `Ticket Médio (Aprovadas): R$ ${ticketMedioAprovadas.toFixed(2)}`,
+      `Ticket Médio (Propostas Feitas): R$ ${ticketMedioFeitas.toFixed(2)}`,
+    ]
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `relatorio-${new Date().toISOString().split('T')[0]}.txt`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -208,7 +251,15 @@ export default function Dashboard() {
                 <Button variant="outline" className="w-[180px] justify-start text-left font-normal">
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   <span className="capitalize">
-                    {format(parseISO(monthYear + '-01'), 'MMMM yyyy', { locale: ptBR })}
+                    {format(
+                      new Date(
+                        Number(monthYear.split('-')[0]),
+                        Number(monthYear.split('-')[1]) - 1,
+                        1,
+                      ),
+                      'MMMM yyyy',
+                      { locale: ptBR },
+                    )}
                   </span>
                 </Button>
               </PopoverTrigger>
@@ -260,6 +311,10 @@ export default function Dashboard() {
               <SelectItem value="month">Mês/Ano</SelectItem>
             </SelectContent>
           </Select>
+          <Button variant="outline" className="hidden sm:flex" onClick={generateReport}>
+            <Download className="w-4 h-4 mr-2" />
+            Gerar Relatório
+          </Button>
         </div>
       </div>
 
@@ -271,19 +326,28 @@ export default function Dashboard() {
           )}
           icon={DollarSign}
           delay={0}
+          tooltip="Soma do valor de todas as propostas com status aceito no período."
         />
         <MetricCard
           title="Novas Negociações"
           value={novasNegociacoes.toString()}
           icon={LineChart}
           delay={100}
+          tooltip="Total de negociações criadas no período."
         />
-        <MetricCard title="Novos Leads" value={novosLeads.toString()} icon={Target} delay={200} />
+        <MetricCard
+          title="Novos Leads"
+          value={novosLeads.toString()}
+          icon={Target}
+          delay={200}
+          tooltip="Total de leads cadastrados no período."
+        />
         <MetricCard
           title="Potência Vendida"
           value={`${totalKwp.toFixed(2)} kWp`}
           icon={Zap}
           delay={300}
+          tooltip="Soma da potência (kWp) dos sistemas vendidos (negociações com propostas aceitas) no período."
         />
       </div>
 
@@ -293,6 +357,7 @@ export default function Dashboard() {
           value={`${taxaConversao.toFixed(1)}%`}
           icon={Target}
           delay={400}
+          tooltip="Percentual de negociações criadas que resultaram em uma venda fechada no período selecionado."
         />
         <MetricCard
           title="Ticket Médio (Aprovadas)"
@@ -301,6 +366,7 @@ export default function Dashboard() {
           )}
           icon={FileSignature}
           delay={500}
+          tooltip="Valor médio das vendas fechadas no período."
         />
         <MetricCard
           title="Ticket Médio (Propostas Feitas)"
@@ -309,6 +375,7 @@ export default function Dashboard() {
           )}
           icon={FileSignature}
           delay={600}
+          tooltip="Valor médio de todas as propostas geradas no período."
         />
       </div>
 
@@ -401,18 +468,13 @@ export default function Dashboard() {
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Propostas / Negociações</span>
-                <span className="font-medium">
-                  {novasNegociacoes > 0
-                    ? ((createdProposals.length / novasNegociacoes) * 100).toFixed(1)
-                    : 0}
-                  %
-                </span>
+                <span className="font-medium">{propNegRatio.toFixed(1)}</span>
               </div>
               <div className="h-2 bg-secondary rounded-full overflow-hidden">
                 <div
                   className="h-full bg-blue-500"
                   style={{
-                    width: `${novasNegociacoes > 0 ? Math.min((createdProposals.length / novasNegociacoes) * 100, 100) : 0}%`,
+                    width: `${Math.min((propNegRatio / 5) * 100, 100)}%`,
                   }}
                 ></div>
               </div>
