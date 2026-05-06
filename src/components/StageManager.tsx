@@ -16,8 +16,9 @@ import {
   deletePipelineStage,
 } from '@/services/db'
 import { useAuth } from '@/contexts/AuthContext'
-import { Trash2, Plus, ArrowUp, ArrowDown } from 'lucide-react'
+import { Trash2, Plus, ArrowUp, ArrowDown, CheckCircle } from 'lucide-react'
 import { useRealtime } from '@/hooks/use-realtime'
+import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 
 export function StageManager({ open, onOpenChange }: any) {
@@ -51,6 +52,19 @@ export function StageManager({ open, onOpenChange }: any) {
         description: 'Não foi possível excluir (pode estar em uso).',
       })
     }
+  }
+
+  const handleToggleSaleStage = async (stage: any) => {
+    const isCurrentlySale = stage.is_sale_stage
+    await pb.collection('pipeline_stages').update(stage.id, { is_sale_stage: !isCurrentlySale })
+
+    if (!isCurrentlySale) {
+      const others = stages.filter((s) => s.id !== stage.id && s.is_sale_stage)
+      for (const other of others) {
+        await pb.collection('pipeline_stages').update(other.id, { is_sale_stage: false })
+      }
+    }
+    load()
   }
 
   const handleMove = async (index: number, direction: 'up' | 'down') => {
@@ -111,6 +125,24 @@ export function StageManager({ open, onOpenChange }: any) {
                     <span className="text-sm font-medium">{stage.name}</span>
                   </div>
                   <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleToggleSaleStage(stage)}
+                      title={
+                        stage.is_sale_stage
+                          ? 'Estágio de Venda (Clique para remover)'
+                          : 'Marcar como Estágio de Venda'
+                      }
+                    >
+                      <CheckCircle
+                        className={
+                          stage.is_sale_stage
+                            ? 'h-4 w-4 text-green-500'
+                            : 'h-4 w-4 text-muted-foreground'
+                        }
+                      />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"

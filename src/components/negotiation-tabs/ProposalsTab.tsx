@@ -1,7 +1,16 @@
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, Eye, DollarSign, FileText, Trash2 } from 'lucide-react'
+import { Plus, Eye, DollarSign, FileText, Trash2, ThumbsUp, ThumbsDown } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { format } from 'date-fns'
@@ -15,6 +24,51 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
   const [viewerOpen, setViewerOpen] = useState<any>(null)
   const [costModalOpen, setCostModalOpen] = useState<any>(null)
   const [wizardOpen, setWizardOpen] = useState(false)
+  const [closeSaleModal, setCloseSaleModal] = useState<any>(null)
+  const [closingDate, setClosingDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+
+  const handleConfirmSale = async () => {
+    if (!closingDate) {
+      toast({ variant: 'destructive', title: 'A data é obrigatória' })
+      return
+    }
+    try {
+      await pb.collection('proposals').update(closeSaleModal.id, {
+        status: 'accepted',
+        closing_date: closingDate + ' 12:00:00',
+      })
+
+      const stages = await pb.collection('pipeline_stages').getFullList({
+        filter: `company_id = '${closeSaleModal.company_id}' && is_sale_stage = true`,
+      })
+
+      if (stages.length > 0 && neg?.id) {
+        await pb.collection('negotiations').update(neg.id, {
+          stage: stages[0].name,
+        })
+      }
+
+      toast({ title: 'Venda confirmada com sucesso!' })
+      setCloseSaleModal(null)
+      reload()
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Erro ao confirmar venda' })
+    }
+  }
+
+  const handleUndoSale = async (p: any) => {
+    if (!confirm('Deseja desfazer a venda desta proposta?')) return
+    try {
+      await pb.collection('proposals').update(p.id, {
+        status: 'Gerada',
+        closing_date: null,
+      })
+      toast({ title: 'Venda desfeita' })
+      reload()
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Erro ao desfazer venda' })
+    }
+  }
 
   const handleGenerate = () => {
     setWizardOpen(true)
@@ -95,6 +149,26 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
                   <Button
                     variant="ghost"
                     size="sm"
+                    onClick={() =>
+                      p.status === 'accepted' ? handleUndoSale(p) : setCloseSaleModal(p)
+                    }
+                    className={
+                      p.status === 'accepted'
+                        ? 'text-amber-600 hover:bg-amber-600/10'
+                        : 'text-green-600 hover:bg-green-600/10'
+                    }
+                    title={p.status === 'accepted' ? 'Desfazer Venda' : 'Marcar como Vendida'}
+                  >
+                    {p.status === 'accepted' ? (
+                      <ThumbsDown className="h-4 w-4 mr-2" />
+                    ) : (
+                      <ThumbsUp className="h-4 w-4 mr-2" />
+                    )}
+                    {p.status === 'accepted' ? 'Desfazer Venda' : 'Vendido'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleDelete(p.id)}
                     className="text-destructive hover:bg-destructive/10"
                   >
@@ -135,6 +209,34 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
           neg={neg}
         />
       )}
+
+      <Dialog open={!!closeSaleModal} onOpenChange={(v) => !v && setCloseSaleModal(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Venda</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Data do Fechamento</Label>
+              <Input
+                type="date"
+                value={closingDate}
+                onChange={(e) => setClosingDate(e.target.value)}
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              A proposta será marcada como aprovada e a negociação será movida para o estágio de
+              venda (se configurado).
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCloseSaleModal(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmSale}>Confirmar Venda</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

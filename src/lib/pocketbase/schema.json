@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-05T23:34:29.676Z",
+  "generatedAt": "2026-05-06T11:28:13.385Z",
   "collections": [
     {
       "name": "users",
@@ -475,6 +475,12 @@
           "type": "json",
           "required": false,
           "system": false
+        },
+        {
+          "name": "closing_date",
+          "type": "date",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []
@@ -522,6 +528,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "is_sale_stage",
+          "type": "bool",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []
