@@ -16,7 +16,15 @@ import {
   deletePipelineStage,
 } from '@/services/db'
 import { useAuth } from '@/contexts/AuthContext'
-import { Trash2, Plus, ArrowUp, ArrowDown, CheckCircle } from 'lucide-react'
+import { Trash2, Plus, ArrowUp, ArrowDown } from 'lucide-react'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useRealtime } from '@/hooks/use-realtime'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
@@ -54,15 +62,19 @@ export function StageManager({ open, onOpenChange }: any) {
     }
   }
 
-  const handleToggleSaleStage = async (stage: any) => {
-    const isCurrentlySale = stage.is_sale_stage
-    await pb.collection('pipeline_stages').update(stage.id, { is_sale_stage: !isCurrentlySale })
+  const handleSetSaleStage = async (stageId: string) => {
+    const currentSaleStages = stages.filter((s) => s.is_sale_stage)
 
-    if (!isCurrentlySale) {
-      const others = stages.filter((s) => s.id !== stage.id && s.is_sale_stage)
-      for (const other of others) {
-        await pb.collection('pipeline_stages').update(other.id, { is_sale_stage: false })
+    // Clear others
+    for (const stage of currentSaleStages) {
+      if (stage.id !== stageId) {
+        await pb.collection('pipeline_stages').update(stage.id, { is_sale_stage: false })
       }
+    }
+
+    // Set new
+    if (stageId !== 'none') {
+      await pb.collection('pipeline_stages').update(stageId, { is_sale_stage: true })
     }
     load()
   }
@@ -104,17 +116,45 @@ export function StageManager({ open, onOpenChange }: any) {
             Apenas administradores podem configurar o funil.
           </p>
         ) : (
-          <div className="space-y-4">
-            <div className="flex gap-2">
-              <Input
-                placeholder="Nome do estágio"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-              />
-              <Button onClick={handleCreate}>
-                <Plus className="h-4 w-4 mr-2" /> Adicionar
-              </Button>
+          <div className="space-y-6">
+            <div className="space-y-3 bg-muted/30 p-4 rounded-lg border border-border/50">
+              <Label className="text-base font-semibold">
+                Qual estágio representa a venda finalizada?
+              </Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Negociações marcadas como ganhas serão automaticamente movidas para este estágio.
+              </p>
+              <Select
+                value={stages.find((s) => s.is_sale_stage)?.id || 'none'}
+                onValueChange={handleSetSaleStage}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o estágio de venda" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum estágio definido</SelectItem>
+                  {stages.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Nome do novo estágio"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                />
+                <Button onClick={handleCreate}>
+                  <Plus className="h-4 w-4 mr-2" /> Adicionar
+                </Button>
+              </div>
+            </div>
+
             <div className="space-y-2 mt-4 max-h-60 overflow-y-auto">
               {stages.map((stage, i) => (
                 <div
@@ -125,24 +165,6 @@ export function StageManager({ open, onOpenChange }: any) {
                     <span className="text-sm font-medium">{stage.name}</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleToggleSaleStage(stage)}
-                      title={
-                        stage.is_sale_stage
-                          ? 'Estágio de Venda (Clique para remover)'
-                          : 'Marcar como Estágio de Venda'
-                      }
-                    >
-                      <CheckCircle
-                        className={
-                          stage.is_sale_stage
-                            ? 'h-4 w-4 text-green-500'
-                            : 'h-4 w-4 text-muted-foreground'
-                        }
-                      />
-                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"

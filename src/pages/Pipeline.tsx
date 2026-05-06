@@ -31,6 +31,7 @@ export default function Pipeline() {
   const [negotiations, setNegotiations] = useState<any[]>([])
   const [stages, setStages] = useState<any[]>([])
   const [tags, setTags] = useState<any[]>([])
+  const [proposals, setProposals] = useState<any[]>([])
 
   const [search, setSearch] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
@@ -47,11 +48,19 @@ export default function Pipeline() {
 
   const loadAll = async () => {
     const filter = user?.role === 'user' ? `owner_id = '${user?.id}'` : ''
-    setNegotiations(
-      await pb.collection('negotiations').getFullList({ expand: 'lead_id,owner_id', filter }),
-    )
-    setStages(await getPipelineStages())
-    setTags(await getTags())
+    const propFilter = user?.role === 'user' ? `negotiation_id.owner_id = '${user?.id}'` : ''
+
+    const [n, s, t, p] = await Promise.all([
+      pb.collection('negotiations').getFullList({ expand: 'lead_id,owner_id', filter }),
+      getPipelineStages(),
+      getTags(),
+      pb.collection('proposals').getFullList({ filter: propFilter }),
+    ])
+
+    setNegotiations(n)
+    setStages(s)
+    setTags(t)
+    setProposals(p)
   }
 
   useEffect(() => {
@@ -60,6 +69,23 @@ export default function Pipeline() {
   useRealtime(Collections.NEGOTIATIONS, loadAll)
   useRealtime(Collections.PIPELINE_STAGES, async () => setStages(await getPipelineStages()))
   useRealtime(Collections.TAGS, async () => setTags(await getTags()))
+  useRealtime(Collections.PROPOSALS, async () => {
+    const propFilter = user?.role === 'user' ? `negotiation_id.owner_id = '${user?.id}'` : ''
+    setProposals(await pb.collection('proposals').getFullList({ filter: propFilter }))
+  })
+
+  const getNegValue = (negId: string) => {
+    const negProps = proposals.filter((p) => p.negotiation_id === negId)
+    const wonProp = negProps.find((p) => p.status === 'accepted')
+    if (wonProp) return wonProp.total_value || wonProp.price || 0
+    if (negProps.length > 0) {
+      const latest = negProps.sort(
+        (a, b) => new Date(b.created).getTime() - new Date(a.created).getTime(),
+      )[0]
+      return latest.total_value || latest.price || 0
+    }
+    return 0
+  }
 
   const filtered = negotiations.filter((n) => {
     const matchesSearch =
@@ -236,6 +262,7 @@ export default function Pipeline() {
         {stages.map((stage) => {
           const isCollapsed = collapsed.has(stage.id)
           const colNegs = filtered.filter((n) => n.stage === stage.id)
+          const colTotal = colNegs.reduce((acc, n) => acc + getNegValue(n.id), 0)
 
           if (isCollapsed) {
             return (
@@ -281,38 +308,72 @@ export default function Pipeline() {
               </div>
 
               <div className="flex-1 bg-muted/40 p-2 rounded-lg flex flex-col gap-3 overflow-y-auto border border-border/50 min-h-[100px]">
-                {colNegs.map((neg) => (
-                  <Card
-                    key={neg.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, neg.id)}
-                    onClick={() => setSelectedId(neg.id)}
-                    className="cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors shadow-sm animate-fade-in group relative"
-                  >
-                    <GripVertical className="absolute right-2 top-3 h-4 w-4 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
-                    <CardHeader className="p-3 pb-2 pr-8">
-                      <CardTitle className="text-sm font-medium line-clamp-1" title={neg.title}>
-                        {neg.title}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-3 pt-0">
-                      <p className="text-xs text-muted-foreground line-clamp-1 mb-2">
-                        {neg.expand?.lead_id?.name || 'Sem lead vinculado'}
-                      </p>
+                {colNegs.map((neg) => {
+                  const val = getNegValue(neg.id)
+                  return (
+                    <Card
+                      key={neg.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, neg.id)}
+                      onClick={() => setSelectedId(neg.id)}
+                      className="cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors shadow-sm animate-fade-in group relative"
+                    >
+                      <GripVertical className="absolute right-2 top-3 h-4 w-4 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
+                      <CardHeader className="p-3 pb-2 pr-8">
+                        <CardTitle className="text-sm font-medium line-clamp-1" title={neg.title}>
+                          {neg.title}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-3 pt-0 flex flex-col gap-2">
+                        <div className="flex justify-between items-center text-xs">
+                          <p className="text-muted-foreground line-clamp-1">
+                            {neg.expand?.lead_id?.name || 'Sem lead vinculado'}
+                          </p>
+                          {val > 0 && (
+                            <span className="font-semibold text-primary shrink-0">
+                              {new Intl.NumberFormat('pt-BR', {
+                                style: 'currency',
+                                currency: 'BRL',
+                                maximumFractionDigits: 0,
+                              }).format(val)}
+                            </span>
+                          )}
+                        </div>
 
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {(neg.tags || []).map((tagId: string) => {
-                          const tagObj = tags.find((t) => t.id === tagId)
-                          if (!tagObj) {
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {(neg.tags || []).map((tagId: string) => {
+                            const tagObj = tags.find((t) => t.id === tagId)
+                            if (!tagObj) {
+                              return (
+                                <Badge
+                                  key={tagId}
+                                  variant="outline"
+                                  className="text-[10px] pr-1 h-5 flex items-center gap-1 bg-background/50"
+                                >
+                                  {tagId}
+                                  <X
+                                    className="h-3 w-3 cursor-pointer hover:text-destructive"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleRemoveTag(neg, tagId)
+                                    }}
+                                  />
+                                </Badge>
+                              )
+                            }
                             return (
                               <Badge
                                 key={tagId}
-                                variant="outline"
-                                className="text-[10px] pr-1 h-5 flex items-center gap-1 bg-background/50"
+                                style={{
+                                  backgroundColor: tagObj.color + '20',
+                                  color: tagObj.color,
+                                  borderColor: tagObj.color + '40',
+                                }}
+                                className="text-[10px] pr-1 h-5 flex items-center gap-1"
                               >
-                                {tagId}
+                                {tagObj.name}
                                 <X
-                                  className="h-3 w-3 cursor-pointer hover:text-destructive"
+                                  className="h-3 w-3 cursor-pointer"
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     handleRemoveTag(neg, tagId)
@@ -320,66 +381,60 @@ export default function Pipeline() {
                                 />
                               </Badge>
                             )
-                          }
-                          return (
-                            <Badge
-                              key={tagId}
-                              style={{
-                                backgroundColor: tagObj.color + '20',
-                                color: tagObj.color,
-                                borderColor: tagObj.color + '40',
-                              }}
-                              className="text-[10px] pr-1 h-5 flex items-center gap-1"
-                            >
-                              {tagObj.name}
-                              <X
-                                className="h-3 w-3 cursor-pointer"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleRemoveTag(neg, tagId)
-                                }}
-                              />
-                            </Badge>
-                          )
-                        })}
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] h-5 cursor-pointer bg-background/50 hover:bg-muted"
+                          })}
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] h-5 cursor-pointer bg-background/50 hover:bg-muted"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Plus className="h-3 w-3" />
+                              </Badge>
+                            </PopoverTrigger>
+                            <PopoverContent
+                              className="w-48 p-2"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <Plus className="h-3 w-3" />
-                            </Badge>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-48 p-2" onClick={(e) => e.stopPropagation()}>
-                            {tags.length === 0 ? (
-                              <p className="text-xs text-muted-foreground text-center p-2">
-                                Nenhuma tag criada.
-                              </p>
-                            ) : (
-                              <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
-                                {tags.map((t) => (
-                                  <div
-                                    key={t.id}
-                                    className="flex items-center gap-2 text-xs p-1.5 hover:bg-muted cursor-pointer rounded"
-                                    onClick={() => handleAddTag(neg, t.id)}
-                                  >
+                              {tags.length === 0 ? (
+                                <p className="text-xs text-muted-foreground text-center p-2">
+                                  Nenhuma tag criada.
+                                </p>
+                              ) : (
+                                <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
+                                  {tags.map((t) => (
                                     <div
-                                      className="w-3 h-3 rounded-full"
-                                      style={{ backgroundColor: t.color }}
-                                    ></div>
-                                    {t.name}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                                      key={t.id}
+                                      className="flex items-center gap-2 text-xs p-1.5 hover:bg-muted cursor-pointer rounded"
+                                      onClick={() => handleAddTag(neg, t.id)}
+                                    >
+                                      <div
+                                        className="w-3 h-3 rounded-full"
+                                        style={{ backgroundColor: t.color }}
+                                      ></div>
+                                      {t.name}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+
+              <div className="bg-muted/40 border border-border/50 rounded-lg p-3 flex justify-between items-center">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Total
+                </span>
+                <span className="text-sm font-bold">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                    colTotal,
+                  )}
+                </span>
               </div>
             </div>
           )

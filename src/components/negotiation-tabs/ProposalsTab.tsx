@@ -44,7 +44,7 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
 
       if (stages.length > 0 && neg?.id) {
         await pb.collection('negotiations').update(neg.id, {
-          stage: stages[0].name,
+          stage: stages[0].id,
         })
       }
 
@@ -61,7 +61,7 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
     try {
       await pb.collection('proposals').update(p.id, {
         status: 'Gerada',
-        closing_date: null,
+        closing_date: '',
       })
       toast({ title: 'Venda desfeita' })
       reload()

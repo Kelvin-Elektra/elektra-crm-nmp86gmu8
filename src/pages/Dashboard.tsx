@@ -2,7 +2,20 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRealtime } from '@/hooks/use-realtime'
 import pb from '@/lib/pocketbase/client'
-import { format, subDays, startOfMonth, endOfMonth, parseISO } from 'date-fns'
+import {
+  format,
+  subDays,
+  startOfMonth,
+  endOfMonth,
+  parseISO,
+  startOfDay,
+  endOfDay,
+  addYears,
+  subYears,
+} from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { ChevronLeft, ChevronRight, CalendarIcon } from 'lucide-react'
 import { MetricCard } from '@/components/MetricCard'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { DollarSign, LineChart, Target, Zap, FileSignature, ThumbsUp, Calendar } from 'lucide-react'
@@ -21,6 +34,8 @@ export default function Dashboard() {
   const [filter, setFilter] = useState('30d')
   const [monthYear, setMonthYear] = useState(format(new Date(), 'yyyy-MM'))
   const [users, setUsers] = useState<any[]>([])
+
+  const [pickerDate, setPickerDate] = useState(new Date())
 
   const [data, setData] = useState({
     proposals: [] as any[],
@@ -42,15 +57,15 @@ export default function Dashboard() {
 
   const loadData = async () => {
     let start: Date
-    let end = new Date()
+    let end = endOfDay(new Date())
 
-    if (filter === '30d') start = subDays(end, 30)
-    else if (filter === '60d') start = subDays(end, 60)
-    else if (filter === '90d') start = subDays(end, 90)
+    if (filter === '30d') start = startOfDay(subDays(end, 30))
+    else if (filter === '60d') start = startOfDay(subDays(end, 60))
+    else if (filter === '90d') start = startOfDay(subDays(end, 90))
     else {
       const d = parseISO(monthYear + '-01')
       start = startOfMonth(d)
-      end = endOfMonth(d)
+      end = endOfDay(endOfMonth(d))
     }
 
     const startStr = start.toISOString()
@@ -90,14 +105,14 @@ export default function Dashboard() {
   useRealtime('negotiations', loadData)
 
   let start: Date
-  let end = new Date()
-  if (filter === '30d') start = subDays(end, 30)
-  else if (filter === '60d') start = subDays(end, 60)
-  else if (filter === '90d') start = subDays(end, 90)
+  let end = endOfDay(new Date())
+  if (filter === '30d') start = startOfDay(subDays(end, 30))
+  else if (filter === '60d') start = startOfDay(subDays(end, 60))
+  else if (filter === '90d') start = startOfDay(subDays(end, 90))
   else {
     const d = parseISO(monthYear + '-01')
     start = startOfMonth(d)
-    end = endOfMonth(d)
+    end = endOfDay(endOfMonth(d))
   }
 
   const isOwner = (item: any) => {
@@ -139,8 +154,10 @@ export default function Dashboard() {
     return acc
   }, 0)
 
-  const taxaConversao =
-    novasNegociacoes > 0 ? (acceptedProposals.length / novasNegociacoes) * 100 : 0
+  const wonNegsCount = new Set(acceptedProposals.map((p) => p.negotiation_id)).size
+  const taxaConversao = novasNegociacoes > 0 ? (wonNegsCount / novasNegociacoes) * 100 : 0
+  const aproveitamento = novosLeads > 0 ? (novasNegociacoes / novosLeads) * 100 : 0
+
   const ticketMedioFeitas =
     createdProposals.length > 0
       ? createdProposals.reduce((a, p) => a + (p.total_value || p.price || 0), 0) /
@@ -186,12 +203,50 @@ export default function Dashboard() {
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <div className="flex items-center gap-2">
           {filter === 'month' && (
-            <Input
-              type="month"
-              value={monthYear}
-              onChange={(e) => setMonthYear(e.target.value)}
-              className="w-[160px]"
-            />
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-[180px] justify-start text-left font-normal">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  <span className="capitalize">
+                    {format(parseISO(monthYear + '-01'), 'MMMM yyyy', { locale: ptBR })}
+                  </span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-2" align="start">
+                <div className="flex items-center justify-between mb-4">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setPickerDate(subYears(pickerDate, 1))}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <div className="font-semibold">{format(pickerDate, 'yyyy')}</div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setPickerDate(addYears(pickerDate, 1))}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {Array.from({ length: 12 }).map((_, i) => {
+                    const d = new Date(pickerDate.getFullYear(), i, 1)
+                    return (
+                      <Button
+                        key={i}
+                        variant={monthYear === format(d, 'yyyy-MM') ? 'default' : 'ghost'}
+                        onClick={() => setMonthYear(format(d, 'yyyy-MM'))}
+                        className="capitalize"
+                      >
+                        {format(d, 'MMM', { locale: ptBR })}
+                      </Button>
+                    )
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
           )}
           <Select value={filter} onValueChange={setFilter}>
             <SelectTrigger className="w-[180px]">
@@ -248,7 +303,7 @@ export default function Dashboard() {
           delay={500}
         />
         <MetricCard
-          title="Ticket Médio (Feitas)"
+          title="Ticket Médio (Propostas Feitas)"
           value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
             ticketMedioFeitas,
           )}
@@ -333,16 +388,12 @@ export default function Dashboard() {
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Aproveitamento de Leads</span>
-                <span className="font-medium">
-                  {novosLeads > 0 ? ((novasNegociacoes / novosLeads) * 100).toFixed(1) : 0}%
-                </span>
+                <span className="font-medium">{aproveitamento.toFixed(1)}%</span>
               </div>
               <div className="h-2 bg-secondary rounded-full overflow-hidden">
                 <div
                   className="h-full bg-primary"
-                  style={{
-                    width: `${novosLeads > 0 ? Math.min((novasNegociacoes / novosLeads) * 100, 100) : 0}%`,
-                  }}
+                  style={{ width: `${Math.min(aproveitamento, 100)}%` }}
                 ></div>
               </div>
             </div>
