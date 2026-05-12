@@ -841,6 +841,11 @@ export default function Settings() {
                         <div>
                           <div className="flex items-center gap-2 mb-1">
                             <p className="font-medium leading-none">{u.name || 'Sem nome'}</p>
+                            {u.is_owner && (
+                              <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
+                                Dono
+                              </span>
+                            )}
                           </div>
                           <p className="text-sm text-muted-foreground">{u.email}</p>
                         </div>
@@ -863,12 +868,14 @@ export default function Settings() {
                               >
                                 <Edit className="h-4 w-4 mr-2" /> Editar
                               </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-destructive focus:text-destructive"
-                                onClick={() => handleDeleteUser(u.id)}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" /> Remover
-                              </DropdownMenuItem>
+                              {!u.is_owner && (
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => handleDeleteUser(u.id)}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" /> Remover
+                                </DropdownMenuItem>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
@@ -962,6 +969,7 @@ export default function Settings() {
               <div className="space-y-2">
                 <Label>Permissão</Label>
                 <Select
+                  disabled={editUser.is_owner}
                   value={editUser.role}
                   onValueChange={(v) => setEditUser({ ...editUser, role: v })}
                 >
@@ -973,6 +981,11 @@ export default function Settings() {
                     <SelectItem value="admin_company">Administrador (Empresa)</SelectItem>
                   </SelectContent>
                 </Select>
+                {editUser.is_owner && (
+                  <p className="text-xs text-muted-foreground">
+                    O dono da empresa sempre será Administrador.
+                  </p>
+                )}
               </div>
               <div className="pt-4 flex justify-end">
                 <Button type="submit">Salvar Alterações</Button>

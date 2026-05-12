@@ -51,6 +51,7 @@ routerAdd('POST', '/backend/v1/hub-sync', (e) => {
         user.set('role', 'admin_company')
         user.set('status', 'active')
         user.set('company_id', company.id)
+        user.set('is_owner', true)
         txApp.save(user)
       })
 

@@ -10,6 +10,7 @@ export type User = {
   status: string
   company_id: string
   verified: boolean
+  is_owner: boolean
 }
 
 interface AuthContextType {
