@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 
@@ -24,18 +25,57 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(pb.authStore.record as User | null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => {
+    return new URLSearchParams(window.location.search).has('token')
+  })
   const { toast } = useToast()
+  const navigate = useNavigate()
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const token = params.get('token')
+
+    if (token) {
+      params.delete('token')
+      const newSearch = params.toString()
+      const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '')
+      window.history.replaceState({}, document.title, newUrl)
+
+      pb.send('/backend/v1/sso-login', {
+        method: 'POST',
+        body: JSON.stringify({ token }),
+        headers: { 'Content-Type': 'application/json' },
+      })
+        .then((authData) => {
+          pb.authStore.save(authData.token, authData.record)
+          setUser(authData.record as User)
+          navigate('/dashboard', { replace: true })
+        })
+        .catch((err) => {
+          console.error('SSO error', err)
+          pb.authStore.clear()
+          setUser(null)
+          toast({
+            title: 'Erro de Autenticação',
+            description: 'Token inválido ou expirado.',
+            variant: 'destructive',
+          })
+          navigate('/', { replace: true })
+        })
+        .finally(() => {
+          setLoading(false)
+        })
+    } else {
+      setLoading(false)
+    }
+
     const unsubscribe = pb.authStore.onChange((_token, record) => {
       setUser(record as User | null)
     })
-    setLoading(false)
     return () => {
       unsubscribe()
     }
-  }, [])
+  }, [navigate, toast])
 
   const login = async (email: string, pass: string) => {
     try {
