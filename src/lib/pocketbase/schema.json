@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-12T00:45:10.078Z",
+  "generatedAt": "2026-05-12T01:36:44.787Z",
   "collections": [
     {
       "name": "users",
@@ -137,6 +137,12 @@
         {
           "name": "avg_efficiency",
           "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "hub_id",
+          "type": "text",
           "required": false,
           "system": false
         }

@@ -12,23 +12,34 @@ routerAdd('POST', '/backend/v1/hub-sync', (e) => {
   const body = e.requestInfo().body || {}
 
   if (body.action === 'update_status') {
-    if (!body.company_id || !body.status) {
-      return e.badRequestError('Missing company_id or status')
+    if ((!body.company_id && !body.hub_id) || !body.status) {
+      return e.badRequestError('Missing hub_id or company_id, or missing status')
     }
 
     try {
-      const company = $app.findRecordById('companies', body.company_id)
+      let company
+      if (body.hub_id) {
+        company = $app.findFirstRecordByData('companies', 'hub_id', body.hub_id)
+      } else {
+        company = $app.findRecordById('companies', body.company_id)
+      }
+
       company.set('status', body.status)
       $app.save(company)
-      return e.json(200, { success: true, company_id: company.id, status: company.get('status') })
+      return e.json(200, {
+        success: true,
+        company_id: company.id,
+        hub_id: company.getString('hub_id'),
+        status: company.get('status'),
+      })
     } catch (err) {
       return e.notFoundError('Company not found')
     }
   }
 
   if (body.action === 'provision') {
-    if (!body.company_name || !body.admin_email || !body.admin_name) {
-      return e.badRequestError('Missing company_name, admin_email, or admin_name')
+    if (!body.company_name || !body.admin_email || !body.admin_name || !body.hub_id) {
+      return e.badRequestError('Missing company_name, admin_email, admin_name, or hub_id')
     }
 
     try {
@@ -39,6 +50,7 @@ routerAdd('POST', '/backend/v1/hub-sync', (e) => {
         company.set('name', body.company_name)
         company.set('status', 'active')
         company.set('max_users', 5)
+        company.set('hub_id', body.hub_id)
         txApp.save(company)
         newCompanyId = company.id
 
@@ -55,7 +67,7 @@ routerAdd('POST', '/backend/v1/hub-sync', (e) => {
         txApp.save(user)
       })
 
-      return e.json(200, { success: true, company_id: newCompanyId })
+      return e.json(200, { success: true, company_id: newCompanyId, hub_id: body.hub_id })
     } catch (err) {
       $app.logger().error('Provisioning failed', 'error', err.message)
       return e.internalServerError('Failed to provision company')

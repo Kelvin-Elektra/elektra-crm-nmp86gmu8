@@ -868,7 +868,8 @@ export default function Settings() {
                               >
                                 <Edit className="h-4 w-4 mr-2" /> Editar
                               </DropdownMenuItem>
-                              {!u.is_owner && (
+                              {(!u.is_owner ||
+                                (user?.role === 'admin_elektra' && u.id !== user?.id)) && (
                                 <DropdownMenuItem
                                   className="text-destructive focus:text-destructive"
                                   onClick={() => handleDeleteUser(u.id)}
