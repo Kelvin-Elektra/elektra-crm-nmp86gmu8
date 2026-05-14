@@ -81,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await pb.send('/backend/v1/sso/login', {
         method: 'POST',
         body: JSON.stringify({ sso_token: ssoToken }),
+        headers: { 'Content-Type': 'application/json' },
       })
 
       pb.authStore.save(response.token, response.record)
@@ -110,11 +111,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setUser(record)
       return true
-    } catch (err) {
+    } catch (err: any) {
       pb.authStore.clear()
+      const errorMsg = err?.response?.message || 'Por favor, tente novamente ou use sua senha.'
       toast({
         title: 'Falha na autenticação via Hub',
-        description: 'Por favor, tente novamente ou use sua senha.',
+        description: errorMsg,
         variant: 'destructive',
       })
       return false

@@ -46,11 +46,17 @@ export default function Login() {
   useEffect(() => {
     if (ssoToken && !ssoAttempted.current) {
       ssoAttempted.current = true
+
+      // URL Sanitization: Remove the sso_token from the URL immediately using history API
+      const newUrl = new URL(window.location.href)
+      newUrl.searchParams.delete('sso_token')
+      window.history.replaceState({}, '', newUrl.toString())
+
       const authWithSso = async () => {
         setIsAuthenticatingSso(true)
         const success = await loginWithSso(ssoToken)
         if (success) {
-          navigate('/dashboard')
+          navigate('/dashboard', { replace: true })
         } else {
           setIsAuthenticatingSso(false)
           navigate('/', { replace: true })

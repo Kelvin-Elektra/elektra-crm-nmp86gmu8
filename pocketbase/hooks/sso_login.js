@@ -1,37 +1,37 @@
 routerAdd('POST', '/backend/v1/sso/login', (e) => {
   const body = e.requestInfo().body || {}
-  const token = body.sso_token
+  const ssoToken = body.sso_token
 
-  if (!token) {
-    return e.badRequestError('Token não fornecido')
+  if (!ssoToken) {
+    return e.badRequestError('sso_token is required')
   }
 
   const secret = $secrets.get('SSO_SECRET')
   if (!secret) {
-    return e.internalServerError('SSO não configurado corretamente')
-  }
-
-  let payload
-  try {
-    payload = $security.parseJWT(token, secret)
-  } catch (err) {
-    return e.unauthorizedError('Token inválido ou expirado')
-  }
-
-  const hubUserId = payload.id
-  if (!hubUserId) {
-    return e.unauthorizedError('Token inválido: ID ausente')
+    return e.internalServerError('SSO is not configured')
   }
 
   try {
-    const userRecord = $app.findFirstRecordByData('users', 'hub_user_id', hubUserId)
+    // 1. Verify token signature and expiration
+    const payload = $security.parseJWT(ssoToken, secret)
 
-    if (userRecord.getString('status') === 'inactive') {
-      return e.forbiddenError('Usuário inativo')
+    // The HUB provides its user ID in the JWT "id" claim
+    const hubUserId = payload.id
+    if (!hubUserId) {
+      return e.badRequestError('Invalid token payload: missing id')
     }
 
-    return $apis.recordAuthResponse($app, e, userRecord)
+    // 2. Find user by hub_user_id, not by internal CRM ID
+    let user
+    try {
+      user = $app.findFirstRecordByData('users', 'hub_user_id', hubUserId)
+    } catch (_) {
+      return e.notFoundError('Usuário não encontrado ou não vinculado ao CRM.')
+    }
+
+    // 3. Return standard auth response for the matched CRM user
+    return $apis.recordAuthResponse($app, e, user)
   } catch (err) {
-    return e.unauthorizedError('Usuário não encontrado')
+    return e.unauthorizedError('Token inválido ou expirado.')
   }
 })
