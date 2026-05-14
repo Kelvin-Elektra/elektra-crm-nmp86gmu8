@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { Loader2, AlertCircle, RefreshCw } from 'lucide-react'
+import { Loader2, AlertCircle, RefreshCw, Terminal, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export function SsoGateway({ children }: { children: React.ReactNode }) {
@@ -11,6 +11,7 @@ export function SsoGateway({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate()
   const [isProcessing, setIsProcessing] = useState(!!ssoToken)
   const [diagnostic, setDiagnostic] = useState<any>(null)
+  const [showDebug, setShowDebug] = useState(false)
   const attempted = useRef(false)
 
   useEffect(() => {
@@ -72,20 +73,59 @@ export function SsoGateway({ children }: { children: React.ReactNode }) {
             </p>
           </div>
 
-          {diagnostic.payload && (
-            <div className="mb-6 space-y-2">
-              <h3 className="font-semibold text-foreground">Payload do Token (Decodificado)</h3>
-              <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm font-mono border text-muted-foreground">
-                {JSON.stringify(diagnostic.payload, null, 2)}
-              </pre>
-            </div>
-          )}
+          <div className="mb-8 border rounded-lg overflow-hidden">
+            <button
+              onClick={() => setShowDebug(!showDebug)}
+              className="w-full flex items-center justify-between p-4 bg-muted/50 hover:bg-muted transition-colors text-left"
+            >
+              <div className="flex items-center gap-2 font-semibold">
+                <Terminal className="h-5 w-5" />
+                Informações de Diagnóstico
+              </div>
+              {showDebug ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+            </button>
 
-          <div className="mb-8 space-y-2">
-            <h3 className="font-semibold text-foreground">Resposta Bruta</h3>
-            <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm font-mono border text-muted-foreground">
-              {JSON.stringify(diagnostic, null, 2)}
-            </pre>
+            {showDebug && (
+              <div className="p-4 space-y-6 bg-background border-t">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                    Endpoint
+                  </h3>
+                  <code className="block bg-muted p-2 rounded text-sm font-mono">
+                    POST /backend/v1/sso/login
+                  </code>
+                </div>
+
+                <div className="space-y-1">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                    HTTP Status
+                  </h3>
+                  <code className="block bg-muted p-2 rounded text-sm font-mono">
+                    {diagnostic.status || '500 Internal Server Error'}
+                  </code>
+                </div>
+
+                <div className="space-y-1">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                    Request Payload (Decoded JWT)
+                  </h3>
+                  <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm font-mono border">
+                    {diagnostic.payload
+                      ? JSON.stringify(diagnostic.payload, null, 2)
+                      : 'Nenhum payload decodificado disponível.'}
+                  </pre>
+                </div>
+
+                <div className="space-y-1">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                    Server Response (Raw)
+                  </h3>
+                  <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm font-mono border">
+                    {JSON.stringify(diagnostic, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t">

@@ -95,14 +95,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           description: 'Por favor, verifique seu e-mail antes de fazer login.',
           variant: 'destructive',
         })
-        return { success: false, diagnostic: { error: 'Email não verificado' } }
+        return { success: false, diagnostic: { error: 'Email não verificado', status: 403 } }
       }
 
       setUser(record)
       return { success: true }
     } catch (err: any) {
       pb.authStore.clear()
-      const diagnostic = err.response || { error: err.message }
+      const diagnostic = err.response || { error: err.message, status: err.status || 500 }
       toast({
         title: 'Falha na autenticação via Hub',
         description: diagnostic.error || 'Por favor, tente novamente ou use sua senha.',
