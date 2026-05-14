@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { Loader2, AlertCircle, RefreshCw, Terminal, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import pb from '@/lib/pocketbase/client'
 
 export function SsoGateway({ children }: { children: React.ReactNode }) {
   const [searchParams] = useSearchParams()
@@ -12,6 +14,11 @@ export function SsoGateway({ children }: { children: React.ReactNode }) {
   const [isProcessing, setIsProcessing] = useState(!!ssoToken)
   const [diagnostic, setDiagnostic] = useState<any>(null)
   const [showDebug, setShowDebug] = useState(false)
+
+  const [manualToken, setManualToken] = useState('')
+  const [manualDiagnostic, setManualDiagnostic] = useState<any>(null)
+  const [isManualLoading, setIsManualLoading] = useState(false)
+
   const attempted = useRef(false)
 
   useEffect(() => {
@@ -44,6 +51,23 @@ export function SsoGateway({ children }: { children: React.ReactNode }) {
     }
   }, [ssoToken, loginWithSso, navigate])
 
+  const runManualDiagnostic = async () => {
+    if (!manualToken.trim()) return
+    setIsManualLoading(true)
+    setManualDiagnostic(null)
+    try {
+      const result = await pb.send('/backend/v1/sso/debug', {
+        method: 'POST',
+        body: { sso_token: manualToken.trim() },
+      })
+      setManualDiagnostic(result)
+    } catch (err: any) {
+      setManualDiagnostic(err.response?.data || err.response || { error: err.message })
+    } finally {
+      setIsManualLoading(false)
+    }
+  }
+
   if (isProcessing || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
@@ -60,7 +84,7 @@ export function SsoGateway({ children }: { children: React.ReactNode }) {
   if (diagnostic) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
-        <div className="w-full max-w-3xl bg-background p-8 rounded-xl shadow-2xl border border-destructive/20 animate-fade-in-up">
+        <div className="w-full max-w-3xl bg-background p-8 rounded-xl shadow-2xl border border-destructive/20 animate-fade-in-up max-h-[90vh] overflow-y-auto">
           <div className="flex items-center gap-3 mb-6 text-destructive">
             <AlertCircle className="h-8 w-8" />
             <h1 className="text-3xl font-bold tracking-tight">Falha no Login SSO</h1>
@@ -123,6 +147,40 @@ export function SsoGateway({ children }: { children: React.ReactNode }) {
                   <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm font-mono border">
                     {JSON.stringify(diagnostic, null, 2)}
                   </pre>
+                </div>
+
+                <div className="space-y-4 pt-6 border-t mt-6">
+                  <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+                    Diagnóstico Manual de Token
+                  </h3>
+                  <div className="space-y-3">
+                    <Textarea
+                      placeholder="Cole o sso_token aqui..."
+                      value={manualToken}
+                      onChange={(e) => setManualToken(e.target.value)}
+                      className="font-mono text-xs min-h-[100px]"
+                    />
+                    <Button
+                      onClick={runManualDiagnostic}
+                      disabled={isManualLoading || !manualToken.trim()}
+                      variant="secondary"
+                      className="w-full"
+                    >
+                      {isManualLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Executar Diagnóstico
+                    </Button>
+                  </div>
+
+                  {manualDiagnostic && (
+                    <div className="space-y-2 mt-4 animate-fade-in">
+                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                        Resultado do Diagnóstico Manual
+                      </h3>
+                      <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm font-mono border whitespace-pre-wrap break-all">
+                        {JSON.stringify(manualDiagnostic, null, 2)}
+                      </pre>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
