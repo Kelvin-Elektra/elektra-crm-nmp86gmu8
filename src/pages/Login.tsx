@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
-import { useNavigate, Link, useSearchParams } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,17 +11,12 @@ import pb from '@/lib/pocketbase/client'
 const DEFAULT_LOGO_URL = 'https://img.usecurling.com/i?q=elektra&color=azure'
 
 export default function Login() {
-  const [searchParams] = useSearchParams()
-  const ssoToken = searchParams.get('sso_token')
-
   const [email, setEmail] = useState('elektraengenhariasolucoes@gmail.com')
   const [password, setPassword] = useState('Skip@Pass')
   const [loading, setLoading] = useState(false)
-  const [isAuthenticatingSso, setIsAuthenticatingSso] = useState(!!ssoToken)
   const [logoUrl, setLogoUrl] = useState(DEFAULT_LOGO_URL)
-  const { login, loginWithSso } = useAuth()
+  const { login } = useAuth()
   const navigate = useNavigate()
-  const ssoAttempted = useRef(false)
 
   const [systemName, setSystemName] = useState('Elektra CRM')
 
@@ -42,29 +37,6 @@ export default function Login() {
     }
     fetchLogo()
   }, [])
-
-  useEffect(() => {
-    if (ssoToken && !ssoAttempted.current) {
-      ssoAttempted.current = true
-
-      // URL Sanitization: Remove the sso_token from the URL immediately using history API
-      const newUrl = new URL(window.location.href)
-      newUrl.searchParams.delete('sso_token')
-      window.history.replaceState({}, '', newUrl.toString())
-
-      const authWithSso = async () => {
-        setIsAuthenticatingSso(true)
-        const success = await loginWithSso(ssoToken)
-        if (success) {
-          navigate('/dashboard', { replace: true })
-        } else {
-          setIsAuthenticatingSso(false)
-          navigate('/', { replace: true })
-        }
-      }
-      authWithSso()
-    }
-  }, [ssoToken, loginWithSso, navigate])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -90,66 +62,55 @@ export default function Login() {
           </p>
         </div>
 
-        {isAuthenticatingSso ? (
-          <Card className="border-border/50 shadow-xl">
-            <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
-              <Loader2 className="h-10 w-10 animate-spin text-primary" />
-              <p className="text-lg font-medium text-muted-foreground animate-pulse text-center">
-                Autenticando via Elektra Hub...
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="border-border/50 shadow-xl">
-            <CardHeader>
-              <CardTitle>Acesso Restrito</CardTitle>
-              <CardDescription>Insira suas credenciais para acessar sua conta</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email Corporativo</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="Seu email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    className="transition-all focus:ring-primary"
-                  />
+        <Card className="border-border/50 shadow-xl">
+          <CardHeader>
+            <CardTitle>Acesso Restrito</CardTitle>
+            <CardDescription>Insira suas credenciais para acessar sua conta</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Corporativo</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Seu email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="transition-all focus:ring-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Senha</Label>
+                  <Link
+                    to="/esqueci-minha-senha"
+                    className="text-xs text-primary hover:underline font-medium"
+                  >
+                    Esqueci minha senha?
+                  </Link>
                 </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="password">Senha</Label>
-                    <Link
-                      to="/esqueci-minha-senha"
-                      className="text-xs text-primary hover:underline font-medium"
-                    >
-                      Esqueci minha senha?
-                    </Link>
-                  </div>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    className="transition-all focus:ring-primary"
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  className="w-full active:scale-[0.98] transition-transform mt-4"
-                  disabled={loading}
-                >
-                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  {loading ? 'Validando...' : 'Entrar no Sistema'}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        )}
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="transition-all focus:ring-primary"
+                />
+              </div>
+              <Button
+                type="submit"
+                className="w-full active:scale-[0.98] transition-transform mt-4"
+                disabled={loading}
+              >
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {loading ? 'Validando...' : 'Entrar no Sistema'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
