@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-12T17:22:13.895Z",
+  "generatedAt": "2026-05-14T21:10:45.113Z",
   "collections": [
     {
       "name": "users",
@@ -76,12 +76,19 @@
           "type": "bool",
           "required": false,
           "system": false
+        },
+        {
+          "name": "hub_user_id",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
         "CREATE UNIQUE INDEX `idx_tokenKey__pb_users_auth_` ON `users` (`tokenKey`)",
         "CREATE UNIQUE INDEX `idx_email__pb_users_auth_` ON `users` (`email`) WHERE `email` != ''",
-        "CREATE INDEX `idx_users_is_owner` ON `users` (is_owner)"
+        "CREATE INDEX `idx_users_is_owner` ON `users` (is_owner)",
+        "CREATE UNIQUE INDEX `idx_users_hub_user_id` ON `users` (hub_user_id) WHERE hub_user_id != ''"
       ]
     },
     {
@@ -141,13 +148,15 @@
           "system": false
         },
         {
-          "name": "hub_id",
+          "name": "hub_company_id",
           "type": "text",
           "required": false,
           "system": false
         }
       ],
-      "indexes": []
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_companies_hub_company_id` ON `companies` (hub_company_id) WHERE hub_company_id != ''"
+      ]
     },
     {
       "name": "leads",
