@@ -16,6 +16,7 @@ export type User = {
 interface AuthContextType {
   user: User | null
   login: (email: string, pass: string) => Promise<boolean>
+  loginWithSso: (token: string) => Promise<boolean>
   logout: () => void
   loading: boolean
 }
@@ -69,6 +70,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast({
         title: 'Credenciais inválidas',
         description: 'Verifique seu e-mail e senha.',
+        variant: 'destructive',
+      })
+      return false
+    }
+  }
+
+  const loginWithSso = async (ssoToken: string) => {
+    try {
+      const response = await pb.send('/backend/v1/sso/login', {
+        method: 'POST',
+        body: JSON.stringify({ sso_token: ssoToken }),
+      })
+
+      pb.authStore.save(response.token, response.record)
+
+      const record = response.record as User
+
+      if (!record.verified) {
+        pb.authStore.clear()
+        toast({
+          title: 'Email não verificado',
+          description: 'Por favor, verifique seu e-mail antes de fazer login.',
+          variant: 'destructive',
+        })
+        return false
+      }
+
+      const company = await pb.collection('companies').getOne(record.company_id)
+      if (company.status !== 'active') {
+        pb.authStore.clear()
+        toast({
+          title: 'Acesso Negado',
+          description: 'A assinatura da sua empresa está inativa.',
+          variant: 'destructive',
+        })
+        return false
+      }
+
+      setUser(record)
+      return true
+    } catch (err) {
+      pb.authStore.clear()
+      toast({
+        title: 'Falha na autenticação via Hub',
+        description: 'Por favor, tente novamente ou use sua senha.',
         variant: 'destructive',
       })
       return false
