@@ -12,8 +12,10 @@ import {
   CardTitle,
   CardFooter,
 } from '@/components/ui/card'
-import { Loader2, ArrowLeft } from 'lucide-react'
+import { Loader2, ArrowLeft, Bug, ChevronDown } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Textarea } from '@/components/ui/textarea'
 
 const DEFAULT_LOGO_URL = 'https://img.usecurling.com/i?q=elektra&color=azure'
 
@@ -26,6 +28,27 @@ export default function LoginManual() {
   const navigate = useNavigate()
 
   const [systemName, setSystemName] = useState('Elektra CRM')
+
+  const [ssoToken, setSsoToken] = useState('')
+  const [debugLoading, setDebugLoading] = useState(false)
+  const [debugResult, setDebugResult] = useState<any>(null)
+
+  const handleDebug = async () => {
+    if (!ssoToken) return
+    setDebugLoading(true)
+    setDebugResult(null)
+    try {
+      const res = await pb.send('/backend/v1/sso/debug', {
+        method: 'POST',
+        body: JSON.stringify({ sso_token: ssoToken }),
+      })
+      setDebugResult(res)
+    } catch (err: any) {
+      setDebugResult(err.response || { error: err.message })
+    } finally {
+      setDebugLoading(false)
+    }
+  }
 
   useEffect(() => {
     const fetchLogo = async () => {
@@ -129,6 +152,54 @@ export default function LoginManual() {
             </Link>
           </CardFooter>
         </Card>
+
+        <div className="mt-8">
+          <Collapsible className="bg-background border rounded-lg shadow-sm">
+            <CollapsibleTrigger asChild>
+              <Button
+                variant="ghost"
+                className="w-full flex justify-between items-center p-4 h-auto"
+              >
+                <div className="flex items-center text-muted-foreground">
+                  <Bug className="h-4 w-4 mr-2" />
+                  <span className="font-semibold">Ferramenta de Diagnóstico SSO</span>
+                </div>
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="p-4 border-t space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="sso_token">SSO Token</Label>
+                <Textarea
+                  id="sso_token"
+                  placeholder="Cole o token JWT aqui..."
+                  value={ssoToken}
+                  onChange={(e) => setSsoToken(e.target.value)}
+                  className="font-mono text-xs min-h-[100px]"
+                />
+              </div>
+              <Button
+                onClick={handleDebug}
+                disabled={debugLoading || !ssoToken}
+                variant="secondary"
+                className="w-full"
+                type="button"
+              >
+                {debugLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                Testar Token
+              </Button>
+
+              {debugResult && (
+                <div className="space-y-2 mt-4 animate-in fade-in slide-in-from-top-2">
+                  <Label>Resposta do Servidor (Raw)</Label>
+                  <pre className="bg-muted p-4 rounded-md text-xs font-mono overflow-auto max-h-[300px] border whitespace-pre-wrap break-all">
+                    {JSON.stringify(debugResult, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
       </div>
     </div>
   )

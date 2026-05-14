@@ -8,7 +8,7 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
 
   const secret = $secrets.get('SSO_SECRET')
   if (!secret) {
-    return e.json(500, { error: 'SSO is not configured', payload: null, status: 500 })
+    return e.json(422, { error: 'SSO is not configured no servidor.', payload: null, status: 422 })
   }
 
   let payload
@@ -52,10 +52,10 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
       company.set('status', 'active')
       $app.save(company)
     } catch (createErr) {
-      return e.json(500, {
+      return e.json(422, {
         error: 'Erro ao criar nova empresa vinculada: ' + createErr.message,
         payload,
-        status: 500,
+        status: 422,
       })
     }
   }
@@ -79,10 +79,10 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
         user.set('company_id', company.id)
         $app.saveNoValidate(user)
       } catch (updateErr) {
-        return e.json(500, {
+        return e.json(422, {
           error: 'Erro ao atualizar a empresa do usuário.',
           payload,
-          status: 500,
+          status: 422,
         })
       }
     }
@@ -101,10 +101,10 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
         try {
           $app.saveNoValidate(user)
         } catch (updateErr) {
-          return e.json(500, {
+          return e.json(422, {
             error: 'Erro ao atualizar usuário existente com dados do Hub.',
             payload,
-            status: 500,
+            status: 422,
           })
         }
       } catch (_) {
@@ -123,10 +123,10 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
           $app.save(user)
           userId = user.id
         } catch (createErr) {
-          return e.json(500, {
+          return e.json(422, {
             error: 'Erro ao provisionar novo usuário: ' + createErr.message,
             payload,
-            status: 500,
+            status: 422,
           })
         }
       }
@@ -144,17 +144,25 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
   try {
     user = $app.findRecordById('users', userId)
   } catch (err) {
-    return e.json(500, {
+    return e.json(422, {
       error: 'Erro ao recarregar dados do usuário (Integrity Re-fetch).',
       payload,
-      status: 500,
+      status: 422,
     })
   }
 
   // Crash Prevention Check
   if (!user || user.collection().type !== 'auth') {
-    return e.json(500, { error: 'Usuário não é do tipo auth ou é inválido.', payload, status: 500 })
+    return e.json(422, { error: 'Usuário não é do tipo auth ou é inválido.', payload, status: 422 })
   }
 
-  return $apis.recordAuthResponse($app, e, user)
+  try {
+    return $apis.recordAuthResponse($app, e, user)
+  } catch (err) {
+    return e.json(422, {
+      error: 'Erro interno ao gerar resposta de autenticação.',
+      details: err.message,
+      status: 422,
+    })
+  }
 })
