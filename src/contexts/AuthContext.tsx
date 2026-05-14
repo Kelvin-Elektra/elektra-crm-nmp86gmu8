@@ -16,7 +16,7 @@ export type User = {
 interface AuthContextType {
   user: User | null
   login: (email: string, pass: string) => Promise<boolean>
-  loginWithSso: (token: string) => Promise<boolean>
+  loginWithSso: (token: string) => Promise<{ success: boolean; diagnostic?: any }>
   logout: () => void
   loading: boolean
 }
@@ -95,20 +95,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           description: 'Por favor, verifique seu e-mail antes de fazer login.',
           variant: 'destructive',
         })
-        return false
+        return { success: false, diagnostic: { error: 'Email não verificado' } }
       }
 
       setUser(record)
-      return true
+      return { success: true }
     } catch (err: any) {
       pb.authStore.clear()
-      const errorMsg = err?.response?.message || 'Por favor, tente novamente ou use sua senha.'
+      const diagnostic = err.response || { error: err.message }
       toast({
         title: 'Falha na autenticação via Hub',
-        description: errorMsg,
+        description: diagnostic.error || 'Por favor, tente novamente ou use sua senha.',
         variant: 'destructive',
       })
-      return false
+      return { success: false, diagnostic }
     }
   }
 

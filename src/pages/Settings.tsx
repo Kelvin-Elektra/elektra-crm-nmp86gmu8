@@ -555,11 +555,9 @@ export default function Settings() {
                       <Button
                         onClick={async () => {
                           try {
-                            await pb
-                              .collection('system_settings')
-                              .update(systemSettings.id, {
-                                hub_description: systemSettings.hub_description,
-                              })
+                            await pb.collection('system_settings').update(systemSettings.id, {
+                              hub_description: systemSettings.hub_description,
+                            })
                             toast({ title: 'Sucesso', description: 'Descrição atualizada!' })
                           } catch (err: any) {
                             toast({
