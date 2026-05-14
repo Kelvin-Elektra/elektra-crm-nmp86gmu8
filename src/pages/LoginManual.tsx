@@ -4,13 +4,20 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2 } from 'lucide-react'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from '@/components/ui/card'
+import { Loader2, ArrowLeft } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 
 const DEFAULT_LOGO_URL = 'https://img.usecurling.com/i?q=elektra&color=azure'
 
-export default function Login() {
+export default function LoginManual() {
   const [email, setEmail] = useState('elektraengenhariasolucoes@gmail.com')
   const [password, setPassword] = useState('Skip@Pass')
   const [loading, setLoading] = useState(false)
@@ -53,19 +60,22 @@ export default function Login() {
       <div className="w-full max-w-md animate-fade-in-up">
         <div className="flex flex-col items-center mb-8 text-center">
           {logoUrl ? (
-            <img src={logoUrl} alt={systemName} className="h-24 object-contain mb-4 rounded-xl" />
+            <img
+              src={logoUrl}
+              alt={systemName}
+              className="h-16 object-contain mb-4 rounded-xl opacity-75"
+            />
           ) : (
-            <h1 className="text-4xl font-black text-primary mb-4 tracking-tighter">{systemName}</h1>
+            <h1 className="text-2xl font-bold text-primary mb-4 tracking-tighter opacity-75">
+              {systemName}
+            </h1>
           )}
-          <p className="text-muted-foreground mt-2 font-medium">
-            Plataforma de gestão de vendas solares
-          </p>
         </div>
 
-        <Card className="border-border/50 shadow-xl">
+        <Card className="border-border/50 shadow-lg">
           <CardHeader>
-            <CardTitle>Acesso Restrito</CardTitle>
-            <CardDescription>Insira suas credenciais para acessar sua conta</CardDescription>
+            <CardTitle>Acesso Manual</CardTitle>
+            <CardDescription>Insira suas credenciais corporativas</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -110,6 +120,14 @@ export default function Login() {
               </Button>
             </form>
           </CardContent>
+          <CardFooter className="flex justify-center border-t p-4 bg-muted/20">
+            <Link
+              to="/"
+              className="text-sm font-medium text-muted-foreground hover:text-primary flex items-center transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" /> Voltar ao Portal
+            </Link>
+          </CardFooter>
         </Card>
       </div>
     </div>

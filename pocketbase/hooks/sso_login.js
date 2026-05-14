@@ -19,10 +19,10 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
     throw new UnauthorizedError('Token inválido ou expirado.')
   }
 
-  // The HUB provides its user ID in the JWT "id" claim
-  const hubUserId = payload.id
+  // The HUB provides its user ID in the JWT "hub_user_id" or "id" claim
+  const hubUserId = payload.hub_user_id || payload.id
   if (!hubUserId) {
-    throw new BadRequestError('Invalid token payload: missing id')
+    throw new BadRequestError('Invalid token payload: missing hub_user_id or id')
   }
 
   // 2. Find user by hub_user_id, not by internal CRM ID

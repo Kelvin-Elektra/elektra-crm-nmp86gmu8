@@ -5,7 +5,8 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { SsoGateway } from './components/SsoGateway'
 import Layout from './components/Layout'
-import Login from './pages/Login'
+import Portal from './pages/Portal'
+import LoginManual from './pages/LoginManual'
 import ForgotPassword from './pages/ForgotPassword'
 import Dashboard from './pages/Dashboard'
 import Pipeline from './pages/Pipeline'
@@ -26,7 +27,8 @@ const App = () => (
         <Sonner />
         <SsoGateway>
           <Routes>
-            <Route path="/" element={<Login />} />
+            <Route path="/" element={<Portal />} />
+            <Route path="/loginmanual" element={<LoginManual />} />
             <Route path="/esqueci-minha-senha" element={<ForgotPassword />} />
             <Route path="/verificar-email" element={<VerifyEmail />} />
             <Route path="/confirm-verification" element={<VerifyEmail />} />

@@ -509,6 +509,135 @@ export default function Settings() {
                     )}
                   </div>
                 </div>
+
+                <div className="space-y-4 mt-6 border-t pt-6">
+                  <h3 className="font-semibold text-lg">Configurações do Elektra Hub</h3>
+                  <div className="space-y-2">
+                    <Label>URL do Hub</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={systemSettings?.hub_url || ''}
+                        onChange={(e) =>
+                          setSystemSettings({ ...systemSettings, hub_url: e.target.value })
+                        }
+                        placeholder="https://hub.elektrasolucoes.tech/"
+                      />
+                      <Button
+                        onClick={async () => {
+                          try {
+                            await pb
+                              .collection('system_settings')
+                              .update(systemSettings.id, { hub_url: systemSettings.hub_url })
+                            toast({ title: 'Sucesso', description: 'URL do Hub atualizada!' })
+                          } catch (err: any) {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Erro',
+                              description: err.message,
+                            })
+                          }
+                        }}
+                      >
+                        Salvar
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 mt-4">
+                    <Label>Descrição na Página de Login</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={systemSettings?.hub_description || ''}
+                        onChange={(e) =>
+                          setSystemSettings({ ...systemSettings, hub_description: e.target.value })
+                        }
+                      />
+                      <Button
+                        onClick={async () => {
+                          try {
+                            await pb
+                              .collection('system_settings')
+                              .update(systemSettings.id, {
+                                hub_description: systemSettings.hub_description,
+                              })
+                            toast({ title: 'Sucesso', description: 'Descrição atualizada!' })
+                          } catch (err: any) {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Erro',
+                              description: err.message,
+                            })
+                          }
+                        }}
+                      >
+                        Salvar
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 mt-6">
+                    <Label>Logomarca do Hub (Portal de Login)</Label>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        className="flex-1"
+                        onChange={async (e) => {
+                          if (!e.target.files || !e.target.files[0]) return
+                          try {
+                            const formData = new FormData()
+                            formData.append('hub_logo', e.target.files[0])
+                            const updated = await pb
+                              .collection('system_settings')
+                              .update(systemSettings.id, formData)
+                            setSystemSettings(updated)
+                            toast({
+                              title: 'Sucesso',
+                              description: 'Logomarca do Hub atualizada!',
+                            })
+                          } catch (err: any) {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Erro',
+                              description: 'Falha ao fazer upload da logo do hub.',
+                            })
+                          }
+                        }}
+                      />
+                      {systemSettings?.hub_logo && (
+                        <div className="flex items-center gap-4 border p-2 rounded-lg bg-slate-50">
+                          <img
+                            src={pb.files.getURL(systemSettings, systemSettings.hub_logo)}
+                            alt="Hub Logo"
+                            className="h-12 object-contain"
+                          />
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const updated = await pb
+                                  .collection('system_settings')
+                                  .update(systemSettings.id, { hub_logo: null })
+                                setSystemSettings(updated)
+                                toast({ title: 'Sucesso', description: 'Logo do Hub removida.' })
+                              } catch (e) {
+                                toast({
+                                  variant: 'destructive',
+                                  title: 'Erro',
+                                  description: 'Falha ao remover.',
+                                })
+                              }
+                            }}
+                          >
+                            Remover
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}
