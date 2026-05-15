@@ -19,11 +19,13 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
     try {
       unverified = $security.parseUnverifiedJWT(ssoToken)
     } catch (e) {}
+    $app.logger().error('SSO Token falhou na verificação', 'error', err.message)
     return e.json(401, { error: 'Token inválido ou expirado.', payload: unverified, status: 401 })
   }
 
   const hubUserId = payload.hub_user_id || payload.id
   if (!hubUserId) {
+    $app.logger().error('SSO Token missing hubUserId', 'payload', payload)
     return e.json(400, {
       error: 'Invalid token payload: missing hub_user_id or id',
       payload,
@@ -31,8 +33,9 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
     })
   }
 
-  const hubCompanyId = payload.company_id || payload.hub_company_id
+  const hubCompanyId = payload.hub_company_id || payload.company_hub_id || payload.company_id
   if (!hubCompanyId) {
+    $app.logger().error('SSO Token missing hubCompanyId', 'payload', payload)
     return e.json(400, {
       error: 'Invalid token payload: missing company_id or hub_company_id',
       payload,
@@ -52,6 +55,15 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
       company.set('status', 'active')
       $app.save(company)
     } catch (createErr) {
+      $app
+        .logger()
+        .error(
+          'SSO Erro ao criar empresa',
+          'error',
+          createErr.message,
+          'hubCompanyId',
+          hubCompanyId,
+        )
       return e.json(422, {
         error: 'Erro ao criar nova empresa vinculada: ' + createErr.message,
         payload,
@@ -60,7 +72,8 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
     }
   }
 
-  if (company.get('status') !== 'active') {
+  if (company.getString('status') !== 'active') {
+    $app.logger().warn('SSO Empresa inativa', 'companyId', company.id)
     return e.json(403, { error: 'A assinatura da sua empresa está inativa.', payload, status: 403 })
   }
 
@@ -73,14 +86,24 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
     user = $app.findFirstRecordByData('users', 'hub_user_id', hubUserId)
     userId = user.id
 
-    // Check if the user's company needs an update
-    if (user.get('company_id') !== company.id) {
+    // Check if the user needs an update
+    let needsUpdate = false
+    if (user.getString('company_id') !== company.id) {
+      user.set('company_id', company.id)
+      needsUpdate = true
+    }
+    if (!user.getString('role') && payload.role) {
+      user.set('role', payload.role.toLowerCase())
+      needsUpdate = true
+    }
+
+    if (needsUpdate) {
       try {
-        user.set('company_id', company.id)
         $app.saveNoValidate(user)
       } catch (updateErr) {
+        $app.logger().error('SSO Erro update user by hub_user_id', 'error', updateErr.message)
         return e.json(422, {
-          error: 'Erro ao atualizar a empresa do usuário.',
+          error: 'Erro ao atualizar dados do usuário. ' + updateErr.message,
           payload,
           status: 422,
         })
@@ -94,15 +117,19 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
         userId = user.id
 
         user.set('hub_user_id', hubUserId)
-        if (user.get('company_id') !== company.id) {
+        if (user.getString('company_id') !== company.id) {
           user.set('company_id', company.id)
+        }
+        if (!user.getString('role') && payload.role) {
+          user.set('role', payload.role.toLowerCase())
         }
 
         try {
           $app.saveNoValidate(user)
         } catch (updateErr) {
+          $app.logger().error('SSO Erro update user by email', 'error', updateErr.message)
           return e.json(422, {
-            error: 'Erro ao atualizar usuário existente com dados do Hub.',
+            error: 'Erro ao atualizar usuário existente com dados do Hub. ' + updateErr.message,
             payload,
             status: 422,
           })
@@ -123,6 +150,7 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
           $app.save(user)
           userId = user.id
         } catch (createErr) {
+          $app.logger().error('SSO Erro provision user', 'error', createErr.message)
           return e.json(422, {
             error: 'Erro ao provisionar novo usuário: ' + createErr.message,
             payload,
@@ -131,6 +159,7 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
         }
       }
     } else {
+      $app.logger().error('SSO Missing email for provision', 'hubUserId', hubUserId)
       return e.json(400, {
         error: 'Usuário não encontrado e o token não contém email para provisionamento automático.',
         payload,
@@ -144,6 +173,7 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
   try {
     user = $app.findRecordById('users', userId)
   } catch (err) {
+    $app.logger().error('SSO Erro Integrity Re-fetch', 'error', err.message, 'userId', userId)
     return e.json(422, {
       error: 'Erro ao recarregar dados do usuário (Integrity Re-fetch).',
       payload,
@@ -152,13 +182,15 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
   }
 
   // Crash Prevention Check
-  if (!user || user.collection().type !== 'auth') {
-    return e.json(422, { error: 'Usuário não é do tipo auth ou é inválido.', payload, status: 422 })
+  if (!user || user.collectionName() !== 'users') {
+    $app.logger().error('SSO User invalid or not auth collection', 'userId', userId)
+    return e.json(422, { error: 'Usuário inválido ou coleção incorreta.', payload, status: 422 })
   }
 
   try {
     return $apis.recordAuthResponse($app, e, user)
   } catch (err) {
+    $app.logger().error('SSO Erro recordAuthResponse', 'error', err.message, 'userId', userId)
     return e.json(422, {
       error: 'Erro interno ao gerar resposta de autenticação.',
       details: err.message,

@@ -38,7 +38,7 @@ export function SsoGateway({ children }: { children: React.ReactNode }) {
 
           const targetPath = window.location.pathname
           if (targetPath === '/' || targetPath === '/login' || targetPath === '/loginmanual') {
-            navigate('/dashboard', { replace: true })
+            navigate('/', { replace: true })
           } else {
             navigate(`${targetPath}${newUrl.search}`, { replace: true })
           }
