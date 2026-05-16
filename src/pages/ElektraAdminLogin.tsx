@@ -6,12 +6,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/contexts/AuthContext'
 import { ShieldAlert } from 'lucide-react'
+import pb from '@/lib/pocketbase/client'
 
 export default function ElektraAdminLogin() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const { login } = useAuth()
+  const { login, logout } = useAuth()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -19,7 +20,13 @@ export default function ElektraAdminLogin() {
     setLoading(true)
     const success = await login(email, password)
     if (success) {
-      navigate('/elektra-admin/dashboard')
+      const record = pb.authStore.record
+      if (record && record.role !== 'User_elektra') {
+        logout()
+        alert('Acesso restrito: apenas para mantenedores do sistema (User_elektra).')
+      } else {
+        navigate('/elektra-admin/dashboard')
+      }
     }
     setLoading(false)
   }

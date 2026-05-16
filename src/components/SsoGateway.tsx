@@ -35,7 +35,7 @@ export function SsoGateway({ children }: { children: React.ReactNode }) {
           const newUrl = new URL(window.location.href)
           newUrl.searchParams.delete('sso_token')
           window.history.replaceState({}, '', newUrl.toString())
-          navigate('/', { replace: true })
+          navigate('/dashboard', { replace: true })
         } else {
           setDiagnostic(result.diagnostic)
         }
