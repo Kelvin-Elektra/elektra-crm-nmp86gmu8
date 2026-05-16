@@ -44,6 +44,10 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
   let company
   try {
     company = $app.findFirstRecordByData('companies', 'hub_company_id', hubCompanyId)
+    if (payload.company_name && company.getString('name') !== payload.company_name) {
+      company.set('name', payload.company_name)
+      $app.saveNoValidate(company)
+    }
   } catch (_) {
     try {
       const companiesCol = $app.findCollectionByNameOrId('companies')
@@ -86,6 +90,18 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
       user.set('role_company', payload.role_company)
       needsUpdate = true
     }
+    if (payload.name && user.getString('name') !== payload.name) {
+      user.set('name', payload.name)
+      needsUpdate = true
+    }
+    if (payload.phone && user.getString('phone') !== payload.phone) {
+      user.set('phone', payload.phone)
+      needsUpdate = true
+    }
+    if (payload.email && user.getString('email') !== payload.email) {
+      user.setEmail(payload.email)
+      needsUpdate = true
+    }
 
     if (needsUpdate) {
       $app.saveNoValidate(user)
@@ -95,11 +111,36 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
       try {
         user = $app.findAuthRecordByEmail('users', email)
         userId = user.id
-        user.set('hub_user_id', hubUserId)
-        user.set('company_id', company.id)
-        if (payload.role) user.set('role', payload.role)
-        if (payload.role_company) user.set('role_company', payload.role_company)
-        $app.saveNoValidate(user)
+
+        let needsUpdate = false
+        if (user.getString('hub_user_id') !== hubUserId) {
+          user.set('hub_user_id', hubUserId)
+          needsUpdate = true
+        }
+        if (user.getString('company_id') !== company.id) {
+          user.set('company_id', company.id)
+          needsUpdate = true
+        }
+        if (payload.role && user.getString('role') !== payload.role) {
+          user.set('role', payload.role)
+          needsUpdate = true
+        }
+        if (payload.role_company && user.getString('role_company') !== payload.role_company) {
+          user.set('role_company', payload.role_company)
+          needsUpdate = true
+        }
+        if (payload.name && user.getString('name') !== payload.name) {
+          user.set('name', payload.name)
+          needsUpdate = true
+        }
+        if (payload.phone && user.getString('phone') !== payload.phone) {
+          user.set('phone', payload.phone)
+          needsUpdate = true
+        }
+
+        if (needsUpdate) {
+          $app.saveNoValidate(user)
+        }
       } catch (_) {
         try {
           const usersCol = $app.findCollectionByNameOrId('users')
@@ -111,6 +152,7 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
           user.set('name', payload.name || '')
           user.set('role', payload.role || 'User_employee')
           user.set('role_company', payload.role_company || 'user')
+          if (payload.phone) user.set('phone', payload.phone)
           user.set('status', 'active')
           user.set('company_id', company.id)
           $app.saveNoValidate(user)
