@@ -154,30 +154,11 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
   }
 
   try {
-    // Generate auth token manually to prevent nil pointer panics from internal helpers
-    const secret = $app.settings().recordAuthToken.secret
-    if (!secret) {
-      throw new Error('Secret JWT não disponível no servidor.')
-    }
-
-    const token = $security.createJWT(
-      {
-        id: user.id,
-        type: 'auth',
-        collectionId: user.collectionId,
-      },
-      secret,
-      1209600,
-    ) // 14 dias
-
-    return e.json(200, {
-      token: token,
-      record: user,
-    })
+    return $apis.recordAuthResponse($app, e, user)
   } catch (err) {
-    $app.logger().error('SSO Token Manual Gen Failed', 'error', err.message)
+    $app.logger().error('SSO Token Gen Failed', 'error', err.message)
     return e.json(422, {
-      error: 'Erro interno ao gerar token de autenticação manual.',
+      error: 'Erro interno ao gerar token de autenticação.',
       details: err.message,
       status: 422,
     })
