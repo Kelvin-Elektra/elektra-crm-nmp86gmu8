@@ -35,13 +35,7 @@ export function SsoGateway({ children }: { children: React.ReactNode }) {
           const newUrl = new URL(window.location.href)
           newUrl.searchParams.delete('sso_token')
           window.history.replaceState({}, '', newUrl.toString())
-
-          const targetPath = window.location.pathname
-          if (targetPath === '/' || targetPath === '/login' || targetPath === '/loginmanual') {
-            navigate('/', { replace: true })
-          } else {
-            navigate(`${targetPath}${newUrl.search}`, { replace: true })
-          }
+          navigate('/', { replace: true })
         } else {
           setDiagnostic(result.diagnostic)
         }

@@ -53,7 +53,7 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
       company.set('hub_company_id', hubCompanyId)
       company.set('name', payload.company_name || 'Empresa via Hub')
       company.set('status', 'active')
-      $app.save(company)
+      $app.saveNoValidate(company)
     } catch (createErr) {
       $app
         .logger()
@@ -147,7 +147,7 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
           user.set('role', payload.role ? payload.role.toLowerCase() : 'user')
           user.set('status', 'active')
           user.set('company_id', company.id)
-          $app.save(user)
+          $app.saveNoValidate(user)
           userId = user.id
         } catch (createErr) {
           $app.logger().error('SSO Erro provision user', 'error', createErr.message)
@@ -169,7 +169,6 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
   }
 
   // Integrity Re-fetch (Anti-Panic)
-  // Re-fetch the user record using findRecordById to ensure it's fully initialized and linked
   try {
     user = $app.findRecordById('users', userId)
   } catch (err) {
@@ -181,18 +180,28 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
     })
   }
 
-  // Crash Prevention Check
   if (!user || user.collectionName() !== 'users') {
     $app.logger().error('SSO User invalid or not auth collection', 'userId', userId)
     return e.json(422, { error: 'Usuário inválido ou coleção incorreta.', payload, status: 422 })
   }
 
   try {
-    return $apis.recordAuthResponse($app, e, user)
+    const jwtPayload = {
+      id: user.id,
+      collectionId: user.collectionId(),
+      email: user.getString('email'),
+      role: user.getString('role'),
+      company_id: user.getString('company_id'),
+      type: 'auth',
+    }
+
+    const token = $security.createJWT(jwtPayload, secret, 604800) // 7 days
+
+    return e.json(200, { token, record: user })
   } catch (err) {
-    $app.logger().error('SSO Erro recordAuthResponse', 'error', err.message, 'userId', userId)
+    $app.logger().error('SSO Erro token generation', 'error', err.message, 'userId', userId)
     return e.json(422, {
-      error: 'Erro interno ao gerar resposta de autenticação.',
+      error: 'Erro interno ao gerar token de autenticação.',
       details: err.message,
       status: 422,
     })
