@@ -188,13 +188,6 @@ export function SsoGateway({ children }: { children: React.ReactNode }) {
             >
               Voltar ao Portal
             </Button>
-            <Button
-              onClick={() => (window.location.href = '/loginmanual')}
-              variant="outline"
-              className="flex-1"
-            >
-              Tentar Login Manual
-            </Button>
             <Button onClick={() => window.location.reload()} variant="secondary" className="flex-1">
               <RefreshCw className="mr-2 h-4 w-4" /> Tentar Novamente
             </Button>

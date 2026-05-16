@@ -139,20 +139,7 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
   }
 
   try {
-    const jwtPayload = {
-      id: user.id,
-      collectionId: user.collectionId(),
-      email: user.getString('email'),
-      type: 'auth',
-    }
-
-    const token = $security.createJWT(jwtPayload, $app.settings().recordAuthToken.secret, 604800)
-
-    const recordExport = JSON.parse(JSON.stringify(user))
-    delete recordExport.passwordHash
-    delete recordExport.tokenKey
-
-    return e.json(200, { token, record: recordExport })
+    return $apis.recordAuthResponse($app, e, user)
   } catch (err) {
     return e.json(422, {
       error: 'Erro interno ao gerar token de autenticação.',

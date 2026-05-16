@@ -6,8 +6,6 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import { SsoGateway } from './components/SsoGateway'
 import Layout from './components/Layout'
 import Portal from './pages/Portal'
-import LoginManual from './pages/LoginManual'
-import ForgotPassword from './pages/ForgotPassword'
 import ElektraAdminLogin from './pages/ElektraAdminLogin'
 import ElektraAdminDashboard from './pages/ElektraAdminDashboard'
 import Dashboard from './pages/Dashboard'
@@ -19,7 +17,6 @@ import Settings from './pages/Settings'
 import NegotiationDetail from './pages/NegotiationDetail'
 import ProposalSettings from './pages/ProposalSettings'
 import PvKitSettings from './pages/PvKitSettings'
-import VerifyEmail from './pages/VerifyEmail'
 
 const App = () => (
   <BrowserRouter future={{ v7_startTransition: false, v7_relativeSplatPath: false }}>
@@ -30,10 +27,6 @@ const App = () => (
         <SsoGateway>
           <Routes>
             <Route path="/" element={<Portal />} />
-            <Route path="/loginmanual" element={<LoginManual />} />
-            <Route path="/esqueci-minha-senha" element={<ForgotPassword />} />
-            <Route path="/verificar-email" element={<VerifyEmail />} />
-            <Route path="/confirm-verification" element={<VerifyEmail />} />
             <Route path="/elektra-admin" element={<ElektraAdminLogin />} />
             <Route path="/elektra-admin/dashboard" element={<ElektraAdminDashboard />} />
             <Route element={<Layout />}>
