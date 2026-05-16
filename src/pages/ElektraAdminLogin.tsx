@@ -12,13 +12,13 @@ export default function ElektraAdminLogin() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const { login, logout } = useAuth()
+  const { adminLogin, logout } = useAuth()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    const success = await login(email, password)
+    const success = await adminLogin(email, password)
     if (success) {
       const record = pb.authStore.record
       if (record && record.role !== 'User_elektra') {

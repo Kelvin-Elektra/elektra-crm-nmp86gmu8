@@ -18,7 +18,7 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
     let unverified = {}
     try {
       unverified = $security.parseUnverifiedJWT(ssoToken)
-    } catch (e) {}
+    } catch (_) {}
     $app.logger().error('SSO Token falhou na verificação', 'error', err.message)
     return e.json(401, { error: 'Token inválido ou expirado.', payload: unverified, status: 401 })
   }
@@ -132,6 +132,8 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
     }
   }
 
+  // Ensure we reload the user record fresh from DB so it's a valid Record object
+  // with accessible collectionId to prevent the "Object has no member 'collectionId'" error.
   try {
     user = $app.findRecordById('users', userId)
   } catch (err) {

@@ -53,7 +53,7 @@ export default function Portal() {
             O acesso ao sistema agora é unificado.
           </p>
           <p className="text-slate-500">
-            Para acessar sua conta, por favor faça login através do Elektra Hub.
+            Por favor, acesse o sistema através do Hub para realizar o login unificado.
           </p>
         </div>
 

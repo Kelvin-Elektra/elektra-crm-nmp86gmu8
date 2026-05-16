@@ -17,7 +17,7 @@ export type User = {
 interface AuthContextType {
   user: User | null
   realUser: User | null
-  login: (email: string, pass: string) => Promise<boolean>
+  adminLogin: (email: string, pass: string) => Promise<boolean>
   loginWithSso: (token: string) => Promise<{ success: boolean; diagnostic?: any }>
   logout: () => void
   simulateUser: (user: User) => void
@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const login = async (email: string, pass: string) => {
+  const adminLogin = async (email: string, pass: string) => {
     try {
       const authData = await pb.collection('users').authWithPassword(email, pass)
       const record = authData.record as User
@@ -138,7 +138,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, realUser, login, loginWithSso, logout, simulateUser, exitSimulation, loading }}
+      value={{
+        user,
+        realUser,
+        adminLogin,
+        loginWithSso,
+        logout,
+        simulateUser,
+        exitSimulation,
+        loading,
+      }}
     >
       {children}
     </AuthContext.Provider>
