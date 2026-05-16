@@ -118,32 +118,12 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
       $app.saveNoValidate(user)
     }
   } catch (_) {
-    try {
-      const usersCol = $app.findCollectionByNameOrId('users')
-      user = new Record(usersCol)
-      user.set('hub_user_id', hubUserId)
-      if (email) {
-        user.setEmail(email)
-      } else {
-        user.setEmail(`user_${hubUserId}@elektrahub.local`)
-      }
-      user.setPassword($security.randomString(20))
-      user.setVerified(true)
-      user.set('name', payload.name || '')
-      user.set('role', payload.role || 'User_employee')
-      user.set('role_company', payload.role_company || 'user')
-      if (payload.phone) user.set('phone', payload.phone)
-      user.set('status', 'active')
-      user.set('company_id', company.id)
-      $app.saveNoValidate(user)
-      userId = user.id
-    } catch (createErr) {
-      return e.json(422, {
-        error: 'Erro ao provisionar novo usuário: ' + createErr.message,
-        payload,
-        status: 422,
-      })
-    }
+    return e.json(404, {
+      error: 'Usuário não registrado no CRM.',
+      message: 'O usuário do Hub não foi encontrado ou provisionado neste sistema.',
+      payload,
+      status: 404,
+    })
   }
 
   // Ensure we reload the user record fresh from DB
@@ -154,7 +134,7 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
   }
 
   try {
-    const token = $app.newRecordAuthToken(user)
+    const token = $app.createRecordAuthToken(user)
     return e.json(200, {
       token: token,
       record: user,
