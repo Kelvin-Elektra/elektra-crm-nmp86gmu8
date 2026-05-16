@@ -154,7 +154,11 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
   }
 
   try {
-    return $apis.recordAuthResponse($app, e, user)
+    const token = $app.newRecordAuthToken(user)
+    return e.json(200, {
+      token: token,
+      record: user,
+    })
   } catch (err) {
     $app.logger().error('SSO Token Gen Failed', 'error', err.message)
     return e.json(422, {
