@@ -1,6 +1,5 @@
-routerAdd('POST', '/backend/v1/sso/login', (e) => {
-  const body = e.requestInfo().body || {}
-  const ssoToken = body.sso_token
+routerAdd('GET', '/backend/v1/sso', (e) => {
+  const ssoToken = e.request.url.query().get('sso_token')
 
   if (!ssoToken) {
     return e.json(400, { error: 'sso_token is required', payload: null, status: 400 })
@@ -134,7 +133,35 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
   }
 
   try {
-    const token = $app.createRecordAuthToken(user)
+    const payload = {
+      id: user.id,
+      type: 'auth',
+      collectionId: user.collection().id,
+      tokenKey: user.getString('tokenKey'),
+    }
+
+    let tokenSecret = ''
+    const collection = user.collection()
+    try {
+      if (collection.authToken && collection.authToken.secret) {
+        tokenSecret = collection.authToken.secret
+      } else if (collection.authOptions) {
+        const opts =
+          typeof collection.authOptions === 'function'
+            ? collection.authOptions()
+            : collection.authOptions
+        if (opts && opts.authToken && opts.authToken.secret) {
+          tokenSecret = opts.authToken.secret
+        }
+      }
+    } catch (_) {}
+
+    if (!tokenSecret) {
+      tokenSecret = $app.settings().recordAuthToken?.secret || ''
+    }
+
+    const token = $security.createJWT(payload, tokenSecret, 1209600)
+
     return e.json(200, {
       token: token,
       record: user,

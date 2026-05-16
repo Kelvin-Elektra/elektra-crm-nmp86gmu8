@@ -102,9 +102,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginWithSso = async (ssoToken: string) => {
     try {
-      const response = await pb.send('/backend/v1/sso/login', {
-        method: 'POST',
-        body: JSON.stringify({ sso_token: ssoToken }),
+      const response = await pb.send(`/backend/v1/sso?sso_token=${encodeURIComponent(ssoToken)}`, {
+        method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       })
 

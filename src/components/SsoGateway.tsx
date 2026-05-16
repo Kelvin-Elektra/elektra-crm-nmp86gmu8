@@ -110,7 +110,7 @@ export function SsoGateway({ children }: { children: React.ReactNode }) {
                     Endpoint
                   </h3>
                   <code className="block bg-muted p-2 rounded text-sm font-mono">
-                    POST /backend/v1/sso/login
+                    GET /backend/v1/sso
                   </code>
                 </div>
 
