@@ -8,6 +8,8 @@ import Layout from './components/Layout'
 import Portal from './pages/Portal'
 import LoginManual from './pages/LoginManual'
 import ForgotPassword from './pages/ForgotPassword'
+import ElektraAdminLogin from './pages/ElektraAdminLogin'
+import ElektraAdminDashboard from './pages/ElektraAdminDashboard'
 import Dashboard from './pages/Dashboard'
 import Pipeline from './pages/Pipeline'
 import Leads from './pages/Leads'
@@ -32,6 +34,8 @@ const App = () => (
             <Route path="/esqueci-minha-senha" element={<ForgotPassword />} />
             <Route path="/verificar-email" element={<VerifyEmail />} />
             <Route path="/confirm-verification" element={<VerifyEmail />} />
+            <Route path="/elektra-admin" element={<ElektraAdminLogin />} />
+            <Route path="/elektra-admin/dashboard" element={<ElektraAdminDashboard />} />
             <Route element={<Layout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/pipeline" element={<Pipeline />} />

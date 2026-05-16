@@ -7,30 +7,38 @@ export type User = {
   email: string
   name: string
   role: string
+  role_company: string
   status: string
   company_id: string
   verified: boolean
-  is_owner: boolean
+  hub_user_id?: string
 }
 
 interface AuthContextType {
   user: User | null
+  realUser: User | null
   login: (email: string, pass: string) => Promise<boolean>
   loginWithSso: (token: string) => Promise<{ success: boolean; diagnostic?: any }>
   logout: () => void
+  simulateUser: (user: User) => void
+  exitSimulation: () => void
   loading: boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(pb.authStore.record as User | null)
+  const [realUser, setRealUser] = useState<User | null>(pb.authStore.record as User | null)
+  const [simulatedUser, setSimulatedUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
 
+  const user = simulatedUser || realUser
+
   useEffect(() => {
     const unsubscribe = pb.authStore.onChange((_token, record) => {
-      setUser(record as User | null)
+      setRealUser(record as User | null)
+      if (!record) setSimulatedUser(null)
     })
     setLoading(false)
     return () => {
@@ -64,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false
       }
 
-      setUser(record)
+      setRealUser(record)
       return true
     } catch (err) {
       toast({
@@ -98,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, diagnostic: { error: 'Email não verificado', status: 403 } }
       }
 
-      setUser(record)
+      setRealUser(record)
       return { success: true }
     } catch (err: any) {
       pb.authStore.clear()
@@ -114,11 +122,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     pb.authStore.clear()
-    setUser(null)
+    setRealUser(null)
+    setSimulatedUser(null)
+  }
+
+  const simulateUser = (simUser: User) => {
+    setSimulatedUser(simUser)
+  }
+
+  const exitSimulation = () => {
+    setSimulatedUser(null)
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, loginWithSso, logout, loading }}>
+    <AuthContext.Provider
+      value={{ user, realUser, login, loginWithSso, logout, simulateUser, exitSimulation, loading }}
+    >
       {children}
     </AuthContext.Provider>
   )

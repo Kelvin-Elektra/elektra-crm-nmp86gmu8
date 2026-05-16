@@ -28,9 +28,11 @@ const navItems = [
 export function AppSidebar() {
   const location = useLocation()
   const { setOpen } = useSidebar()
-  const { user } = useAuth()
+  const { user, realUser, exitSimulation } = useAuth()
 
-  const isAdmin = user?.role === 'admin_elektra' || user?.role === 'admin_company'
+  const isElektraAdmin = realUser?.role === 'User_elektra'
+  const isCompanyAdmin = user?.role_company === 'admin'
+  const isAdmin = isElektraAdmin || isCompanyAdmin
   const [sysLogo, setSysLogo] = useState<string | null>(null)
   const [sysName, setSysName] = useState('')
 
@@ -120,6 +122,22 @@ export function AppSidebar() {
 
       <SidebarFooter className="border-t border-sidebar-border/50 p-2">
         <SidebarMenu>
+          {isElektraAdmin && user?.id !== realUser?.id && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={exitSimulation}
+                tooltip="Sair da Simulação"
+                className="h-10 w-full transition-all duration-200 bg-destructive/10 text-destructive hover:bg-destructive/20"
+              >
+                <div className="flex items-center gap-3">
+                  <LayoutDashboard className="!h-5 !w-5 shrink-0" />
+                  <span className="font-medium group-data-[collapsible=icon]:hidden">
+                    Sair da Simulação
+                  </span>
+                </div>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           {isAdmin && (
             <SidebarMenuItem>
               <SidebarMenuButton

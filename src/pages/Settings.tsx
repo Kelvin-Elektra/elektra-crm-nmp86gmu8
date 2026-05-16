@@ -39,44 +39,14 @@ export default function Settings() {
   const { user } = useAuth()
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState('profile')
-  const [companyUsers, setCompanyUsers] = useState<any[]>([])
   const [company, setCompany] = useState<any>(null)
   const [systemSettings, setSystemSettings] = useState<any>(null)
-
-  const [isUserModalOpen, setIsUserModalOpen] = useState(false)
-  const [newUser, setNewUser] = useState({
-    name: '',
-    email: '',
-    password: '',
-    passwordConfirm: '',
-    role: 'user',
-    max_discount: 0,
-    commission_rate: 0,
-  })
-
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [editUser, setEditUser] = useState<any>(null)
 
   const [profilePassword, setProfilePassword] = useState({
     oldPassword: '',
     password: '',
     passwordConfirm: '',
   })
-
-  const loadUsers = async () => {
-    try {
-      const filter = user?.role === 'admin_elektra' ? '' : `company_id = '${user?.company_id}'`
-      if (!filter && !user?.company_id && user?.role !== 'admin_elektra') return
-
-      const records = await pb.collection(Collections.USERS).getFullList({
-        filter,
-        sort: '-created',
-      })
-      setCompanyUsers(records)
-    } catch (err) {
-      console.error(err)
-    }
-  }
 
   const loadCompany = async () => {
     if (user?.company_id) {
@@ -90,7 +60,7 @@ export default function Settings() {
   }
 
   const loadSystemSettings = async () => {
-    if (user?.role === 'admin_elektra') {
+    if (user?.role === 'User_elektra') {
       try {
         const records = await pb.collection('system_settings').getFullList()
         if (records.length > 0) {
@@ -108,12 +78,9 @@ export default function Settings() {
   }
 
   useEffect(() => {
-    loadUsers()
     loadCompany()
     loadSystemSettings()
   }, [user?.company_id, user?.role])
-
-  useRealtime(Collections.USERS, loadUsers)
 
   const handleUpdateProfilePassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -143,18 +110,6 @@ export default function Settings() {
     }
   }
 
-  const handleUpdateCompanyStatus = async (status: string) => {
-    try {
-      const formData = new FormData()
-      formData.append('status', status)
-      await pb.collection(Collections.COMPANIES).update(company.id, formData)
-      setCompany({ ...company, status })
-      toast({ title: 'Sucesso', description: 'Status atualizado com sucesso!' })
-    } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Erro', description: err.message })
-    }
-  }
-
   const handleUpdateCompanyName = async () => {
     if (!company) return
     try {
@@ -166,140 +121,6 @@ export default function Settings() {
       toast({ variant: 'destructive', title: 'Erro', description: err.message })
     }
   }
-
-  const handleCreateUser = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (newUser.password !== newUser.passwordConfirm) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro de validação',
-        description: 'As senhas não coincidem.',
-      })
-      return
-    }
-
-    try {
-      await pb.send('/backend/v1/users/admin-create', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: newUser.name,
-          email: newUser.email,
-          password: newUser.password,
-          role: newUser.role,
-          company_id: user?.company_id,
-          max_discount: Number(newUser.max_discount),
-          commission_rate: Number(newUser.commission_rate),
-        }),
-        headers: { 'Content-Type': 'application/json' },
-      })
-
-      toast({
-        title: 'Sucesso',
-        description: 'Usuário criado com sucesso! Credenciais enviadas por email.',
-      })
-      setIsUserModalOpen(false)
-      setNewUser({
-        name: '',
-        email: '',
-        password: '',
-        passwordConfirm: '',
-        role: 'user',
-        max_discount: 0,
-        commission_rate: 0,
-      })
-      loadUsers()
-    } catch (err: any) {
-      const fieldErrors = extractFieldErrors(err)
-      let errorMsg = err.message || 'Erro ao criar usuário. Verifique se o email já existe.'
-
-      if (fieldErrors.email) {
-        errorMsg = 'Por favor, insira um e-mail válido.'
-      } else if (Object.keys(fieldErrors).length > 0) {
-        errorMsg = Object.values(fieldErrors).join('. ')
-      }
-
-      toast({
-        variant: 'destructive',
-        title: 'Erro',
-        description: errorMsg,
-      })
-    }
-  }
-
-  const handleUpdateUser = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editUser) return
-
-    if (editUser.password || editUser.passwordConfirm) {
-      if (editUser.password !== editUser.passwordConfirm) {
-        toast({
-          variant: 'destructive',
-          title: 'Erro de validação',
-          description: 'As senhas não coincidem.',
-        })
-        return
-      }
-    }
-
-    try {
-      const data = {
-        name: editUser.name,
-        role: editUser.role,
-        email: editUser.email,
-        max_discount: Number(editUser.max_discount || 0),
-        commission_rate: Number(editUser.commission_rate || 0),
-        ...(editUser.password
-          ? { password: editUser.password, passwordConfirm: editUser.passwordConfirm }
-          : {}),
-      }
-
-      const originalUser = companyUsers.find((u) => u.id === editUser.id)
-      const emailChanged = originalUser && originalUser.email !== editUser.email
-
-      await pb.send(`/backend/v1/users/${editUser.id}/admin-update`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-        headers: { 'Content-Type': 'application/json' },
-      })
-
-      if (emailChanged) {
-        try {
-          await pb.collection(Collections.USERS).requestVerification(editUser.email)
-        } catch (verifyErr) {
-          console.error('Erro ao enviar email de verificação:', verifyErr)
-        }
-      }
-
-      toast({ title: 'Sucesso', description: 'Usuário atualizado com sucesso!' })
-      setIsEditModalOpen(false)
-      setEditUser(null)
-      loadUsers()
-    } catch (err: any) {
-      const fieldErrors = extractFieldErrors(err)
-      let errorMsg = err.message || 'Erro ao atualizar usuário.'
-
-      if (Object.keys(fieldErrors).length > 0) {
-        errorMsg = Object.values(fieldErrors).join('. ')
-      }
-
-      toast({ variant: 'destructive', title: 'Erro', description: errorMsg })
-    }
-  }
-
-  const handleDeleteUser = async (id: string) => {
-    if (!confirm('Tem certeza que deseja remover este usuário permanentemente?')) return
-    try {
-      await pb.collection(Collections.USERS).delete(id)
-      toast({ title: 'Sucesso', description: 'Usuário removido com sucesso.' })
-      loadUsers()
-    } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Erro', description: err.message })
-    }
-  }
-
-  const maxUsers = company?.max_users || 5
-  const canAddUser = user?.role === 'admin_elektra' || companyUsers.length < maxUsers
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl">
@@ -329,15 +150,7 @@ export default function Settings() {
               >
                 <Building2 className="mr-2 h-4 w-4" /> Dados da Empresa
               </TabsTrigger>
-              {(user?.role === 'admin_company' || user?.role === 'admin_elektra') && (
-                <TabsTrigger
-                  value="users"
-                  className="w-full justify-start rounded-none border-l-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:font-semibold transition-all hover:bg-muted/50"
-                >
-                  <Users className="mr-2 h-4 w-4" /> Equipe e Plano
-                </TabsTrigger>
-              )}
-              {user?.role === 'admin_elektra' && (
+              {user?.role === 'User_elektra' && (
                 <TabsTrigger
                   value="system"
                   className="w-full justify-start rounded-none border-l-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:font-semibold transition-all hover:bg-muted/50"
@@ -350,7 +163,7 @@ export default function Settings() {
         </div>
 
         <div className="md:col-span-3 space-y-6">
-          {activeTab === 'system' && user?.role === 'admin_elektra' && (
+          {activeTab === 'system' && user?.role === 'User_elektra' && (
             <Card>
               <CardHeader>
                 <CardTitle>Configurações do Sistema</CardTitle>
@@ -726,9 +539,9 @@ export default function Settings() {
                     <Input
                       value={company?.name || ''}
                       onChange={(e) => setCompany({ ...company, name: e.target.value })}
-                      disabled={user?.role !== 'admin_elektra'}
+                      disabled={user?.role !== 'User_elektra'}
                     />
-                    {user?.role === 'admin_elektra' && (
+                    {user?.role === 'User_elektra' && (
                       <Button onClick={handleUpdateCompanyName}>Salvar</Button>
                     )}
                   </div>
@@ -795,333 +608,27 @@ export default function Settings() {
 
                 <div className="space-y-2 mt-6 border-t pt-6">
                   <Label>Status da Assinatura</Label>
-                  {user?.role === 'admin_elektra' ? (
-                    <Select value={company?.status} onValueChange={handleUpdateCompanyStatus}>
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">Ativa</SelectItem>
-                        <SelectItem value="inactive">Inativa</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <div>
-                      <span
-                        className={`text-xs px-2 py-1 rounded-full ${
-                          company?.status === 'active'
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-red-100 text-red-700'
-                        }`}
-                      >
-                        {company?.status === 'active' ? 'Ativa' : 'Inativa'}
-                      </span>
-                    </div>
-                  )}
+                  <div>
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full ${
+                        company?.status === 'active'
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-red-100 text-red-700'
+                      }`}
+                    >
+                      {company?.status === 'active' ? 'Ativa' : 'Inativa'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    A gestão de equipe, plano e status da assinatura é feita diretamente pelo
+                    Elektra Hub.
+                  </p>
                 </div>
               </CardContent>
             </Card>
           )}
-
-          {activeTab === 'users' &&
-            (user?.role === 'admin_company' || user?.role === 'admin_elektra') && (
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle>Equipe e Plano</CardTitle>
-                    <CardDescription>
-                      Uso do plano: {companyUsers.length} de {maxUsers} usuários
-                    </CardDescription>
-                  </div>
-                  <div className="flex gap-2">
-                    <Dialog open={isUserModalOpen} onOpenChange={setIsUserModalOpen}>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="inline-block">
-                              <DialogTrigger asChild>
-                                <Button disabled={!canAddUser}>
-                                  <Plus className="h-4 w-4 mr-2" /> Novo Usuário
-                                </Button>
-                              </DialogTrigger>
-                            </div>
-                          </TooltipTrigger>
-                          {!canAddUser && (
-                            <TooltipContent>
-                              <p>Limite de {maxUsers} usuários atingido.</p>
-                            </TooltipContent>
-                          )}
-                        </Tooltip>
-                      </TooltipProvider>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Adicionar Membro</DialogTitle>
-                        </DialogHeader>
-                        <form onSubmit={handleCreateUser} className="space-y-4">
-                          <div className="space-y-2">
-                            <Label>Nome</Label>
-                            <Input
-                              required
-                              value={newUser.name}
-                              onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Email</Label>
-                            <Input
-                              type="email"
-                              required
-                              value={newUser.email}
-                              onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                              placeholder="email@empresa.com"
-                            />
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label>Senha (mín. 8 caracteres)</Label>
-                              <Input
-                                type="password"
-                                required
-                                minLength={8}
-                                value={newUser.password}
-                                onChange={(e) =>
-                                  setNewUser({ ...newUser, password: e.target.value })
-                                }
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Confirmar Senha</Label>
-                              <Input
-                                type="password"
-                                required
-                                minLength={8}
-                                value={newUser.passwordConfirm}
-                                onChange={(e) =>
-                                  setNewUser({ ...newUser, passwordConfirm: e.target.value })
-                                }
-                              />
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label>Desconto Máx. (%)</Label>
-                              <Input
-                                type="number"
-                                min="0"
-                                max="100"
-                                value={newUser.max_discount}
-                                onChange={(e) =>
-                                  setNewUser({ ...newUser, max_discount: Number(e.target.value) })
-                                }
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Comissão (%)</Label>
-                              <Input
-                                type="number"
-                                min="0"
-                                max="100"
-                                value={newUser.commission_rate}
-                                onChange={(e) =>
-                                  setNewUser({
-                                    ...newUser,
-                                    commission_rate: Number(e.target.value),
-                                  })
-                                }
-                              />
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Permissão</Label>
-                            <Select
-                              value={newUser.role}
-                              onValueChange={(v) => setNewUser({ ...newUser, role: v })}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="user">Usuário Padrão</SelectItem>
-                                <SelectItem value="admin_company">
-                                  Administrador (Empresa)
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="pt-4 flex justify-end">
-                            <Button type="submit">Salvar</Button>
-                          </div>
-                        </form>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="rounded-md border">
-                    {companyUsers.map((u, i) => (
-                      <div
-                        key={u.id}
-                        className={`p-4 flex items-center justify-between ${
-                          i !== companyUsers.length - 1 ? 'border-b' : ''
-                        }`}
-                      >
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className="font-medium leading-none">{u.name || 'Sem nome'}</p>
-                            {u.is_owner && (
-                              <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-                                Dono
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm text-muted-foreground">{u.email}</p>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded-md capitalize hidden md:block">
-                            {u.role.replace('_', ' ')}
-                          </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  setEditUser(u)
-                                  setIsEditModalOpen(true)
-                                }}
-                              >
-                                <Edit className="h-4 w-4 mr-2" /> Editar
-                              </DropdownMenuItem>
-                              {(!u.is_owner ||
-                                (user?.role === 'admin_elektra' && u.id !== user?.id)) && (
-                                <DropdownMenuItem
-                                  className="text-destructive focus:text-destructive"
-                                  onClick={() => handleDeleteUser(u.id)}
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" /> Remover
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                    ))}
-                    {companyUsers.length === 0 && (
-                      <div className="p-4 text-center text-muted-foreground">
-                        Nenhum usuário encontrado.
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
         </div>
       </div>
-
-      {/* Edit User Modal */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Editar Usuário</DialogTitle>
-            <DialogDescription>Modifique os dados e permissões do membro.</DialogDescription>
-          </DialogHeader>
-          {editUser && (
-            <form onSubmit={handleUpdateUser} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Nome</Label>
-                <Input
-                  required
-                  value={editUser.name}
-                  onChange={(e) => setEditUser({ ...editUser, name: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input
-                  type="email"
-                  required
-                  value={editUser.email}
-                  onChange={(e) => setEditUser({ ...editUser, email: e.target.value })}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Nova Senha (opcional)</Label>
-                  <Input
-                    type="password"
-                    minLength={8}
-                    value={editUser.password || ''}
-                    onChange={(e) => setEditUser({ ...editUser, password: e.target.value })}
-                    placeholder="Deixe em branco para manter"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Confirmar Nova Senha</Label>
-                  <Input
-                    type="password"
-                    minLength={8}
-                    value={editUser.passwordConfirm || ''}
-                    onChange={(e) => setEditUser({ ...editUser, passwordConfirm: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Desconto Máx. (%)</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={editUser.max_discount || 0}
-                    onChange={(e) =>
-                      setEditUser({ ...editUser, max_discount: Number(e.target.value) })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Comissão (%)</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={editUser.commission_rate || 0}
-                    onChange={(e) =>
-                      setEditUser({ ...editUser, commission_rate: Number(e.target.value) })
-                    }
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Permissão</Label>
-                <Select
-                  disabled={editUser.is_owner}
-                  value={editUser.role}
-                  onValueChange={(v) => setEditUser({ ...editUser, role: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="user">Usuário Padrão</SelectItem>
-                    <SelectItem value="admin_company">Administrador (Empresa)</SelectItem>
-                  </SelectContent>
-                </Select>
-                {editUser.is_owner && (
-                  <p className="text-xs text-muted-foreground">
-                    O dono da empresa sempre será Administrador.
-                  </p>
-                )}
-              </div>
-              <div className="pt-4 flex justify-end">
-                <Button type="submit">Salvar Alterações</Button>
-              </div>
-            </form>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
