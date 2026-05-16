@@ -30,6 +30,7 @@ migrate(
     const usersAgain = app.findCollectionByNameOrId('users')
     usersAgain.fields.removeByName('role')
     usersAgain.fields.removeByName('is_owner')
+    usersAgain.removeIndex('idx_users_is_owner')
     const roleText = usersAgain.fields.getByName('role_text')
     roleText.name = 'role'
     app.save(usersAgain)
