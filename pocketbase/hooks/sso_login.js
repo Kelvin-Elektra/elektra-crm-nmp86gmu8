@@ -107,69 +107,30 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
       $app.saveNoValidate(user)
     }
   } catch (_) {
-    if (email) {
-      try {
-        user = $app.findAuthRecordByEmail('users', email)
-        userId = user.id
-
-        let needsUpdate = false
-        if (user.getString('hub_user_id') !== hubUserId) {
-          user.set('hub_user_id', hubUserId)
-          needsUpdate = true
-        }
-        if (user.getString('company_id') !== company.id) {
-          user.set('company_id', company.id)
-          needsUpdate = true
-        }
-        if (payload.role && user.getString('role') !== payload.role) {
-          user.set('role', payload.role)
-          needsUpdate = true
-        }
-        if (payload.role_company && user.getString('role_company') !== payload.role_company) {
-          user.set('role_company', payload.role_company)
-          needsUpdate = true
-        }
-        if (payload.name && user.getString('name') !== payload.name) {
-          user.set('name', payload.name)
-          needsUpdate = true
-        }
-        if (payload.phone && user.getString('phone') !== payload.phone) {
-          user.set('phone', payload.phone)
-          needsUpdate = true
-        }
-
-        if (needsUpdate) {
-          $app.saveNoValidate(user)
-        }
-      } catch (_) {
-        try {
-          const usersCol = $app.findCollectionByNameOrId('users')
-          user = new Record(usersCol)
-          user.set('hub_user_id', hubUserId)
-          user.setEmail(email)
-          user.setPassword($security.randomString(20))
-          user.setVerified(true)
-          user.set('name', payload.name || '')
-          user.set('role', payload.role || 'User_employee')
-          user.set('role_company', payload.role_company || 'user')
-          if (payload.phone) user.set('phone', payload.phone)
-          user.set('status', 'active')
-          user.set('company_id', company.id)
-          $app.saveNoValidate(user)
-          userId = user.id
-        } catch (createErr) {
-          return e.json(422, {
-            error: 'Erro ao provisionar novo usuário: ' + createErr.message,
-            payload,
-            status: 422,
-          })
-        }
+    try {
+      const usersCol = $app.findCollectionByNameOrId('users')
+      user = new Record(usersCol)
+      user.set('hub_user_id', hubUserId)
+      if (email) {
+        user.setEmail(email)
+      } else {
+        user.setEmail(`user_${hubUserId}@elektrahub.local`)
       }
-    } else {
-      return e.json(400, {
-        error: 'Usuário não encontrado e o token não contém email.',
+      user.setPassword($security.randomString(20))
+      user.setVerified(true)
+      user.set('name', payload.name || '')
+      user.set('role', payload.role || 'User_employee')
+      user.set('role_company', payload.role_company || 'user')
+      if (payload.phone) user.set('phone', payload.phone)
+      user.set('status', 'active')
+      user.set('company_id', company.id)
+      $app.saveNoValidate(user)
+      userId = user.id
+    } catch (createErr) {
+      return e.json(422, {
+        error: 'Erro ao provisionar novo usuário: ' + createErr.message,
         payload,
-        status: 400,
+        status: 422,
       })
     }
   }
