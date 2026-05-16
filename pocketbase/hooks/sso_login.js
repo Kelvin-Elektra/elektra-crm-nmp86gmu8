@@ -44,8 +44,19 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
   let company
   try {
     company = $app.findFirstRecordByData('companies', 'hub_company_id', hubCompanyId)
+    let needsCompanyUpdate = false
+
     if (payload.company_name && company.getString('name') !== payload.company_name) {
       company.set('name', payload.company_name)
+      needsCompanyUpdate = true
+    }
+
+    if (payload.company_status && company.getString('status') !== payload.company_status) {
+      company.set('status', payload.company_status)
+      needsCompanyUpdate = true
+    }
+
+    if (needsCompanyUpdate) {
       $app.saveNoValidate(company)
     }
   } catch (_) {
@@ -98,8 +109,8 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
       user.set('phone', payload.phone)
       needsUpdate = true
     }
-    if (payload.email && user.getString('email') !== payload.email) {
-      user.setEmail(payload.email)
+    if (email && user.getString('email') !== email) {
+      user.setEmail(email)
       needsUpdate = true
     }
 
@@ -135,8 +146,7 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
     }
   }
 
-  // Ensure we reload the user record fresh from DB so it's a valid Record object
-  // with accessible collectionId to prevent the "Object has no member 'collectionId'" error.
+  // Ensure we reload the user record fresh from DB
   try {
     user = $app.findRecordById('users', userId)
   } catch (err) {
@@ -144,10 +154,30 @@ routerAdd('POST', '/backend/v1/sso/login', (e) => {
   }
 
   try {
-    return $apis.recordAuthResponse($app, e, user)
+    // Generate auth token manually to prevent nil pointer panics from internal helpers
+    const secret = $app.settings().recordAuthToken.secret
+    if (!secret) {
+      throw new Error('Secret JWT não disponível no servidor.')
+    }
+
+    const token = $security.createJWT(
+      {
+        id: user.id,
+        type: 'auth',
+        collectionId: user.collectionId,
+      },
+      secret,
+      1209600,
+    ) // 14 dias
+
+    return e.json(200, {
+      token: token,
+      record: user,
+    })
   } catch (err) {
+    $app.logger().error('SSO Token Manual Gen Failed', 'error', err.message)
     return e.json(422, {
-      error: 'Erro interno ao gerar token de autenticação.',
+      error: 'Erro interno ao gerar token de autenticação manual.',
       details: err.message,
       status: 422,
     })

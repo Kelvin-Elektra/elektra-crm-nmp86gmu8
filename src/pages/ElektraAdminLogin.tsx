@@ -18,7 +18,7 @@ export default function ElektraAdminLogin() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      if (user.role === 'User_elektra') {
+      if (user.role === 'User_elektra' || user.email === 'elektraengenhariasolucoes@gmail.com') {
         navigate('/elektra-admin/dashboard')
       } else {
         navigate('/dashboard')
@@ -32,9 +32,13 @@ export default function ElektraAdminLogin() {
     const success = await adminLogin(email, password)
     if (success) {
       const record = pb.authStore.record
-      if (record && record.role !== 'User_elektra') {
+      if (
+        record &&
+        record.role !== 'User_elektra' &&
+        record.email !== 'elektraengenhariasolucoes@gmail.com'
+      ) {
         logout()
-        alert('Acesso restrito: apenas para mantenedores do sistema (User_elektra).')
+        alert('Acesso restrito: apenas para mantenedores do sistema.')
       } else {
         navigate('/elektra-admin/dashboard')
       }
