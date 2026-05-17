@@ -9,7 +9,6 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Building2, User, Users, Plus, MoreHorizontal, Edit, Trash2 } from 'lucide-react'
 import { useRealtime } from '@/hooks/use-realtime'
 import pb from '@/lib/pocketbase/client'
-import { Collections } from '@/lib/pocketbase/collections'
 import {
   Dialog,
   DialogContent,
@@ -51,15 +50,17 @@ export default function Settings() {
   const loadCompany = async () => {
     if (user?.company_id && user.company_id.trim() !== '') {
       try {
-        const record = await pb.collection(Collections.COMPANIES).getOne(user.company_id)
+        const record = await pb.collection('companies').getOne(user.company_id)
         setCompany(record)
-      } catch (err) {
+      } catch (err: any) {
         console.error('Company not found:', err)
-        toast({
-          variant: 'destructive',
-          title: 'Empresa não encontrada',
-          description: 'A empresa associada ao seu usuário não foi encontrada ou foi removida.',
-        })
+        if (err.status !== 404) {
+          toast({
+            variant: 'destructive',
+            title: 'Erro ao carregar empresa',
+            description: 'Não foi possível carregar os dados da empresa.',
+          })
+        }
         setCompany(null)
       }
     } else {
@@ -101,7 +102,7 @@ export default function Settings() {
       return
     }
     try {
-      await pb.collection(Collections.USERS).update(user!.id, {
+      await pb.collection('users').update(user!.id, {
         oldPassword: profilePassword.oldPassword,
         password: profilePassword.password,
         passwordConfirm: profilePassword.passwordConfirm,
@@ -123,7 +124,7 @@ export default function Settings() {
     try {
       const formData = new FormData()
       formData.append('name', company.name)
-      await pb.collection(Collections.COMPANIES).update(company.id, formData)
+      await pb.collection('companies').update(company.id, formData)
       toast({ title: 'Sucesso', description: 'Nome da empresa atualizado com sucesso!' })
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Erro', description: err.message })
@@ -174,10 +175,11 @@ export default function Settings() {
           {activeTab === 'company' && !company && (
             <Card className="border-dashed border-2">
               <CardHeader>
-                <CardTitle className="text-muted-foreground">Configuração Incompleta</CardTitle>
+                <CardTitle className="text-muted-foreground">Empresa não encontrada</CardTitle>
                 <CardDescription>
-                  Os dados da empresa não foram encontrados ou a configuração não foi finalizada.
-                  Por favor, entre em contato com o suporte ou verifique o seu Elektra Hub.
+                  Os dados da sua empresa não foram localizados ou a configuração não foi
+                  finalizada. Seu acesso pode estar restrito. Por favor, entre em contato com o
+                  suporte ou verifique o seu Elektra Hub.
                 </CardDescription>
               </CardHeader>
             </Card>

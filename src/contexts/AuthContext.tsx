@@ -87,15 +87,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             })
             return false
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error('Company not found:', err)
-          pb.authStore.clear()
-          toast({
-            title: 'Acesso Negado',
-            description: 'Empresa vinculada não encontrada ou inválida.',
-            variant: 'destructive',
-          })
-          return false
+          if (err.status === 404) {
+            toast({
+              title: 'Aviso',
+              description: 'O registro da sua empresa não foi encontrado.',
+              variant: 'default',
+            })
+          } else {
+            pb.authStore.clear()
+            toast({
+              title: 'Acesso Negado',
+              description: 'Empresa vinculada não encontrada ou inválida.',
+              variant: 'destructive',
+            })
+            return false
+          }
         }
       }
 

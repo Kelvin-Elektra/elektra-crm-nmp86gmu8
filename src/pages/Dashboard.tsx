@@ -86,11 +86,12 @@ export default function Dashboard() {
     const endStr = end.toISOString()
 
     try {
-      const uFilter = isSuper ? '' : `company_id = '${user?.company_id}'`
+      const companyId = user?.company_id || ''
+      const uFilter = isSuper ? '' : `company_id = '${companyId}'`
       const tFilter = `created >= '${startStr}' && created <= '${endStr}'`
       const qn = [uFilter, tFilter].filter(Boolean).join(' && ')
 
-      const propUFilter = isSuper ? '' : `company_id = '${user?.company_id}'`
+      const propUFilter = isSuper ? '' : `company_id = '${companyId}'`
       const pTimeFilter = `(created >= '${startStr}' && created <= '${endStr}') || (closing_date >= '${startStr}' && closing_date <= '${endStr}')`
       const qp = [propUFilter, pTimeFilter].filter(Boolean).join(' && ')
 

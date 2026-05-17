@@ -28,8 +28,9 @@ export const deleteTag = async (id: string) => {
   return await pb.collection('tags').delete(id)
 }
 
-export const getLeads = async () => {
-  return await pb.collection('leads').getFullList({ sort: '-created' })
+export const getLeads = async (companyId?: string) => {
+  const filter = companyId ? `company_id = '${companyId}'` : ''
+  return await pb.collection('leads').getFullList({ filter, sort: '-created' })
 }
 
 export const createLead = async (data: any) => {

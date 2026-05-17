@@ -16,8 +16,10 @@ import { getLeads, deleteLead } from '@/services/db'
 import { useRealtime } from '@/hooks/use-realtime'
 import { LeadDialog } from '@/components/LeadDialog'
 import { NewNegotiationDialog } from '@/components/NewNegotiationDialog'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function Leads() {
+  const { user } = useAuth()
   const [leads, setLeads] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [leadDialogOpen, setLeadDialogOpen] = useState(false)
@@ -27,15 +29,23 @@ export default function Leads() {
 
   const load = async () => {
     setIsLoading(true)
-    const data = await getLeads()
-    setLeads(data)
-    setIsLoading(false)
+    try {
+      const companyId = user?.role === 'User_elektra' ? undefined : user?.company_id
+      const data = await getLeads(companyId)
+      setLeads(data)
+    } catch (err) {
+      console.error('Error loading leads:', err)
+    } finally {
+      setIsLoading(false)
+    }
   }
+
   useEffect(() => {
-    load()
-  }, [])
+    if (user) load()
+  }, [user])
+
   useRealtime('leads', () => {
-    getLeads().then(setLeads)
+    if (user) load()
   })
 
   const filtered = leads.filter(
