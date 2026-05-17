@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Navigate } from 'react-router-dom'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -96,6 +97,9 @@ export default function ProposalSettings() {
   const [brandingModalOpen, setBrandingModalOpen] = useState(false)
   const [livePreviewOpen, setLivePreviewOpen] = useState<number | null>(null)
 
+  const isAdmin =
+    user?.role === 'User_elektra' || user?.role_company === 'admin' || user?.role === 'User_owner'
+
   useEffect(() => {
     if (!user?.company_id) return
     pb.collection('proposal_settings')
@@ -131,6 +135,10 @@ export default function ProposalSettings() {
         ])
       })
   }, [user])
+
+  if (!isAdmin && user) {
+    return <Navigate to="/dashboard" replace />
+  }
 
   const handleSave = async () => {
     if (!user?.company_id) return

@@ -54,7 +54,11 @@ export default function Negotiations() {
   const load = async () => {
     try {
       setIsLoading(true)
-      const filter = user?.role === 'user' ? `owner_id = '${user?.id}'` : ''
+      const isStandardUser =
+        user?.role !== 'User_elektra' &&
+        user?.role !== 'User_owner' &&
+        user?.role_company !== 'admin'
+      const filter = isStandardUser ? `owner_id = '${user?.id}'` : ''
       const records = await pb.collection('negotiations').getFullList({
         expand: 'lead_id,owner_id',
         sort: '-created',

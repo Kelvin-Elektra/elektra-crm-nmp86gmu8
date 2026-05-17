@@ -33,7 +33,8 @@ export default function PvKitSettings() {
   const [settingsId, setSettingsId] = useState<string | null>(null)
   const [defaultPricingMode, setDefaultPricingMode] = useState('automatic')
 
-  const isAdmin = user?.role === 'admin_elektra' || user?.role === 'admin_company'
+  const isAdmin =
+    user?.role === 'User_elektra' || user?.role_company === 'admin' || user?.role === 'User_owner'
 
   useEffect(() => {
     if (user?.company_id && isAdmin) {
@@ -66,7 +67,7 @@ export default function PvKitSettings() {
     }
   }
 
-  if (!isAdmin) {
+  if (!isAdmin && user) {
     return <Navigate to="/dashboard" replace />
   }
 

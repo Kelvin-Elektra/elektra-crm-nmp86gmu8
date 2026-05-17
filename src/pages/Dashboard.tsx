@@ -56,8 +56,8 @@ export default function Dashboard() {
     negotiations: [] as any[],
   })
 
-  const isSuper = user?.role === 'admin_elektra'
-  const isCompanyAdmin = user?.role === 'admin_company'
+  const isSuper = user?.role === 'User_elektra'
+  const isCompanyAdmin = user?.role_company === 'admin' || user?.role === 'User_owner'
 
   const loadUsers = async () => {
     try {

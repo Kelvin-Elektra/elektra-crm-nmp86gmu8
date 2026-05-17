@@ -48,8 +48,12 @@ export default function Pipeline() {
 
   const loadAll = async () => {
     try {
-      const filter = user?.role === 'user' ? `owner_id = '${user?.id}'` : ''
-      const propFilter = user?.role === 'user' ? `negotiation_id.owner_id = '${user?.id}'` : ''
+      const isStandardUser =
+        user?.role !== 'User_elektra' &&
+        user?.role !== 'User_owner' &&
+        user?.role_company !== 'admin'
+      const filter = isStandardUser ? `owner_id = '${user?.id}'` : ''
+      const propFilter = isStandardUser ? `negotiation_id.owner_id = '${user?.id}'` : ''
 
       const results = await Promise.allSettled([
         pb.collection('negotiations').getFullList({ expand: 'lead_id,owner_id', filter }),
@@ -93,7 +97,9 @@ export default function Pipeline() {
   useRealtime(Collections.PIPELINE_STAGES, async () => setStages(await getPipelineStages()))
   useRealtime(Collections.TAGS, async () => setTags(await getTags()))
   useRealtime(Collections.PROPOSALS, async () => {
-    const propFilter = user?.role === 'user' ? `negotiation_id.owner_id = '${user?.id}'` : ''
+    const isStandardUser =
+      user?.role !== 'User_elektra' && user?.role !== 'User_owner' && user?.role_company !== 'admin'
+    const propFilter = isStandardUser ? `negotiation_id.owner_id = '${user?.id}'` : ''
     setProposals(await pb.collection('proposals').getFullList({ filter: propFilter }))
   })
 

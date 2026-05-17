@@ -31,7 +31,7 @@ export function AppSidebar() {
   const { user, realUser, exitSimulation } = useAuth()
 
   const isElektraAdmin = realUser?.role === 'User_elektra'
-  const isCompanyAdmin = user?.role_company === 'admin'
+  const isCompanyAdmin = user?.role_company === 'admin' || user?.role === 'User_owner'
   const isAdmin = isElektraAdmin || isCompanyAdmin
   const [sysLogo, setSysLogo] = useState<string | null>(null)
   const [sysName, setSysName] = useState('')

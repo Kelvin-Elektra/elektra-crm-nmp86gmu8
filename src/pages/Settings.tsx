@@ -62,6 +62,8 @@ export default function Settings() {
         })
         setCompany(null)
       }
+    } else {
+      setCompany(null)
     }
   }
 
@@ -169,6 +171,18 @@ export default function Settings() {
         </div>
 
         <div className="md:col-span-3 space-y-6">
+          {activeTab === 'company' && !company && (
+            <Card className="border-dashed border-2">
+              <CardHeader>
+                <CardTitle className="text-muted-foreground">Configuração Incompleta</CardTitle>
+                <CardDescription>
+                  Os dados da empresa não foram encontrados ou a configuração não foi finalizada.
+                  Por favor, entre em contato com o suporte ou verifique o seu Elektra Hub.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          )}
+
           {activeTab === 'system' && user?.role === 'User_elektra' && (
             <Card>
               <CardHeader>
@@ -532,7 +546,7 @@ export default function Settings() {
             </Card>
           )}
 
-          {activeTab === 'company' && (
+          {activeTab === 'company' && company && (
             <Card>
               <CardHeader>
                 <CardTitle>Dados da Empresa</CardTitle>
