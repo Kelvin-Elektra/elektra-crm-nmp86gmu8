@@ -63,18 +63,25 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
     setLoading(true)
     setErrors({})
     try {
-      if (lead) await updateLead(lead.id, formData)
-      else await createLead({ ...formData, company_id: user?.company_id, owner_id: user?.id })
+      if (lead) {
+        await updateLead(lead.id, formData)
+      } else {
+        await createLead({
+          ...formData,
+          company_id: user?.company_id,
+          owner_id: user?.id,
+        })
+      }
       toast({ title: 'Sucesso', description: 'Lead salvo com sucesso!' })
       onSuccess?.()
       onOpenChange(false)
     } catch (err: any) {
       const fieldErrors = extractFieldErrors(err)
-      const isUniqueErr =
-        Object.keys(fieldErrors).some((k) => fieldErrors[k].toLowerCase().includes('unique')) ||
+      const isUniquePhoneErr =
+        fieldErrors.phone?.toLowerCase().includes('unique') ||
         err.message?.toLowerCase().includes('unique constraint failed')
 
-      if (isUniqueErr) {
+      if (isUniquePhoneErr) {
         try {
           const { default: pb } = await import('@/lib/pocketbase/client')
           const existingLead = await pb
@@ -88,13 +95,22 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
         } catch {
           toast({
             variant: 'destructive',
-            title: 'Erro de Unicidade',
-            description: 'Este telefone já está cadastrado em outro lead desta empresa.',
+            title: 'Erro de Validação',
+            description: 'Este telefone já está cadastrado para esta empresa.',
           })
         }
-        setErrors((prev) => ({ ...prev, phone: 'Este telefone já está cadastrado.' }))
+        setErrors((prev) => ({
+          ...prev,
+          ...fieldErrors,
+          phone: 'Este telefone já está cadastrado para esta empresa.',
+        }))
       } else if (Object.keys(fieldErrors).length > 0) {
         setErrors(fieldErrors)
+        toast({
+          variant: 'destructive',
+          title: 'Erro de Validação',
+          description: 'Por favor, corrija os erros nos campos destacados.',
+        })
       } else {
         toast({ variant: 'destructive', title: 'Erro', description: getErrorMessage(err) })
       }
@@ -121,6 +137,7 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             />
+            {errors.name && <span className="text-xs text-destructive">{errors.name}</span>}
           </div>
           <div className="space-y-2">
             <Label>Telefone (Obrigatório)</Label>
@@ -140,6 +157,7 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             />
+            {errors.email && <span className="text-xs text-destructive">{errors.email}</span>}
           </div>
           <div className="space-y-2">
             <Label>Documento (CPF/CNPJ)</Label>
@@ -150,6 +168,7 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
                 setFormData({ ...formData, document: applyDocumentMask(e.target.value) })
               }
             />
+            {errors.document && <span className="text-xs text-destructive">{errors.document}</span>}
           </div>
           <div className="flex justify-end pt-4">
             <Button type="submit" disabled={loading}>

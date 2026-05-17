@@ -33,11 +33,19 @@ export const getLeads = async () => {
 }
 
 export const createLead = async (data: any) => {
-  return await pb.collection('leads').create(data)
+  const payload = { ...data }
+  if (!payload.email) delete payload.email
+  if (!payload.document) delete payload.document
+  if (!payload.phone) delete payload.phone
+  return await pb.collection('leads').create(payload)
 }
 
 export const updateLead = async (id: string, data: any) => {
-  return await pb.collection('leads').update(id, data)
+  const payload = { ...data }
+  if (!payload.email) payload.email = ''
+  if (!payload.document) payload.document = ''
+  if (!payload.phone) payload.phone = ''
+  return await pb.collection('leads').update(id, payload)
 }
 
 export const deleteLead = async (id: string) => {
