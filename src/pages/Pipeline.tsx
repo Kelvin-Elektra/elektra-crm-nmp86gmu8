@@ -47,20 +47,43 @@ export default function Pipeline() {
   const { toast } = useToast()
 
   const loadAll = async () => {
-    const filter = user?.role === 'user' ? `owner_id = '${user?.id}'` : ''
-    const propFilter = user?.role === 'user' ? `negotiation_id.owner_id = '${user?.id}'` : ''
+    try {
+      const filter = user?.role === 'user' ? `owner_id = '${user?.id}'` : ''
+      const propFilter = user?.role === 'user' ? `negotiation_id.owner_id = '${user?.id}'` : ''
 
-    const [n, s, t, p] = await Promise.all([
-      pb.collection('negotiations').getFullList({ expand: 'lead_id,owner_id', filter }),
-      getPipelineStages(),
-      getTags(),
-      pb.collection('proposals').getFullList({ filter: propFilter }),
-    ])
+      const results = await Promise.allSettled([
+        pb.collection('negotiations').getFullList({ expand: 'lead_id,owner_id', filter }),
+        getPipelineStages(),
+        getTags(),
+        pb.collection('proposals').getFullList({ filter: propFilter }),
+      ])
 
-    setNegotiations(n)
-    setStages(s)
-    setTags(t)
-    setProposals(p)
+      const n = results[0].status === 'fulfilled' ? results[0].value : []
+      const s = results[1].status === 'fulfilled' ? results[1].value : []
+      const t = results[2].status === 'fulfilled' ? results[2].value : []
+      const p = results[3].status === 'fulfilled' ? results[3].value : []
+
+      setNegotiations(n)
+      setStages(s)
+      setTags(t)
+      setProposals(p)
+
+      const hasErrors = results.some((r) => r.status === 'rejected')
+      if (hasErrors) {
+        toast({
+          variant: 'destructive',
+          title: 'Erro parcial',
+          description: 'Alguns dados não puderam ser carregados. Verifique sua conexão.',
+        })
+      }
+    } catch (err) {
+      console.error('Error loading pipeline data:', err)
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao carregar dados',
+        description: 'Não foi possível carregar as informações do funil no momento.',
+      })
+    }
   }
 
   useEffect(() => {

@@ -49,12 +49,18 @@ export default function Settings() {
   })
 
   const loadCompany = async () => {
-    if (user?.company_id) {
+    if (user?.company_id && user.company_id.trim() !== '') {
       try {
         const record = await pb.collection(Collections.COMPANIES).getOne(user.company_id)
         setCompany(record)
       } catch (err) {
-        console.error(err)
+        console.error('Company not found:', err)
+        toast({
+          variant: 'destructive',
+          title: 'Empresa não encontrada',
+          description: 'A empresa associada ao seu usuário não foi encontrada ou foi removida.',
+        })
+        setCompany(null)
       }
     }
   }
@@ -554,7 +560,7 @@ export default function Settings() {
                       accept="image/*"
                       className="flex-1"
                       onChange={async (e) => {
-                        if (!e.target.files || !e.target.files[0]) return
+                        if (!e.target.files || !e.target.files[0] || !company) return
                         try {
                           const formData = new FormData()
                           formData.append('logo', e.target.files[0])

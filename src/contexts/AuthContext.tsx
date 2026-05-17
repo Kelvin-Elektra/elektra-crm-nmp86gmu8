@@ -75,13 +75,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false
       }
 
-      if (record.company_id) {
-        const company = await pb.collection('companies').getOne(record.company_id)
-        if (company.status !== 'active') {
+      if (record.company_id && record.company_id.trim() !== '') {
+        try {
+          const company = await pb.collection('companies').getOne(record.company_id)
+          if (company.status !== 'active') {
+            pb.authStore.clear()
+            toast({
+              title: 'Acesso Negado',
+              description: 'A assinatura da sua empresa está inativa.',
+              variant: 'destructive',
+            })
+            return false
+          }
+        } catch (err) {
+          console.error('Company not found:', err)
           pb.authStore.clear()
           toast({
             title: 'Acesso Negado',
-            description: 'A assinatura da sua empresa está inativa.',
+            description: 'Empresa vinculada não encontrada ou inválida.',
             variant: 'destructive',
           })
           return false
