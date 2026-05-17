@@ -9,7 +9,7 @@ routerAdd('POST', '/backend/v1/sso/simulate', (e) => {
 
     const user = $app.findRecordById('users', userId)
     let companyId = user.getString('company_id')
-    let hubCompanyId = companyId
+    let hubCompanyId = null
 
     if (companyId) {
       try {
@@ -18,19 +18,18 @@ routerAdd('POST', '/backend/v1/sso/simulate', (e) => {
       } catch (_) {}
     }
 
-    if (!hubCompanyId) {
-      hubCompanyId = 'simulated_hub_company_id'
-    }
-
     const payload = {
       id: user.getString('hub_user_id') || user.id,
       hub_user_id: user.getString('hub_user_id') || user.id,
       email: user.getString('email'),
-      company_id: hubCompanyId,
-      hub_company_id: hubCompanyId,
       name: user.getString('name'),
       role: user.getString('role'),
       role_company: user.getString('role_company'),
+    }
+
+    if (hubCompanyId) {
+      payload.company_id = hubCompanyId
+      payload.hub_company_id = hubCompanyId
     }
 
     const token = $security.createJWT(payload, secret, 3600)

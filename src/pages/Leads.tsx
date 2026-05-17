@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, Search, Filter, Pencil, Trash2, Briefcase } from 'lucide-react'
+import { Plus, Search, Filter, Pencil, Trash2, Briefcase, AlertCircle } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -28,11 +28,18 @@ export default function Leads() {
   const [isLoading, setIsLoading] = useState(true)
 
   const load = async () => {
+    if (!user) return
+    if (user.role !== 'User_elektra' && !user.company_id) {
+      setLeads([])
+      setIsLoading(false)
+      return
+    }
+
     setIsLoading(true)
     try {
       const companyId = user?.role === 'User_elektra' ? undefined : user?.company_id
       const data = await getLeads(companyId)
-      setLeads(data)
+      setLeads(data || [])
     } catch (err) {
       console.error('Error loading leads:', err)
     } finally {
@@ -41,11 +48,11 @@ export default function Leads() {
   }
 
   useEffect(() => {
-    if (user) load()
+    load()
   }, [user])
 
   useRealtime('leads', () => {
-    if (user) load()
+    load()
   })
 
   const filtered = leads.filter(
@@ -54,6 +61,23 @@ export default function Leads() {
       (l.email || '').toLowerCase().includes(search.toLowerCase()) ||
       (l.phone || '').includes(search),
   )
+
+  if (user && user.role !== 'User_elektra' && !user.company_id) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-4 animate-in fade-in zoom-in duration-300">
+        <div className="bg-destructive/10 p-4 rounded-full">
+          <AlertCircle className="h-10 w-10 text-destructive" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold tracking-tight">Configuração Necessária</h2>
+          <p className="text-muted-foreground max-w-md mx-auto">
+            Sua conta foi autenticada com sucesso, mas ainda não está vinculada a uma empresa no
+            sistema. Por favor, entre em contato com o administrador.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   const handleEdit = (lead: any) => {
     setSelectedLead(lead)
