@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useLocation } from 'react-router-dom'
-import { LogOut, User as UserIcon } from 'lucide-react'
+import { LogOut, User as UserIcon, RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -97,6 +97,16 @@ export function AppHeader() {
             <DropdownMenuItem>
               <UserIcon className="mr-2 h-4 w-4" />
               <span>Meu Perfil</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                pb.authStore.clear()
+                window.location.reload()
+              }}
+              className="text-orange-500 focus:text-orange-500"
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              <span>Atualizar Sessão (SSO)</span>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive">
               <LogOut className="mr-2 h-4 w-4" />

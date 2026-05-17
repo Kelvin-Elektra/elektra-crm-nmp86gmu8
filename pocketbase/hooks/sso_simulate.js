@@ -34,7 +34,13 @@ routerAdd('POST', '/backend/v1/sso/simulate', (e) => {
 
     const token = $security.createJWT(payload, secret, 3600)
 
-    return e.json(200, { sso_token: token })
+    return e.json(200, {
+      sso_token: token,
+      record: user,
+      company_id: companyId,
+      role: user.getString('role'),
+      role_company: user.getString('role_company'),
+    })
   } catch (err) {
     return e.badRequestError('Simulation failed: ' + err.message)
   }

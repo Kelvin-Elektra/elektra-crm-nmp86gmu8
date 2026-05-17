@@ -71,8 +71,12 @@ export default function Dashboard() {
     negotiations: [] as any[],
   })
 
-  const isSuper = user?.role === 'User_elektra'
-  const isCompanyAdmin = user?.role_company === 'admin' || user?.role === 'User_owner'
+  const isSuper = user?.role === 'User_elektra' || tokenPayload?.role === 'User_elektra'
+  const isCompanyAdmin =
+    user?.role_company === 'admin' ||
+    user?.role === 'User_owner' ||
+    tokenPayload?.role_company === 'admin' ||
+    tokenPayload?.role === 'User_owner'
 
   const loadUsers = async () => {
     try {
@@ -101,12 +105,23 @@ export default function Dashboard() {
     const endStr = end.toISOString()
 
     try {
-      const companyId = user?.company_id || ''
-      const uFilter = isSuper ? '' : `company_id = '${companyId}'`
+      let currentTokenPayload = tokenPayload
+      if (!currentTokenPayload && pb.authStore.token) {
+        try {
+          currentTokenPayload = JSON.parse(atob(pb.authStore.token.split('.')[1]))
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      const activeSuper = isSuper || currentTokenPayload?.role === 'User_elektra'
+      const companyId = currentTokenPayload?.company_id || user?.company_id || ''
+
+      const uFilter = activeSuper ? '' : `company_id = '${companyId}'`
       const tFilter = `created >= '${startStr}' && created <= '${endStr}'`
       const qn = [uFilter, tFilter].filter(Boolean).join(' && ')
 
-      const propUFilter = isSuper ? '' : `company_id = '${companyId}'`
+      const propUFilter = activeSuper ? '' : `company_id = '${companyId}'`
       const pTimeFilter = `(created >= '${startStr}' && created <= '${endStr}') || (closing_date >= '${startStr}' && closing_date <= '${endStr}')`
       const qp = [propUFilter, pTimeFilter].filter(Boolean).join(' && ')
 
