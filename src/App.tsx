@@ -42,11 +42,4 @@ const App = () => (
               <Route path="/configuracoes-proposta" element={<ProposalSettings />} />
               <Route path="/configuracoes" element={<Settings />} />
             </Route>
-          </Routes>
-        </SsoGateway>
-      </TooltipProvider>
-    </AuthProvider>
-  </BrowserRouter>
-)
-
-export default App
+  
