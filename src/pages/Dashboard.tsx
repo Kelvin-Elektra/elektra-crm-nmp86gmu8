@@ -16,7 +16,7 @@ import {
 import { ptBR } from 'date-fns/locale'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
-import { ChevronLeft, ChevronRight, CalendarIcon, Terminal } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CalendarIcon, Terminal, Copy } from 'lucide-react'
 import { MetricCard } from '@/components/MetricCard'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -42,9 +42,23 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { generateDashboardPDF } from '@/lib/pdf-generator'
+import { useToast } from '@/hooks/use-toast'
 
 export default function Dashboard() {
   const { user } = useAuth()
+  const { toast } = useToast()
+  const [tokenPayload, setTokenPayload] = useState<any>(null)
+
+  useEffect(() => {
+    if (pb.authStore.token) {
+      try {
+        const payload = JSON.parse(atob(pb.authStore.token.split('.')[1]))
+        setTokenPayload(payload)
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, [])
   const [filter, setFilter] = useState('30d')
   const [monthYear, setMonthYear] = useState(format(new Date(), 'yyyy-MM'))
   const [users, setUsers] = useState<any[]>([])
@@ -287,17 +301,59 @@ export default function Dashboard() {
       {user && (
         <Alert className="bg-secondary/30 border-secondary">
           <Terminal className="h-4 w-4" />
-          <AlertTitle>Debug Session Info</AlertTitle>
-          <AlertDescription className="mt-2 flex flex-col gap-1 font-mono text-sm">
-            <div>
-              <span className="font-semibold font-sans text-muted-foreground mr-2">User ID:</span>
-              {user.id}
+          <AlertTitle className="flex justify-between items-center">
+            <span>Debug Session Info</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                navigator.clipboard.writeText(pb.authStore.token)
+                toast({
+                  title: 'Token copiado',
+                  description: 'O Access Token foi copiado para a área de transferência.',
+                })
+              }}
+            >
+              <Copy className="h-3 w-3 mr-2" />
+              Copy Debug Info
+            </Button>
+          </AlertTitle>
+          <AlertDescription className="mt-4 flex flex-col gap-2 font-mono text-sm overflow-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <span className="font-semibold font-sans text-muted-foreground mr-2">User ID:</span>
+                {user.id}
+              </div>
+              <div>
+                <span className="font-semibold font-sans text-muted-foreground mr-2">
+                  Company ID:
+                </span>
+                {user.company_id || 'Nenhum'}
+              </div>
+              <div>
+                <span className="font-semibold font-sans text-muted-foreground mr-2">Role:</span>
+                {user.role || 'Nenhum'}
+              </div>
+              <div>
+                <span className="font-semibold font-sans text-muted-foreground mr-2">
+                  Company Role:
+                </span>
+                {user.role_company || 'Nenhum'}
+              </div>
             </div>
-            <div>
-              <span className="font-semibold font-sans text-muted-foreground mr-2">
-                Company ID:
-              </span>
-              {user.company_id || 'Nenhum'}
+            {tokenPayload && (
+              <div className="mt-2">
+                <span className="font-semibold font-sans text-muted-foreground block mb-1">
+                  Decoded Token Payload:
+                </span>
+                <pre className="bg-background p-2 rounded border text-xs overflow-x-auto">
+                  {JSON.stringify(tokenPayload, null, 2)}
+                </pre>
+              </div>
+            )}
+            <div className="mt-2 text-xs">
+              <span className="font-semibold font-sans text-muted-foreground mr-2">Context:</span>
+              Route: {window.location.pathname} | Env: {import.meta.env.MODE}
             </div>
           </AlertDescription>
         </Alert>

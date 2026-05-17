@@ -86,6 +86,10 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
     }
 
     try {
+      if (!user?.id || (user?.role !== 'User_elektra' && !user?.company_id)) {
+        throw new Error('missing_context')
+      }
+
       if (lead) {
         await updateLead(lead.id, formData)
       } else {
@@ -99,10 +103,24 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
       onSuccess?.()
       onOpenChange(false)
     } catch (err: any) {
+      if (err.message === 'missing_context') {
+        toast({
+          variant: 'destructive',
+          title: 'Erro de Autenticação',
+          description: 'Faltam permissões de empresa ou usuário para criar este registro.',
+        })
+        setLoading(false)
+        return
+      }
+
       const fieldErrors = extractFieldErrors(err)
       const isUniquePhoneErr =
         fieldErrors.phone?.toLowerCase().includes('unique') ||
         err.message?.toLowerCase().includes('unique constraint failed')
+
+      const errorMsg = getErrorMessage(err).toLowerCase()
+      const isPermissionsErr =
+        errorMsg.includes('failed to create record') || errorMsg.includes('you are not allowed')
 
       if (isUniquePhoneErr) {
         toast({
@@ -115,6 +133,13 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
           ...fieldErrors,
           phone: 'Este telefone já está cadastrado para esta empresa.',
         }))
+      } else if (isPermissionsErr) {
+        toast({
+          variant: 'destructive',
+          title: 'Erro de Permissão',
+          description:
+            'Você não tem permissão para realizar esta operação ou falta o contexto da empresa (company_id).',
+        })
       } else if (Object.keys(fieldErrors).length > 0) {
         setErrors(fieldErrors)
         toast({
