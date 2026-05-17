@@ -164,6 +164,7 @@ routerAdd('GET', '/backend/v1/sso', (e) => {
       type: 'auth',
       collectionId: user.collection().id,
       tokenKey: user.getString('tokenKey'),
+      company_id: user.getString('company_id'),
     }
 
     let tokenSecret = ''

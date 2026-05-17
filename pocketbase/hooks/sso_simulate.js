@@ -25,10 +25,10 @@ routerAdd('POST', '/backend/v1/sso/simulate', (e) => {
       name: user.getString('name'),
       role: user.getString('role'),
       role_company: user.getString('role_company'),
+      company_id: companyId,
     }
 
     if (hubCompanyId) {
-      payload.company_id = hubCompanyId
       payload.hub_company_id = hubCompanyId
     }
 
