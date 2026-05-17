@@ -37,6 +37,8 @@ export const createLead = async (data: any) => {
   if (!payload.email) delete payload.email
   if (!payload.document) delete payload.document
   if (!payload.phone) delete payload.phone
+  if (!payload.company_id) delete payload.company_id
+  if (!payload.owner_id) delete payload.owner_id
   return await pb.collection('leads').create(payload)
 }
 
@@ -45,6 +47,8 @@ export const updateLead = async (id: string, data: any) => {
   if (!payload.email) payload.email = ''
   if (!payload.document) payload.document = ''
   if (!payload.phone) payload.phone = ''
+  if (!payload.company_id) delete payload.company_id
+  if (!payload.owner_id) delete payload.owner_id
   return await pb.collection('leads').update(id, payload)
 }
 

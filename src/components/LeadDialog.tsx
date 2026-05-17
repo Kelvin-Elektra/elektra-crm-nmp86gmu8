@@ -62,6 +62,29 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
     e.preventDefault()
     setLoading(true)
     setErrors({})
+
+    if (formData.phone && user?.company_id) {
+      try {
+        const { default: pb } = await import('@/lib/pocketbase/client')
+        let query = `phone = '${formData.phone}' && company_id = '${user.company_id}'`
+        if (lead) query += ` && id != '${lead.id}'`
+        const existingLead = await pb.collection('leads').getFirstListItem(query)
+
+        if (existingLead) {
+          toast({
+            variant: 'destructive',
+            title: 'Lead Duplicado',
+            description: `O telefone ${formData.phone} já está cadastrado no lead "${existingLead.name}".`,
+          })
+          setErrors({ phone: 'Este telefone já está cadastrado para esta empresa.' })
+          setLoading(false)
+          return
+        }
+      } catch (err) {
+        // Not found, safe to proceed
+      }
+    }
+
     try {
       if (lead) {
         await updateLead(lead.id, formData)
@@ -82,23 +105,11 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
         err.message?.toLowerCase().includes('unique constraint failed')
 
       if (isUniquePhoneErr) {
-        try {
-          const { default: pb } = await import('@/lib/pocketbase/client')
-          const existingLead = await pb
-            .collection('leads')
-            .getFirstListItem(`phone = '${formData.phone}' && company_id = '${user?.company_id}'`)
-          toast({
-            variant: 'destructive',
-            title: 'Lead Duplicado',
-            description: `Lead ${existingLead.name} já pertence a outro usuário.`,
-          })
-        } catch {
-          toast({
-            variant: 'destructive',
-            title: 'Erro de Validação',
-            description: 'Este telefone já está cadastrado para esta empresa.',
-          })
-        }
+        toast({
+          variant: 'destructive',
+          title: 'Erro de Validação',
+          description: 'Este telefone já está cadastrado para esta empresa.',
+        })
         setErrors((prev) => ({
           ...prev,
           ...fieldErrors,
