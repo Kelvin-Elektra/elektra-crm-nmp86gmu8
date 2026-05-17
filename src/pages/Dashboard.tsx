@@ -579,4 +579,26 @@ export default function Dashboard() {
                       </p>
                     </TooltipContent>
                   </Tooltip>
-              
+                </div>
+                <span className="font-medium">{taxaConversao.toFixed(1)}%</span>
+              </div>
+              <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-green-500"
+                  style={{ width: `${Math.min(taxaConversao, 100)}%` }}
+                ></div>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-border mt-4">
+              <p className="text-xs text-muted-foreground text-center">
+                Todos os dados apresentados são baseados na data de criação dos registros e no
+                período selecionado.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
