@@ -15,7 +15,8 @@ import {
 } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { ChevronLeft, ChevronRight, CalendarIcon } from 'lucide-react'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import { ChevronLeft, ChevronRight, CalendarIcon, Terminal } from 'lucide-react'
 import { MetricCard } from '@/components/MetricCard'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -283,6 +284,25 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col gap-6">
+      {user && (
+        <Alert className="bg-secondary/30 border-secondary">
+          <Terminal className="h-4 w-4" />
+          <AlertTitle>Debug Session Info</AlertTitle>
+          <AlertDescription className="mt-2 flex flex-col gap-1 font-mono text-sm">
+            <div>
+              <span className="font-semibold font-sans text-muted-foreground mr-2">User ID:</span>
+              {user.id}
+            </div>
+            <div>
+              <span className="font-semibold font-sans text-muted-foreground mr-2">
+                Company ID:
+              </span>
+              {user.company_id || 'Nenhum'}
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <div className="flex items-center gap-2">
