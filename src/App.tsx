@@ -7,6 +7,7 @@ import { SsoGateway } from './components/SsoGateway'
 import Layout from './components/Layout'
 import Portal from './pages/Portal'
 import ElektraAdminLogin from './pages/ElektraAdminLogin'
+import SimulatedLogin from './pages/SimulatedLogin'
 import ElektraAdminDashboard from './pages/ElektraAdminDashboard'
 import Dashboard from './pages/Dashboard'
 import Pipeline from './pages/Pipeline'
@@ -28,6 +29,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Portal />} />
             <Route path="/elektra-admin" element={<ElektraAdminLogin />} />
+            <Route path="/login-simulado" element={<SimulatedLogin />} />
             <Route path="/elektra-admin/dashboard" element={<ElektraAdminDashboard />} />
             <Route element={<Layout />}>
               <Route path="/dashboard" element={<Dashboard />} />

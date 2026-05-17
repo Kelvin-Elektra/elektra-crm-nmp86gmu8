@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-16T20:38:29.636Z",
+  "generatedAt": "2026-05-17T01:19:23.016Z",
   "collections": [
     {
       "name": "users",
@@ -162,9 +162,9 @@
       "apiRules": {
         "list": "@request.auth.role = 'User_elektra' || company_id = @request.auth.company_id",
         "view": "@request.auth.role = 'User_elektra' || company_id = @request.auth.company_id",
-        "create": "@request.auth.role = 'User_elektra' || company_id = @request.auth.company_id",
-        "update": "@request.auth.role = 'User_elektra' || company_id = @request.auth.company_id",
-        "delete": "@request.auth.role = 'User_elektra' || company_id = @request.auth.company_id"
+        "create": "@request.auth.role = 'User_elektra' || (company_id = @request.auth.company_id && (@request.auth.role = 'User_owner' || @request.auth.role_company = 'admin'))",
+        "update": "@request.auth.role = 'User_elektra' || (company_id = @request.auth.company_id && (@request.auth.role = 'User_owner' || @request.auth.role_company = 'admin'))",
+        "delete": "@request.auth.role = 'User_elektra' || (company_id = @request.auth.company_id && (@request.auth.role = 'User_owner' || @request.auth.role_company = 'admin'))"
       },
       "fields": [
         {
@@ -511,9 +511,9 @@
       "apiRules": {
         "list": "@request.auth.role = 'User_elektra' || company_id = @request.auth.company_id",
         "view": "@request.auth.role = 'User_elektra' || company_id = @request.auth.company_id",
-        "create": "@request.auth.role = 'User_elektra' || company_id = @request.auth.company_id",
-        "update": "@request.auth.role = 'User_elektra' || company_id = @request.auth.company_id",
-        "delete": "@request.auth.role = 'User_elektra' || company_id = @request.auth.company_id"
+        "create": "@request.auth.role = 'User_elektra' || (company_id = @request.auth.company_id && (@request.auth.role = 'User_owner' || @request.auth.role_company = 'admin'))",
+        "update": "@request.auth.role = 'User_elektra' || (company_id = @request.auth.company_id && (@request.auth.role = 'User_owner' || @request.auth.role_company = 'admin'))",
+        "delete": "@request.auth.role = 'User_elektra' || (company_id = @request.auth.company_id && (@request.auth.role = 'User_owner' || @request.auth.role_company = 'admin'))"
       },
       "fields": [
         {
@@ -564,9 +564,9 @@
       "apiRules": {
         "list": "@request.auth.role = 'User_elektra' || company_id = @request.auth.company_id",
         "view": "@request.auth.role = 'User_elektra' || company_id = @request.auth.company_id",
-        "create": "@request.auth.role = 'User_elektra' || company_id = @request.auth.company_id",
-        "update": "@request.auth.role = 'User_elektra' || company_id = @request.auth.company_id",
-        "delete": "@request.auth.role = 'User_elektra' || company_id = @request.auth.company_id"
+        "create": "@request.auth.role = 'User_elektra' || (company_id = @request.auth.company_id && (@request.auth.role = 'User_owner' || @request.auth.role_company = 'admin'))",
+        "update": "@request.auth.role = 'User_elektra' || (company_id = @request.auth.company_id && (@request.auth.role = 'User_owner' || @request.auth.role_company = 'admin'))",
+        "delete": "@request.auth.role = 'User_elektra' || (company_id = @request.auth.company_id && (@request.auth.role = 'User_owner' || @request.auth.role_company = 'admin'))"
       },
       "fields": [
         {

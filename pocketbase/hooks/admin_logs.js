@@ -9,11 +9,19 @@ routerAdd(
     const limit = Math.min(Number(e.request.url.query().get('limit')) || 50, 200)
 
     try {
-      const result = $app
-        .db()
-        .newQuery('SELECT * FROM _logs ORDER BY created DESC LIMIT {:limit}')
-        .bind({ limit })
-        .all()
+      let result = []
+      try {
+        result = $app
+          .db()
+          .newQuery('SELECT * FROM _logs ORDER BY created DESC LIMIT {:limit}')
+          .bind({ limit })
+          .all()
+      } catch (dbErr) {
+        if (dbErr.message.includes('no such table')) {
+          return e.json(200, { items: [], note: 'Logs unavailable in data.db' })
+        }
+        throw dbErr
+      }
 
       const parsed = result.map((row) => {
         try {
