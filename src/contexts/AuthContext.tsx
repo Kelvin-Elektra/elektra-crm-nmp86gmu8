@@ -40,7 +40,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast()
 
   const user = simulatedUser || realUser
-  const isAuthenticated = pb.authStore.isValid && !!user
+  // Evita redirecionamento prematuro caso o usuário esteja nulo durante a fase de loading
+  const isAuthenticated = pb.authStore.isValid && (!!user || loading)
 
   useEffect(() => {
     const unsubscribe = pb.authStore.onChange((_token, record) => {

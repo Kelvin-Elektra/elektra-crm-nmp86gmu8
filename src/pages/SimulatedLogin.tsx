@@ -66,8 +66,14 @@ export default function SimulatedLogin() {
         const loginRes = await loginWithSso(res.sso_token)
         if (loginRes.success) {
           await refreshAuth()
-          toast({ title: 'Sucesso', description: 'Login simulado com sucesso!' })
-          navigate('/dashboard', { replace: true })
+          toast({ title: 'Sucesso', description: 'Login simulado com sucesso! Redirecionando...' })
+
+          // Mantém o estado de loading e força o recarregamento completo da página
+          setTimeout(() => {
+            window.location.href = '/dashboard'
+          }, 800)
+
+          return // Retorna logo para evitar setar loading como false
         } else {
           toast({
             title: 'Erro no Login',
@@ -82,9 +88,8 @@ export default function SimulatedLogin() {
         description: err.message || 'Falha ao gerar token de simulação.',
         variant: 'destructive',
       })
-    } finally {
-      setLoading(false)
     }
+    setLoading(false)
   }
 
   return (

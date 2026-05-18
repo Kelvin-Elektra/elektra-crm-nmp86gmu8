@@ -29,16 +29,19 @@ export function SsoGateway({ children }: { children: React.ReactNode }) {
       const processSso = async () => {
         const result = await loginWithSso(ssoToken)
 
-        setIsProcessing(false)
-
         if (result.success) {
           await refreshAuth()
           const newUrl = new URL(window.location.href)
           newUrl.searchParams.delete('sso_token')
           const targetPath =
             newUrl.pathname === '/' ? '/dashboard' : newUrl.pathname + newUrl.search
-          navigate(targetPath, { replace: true })
+
+          // Mantém isProcessing=true para não remover o loading e aguarda a gravação no localStorage
+          setTimeout(() => {
+            window.location.href = targetPath
+          }, 800)
         } else {
+          setIsProcessing(false)
           setDiagnostic(result.diagnostic)
         }
       }
