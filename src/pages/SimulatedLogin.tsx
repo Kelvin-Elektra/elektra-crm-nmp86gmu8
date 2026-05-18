@@ -28,9 +28,16 @@ export default function SimulatedLogin() {
   const [selectedUserId, setSelectedUserId] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
-  const { loginWithSso } = useAuth()
+  const [loginSuccess, setLoginSuccess] = useState(false)
+  const { loginWithSso, isAuthenticated } = useAuth()
   const navigate = useNavigate()
   const { toast } = useToast()
+
+  useEffect(() => {
+    if (loginSuccess && isAuthenticated) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [loginSuccess, isAuthenticated, navigate])
 
   useEffect(() => {
     pb.send('/backend/v1/sso/dev-users', { method: 'GET' })
@@ -66,7 +73,7 @@ export default function SimulatedLogin() {
         const loginRes = await loginWithSso(res.sso_token)
         if (loginRes.success) {
           toast({ title: 'Sucesso', description: 'Login simulado com sucesso!' })
-          navigate('/dashboard')
+          setLoginSuccess(true)
         } else {
           toast({
             title: 'Erro no Login',

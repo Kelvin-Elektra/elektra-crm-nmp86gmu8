@@ -18,6 +18,7 @@ export type User = {
 interface AuthContextType {
   user: User | null
   realUser: User | null
+  isAuthenticated: boolean
   adminLogin: (email: string, pass: string) => Promise<boolean>
   loginWithSso: (token: string) => Promise<{ success: boolean; diagnostic?: any }>
   logout: () => void
@@ -29,23 +30,52 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [realUser, setRealUser] = useState<User | null>(pb.authStore.record as User | null)
+  const [realUser, setRealUser] = useState<User | null>(
+    pb.authStore.isValid ? (pb.authStore.record as User) : null,
+  )
   const [simulatedUser, setSimulatedUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
 
   const user = simulatedUser || realUser
+  const isAuthenticated = pb.authStore.isValid || !!user
 
   useEffect(() => {
     const unsubscribe = pb.authStore.onChange((_token, record) => {
-      setRealUser(record as User | null)
-      if (!record) setSimulatedUser(null)
+      setRealUser(pb.authStore.isValid ? (record as User) : null)
+      if (!record || !pb.authStore.isValid) setSimulatedUser(null)
     })
-    setLoading(false)
+
+    if (pb.authStore.isValid) {
+      pb.collection('users')
+        .authRefresh()
+        .then((res) => {
+          setRealUser(res.record as User)
+        })
+        .catch(() => {
+          pb.authStore.clear()
+          setRealUser(null)
+          setSimulatedUser(null)
+          toast({
+            title: 'Sessão Expirada',
+            description: 'Sua sessão é inválida ou expirou. Faça login novamente.',
+            variant: 'destructive',
+          })
+          if (window.location.pathname !== '/' && window.location.pathname !== '/login-simulado') {
+            window.location.href = '/'
+          }
+        })
+        .finally(() => {
+          setLoading(false)
+        })
+    } else {
+      setLoading(false)
+    }
+
     return () => {
       unsubscribe()
     }
-  }, [])
+  }, [toast])
 
   const adminLogin = async (email: string, pass: string) => {
     try {
@@ -173,6 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         realUser,
+        isAuthenticated,
         adminLogin,
         loginWithSso,
         logout,

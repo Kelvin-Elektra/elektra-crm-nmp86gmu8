@@ -2,9 +2,10 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { AuthProvider } from '@/contexts/AuthContext'
+import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import { SsoGateway } from './components/SsoGateway'
 import Layout from './components/Layout'
+import { Navigate } from 'react-router-dom'
 import Portal from './pages/Portal'
 import ElektraAdminLogin from './pages/ElektraAdminLogin'
 import SimulatedLogin from './pages/SimulatedLogin'
@@ -19,6 +20,13 @@ import NegotiationDetail from './pages/NegotiationDetail'
 import ProposalSettings from './pages/ProposalSettings'
 import PvKitSettings from './pages/PvKitSettings'
 
+const RootRoute = () => {
+  const { isAuthenticated, loading } = useAuth()
+  if (loading) return null
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />
+  return <Portal />
+}
+
 const App = () => (
   <BrowserRouter future={{ v7_startTransition: false, v7_relativeSplatPath: false }}>
     <AuthProvider>
@@ -27,7 +35,7 @@ const App = () => (
         <Sonner />
         <SsoGateway>
           <Routes>
-            <Route path="/" element={<Portal />} />
+            <Route path="/" element={<RootRoute />} />
             <Route path="/elektra-admin" element={<ElektraAdminLogin />} />
             <Route path="/login-simulado" element={<SimulatedLogin />} />
             <Route path="/elektra-admin/dashboard" element={<ElektraAdminDashboard />} />

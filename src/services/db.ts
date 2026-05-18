@@ -29,12 +29,16 @@ export const deleteTag = async (id: string) => {
 }
 
 export const getLeads = async (companyId?: string) => {
-  const filter = companyId ? `company_id = '${companyId}'` : ''
+  const cid = companyId || pb.authStore.record?.company_id
+  const filter = cid ? `company_id = '${cid}'` : ''
   return await pb.collection('leads').getFullList({ filter, sort: '-created' })
 }
 
 export const createLead = async (data: any) => {
   const payload = { ...data }
+  if (!payload.company_id && pb.authStore.record?.company_id) {
+    payload.company_id = pb.authStore.record.company_id
+  }
   if (!payload.email) delete payload.email
   if (!payload.document) delete payload.document
   if (!payload.phone) delete payload.phone
@@ -69,12 +73,24 @@ export const createCepCache = async (data: any) => {
   return await pb.collection('cep_cache').create(data)
 }
 
-export const getProposals = async () => {
-  return await pb.collection('proposals').getFullList({ sort: '-created' })
+export const getProposals = async (companyId?: string) => {
+  const cid = companyId || pb.authStore.record?.company_id
+  const filter = cid ? `company_id = '${cid}'` : ''
+  return await pb.collection('proposals').getFullList({ filter, sort: '-created' })
+}
+
+export const getNegotiations = async (companyId?: string) => {
+  const cid = companyId || pb.authStore.record?.company_id
+  const filter = cid ? `company_id = '${cid}'` : ''
+  return await pb.collection('negotiations').getFullList({ filter, sort: '-created' })
 }
 
 export const createNegotiation = async (data: any) => {
-  return await pb.collection('negotiations').create(data)
+  const payload = { ...data }
+  if (!payload.company_id && pb.authStore.record?.company_id) {
+    payload.company_id = pb.authStore.record.company_id
+  }
+  return await pb.collection('negotiations').create(payload)
 }
 
 export const updateNegotiation = async (id: string, data: any) => {
@@ -126,8 +142,12 @@ export const getNegotiation = async (id: string) => {
   return await pb.collection('negotiations').getOne(id, { expand: 'lead_id,owner_id,company_id' })
 }
 
-export const getProposalsByNeg = async (id: string) => {
-  return await pb.collection('proposals').getFullList({ filter: `negotiation_id = '${id}'` })
+export const getProposalsByNeg = async (id: string, companyId?: string) => {
+  const cid = companyId || pb.authStore.record?.company_id
+  const filter = cid
+    ? `negotiation_id = '${id}' && company_id = '${cid}'`
+    : `negotiation_id = '${id}'`
+  return await pb.collection('proposals').getFullList({ filter })
 }
 
 export const deleteNegotiation = async (id: string) => {
