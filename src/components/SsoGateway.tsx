@@ -35,8 +35,9 @@ export function SsoGateway({ children }: { children: React.ReactNode }) {
           await refreshAuth()
           const newUrl = new URL(window.location.href)
           newUrl.searchParams.delete('sso_token')
-          window.history.replaceState({}, '', newUrl.toString())
-          navigate('/dashboard', { replace: true })
+          const targetPath =
+            newUrl.pathname === '/' ? '/dashboard' : newUrl.pathname + newUrl.search
+          navigate(targetPath, { replace: true })
         } else {
           setDiagnostic(result.diagnostic)
         }
@@ -183,13 +184,14 @@ export function SsoGateway({ children }: { children: React.ReactNode }) {
 
           <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t">
             <Button
-              onClick={() => (window.location.href = '/')}
+              onClick={() => navigate('/', { replace: true })}
               variant="default"
               className="flex-1"
             >
               Voltar ao Portal
             </Button>
             <Button onClick={() => window.location.reload()} variant="secondary" className="flex-1">
+              {' '}
               <RefreshCw className="mr-2 h-4 w-4" /> Tentar Novamente
             </Button>
           </div>

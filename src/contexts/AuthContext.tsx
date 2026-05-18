@@ -25,6 +25,7 @@ interface AuthContextType {
   simulateUser: (user: User) => void
   exitSimulation: () => void
   refreshAuth: () => Promise<void>
+  setCompanyId: (id: string) => void
   loading: boolean
 }
 
@@ -62,9 +63,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             description: 'Sua sessão é inválida ou expirou. Faça login novamente.',
             variant: 'destructive',
           })
-          if (window.location.pathname !== '/' && window.location.pathname !== '/login-simulado') {
-            window.location.href = '/'
-          }
         })
         .finally(() => {
           setLoading(false)
@@ -212,6 +210,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSimulatedUser(null)
   }
 
+  const setCompanyId = (id: string) => {
+    setRealUser((prev) => (prev ? { ...prev, company_id: id } : null))
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -224,6 +226,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         simulateUser,
         exitSimulation,
         refreshAuth,
+        setCompanyId,
         loading,
       }}
     >
