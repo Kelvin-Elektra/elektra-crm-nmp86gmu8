@@ -29,7 +29,7 @@ export default function SimulatedLogin() {
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
   const [loginSuccess, setLoginSuccess] = useState(false)
-  const { loginWithSso, isAuthenticated } = useAuth()
+  const { loginWithSso, isAuthenticated, refreshAuth } = useAuth()
   const navigate = useNavigate()
   const { toast } = useToast()
 
@@ -72,6 +72,7 @@ export default function SimulatedLogin() {
       if (res.sso_token) {
         const loginRes = await loginWithSso(res.sso_token)
         if (loginRes.success) {
+          await refreshAuth()
           toast({ title: 'Sucesso', description: 'Login simulado com sucesso!' })
           setLoginSuccess(true)
         } else {

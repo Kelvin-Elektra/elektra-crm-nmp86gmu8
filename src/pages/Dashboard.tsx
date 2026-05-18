@@ -47,18 +47,6 @@ import { useToast } from '@/hooks/use-toast'
 export default function Dashboard() {
   const { user } = useAuth()
   const { toast } = useToast()
-  const [tokenPayload, setTokenPayload] = useState<any>(null)
-
-  useEffect(() => {
-    if (pb.authStore.token) {
-      try {
-        const payload = JSON.parse(atob(pb.authStore.token.split('.')[1]))
-        setTokenPayload(payload)
-      } catch (e) {
-        // ignore
-      }
-    }
-  }, [])
   const [filter, setFilter] = useState('30d')
   const [monthYear, setMonthYear] = useState(format(new Date(), 'yyyy-MM'))
   const [users, setUsers] = useState<any[]>([])
@@ -71,12 +59,8 @@ export default function Dashboard() {
     negotiations: [] as any[],
   })
 
-  const isSuper = user?.role === 'User_elektra' || tokenPayload?.role === 'User_elektra'
-  const isCompanyAdmin =
-    user?.role_company === 'admin' ||
-    user?.role === 'User_owner' ||
-    tokenPayload?.role_company === 'admin' ||
-    tokenPayload?.role === 'User_owner'
+  const isSuper = user?.role === 'User_elektra'
+  const isCompanyAdmin = user?.role_company === 'admin' || user?.role === 'User_owner'
 
   const loadUsers = async () => {
     try {
@@ -105,17 +89,8 @@ export default function Dashboard() {
     const endStr = end.toISOString()
 
     try {
-      let currentTokenPayload = tokenPayload
-      if (!currentTokenPayload && pb.authStore.token) {
-        try {
-          currentTokenPayload = JSON.parse(atob(pb.authStore.token.split('.')[1]))
-        } catch (e) {
-          // ignore
-        }
-      }
-
-      const activeSuper = isSuper || currentTokenPayload?.role === 'User_elektra'
-      const companyId = currentTokenPayload?.company_id || user?.company_id || ''
+      const activeSuper = isSuper
+      const companyId = user?.company_id || ''
 
       const uFilter = activeSuper ? '' : `company_id = '${companyId}'`
       const tFilter = `created >= '${startStr}' && created <= '${endStr}'`
@@ -142,7 +117,9 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => {
-    if (user) loadData()
+    if (user && (user.company_id || user.role === 'User_elektra')) {
+      loadData()
+    }
   }, [filter, monthYear, user])
 
   useRealtime('proposals', loadData)
@@ -356,16 +333,6 @@ export default function Dashboard() {
                 {user.role_company || 'Nenhum'}
               </div>
             </div>
-            {tokenPayload && (
-              <div className="mt-2">
-                <span className="font-semibold font-sans text-muted-foreground block mb-1">
-                  Decoded Token Payload:
-                </span>
-                <pre className="bg-background p-2 rounded border text-xs overflow-x-auto">
-                  {JSON.stringify(tokenPayload, null, 2)}
-                </pre>
-              </div>
-            )}
             <div className="mt-2 text-xs">
               <span className="font-semibold font-sans text-muted-foreground mr-2">Context:</span>
               Route: {window.location.pathname} | Env: {import.meta.env.MODE}

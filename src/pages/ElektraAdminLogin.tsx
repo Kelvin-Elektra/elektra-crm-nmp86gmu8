@@ -13,7 +13,7 @@ export default function ElektraAdminLogin() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const { user, loading: authLoading, adminLogin, logout } = useAuth()
+  const { user, loading: authLoading, adminLogin, refreshAuth } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -31,6 +31,7 @@ export default function ElektraAdminLogin() {
     setLoading(true)
     const success = await adminLogin(email, password)
     if (success) {
+      await refreshAuth()
       navigate('/elektra-admin/dashboard')
     }
     setLoading(false)

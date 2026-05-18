@@ -9,7 +9,7 @@ import pb from '@/lib/pocketbase/client'
 export function SsoGateway({ children }: { children: React.ReactNode }) {
   const [searchParams] = useSearchParams()
   const ssoToken = searchParams.get('sso_token')
-  const { loginWithSso, loading } = useAuth()
+  const { loginWithSso, loading, refreshAuth } = useAuth()
   const navigate = useNavigate()
   const [isProcessing, setIsProcessing] = useState(!!ssoToken)
   const [diagnostic, setDiagnostic] = useState<any>(null)
@@ -32,6 +32,7 @@ export function SsoGateway({ children }: { children: React.ReactNode }) {
         setIsProcessing(false)
 
         if (result.success) {
+          await refreshAuth()
           const newUrl = new URL(window.location.href)
           newUrl.searchParams.delete('sso_token')
           window.history.replaceState({}, '', newUrl.toString())

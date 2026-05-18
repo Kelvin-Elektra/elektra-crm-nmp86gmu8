@@ -24,6 +24,7 @@ interface AuthContextType {
   logout: () => void
   simulateUser: (user: User) => void
   exitSimulation: () => void
+  refreshAuth: () => Promise<void>
   loading: boolean
 }
 
@@ -38,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast()
 
   const user = simulatedUser || realUser
-  const isAuthenticated = pb.authStore.isValid || !!user
+  const isAuthenticated = pb.authStore.isValid && !!user
 
   useEffect(() => {
     const unsubscribe = pb.authStore.onChange((_token, record) => {
@@ -76,6 +77,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       unsubscribe()
     }
   }, [toast])
+
+  const refreshAuth = async () => {
+    if (pb.authStore.isValid) {
+      try {
+        const res = await pb.collection('users').authRefresh()
+        setRealUser(res.record as User)
+      } catch (err) {
+        pb.authStore.clear()
+        setRealUser(null)
+        setSimulatedUser(null)
+      }
+    }
+  }
 
   const adminLogin = async (email: string, pass: string) => {
     try {
@@ -209,6 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         simulateUser,
         exitSimulation,
+        refreshAuth,
         loading,
       }}
     >
