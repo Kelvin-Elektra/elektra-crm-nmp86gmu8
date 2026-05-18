@@ -27,6 +27,13 @@ const RootRoute = () => {
   return <Portal />
 }
 
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { isAuthenticated, loading } = useAuth()
+  if (loading) return null
+  if (!isAuthenticated) return <Navigate to="/" replace />
+  return <>{children}</>
+}
+
 const App = () => (
   <BrowserRouter future={{ v7_startTransition: false, v7_relativeSplatPath: false }}>
     <AuthProvider>
@@ -39,7 +46,13 @@ const App = () => (
             <Route path="/elektra-admin" element={<ElektraAdminLogin />} />
             <Route path="/login-simulado" element={<SimulatedLogin />} />
             <Route path="/elektra-admin/dashboard" element={<ElektraAdminDashboard />} />
-            <Route element={<Layout />}>
+            <Route
+              element={
+                <ProtectedRoute>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/pipeline" element={<Pipeline />} />
               <Route path="/leads" element={<Leads />} />

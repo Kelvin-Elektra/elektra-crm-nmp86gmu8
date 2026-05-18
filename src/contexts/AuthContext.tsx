@@ -19,6 +19,10 @@ interface AuthContextType {
   user: User | null
   realUser: User | null
   isAuthenticated: boolean
+  login: (
+    email: string,
+    pass: string,
+  ) => Promise<{ success: boolean; needsPasswordSetup?: boolean }>
   adminLogin: (email: string, pass: string) => Promise<boolean>
   loginWithSso: (token: string) => Promise<{ success: boolean; diagnostic?: any }>
   logout: () => void
@@ -86,6 +90,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       unsubscribe()
     }
   }, [toast])
+
+  const login = async (email: string, pass: string) => {
+    try {
+      const preCheck = await pb.send('/backend/v1/auth/pre-check', {
+        method: 'POST',
+        body: { email },
+      })
+
+      if (!preCheck.exists) {
+        toast({
+          title: 'Credenciais inválidas',
+          description: 'Verifique seu e-mail e senha.',
+          variant: 'destructive',
+        })
+        return { success: false }
+      }
+
+      if (preCheck.error) {
+        toast({
+          title: 'Acesso Negado',
+          description: preCheck.message,
+          variant: 'destructive',
+        })
+        return { success: false }
+      }
+
+      if (!preCheck.hasPassword) {
+        await pb.collection('users').requestPasswordReset(email)
+        return { success: false, needsPasswordSetup: true }
+      }
+
+      const authData = await pb.collection('users').authWithPassword(email, pass)
+      const record = authData.record as User
+
+      setRealUser(record)
+      return { success: true }
+    } catch (err: any) {
+      toast({
+        title: 'Credenciais inválidas',
+        description: 'Verifique seu e-mail e senha.',
+        variant: 'destructive',
+      })
+      return { success: false }
+    }
+  }
 
   const refreshAuth = async () => {
     if (pb.authStore.isValid) {
@@ -237,6 +286,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         realUser,
         isAuthenticated,
+        login,
         adminLogin,
         loginWithSso,
         logout,
