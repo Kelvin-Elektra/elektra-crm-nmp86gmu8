@@ -55,15 +55,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .then((res) => {
           setRealUser(res.record as User)
         })
-        .catch(() => {
-          pb.authStore.clear()
-          setRealUser(null)
-          setSimulatedUser(null)
-          toast({
-            title: 'Sessão Expirada',
-            description: 'Sua sessão é inválida ou expirou. Faça login novamente.',
-            variant: 'destructive',
-          })
+        .catch((err: any) => {
+          // Catch 401 during initialization and do not clear if a recent SSO happened
+          // pb.authStore.isValid parses the JWT locally and verifies it hasn't expired.
+          // By relying on it, we prevent premature logout on transient 401s right after SSO.
+          if (err.status === 401 && pb.authStore.isValid) {
+            console.warn(
+              'auth-refresh returned 401, but token is still locally valid. Retaining session.',
+            )
+            // Do not clear the auth store here.
+          } else if (err.status !== 0) {
+            pb.authStore.clear()
+            setRealUser(null)
+            setSimulatedUser(null)
+            toast({
+              title: 'Sessão Expirada',
+              description: 'Sua sessão é inválida ou expirou. Faça login novamente.',
+              variant: 'destructive',
+            })
+          }
         })
         .finally(() => {
           setLoading(false)
@@ -82,10 +92,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const res = await pb.collection('users').authRefresh()
         setRealUser(res.record as User)
-      } catch (err) {
-        pb.authStore.clear()
-        setRealUser(null)
-        setSimulatedUser(null)
+      } catch (err: any) {
+        if (err.status === 401 && pb.authStore.isValid) {
+          console.warn(
+            'refreshAuth returned 401, but token is still locally valid. Retaining session.',
+          )
+        } else if (err.status !== 0) {
+          pb.authStore.clear()
+          setRealUser(null)
+          setSimulatedUser(null)
+        }
       }
     }
   }

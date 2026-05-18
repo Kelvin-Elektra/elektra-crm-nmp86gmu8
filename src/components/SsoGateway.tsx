@@ -30,7 +30,19 @@ export function SsoGateway({ children }: { children: React.ReactNode }) {
         const result = await loginWithSso(ssoToken)
 
         if (result.success) {
+          // Verifica e aguarda o sync com o localStorage
+          let retries = 0
+          while (retries < 10) {
+            const pbAuth = localStorage.getItem('pocketbase_auth')
+            if (pbAuth && pbAuth.includes('token') && pbAuth.includes('model')) {
+              break
+            }
+            await new Promise((resolve) => setTimeout(resolve, 100))
+            retries++
+          }
+
           await refreshAuth()
+
           const newUrl = new URL(window.location.href)
           newUrl.searchParams.delete('sso_token')
           const targetPath =
