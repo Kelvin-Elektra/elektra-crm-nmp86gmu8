@@ -52,14 +52,21 @@ export default function Pipeline() {
         user?.role !== 'User_elektra' &&
         user?.role !== 'User_owner' &&
         user?.role_company !== 'admin'
-      const filter = isStandardUser ? `owner_id = '${user?.id}'` : ''
-      const propFilter = isStandardUser ? `negotiation_id.owner_id = '${user?.id}'` : ''
+      const companyFilter =
+        user?.role === 'User_elektra' ? '' : `company_id = '${user?.company_id}'`
+      const ownerFilter = isStandardUser ? `owner_id = '${user?.id}'` : ''
+      const finalFilter = [companyFilter, ownerFilter].filter(Boolean).join(' && ')
+
+      const propOwnerFilter = isStandardUser ? `negotiation_id.owner_id = '${user?.id}'` : ''
+      const finalPropFilter = [companyFilter, propOwnerFilter].filter(Boolean).join(' && ')
 
       const results = await Promise.allSettled([
-        pb.collection('negotiations').getFullList({ expand: 'lead_id,owner_id', filter }),
-        getPipelineStages(),
-        getTags(),
-        pb.collection('proposals').getFullList({ filter: propFilter }),
+        pb
+          .collection('negotiations')
+          .getFullList({ expand: 'lead_id,owner_id', filter: finalFilter }),
+        pb.collection('pipeline_stages').getFullList({ filter: companyFilter, sort: 'order' }),
+        pb.collection('tags').getFullList({ filter: companyFilter }),
+        pb.collection('proposals').getFullList({ filter: finalPropFilter }),
       ])
 
       const n = results[0].status === 'fulfilled' ? results[0].value : []
@@ -94,13 +101,23 @@ export default function Pipeline() {
     loadAll()
   }, [user])
   useRealtime(Collections.NEGOTIATIONS, loadAll)
-  useRealtime(Collections.PIPELINE_STAGES, async () => setStages(await getPipelineStages()))
-  useRealtime(Collections.TAGS, async () => setTags(await getTags()))
+  useRealtime(Collections.PIPELINE_STAGES, async () => {
+    const companyFilter = user?.role === 'User_elektra' ? '' : `company_id = '${user?.company_id}'`
+    setStages(
+      await pb.collection('pipeline_stages').getFullList({ filter: companyFilter, sort: 'order' }),
+    )
+  })
+  useRealtime(Collections.TAGS, async () => {
+    const companyFilter = user?.role === 'User_elektra' ? '' : `company_id = '${user?.company_id}'`
+    setTags(await pb.collection('tags').getFullList({ filter: companyFilter }))
+  })
   useRealtime(Collections.PROPOSALS, async () => {
     const isStandardUser =
       user?.role !== 'User_elektra' && user?.role !== 'User_owner' && user?.role_company !== 'admin'
-    const propFilter = isStandardUser ? `negotiation_id.owner_id = '${user?.id}'` : ''
-    setProposals(await pb.collection('proposals').getFullList({ filter: propFilter }))
+    const companyFilter = user?.role === 'User_elektra' ? '' : `company_id = '${user?.company_id}'`
+    const propOwnerFilter = isStandardUser ? `negotiation_id.owner_id = '${user?.id}'` : ''
+    const finalPropFilter = [companyFilter, propOwnerFilter].filter(Boolean).join(' && ')
+    setProposals(await pb.collection('proposals').getFullList({ filter: finalPropFilter }))
   })
 
   const getNegValue = (negId: string) => {

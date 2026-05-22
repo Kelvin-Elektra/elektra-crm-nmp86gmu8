@@ -12,7 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { getLeads, deleteLead } from '@/services/db'
+import pb from '@/lib/pocketbase/client'
+import { deleteLead } from '@/services/db'
 import { useRealtime } from '@/hooks/use-realtime'
 import { LeadDialog } from '@/components/LeadDialog'
 import { NewNegotiationDialog } from '@/components/NewNegotiationDialog'
@@ -37,8 +38,15 @@ export default function Leads() {
 
     setIsLoading(true)
     try {
-      const companyId = user?.role === 'User_elektra' ? undefined : user?.company_id
-      const data = await getLeads(companyId)
+      const isStandardUser =
+        user?.role !== 'User_elektra' &&
+        user?.role !== 'User_owner' &&
+        user?.role_company !== 'admin'
+      const companyFilter =
+        user?.role === 'User_elektra' ? '' : `company_id = '${user?.company_id}'`
+      const ownerFilter = isStandardUser ? `owner_id = '${user?.id}'` : ''
+      const filter = [companyFilter, ownerFilter].filter(Boolean).join(' && ')
+      const data = await pb.collection('leads').getFullList({ filter, sort: '-created' })
       setLeads(data || [])
     } catch (err) {
       console.error('Error loading leads:', err)

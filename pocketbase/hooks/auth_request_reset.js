@@ -1,96 +1,63 @@
 routerAdd('POST', '/backend/v1/auth/request-reset', (e) => {
   const body = e.requestInfo().body || {}
   const email = body.email
-  const origin = body.origin || ''
+  const origin = body.origin || 'https://crm.elektrasolucoes.tech'
 
-  if (!email) return e.badRequestError('Email é obrigatório.')
+  if (!email) {
+    return e.badRequestError('Email é obrigatório')
+  }
 
   let user
   try {
     user = $app.findAuthRecordByEmail('users', email)
-  } catch (_) {
-    // Silent success to prevent email enumeration
+  } catch (err) {
     return e.json(200, { success: true })
   }
 
-  if (user.getString('status') === 'inactive') {
-    return e.badRequestError('Usuário inativo. Entre em contato com o administrador.')
-  }
-
-  const companyId = user.getString('company_id')
-  if (companyId) {
-    try {
-      const company = $app.findRecordById('companies', companyId)
-      if (company.getString('status') !== 'active') {
-        return e.badRequestError('A assinatura da sua empresa está inativa.')
-      }
-    } catch (_) {}
-  }
-
-  const secret = $secrets.get('HUB_SECRET') || 'fallback_secret_for_jwt_auth'
-  const token = $security.createJWT(
-    { id: user.id, email: user.getString('email'), purpose: 'reset' },
-    secret,
-    3600,
-  )
-
+  const secret = $secrets.get('SSO_SECRET') || 'elektra_reset_secret_key_2026'
+  const token = $security.createJWT({ id: user.id, email: user.email }, secret, 3600)
   const resetLink = `${origin}/reset-password?token=${token}`
-  const isSetup = !user.getString('passwordHash')
-
-  const subject = isSetup
-    ? 'Configure sua senha de acesso - Elektra CRM'
-    : 'Recuperação de senha - Elektra CRM'
-  const title = isSetup ? 'Bem-vindo ao Elektra CRM!' : 'Recuperação de Senha'
-  const message = isSetup
-    ? 'Seu usuário foi ativado. Clique no botão abaixo para configurar sua senha e acessar a plataforma.'
-    : 'Recebemos uma solicitação de recuperação de senha para sua conta. Clique no botão abaixo para criar uma nova senha.'
-
-  const html = `
-    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 32px; background-color: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
-      <h2 style="color: #0f172a; margin-top: 0;">${title}</h2>
-      <p style="color: #334155; font-size: 16px; line-height: 1.6;">${message}</p>
-      <div style="margin: 32px 0; text-align: center;">
-        <a href="${resetLink}" style="background-color: #0ea5e9; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Configurar Senha</a>
-      </div>
-      <p style="color: #64748b; font-size: 14px;">Se o botão não funcionar, copie e cole este link no seu navegador: <br/><a href="${resetLink}" style="color: #0ea5e9; word-break: break-all;">${resetLink}</a></p>
-      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 32px 0;" />
-      <p style="color: #94a3b8; font-size: 12px; margin: 0;">Este link é válido por 1 hora. Se você não solicitou este e-mail, pode ignorá-lo com segurança.</p>
-    </div>
-  `
 
   const resendKey = $secrets.get('RESEND_API_KEY')
-  if (!resendKey) {
-    $app.logger().warn('RESEND_API_KEY não configurada. Link gerado: ' + resetLink)
-    return e.internalServerError(
-      'Serviço de e-mail não configurado (RESEND_API_KEY). Contate o administrador.',
-    )
-  }
-
-  try {
-    const res = $http.send({
+  if (resendKey) {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>Olá, ${user.getString('name') || 'Usuário'}</h2>
+        <p>Você solicitou a definição ou redefinição da sua senha no Elektra CRM.</p>
+        <p><a href="${resetLink}" style="display: inline-block; padding: 10px 20px; background-color: #2563eb; color: #fff; text-decoration: none; border-radius: 5px;">Configurar Minha Senha</a></p>
+        <p>Se o botão não funcionar, copie e cole o link abaixo no seu navegador:</p>
+        <p><a href="${resetLink}">${resetLink}</a></p>
+        <p>Se você não solicitou isso, ignore este e-mail.</p>
+      </div>
+    `
+    const resendReq = $http.send({
       url: 'https://api.resend.com/emails',
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         Authorization: 'Bearer ' + resendKey,
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         from: 'Elektra CRM <suporte@elektrasolucoes.tech>',
-        to: [email],
-        subject: subject,
+        to: email,
+        subject: 'Configuração de Senha - Elektra CRM',
         html: html,
       }),
+      timeout: 15,
     })
 
-    if (res.statusCode >= 400) {
-      $app.logger().error('Erro envio Resend', 'status', res.statusCode, 'body', res.json)
-      return e.badRequestError(
-        'Falha ao enviar o e-mail de configuração. Verifique as configurações ou contate o suporte.',
-      )
+    if (resendReq.statusCode >= 400) {
+      $app
+        .logger()
+        .error(
+          'Erro ao enviar email via Resend',
+          'status',
+          resendReq.statusCode,
+          'body',
+          resendReq.json,
+        )
+      return e.internalServerError('Erro ao enviar o e-mail.')
     }
-  } catch (err) {
-    $app.logger().error('Falha ao se conectar com Resend', 'error', err.message)
-    return e.internalServerError('Erro ao conectar com o serviço de e-mail.')
   }
 
   return e.json(200, { success: true })

@@ -58,7 +58,10 @@ export default function Negotiations() {
         user?.role !== 'User_elektra' &&
         user?.role !== 'User_owner' &&
         user?.role_company !== 'admin'
-      const filter = isStandardUser ? `owner_id = '${user?.id}'` : ''
+      const companyFilter =
+        user?.role === 'User_elektra' ? '' : `company_id = '${user?.company_id}'`
+      const ownerFilter = isStandardUser ? `owner_id = '${user?.id}'` : ''
+      const filter = [companyFilter, ownerFilter].filter(Boolean).join(' && ')
       const records = await pb.collection('negotiations').getFullList({
         expand: 'lead_id,owner_id',
         sort: '-created',
@@ -74,8 +77,11 @@ export default function Negotiations() {
 
   const loadStages = async () => {
     try {
+      const companyFilter =
+        user?.role === 'User_elektra' ? '' : `company_id = '${user?.company_id}'`
       const records = await pb.collection('pipeline_stages').getFullList({
         sort: 'order',
+        filter: companyFilter,
       })
       setStages(records)
     } catch (err) {

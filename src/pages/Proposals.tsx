@@ -2,14 +2,26 @@ import { useState, useEffect } from 'react'
 import { Card, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { FileText, Download, Send, CheckCircle, XCircle } from 'lucide-react'
-import { getProposals } from '@/services/db'
+import { useAuth } from '@/contexts/AuthContext'
+import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { Badge } from '@/components/ui/badge'
 
 export default function Proposals() {
+  const { user } = useAuth()
   const [proposals, setProposals] = useState<any[]>([])
 
-  const load = async () => setProposals(await getProposals())
+  const load = async () => {
+    const isStandardUser =
+      user?.role !== 'User_elektra' && user?.role !== 'User_owner' && user?.role_company !== 'admin'
+    const companyFilter = user?.role === 'User_elektra' ? '' : `company_id = '${user?.company_id}'`
+    const ownerFilter = isStandardUser ? `negotiation_id.owner_id = '${user?.id}'` : ''
+    const filter = [companyFilter, ownerFilter].filter(Boolean).join(' && ')
+    const records = await pb
+      .collection('proposals')
+      .getFullList({ expand: 'negotiation_id', filter, sort: '-created' })
+    setProposals(records)
+  }
   useEffect(() => {
     load()
   }, [])

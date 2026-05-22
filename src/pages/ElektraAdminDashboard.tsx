@@ -11,7 +11,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { LogOut, Play, ShieldCheck, Users, Building2, Terminal } from 'lucide-react'
+import { LogOut, Play, ShieldCheck, Users, Building2, Terminal, Settings } from 'lucide-react'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 
 export default function ElektraAdminDashboard() {
@@ -23,7 +25,8 @@ export default function ElektraAdminDashboard() {
   const [users, setUsers] = useState<any[]>([])
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('all')
   const [logs, setLogs] = useState<any[]>([])
-  const [activeTab, setActiveTab] = useState<'companies' | 'logs'>('companies')
+  const [sysSettings, setSysSettings] = useState<any>(null)
+  const [activeTab, setActiveTab] = useState<'companies' | 'logs' | 'settings'>('companies')
 
   useEffect(() => {
     if (!realUser || realUser.role !== 'User_elektra') {
@@ -41,8 +44,27 @@ export default function ElektraAdminDashboard() {
       setUsers(usrs)
       const logRecords = await pb.send('/backend/v1/admin/logs', { method: 'GET' })
       setLogs(logRecords.items)
+
+      const settingsRecord = await pb.collection('system_settings').getFirstListItem('')
+      setSysSettings(settingsRecord)
     } catch (err) {
       console.error(err)
+    }
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
+    const file = e.target.files?.[0]
+    if (!file || !sysSettings) return
+
+    const formData = new FormData()
+    formData.append(field, file)
+
+    try {
+      const updated = await pb.collection('system_settings').update(sysSettings.id, formData)
+      setSysSettings(updated)
+      toast({ title: 'Sucesso', description: 'Imagem atualizada com sucesso.' })
+    } catch (err) {
+      toast({ title: 'Erro', description: 'Falha ao atualizar imagem.', variant: 'destructive' })
     }
   }
 
@@ -81,12 +103,18 @@ export default function ElektraAdminDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto p-6 mt-6 space-y-6">
-        <div className="flex gap-4 border-b pb-4">
+        <div className="flex gap-4 border-b pb-4 overflow-x-auto whitespace-nowrap scrollbar-none">
           <Button
             variant={activeTab === 'companies' ? 'default' : 'outline'}
             onClick={() => setActiveTab('companies')}
           >
             <Building2 className="h-4 w-4 mr-2" /> Empresas e Simulação
+          </Button>
+          <Button
+            variant={activeTab === 'settings' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('settings')}
+          >
+            <Settings className="h-4 w-4 mr-2" /> Configurações do Sistema
           </Button>
           <Button
             variant={activeTab === 'logs' ? 'default' : 'outline'}
@@ -187,6 +215,72 @@ export default function ElektraAdminDashboard() {
                 </CardContent>
               </Card>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'settings' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Identidade Visual</CardTitle>
+                <CardDescription>Logo principal e ícone do sistema</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <Label>Logo Principal (Login e Header)</Label>
+                  <div className="flex items-center gap-6">
+                    <div className="h-20 w-40 bg-slate-100 rounded-lg flex items-center justify-center overflow-hidden border border-dashed">
+                      {sysSettings?.logo ? (
+                        <img
+                          src={pb.files.getURL(sysSettings, sysSettings.logo)}
+                          alt="Logo"
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Sem logo</span>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload(e, 'logo')}
+                      />
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Recomendado: PNG transparente, max 2MB.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-4 border-t">
+                  <Label>Ícone da Sidebar</Label>
+                  <div className="flex items-center gap-6">
+                    <div className="h-16 w-16 bg-slate-100 rounded-lg flex items-center justify-center overflow-hidden border border-dashed">
+                      {sysSettings?.sidebar_icon ? (
+                        <img
+                          src={pb.files.getURL(sysSettings, sysSettings.sidebar_icon)}
+                          alt="Icon"
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Sem ícone</span>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload(e, 'sidebar_icon')}
+                      />
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Recomendado: Ícone quadrado PNG/SVG.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
 
