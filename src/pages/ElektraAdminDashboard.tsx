@@ -281,6 +281,78 @@ export default function ElektraAdminDashboard() {
                 </div>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Experiência de Login</CardTitle>
+                <CardDescription>Personalize a tela de acesso ao CRM</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <Label>Background de Login</Label>
+                  <div className="flex flex-col gap-4">
+                    <div className="w-full aspect-video bg-slate-100 rounded-lg flex items-center justify-center overflow-hidden border border-dashed relative group">
+                      {sysSettings?.login_background ? (
+                        <img
+                          src={pb.files.getURL(sysSettings, sysSettings.login_background)}
+                          alt="Login Background"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Sem background</span>
+                      )}
+                    </div>
+                    <div>
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload(e, 'login_background')}
+                      />
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Recomendado: 1920x1080 (16:9), max 5MB.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-4 border-t">
+                  <Label>Contato de Suporte</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Ex: 46999999"
+                      value={sysSettings?.support_info || ''}
+                      onChange={(e) =>
+                        setSysSettings({ ...sysSettings, support_info: e.target.value })
+                      }
+                    />
+                    <Button
+                      onClick={async () => {
+                        try {
+                          const updated = await pb
+                            .collection('system_settings')
+                            .update(sysSettings.id, {
+                              support_info: sysSettings.support_info,
+                            })
+                          setSysSettings(updated)
+                          toast({ title: 'Sucesso', description: 'Contato de suporte atualizado.' })
+                        } catch (err) {
+                          toast({
+                            title: 'Erro',
+                            description: 'Falha ao salvar.',
+                            variant: 'destructive',
+                          })
+                        }
+                      }}
+                    >
+                      Salvar
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Exibido no rodapé da página de login.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
 
