@@ -24,7 +24,7 @@ interface AuthContextType {
     email: string,
     pass: string,
   ) => Promise<{ success: boolean; needsVerification?: boolean; error?: string }>
-  requestPasswordReset: (email: string) => Promise<boolean>
+  requestPasswordReset: (email: string) => Promise<{ success: boolean; error?: string }>
   adminLogin: (email: string, pass: string) => Promise<boolean>
   logout: () => void
   simulateUser: (user: User) => void
@@ -122,10 +122,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const requestPasswordReset = async (email: string) => {
     try {
-      await pb.collection('users').requestPasswordReset(email)
-      return true
-    } catch (err) {
-      return false
+      await pb.send('/backend/v1/auth/request-reset', {
+        method: 'POST',
+        body: JSON.stringify({ email, origin: window.location.origin }),
+      })
+      return { success: true }
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.response?.message || 'Erro ao solicitar redefinição de senha.',
+      }
     }
   }
 
