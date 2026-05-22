@@ -23,7 +23,8 @@ interface AuthContextType {
   login: (
     email: string,
     pass: string,
-  ) => Promise<{ success: boolean; needsPasswordSetup?: boolean }>
+  ) => Promise<{ success: boolean; needsPasswordSetup?: boolean; error?: string }>
+  requestPasswordReset: (email: string) => Promise<boolean>
   adminLogin: (email: string, pass: string) => Promise<boolean>
   logout: () => void
   simulateUser: (user: User) => void
@@ -90,21 +91,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
 
       if (!preCheck.exists) {
-        toast({
-          title: 'Credenciais inválidas',
-          description: 'Verifique seu e-mail e senha.',
-          variant: 'destructive',
-        })
-        return { success: false }
+        return { success: false, error: 'Credenciais inválidas. Verifique seu e-mail e senha.' }
       }
 
       if (preCheck.error) {
-        toast({
-          title: 'Acesso Negado',
-          description: preCheck.message,
-          variant: 'destructive',
-        })
-        return { success: false }
+        return { success: false, error: preCheck.message }
       }
 
       if (!preCheck.hasPassword) {
@@ -114,18 +105,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             method: 'POST',
             body: { email, origin: currentOrigin },
           })
-          toast({
-            title: 'Configuração de Senha',
-            description: 'Enviamos um link para o seu e-mail para você criar sua senha de acesso.',
-          })
           return { success: false, needsPasswordSetup: true }
         } catch (err: any) {
-          toast({
-            title: 'Erro ao enviar link',
-            description: err.response?.message || 'Ocorreu um erro ao enviar o e-mail.',
-            variant: 'destructive',
-          })
-          return { success: false }
+          return {
+            success: false,
+            error: err.response?.message || 'Ocorreu um erro ao enviar o e-mail.',
+          }
         }
       }
 
@@ -135,12 +120,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRealUser(record)
       return { success: true }
     } catch (err: any) {
-      toast({
-        title: 'Falha no login',
-        description: err.response?.message || 'Verifique seu e-mail e senha e tente novamente.',
-        variant: 'destructive',
+      return {
+        success: false,
+        error: err.response?.message || 'Verifique seu e-mail e senha e tente novamente.',
+      }
+    }
+  }
+
+  const requestPasswordReset = async (email: string) => {
+    try {
+      const currentOrigin = window.location.origin.replace(/\/$/, '')
+      await pb.send('/backend/v1/auth/request-reset', {
+        method: 'POST',
+        body: { email, origin: currentOrigin },
       })
-      return { success: false }
+      return true
+    } catch (err) {
+      return false
     }
   }
 
@@ -251,6 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         simulatedUser,
         isAuthenticated,
         login,
+        requestPasswordReset,
         adminLogin,
         logout,
         simulateUser,

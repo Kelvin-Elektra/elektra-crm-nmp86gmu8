@@ -16,6 +16,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { useAuth } from '@/contexts/AuthContext'
+import { useRealtime } from '@/hooks/use-realtime'
 
 const navItems = [
   { title: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -54,6 +55,15 @@ export function AppSidebar() {
       })
       .catch(() => {})
   }, [])
+
+  useRealtime('system_settings', (e) => {
+    if (e.record.system_name) setSysName(e.record.system_name)
+    if (e.record.sidebar_icon) {
+      setSysLogo(pb.files.getURL(e.record, e.record.sidebar_icon))
+    } else if (e.record.logo) {
+      setSysLogo(pb.files.getURL(e.record, e.record.logo))
+    }
+  })
 
   return (
     <Sidebar
