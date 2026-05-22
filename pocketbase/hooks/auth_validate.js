@@ -18,7 +18,7 @@ onRecordAuthRequest((e) => {
   const email = user.getString('email')
   if (!user.getBool('verified') && email !== 'elektraengenhariasolucoes@gmail.com') {
     throw new ForbiddenError(
-      'Email não verificado. Realize o processo de configuração de senha para validar seu acesso.',
+      'Email não verificado. Verifique sua caixa de entrada para validar seu acesso.',
     )
   }
 

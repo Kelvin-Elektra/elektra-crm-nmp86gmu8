@@ -121,16 +121,6 @@ export function AppHeader() {
                 <span>Meu Perfil</span>
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => {
-                  pb.authStore.clear()
-                  window.location.reload()
-                }}
-                className="text-orange-500 focus:text-orange-500"
-              >
-                <RefreshCw className="mr-2 h-4 w-4" />
-                <span>Atualizar Sessão (SSO)</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
                 onClick={logout}
                 className="text-destructive focus:text-destructive"
               >

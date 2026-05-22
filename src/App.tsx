@@ -7,6 +7,7 @@ import Layout from './components/Layout'
 import { Navigate } from 'react-router-dom'
 import Portal from './pages/Portal'
 import ResetPassword from './pages/ResetPassword'
+import VerifyEmail from './pages/VerifyEmail'
 import ElektraAdminLogin from './pages/ElektraAdminLogin'
 import ElektraAdminDashboard from './pages/ElektraAdminDashboard'
 import Dashboard from './pages/Dashboard'
@@ -42,6 +43,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<RootRoute />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/verify" element={<VerifyEmail />} />
           <Route path="/elektra-admin" element={<ElektraAdminLogin />} />
           <Route path="/elektra-admin/dashboard" element={<ElektraAdminDashboard />} />
           <Route

@@ -17,7 +17,9 @@ export function DistributorsTab() {
 
   const loadData = async () => {
     if (!user?.company_id) return
-    const res = await pb.collection('pv_distributors').getFullList()
+    const res = await pb.collection('pv_distributors').getFullList({
+      filter: `company_id='${user.company_id}'`,
+    })
     setData(res)
   }
 

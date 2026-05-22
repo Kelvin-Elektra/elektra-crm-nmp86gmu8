@@ -89,14 +89,14 @@ export default function Dashboard() {
     const endStr = end.toISOString()
 
     try {
-      const activeSuper = isSuper
+      const activeSuper = user?.role === 'User_elektra'
       const companyId = user?.company_id || ''
 
-      const uFilter = activeSuper ? '' : `company_id = '${companyId}'`
+      const uFilter = activeSuper && !companyId ? '' : `company_id = '${companyId}'`
       const tFilter = `created >= '${startStr}' && created <= '${endStr}'`
       const qn = [uFilter, tFilter].filter(Boolean).join(' && ')
 
-      const propUFilter = activeSuper ? '' : `company_id = '${companyId}'`
+      const propUFilter = activeSuper && !companyId ? '' : `company_id = '${companyId}'`
       const pTimeFilter = `(created >= '${startStr}' && created <= '${endStr}') || (closing_date >= '${startStr}' && closing_date <= '${endStr}')`
       const qp = [propUFilter, pTimeFilter].filter(Boolean).join(' && ')
 
@@ -139,11 +139,13 @@ export default function Dashboard() {
   }
 
   const isOwner = (item: any) => {
-    if (isSuper || isCompanyAdmin) return true
     if (
-      item.collectionId === pb.collection('proposals').collectionId ||
-      item.expand?.negotiation_id
-    ) {
+      user?.role === 'User_elektra' ||
+      user?.role_company === 'admin' ||
+      user?.role === 'User_owner'
+    )
+      return true
+    if (item.collectionName === 'proposals' || item.expand?.negotiation_id) {
       return item.expand?.negotiation_id?.owner_id === user?.id
     }
     return item.owner_id === user?.id
@@ -290,57 +292,6 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col gap-6">
-      {user && (
-        <Alert className="bg-secondary/30 border-secondary">
-          <Terminal className="h-4 w-4" />
-          <AlertTitle className="flex justify-between items-center">
-            <span>Debug Session Info</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                navigator.clipboard.writeText(pb.authStore.token)
-                toast({
-                  title: 'Token copiado',
-                  description: 'O Access Token foi copiado para a área de transferência.',
-                })
-              }}
-            >
-              <Copy className="h-3 w-3 mr-2" />
-              Copy Debug Info
-            </Button>
-          </AlertTitle>
-          <AlertDescription className="mt-4 flex flex-col gap-2 font-mono text-sm overflow-auto">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <span className="font-semibold font-sans text-muted-foreground mr-2">User ID:</span>
-                {user.id}
-              </div>
-              <div>
-                <span className="font-semibold font-sans text-muted-foreground mr-2">
-                  Company ID:
-                </span>
-                {user.company_id || 'Nenhum'}
-              </div>
-              <div>
-                <span className="font-semibold font-sans text-muted-foreground mr-2">Role:</span>
-                {user.role || 'Nenhum'}
-              </div>
-              <div>
-                <span className="font-semibold font-sans text-muted-foreground mr-2">
-                  Company Role:
-                </span>
-                {user.role_company || 'Nenhum'}
-              </div>
-            </div>
-            <div className="mt-2 text-xs">
-              <span className="font-semibold font-sans text-muted-foreground mr-2">Context:</span>
-              Route: {window.location.pathname} | Env: {import.meta.env.MODE}
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
-
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <div className="flex items-center gap-2">

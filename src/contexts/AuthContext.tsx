@@ -23,7 +23,7 @@ interface AuthContextType {
   login: (
     email: string,
     pass: string,
-  ) => Promise<{ success: boolean; needsPasswordSetup?: boolean; error?: string }>
+  ) => Promise<{ success: boolean; needsVerification?: boolean; error?: string }>
   requestPasswordReset: (email: string) => Promise<boolean>
   adminLogin: (email: string, pass: string) => Promise<boolean>
   logout: () => void
@@ -85,6 +85,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, pass: string) => {
     try {
+      const checkRes = await pb.send('/backend/v1/auth/check-email', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+        headers: { 'Content-Type': 'application/json' },
+      })
+      if (!checkRes.exists) {
+        return {
+          success: false,
+          error:
+            'Usuário não cadastrado no sistema. Entre em contato com o Proprietário da sua companhia para liberar o acesso.',
+        }
+      }
+
       const authData = await pb.collection('users').authWithPassword(email, pass)
       const record = authData.record as User
 
@@ -92,6 +105,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: true }
     } catch (err: any) {
       const msg = err.response?.message || 'Verifique seu e-mail e senha e tente novamente.'
+
+      if (msg.includes('verificado')) {
+        return { success: false, error: msg, needsVerification: true }
+      }
+
       return {
         success: false,
         error:
