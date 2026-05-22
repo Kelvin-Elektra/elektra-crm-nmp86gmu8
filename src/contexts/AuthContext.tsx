@@ -18,13 +18,13 @@ export type User = {
 interface AuthContextType {
   user: User | null
   realUser: User | null
+  simulatedUser: User | null
   isAuthenticated: boolean
   login: (
     email: string,
     pass: string,
   ) => Promise<{ success: boolean; needsPasswordSetup?: boolean }>
   adminLogin: (email: string, pass: string) => Promise<boolean>
-  loginWithSso: (token: string) => Promise<{ success: boolean; diagnostic?: any }>
   logout: () => void
   simulateUser: (user: User) => void
   exitSimulation: () => void
@@ -44,7 +44,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast()
 
   const user = simulatedUser || realUser
-  // Evita redirecionamento prematuro caso o usuário esteja nulo durante a fase de loading
   const isAuthenticated = pb.authStore.isValid && (!!user || loading)
 
   useEffect(() => {
@@ -60,15 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setRealUser(res.record as User)
         })
         .catch((err: any) => {
-          // Catch 401 during initialization and do not clear if a recent SSO happened
-          // pb.authStore.isValid parses the JWT locally and verifies it hasn't expired.
-          // By relying on it, we prevent premature logout on transient 401s right after SSO.
-          if (err.status === 401 && pb.authStore.isValid) {
-            console.warn(
-              'auth-refresh returned 401, but token is still locally valid. Retaining session.',
-            )
-            // Do not clear the auth store here.
-          } else if (err.status !== 0) {
+          if (err.status !== 0) {
             pb.authStore.clear()
             setRealUser(null)
             setSimulatedUser(null)
@@ -117,7 +108,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (!preCheck.hasPassword) {
-        await pb.collection('users').requestPasswordReset(email)
+        await pb.send('/backend/v1/auth/request-reset', {
+          method: 'POST',
+          body: { email, origin: window.location.origin },
+        })
         return { success: false, needsPasswordSetup: true }
       }
 
@@ -128,8 +122,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: true }
     } catch (err: any) {
       toast({
-        title: 'Credenciais inválidas',
-        description: 'Verifique seu e-mail e senha.',
+        title: 'Falha no login',
+        description: err.response?.message || 'Verifique seu e-mail e senha e tente novamente.',
         variant: 'destructive',
       })
       return { success: false }
@@ -142,11 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const res = await pb.collection('users').authRefresh()
         setRealUser(res.record as User)
       } catch (err: any) {
-        if (err.status === 401 && pb.authStore.isValid) {
-          console.warn(
-            'refreshAuth returned 401, but token is still locally valid. Retaining session.',
-          )
-        } else if (err.status !== 0) {
+        if (err.status !== 0) {
           pb.authStore.clear()
           setRealUser(null)
           setSimulatedUser(null)
@@ -160,16 +150,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const authData = await pb.collection('users').authWithPassword(email, pass)
       const record = authData.record as User
 
-      if (!record.verified) {
-        pb.authStore.clear()
-        toast({
-          title: 'Email não verificado',
-          description: 'Por favor, verifique seu e-mail antes de fazer login.',
-          variant: 'destructive',
-        })
-        return false
-      }
-
       if (
         record.role !== 'User_elektra' &&
         record.email !== 'elektraengenhariasolucoes@gmail.com'
@@ -177,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         pb.authStore.clear()
         toast({
           title: 'Acesso Restrito',
-          description: 'Por favor, utilize o login via Elektra Hub (SSO).',
+          description: 'Seu usuário não possui permissão administrativa.',
           variant: 'destructive',
         })
         return false
@@ -217,48 +197,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setRealUser(record)
       return true
-    } catch (err) {
+    } catch (err: any) {
       toast({
-        title: 'Credenciais inválidas',
-        description: 'Verifique seu e-mail e senha.',
+        title: 'Falha no login',
+        description: err.response?.message || 'Verifique seu e-mail e senha.',
         variant: 'destructive',
       })
       return false
-    }
-  }
-
-  const loginWithSso = async (ssoToken: string) => {
-    try {
-      const response = await pb.send(`/backend/v1/sso?sso_token=${encodeURIComponent(ssoToken)}`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-      })
-
-      pb.authStore.save(response.token, response.record)
-
-      const record = response.record as User
-
-      if (!record.verified) {
-        pb.authStore.clear()
-        toast({
-          title: 'Email não verificado',
-          description: 'Por favor, verifique seu e-mail antes de fazer login.',
-          variant: 'destructive',
-        })
-        return { success: false, diagnostic: { error: 'Email não verificado', status: 403 } }
-      }
-
-      setRealUser(record)
-      return { success: true }
-    } catch (err: any) {
-      pb.authStore.clear()
-      const diagnostic = err.response || { error: err.message, status: err.status || 500 }
-      toast({
-        title: 'Falha na autenticação via Hub',
-        description: diagnostic.error || 'Por favor, tente novamente ou use sua senha.',
-        variant: 'destructive',
-      })
-      return { success: false, diagnostic }
     }
   }
 
@@ -277,7 +222,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const setCompanyId = (id: string) => {
-    setRealUser((prev) => (prev ? { ...prev, company_id: id } : null))
+    if (simulatedUser) {
+      setSimulatedUser({ ...simulatedUser, company_id: id })
+    } else if (realUser) {
+      setRealUser({ ...realUser, company_id: id })
+    }
   }
 
   return (
@@ -285,10 +234,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         realUser,
+        simulatedUser,
         isAuthenticated,
         login,
         adminLogin,
-        loginWithSso,
         logout,
         simulateUser,
         exitSimulation,

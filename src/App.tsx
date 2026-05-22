@@ -3,12 +3,11 @@ import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
-import { SsoGateway } from './components/SsoGateway'
 import Layout from './components/Layout'
 import { Navigate } from 'react-router-dom'
 import Portal from './pages/Portal'
+import ResetPassword from './pages/ResetPassword'
 import ElektraAdminLogin from './pages/ElektraAdminLogin'
-import SimulatedLogin from './pages/SimulatedLogin'
 import ElektraAdminDashboard from './pages/ElektraAdminDashboard'
 import Dashboard from './pages/Dashboard'
 import Pipeline from './pages/Pipeline'
@@ -40,31 +39,29 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <SsoGateway>
-          <Routes>
-            <Route path="/" element={<RootRoute />} />
-            <Route path="/elektra-admin" element={<ElektraAdminLogin />} />
-            <Route path="/login-simulado" element={<SimulatedLogin />} />
-            <Route path="/elektra-admin/dashboard" element={<ElektraAdminDashboard />} />
-            <Route
-              element={
-                <ProtectedRoute>
-                  <Layout />
-                </ProtectedRoute>
-              }
-            >
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/pipeline" element={<Pipeline />} />
-              <Route path="/leads" element={<Leads />} />
-              <Route path="/negociacoes" element={<Negotiations />} />
-              <Route path="/negociacoes/:id" element={<NegotiationDetail />} />
-              <Route path="/propostas" element={<Proposals />} />
-              <Route path="/configuracoes-kit-pv" element={<PvKitSettings />} />
-              <Route path="/configuracoes-proposta" element={<ProposalSettings />} />
-              <Route path="/configuracoes" element={<Settings />} />
-            </Route>
-          </Routes>
-        </SsoGateway>
+        <Routes>
+          <Route path="/" element={<RootRoute />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/elektra-admin" element={<ElektraAdminLogin />} />
+          <Route path="/elektra-admin/dashboard" element={<ElektraAdminDashboard />} />
+          <Route
+            element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            }
+          >
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/pipeline" element={<Pipeline />} />
+            <Route path="/leads" element={<Leads />} />
+            <Route path="/negociacoes" element={<Negotiations />} />
+            <Route path="/negociacoes/:id" element={<NegotiationDetail />} />
+            <Route path="/propostas" element={<Proposals />} />
+            <Route path="/configuracoes-kit-pv" element={<PvKitSettings />} />
+            <Route path="/configuracoes-proposta" element={<ProposalSettings />} />
+            <Route path="/configuracoes" element={<Settings />} />
+          </Route>
+        </Routes>
       </TooltipProvider>
     </AuthProvider>
   </BrowserRouter>
