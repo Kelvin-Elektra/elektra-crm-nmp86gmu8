@@ -35,7 +35,8 @@ export default function ResetPassword() {
     try {
       await pb.send('/backend/v1/auth/confirm-reset', {
         method: 'POST',
-        body: { token, password },
+        body: JSON.stringify({ token, password }),
+        headers: { 'Content-Type': 'application/json' },
       })
       toast({
         title: 'Sucesso',

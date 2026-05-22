@@ -19,11 +19,10 @@ export default function Portal() {
   const [sysLogo, setSysLogo] = useState<string | null>(null)
 
   useEffect(() => {
-    pb.collection('system_settings')
-      .getFirstListItem('')
-      .then((record) => {
-        if (record.logo) {
-          setSysLogo(pb.files.getURL(record, record.logo))
+    pb.send('/backend/v1/public/system-settings', { method: 'GET' })
+      .then((res) => {
+        if (res.logoUrl) {
+          setSysLogo(`${import.meta.env.VITE_POCKETBASE_URL}${res.logoUrl}`)
         }
       })
       .catch(() => {})
@@ -48,7 +47,8 @@ export default function Portal() {
     try {
       await pb.send('/backend/v1/auth/request-reset', {
         method: 'POST',
-        body: { email, origin: window.location.origin },
+        body: JSON.stringify({ email, origin: window.location.origin }),
+        headers: { 'Content-Type': 'application/json' },
       })
       setMode('check_email')
       toast({ title: 'E-mail enviado', description: 'Verifique sua caixa de entrada.' })

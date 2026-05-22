@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useLocation } from 'react-router-dom'
 import { LogOut, User as UserIcon, RefreshCw, AlertTriangle } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 const routeNames: Record<string, string> = {
@@ -27,6 +28,7 @@ const routeNames: Record<string, string> = {
 export function AppHeader() {
   const { user, simulatedUser, exitSimulation, logout } = useAuth()
   const location = useLocation()
+  const navigate = useNavigate()
   const [companyLogo, setCompanyLogo] = useState<string | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
 
@@ -73,7 +75,10 @@ export function AppHeader() {
             size="sm"
             variant="outline"
             className="bg-white/20 border-white/40 text-white hover:bg-white/30 h-8"
-            onClick={exitSimulation}
+            onClick={() => {
+              exitSimulation()
+              navigate('/elektra-admin/dashboard')
+            }}
           >
             Encerrar Simulação
           </Button>

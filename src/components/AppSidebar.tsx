@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { LayoutDashboard, Columns3, Users, Briefcase, FileText, Settings, Zap } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
@@ -27,6 +27,7 @@ const navItems = [
 
 export function AppSidebar() {
   const location = useLocation()
+  const navigate = useNavigate()
   const { setOpen } = useSidebar()
   const { user, realUser, exitSimulation } = useAuth()
 
@@ -125,7 +126,10 @@ export function AppSidebar() {
           {isElektraAdmin && user?.id !== realUser?.id && (
             <SidebarMenuItem>
               <SidebarMenuButton
-                onClick={exitSimulation}
+                onClick={() => {
+                  exitSimulation()
+                  navigate('/elektra-admin/dashboard')
+                }}
                 tooltip="Sair da Simulação"
                 className="h-10 w-full transition-all duration-200 bg-destructive/10 text-destructive hover:bg-destructive/20"
               >

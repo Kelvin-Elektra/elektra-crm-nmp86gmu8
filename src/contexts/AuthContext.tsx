@@ -86,7 +86,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const preCheck = await pb.send('/backend/v1/auth/pre-check', {
         method: 'POST',
-        body: { email },
+        body: JSON.stringify({ email }),
+        headers: { 'Content-Type': 'application/json' },
       })
 
       if (!preCheck.exists) {
@@ -111,7 +112,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           await pb.send('/backend/v1/auth/request-reset', {
             method: 'POST',
-            body: { email, origin: window.location.origin },
+            body: JSON.stringify({ email, origin: window.location.origin }),
+            headers: { 'Content-Type': 'application/json' },
           })
           toast({
             title: 'Configuração de Senha',
