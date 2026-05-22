@@ -108,11 +108,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (!preCheck.hasPassword) {
-        await pb.send('/backend/v1/auth/request-reset', {
-          method: 'POST',
-          body: { email, origin: window.location.origin },
-        })
-        return { success: false, needsPasswordSetup: true }
+        try {
+          await pb.send('/backend/v1/auth/request-reset', {
+            method: 'POST',
+            body: { email, origin: window.location.origin },
+          })
+          toast({
+            title: 'Configuração de Senha',
+            description: 'Enviamos um link para o seu e-mail para você criar sua senha de acesso.',
+          })
+          return { success: false, needsPasswordSetup: true }
+        } catch (err: any) {
+          toast({
+            title: 'Erro ao enviar link',
+            description: err.response?.message || 'Ocorreu um erro ao enviar o e-mail.',
+            variant: 'destructive',
+          })
+          return { success: false }
+        }
       }
 
       const authData = await pb.collection('users').authWithPassword(email, pass)

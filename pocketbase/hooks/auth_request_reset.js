@@ -14,12 +14,22 @@ routerAdd('POST', '/backend/v1/auth/request-reset', (e) => {
   }
 
   if (user.getString('status') === 'inactive') {
-    return e.json(200, { success: true })
+    return e.badRequestError('Usuário inativo. Entre em contato com o administrador.')
+  }
+
+  const companyId = user.getString('company_id')
+  if (companyId) {
+    try {
+      const company = $app.findRecordById('companies', companyId)
+      if (company.getString('status') !== 'active') {
+        return e.badRequestError('A assinatura da sua empresa está inativa.')
+      }
+    } catch (_) {}
   }
 
   const secret = $secrets.get('HUB_SECRET') || 'fallback_secret_for_jwt_auth'
   const token = $security.createJWT(
-    { id: user.id, email: user.email, purpose: 'reset' },
+    { id: user.id, email: user.getString('email'), purpose: 'reset' },
     secret,
     3600,
   )
@@ -49,30 +59,38 @@ routerAdd('POST', '/backend/v1/auth/request-reset', (e) => {
   `
 
   const resendKey = $secrets.get('RESEND_API_KEY')
-  if (resendKey) {
-    try {
-      const res = $http.send({
-        url: 'https://api.resend.com/emails',
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer ' + resendKey,
-        },
-        body: JSON.stringify({
-          from: 'Elektra CRM <suporte@elektrasolucoes.tech>',
-          to: [email],
-          subject: subject,
-          html: html,
-        }),
-      })
-      if (res.statusCode >= 400) {
-        $app.logger().error('Erro envio Resend', 'status', res.statusCode, 'body', res.json)
-      }
-    } catch (err) {
-      $app.logger().error('Falha ao se conectar com Resend', 'error', err.message)
-    }
-  } else {
+  if (!resendKey) {
     $app.logger().warn('RESEND_API_KEY não configurada. Link gerado: ' + resetLink)
+    return e.internalServerError(
+      'Serviço de e-mail não configurado (RESEND_API_KEY). Contate o administrador.',
+    )
+  }
+
+  try {
+    const res = $http.send({
+      url: 'https://api.resend.com/emails',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + resendKey,
+      },
+      body: JSON.stringify({
+        from: 'Elektra CRM <suporte@elektrasolucoes.tech>',
+        to: [email],
+        subject: subject,
+        html: html,
+      }),
+    })
+
+    if (res.statusCode >= 400) {
+      $app.logger().error('Erro envio Resend', 'status', res.statusCode, 'body', res.json)
+      return e.badRequestError(
+        'Falha ao enviar o e-mail de configuração. Verifique as configurações ou contate o suporte.',
+      )
+    }
+  } catch (err) {
+    $app.logger().error('Falha ao se conectar com Resend', 'error', err.message)
+    return e.internalServerError('Erro ao conectar com o serviço de e-mail.')
   }
 
   return e.json(200, { success: true })
