@@ -26,6 +26,7 @@ interface AuthContextType {
   ) => Promise<{ success: boolean; needsVerification?: boolean; error?: string }>
   checkEmail: (email: string) => Promise<{ success: boolean; error?: string }>
   requestPasswordReset: (email: string) => Promise<{ success: boolean; error?: string }>
+  resendVerification: (email: string) => Promise<{ success: boolean; error?: string }>
   adminLogin: (email: string, pass: string) => Promise<boolean>
   logout: () => void
   simulateUser: (user: User) => void
@@ -151,6 +152,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const resendVerification = async (email: string) => {
+    try {
+      await pb.collection('users').requestVerification(email)
+      return { success: true }
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.response?.message || 'Erro ao reenviar link de verificação.',
+      }
+    }
+  }
+
   const refreshAuth = async () => {
     if (pb.authStore.isValid) {
       try {
@@ -260,6 +273,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         checkEmail,
         requestPasswordReset,
+        resendVerification,
         adminLogin,
         logout,
         simulateUser,
