@@ -345,6 +345,69 @@ export default function Settings() {
                   </div>
                 </div>
 
+                <div className="space-y-2 mt-6 border-t pt-6">
+                  <Label>Imagem de Fundo (Página de Login)</Label>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      className="flex-1"
+                      onChange={async (e) => {
+                        if (!e.target.files || !e.target.files[0]) return
+                        try {
+                          const formData = new FormData()
+                          formData.append('login_background', e.target.files[0])
+                          const updated = await pb
+                            .collection('system_settings')
+                            .update(systemSettings.id, formData)
+                          setSystemSettings(updated)
+                          toast({
+                            title: 'Sucesso',
+                            description: 'Imagem de fundo atualizada com sucesso!',
+                          })
+                        } catch (err: any) {
+                          toast({
+                            variant: 'destructive',
+                            title: 'Erro',
+                            description: 'Falha ao fazer upload da imagem de fundo.',
+                          })
+                        }
+                      }}
+                    />
+                    {systemSettings?.login_background && (
+                      <div className="flex items-center gap-4 border p-2 rounded-lg bg-slate-50">
+                        <img
+                          src={pb.files.getURL(systemSettings, systemSettings.login_background)}
+                          alt="Login Background"
+                          className="h-12 object-cover w-20 rounded"
+                        />
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const updated = await pb
+                                .collection('system_settings')
+                                .update(systemSettings.id, { login_background: null })
+                              setSystemSettings(updated)
+                              toast({ title: 'Sucesso', description: 'Imagem de fundo removida.' })
+                            } catch (e) {
+                              toast({
+                                variant: 'destructive',
+                                title: 'Erro',
+                                description: 'Falha ao remover.',
+                              })
+                            }
+                          }}
+                        >
+                          Remover
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 <div className="space-y-4 mt-6 border-t pt-6">
                   <h3 className="font-semibold text-lg">Configurações do Elektra Hub</h3>
                   <div className="space-y-2">

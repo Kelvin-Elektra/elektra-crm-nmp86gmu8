@@ -14,21 +14,34 @@ export default function Portal() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({})
+  const [settings, setSettings] = useState<{
+    logoUrl?: string
+    login_backgroundUrl?: string
+    system_name?: string
+  }>({})
 
   useEffect(() => {
-    pb.collection('system_settings')
-      .getFirstListItem('')
-      .then((record) => {
-        if (record.logo) {
-          setLogoUrl(pb.files.getURL(record, record.logo))
-        }
+    pb.send('/backend/v1/public/system-settings', {})
+      .then((res) => {
+        setSettings(res)
       })
       .catch(() => {})
   }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    const errors: { email?: string; password?: string } = {}
+    if (!email) errors.email = 'O e-mail é obrigatório.'
+    if (!password) errors.password = 'A senha é obrigatória.'
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      return
+    }
+
+    setFieldErrors({})
     setError('')
     setLoading(true)
     try {
@@ -36,7 +49,7 @@ export default function Portal() {
       if (result.needsPasswordSetup) {
         setView('sent')
       } else if (!result.success) {
-        setError(result.error || 'Credenciais inválidas.')
+        setError(result.error || 'Credenciais inválidas. Verifique seu e-mail e senha.')
       }
     } finally {
       setLoading(false)
@@ -45,6 +58,13 @@ export default function Portal() {
 
   const handleReset = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
+
+    if (!email) {
+      setFieldErrors({ email: 'O e-mail é obrigatório.' })
+      return
+    }
+
+    setFieldErrors({})
     setError('')
     setLoading(true)
     try {
@@ -63,31 +83,45 @@ export default function Portal() {
     <div className="min-h-screen w-full flex bg-white">
       {/* Left side: Image */}
       <div className="hidden lg:flex w-1/2 bg-slate-900 relative items-center justify-center overflow-hidden">
-        <img
-          src="https://images.unsplash.com/photo-1509391366360-2e959784a276?q=80&w=2072&auto=format&fit=crop"
-          alt="Painéis Solares"
-          className="absolute inset-0 w-full h-full object-cover opacity-60"
-        />
+        {settings.login_backgroundUrl ? (
+          <img
+            src={settings.login_backgroundUrl}
+            alt="Background"
+            className="absolute inset-0 w-full h-full object-cover opacity-80"
+          />
+        ) : (
+          <img
+            src="https://images.unsplash.com/photo-1509391366360-2e959784a276?q=80&w=2072&auto=format&fit=crop"
+            alt="Painéis Solares"
+            className="absolute inset-0 w-full h-full object-cover opacity-60"
+          />
+        )}
         <div className="relative z-10 text-white text-center p-8 max-w-xl">
-          <div className="mb-6 flex justify-center">
-            <Sun className="h-16 w-16 text-yellow-400" />
-          </div>
-          <h1 className="text-4xl font-bold mb-4 animate-fade-in-up">Bem-vindo ao Elektra CRM</h1>
-          <p
-            className="text-lg text-slate-200 animate-fade-in-up"
-            style={{ animationDelay: '100ms' }}
-          >
-            A plataforma completa para gestão de vendas e propostas de energia solar.
-          </p>
+          {!settings.login_backgroundUrl && (
+            <>
+              <div className="mb-6 flex justify-center">
+                <Sun className="h-16 w-16 text-yellow-400" />
+              </div>
+              <h1 className="text-4xl font-bold mb-4 animate-fade-in-up">
+                Bem-vindo ao {settings.system_name || 'Elektra CRM'}
+              </h1>
+              <p
+                className="text-lg text-slate-200 animate-fade-in-up"
+                style={{ animationDelay: '100ms' }}
+              >
+                A plataforma completa para gestão de vendas e propostas de energia solar.
+              </p>
+            </>
+          )}
         </div>
       </div>
 
       {/* Right side: Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white">
         <div className="max-w-md w-full">
-          <div className="mb-8 flex justify-center">
-            {logoUrl ? (
-              <img src={logoUrl} alt="Logo" className="h-16 object-contain" />
+          <div className="mb-8 flex justify-center items-center min-h-16">
+            {settings.logoUrl ? (
+              <img src={settings.logoUrl} alt="Logo" className="h-16 object-contain" />
             ) : (
               <Sun className="h-12 w-12 text-blue-600 lg:hidden" />
             )}
@@ -101,24 +135,32 @@ export default function Portal() {
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
-              <form onSubmit={handleLogin} className="space-y-4">
+              <form onSubmit={handleLogin} className="space-y-4" noValidate>
                 <div className="space-y-2">
                   <Label htmlFor="email">E-mail</Label>
                   <Input
                     id="email"
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value)
+                      if (fieldErrors.email) setFieldErrors({ ...fieldErrors, email: undefined })
+                    }}
                     placeholder="seu@email.com"
-                    required
+                    className={fieldErrors.email ? 'border-red-500' : ''}
                   />
+                  {fieldErrors.email && <p className="text-sm text-red-500">{fieldErrors.email}</p>}
                 </div>
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <Label htmlFor="password">Senha</Label>
                     <button
                       type="button"
-                      onClick={() => setView('forgot')}
+                      onClick={() => {
+                        setView('forgot')
+                        setFieldErrors({})
+                        setError('')
+                      }}
                       className="text-sm text-blue-600 hover:underline focus:outline-none"
                     >
                       Esqueci minha senha
@@ -128,12 +170,19 @@ export default function Portal() {
                     id="password"
                     type="password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value)
+                      if (fieldErrors.password)
+                        setFieldErrors({ ...fieldErrors, password: undefined })
+                    }}
                     placeholder="••••••••"
-                    required
+                    className={fieldErrors.password ? 'border-red-500' : ''}
                   />
+                  {fieldErrors.password && (
+                    <p className="text-sm text-red-500">{fieldErrors.password}</p>
+                  )}
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full mt-2" disabled={loading}>
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Entrar
                 </Button>
@@ -147,6 +196,7 @@ export default function Portal() {
                 type="button"
                 onClick={() => {
                   setView('login')
+                  setFieldErrors({})
                   setError('')
                 }}
                 className="flex items-center text-sm text-slate-500 hover:text-slate-900 mb-6 focus:outline-none"
@@ -162,19 +212,23 @@ export default function Portal() {
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
-              <form onSubmit={handleReset} className="space-y-4">
+              <form onSubmit={handleReset} className="space-y-4" noValidate>
                 <div className="space-y-2">
                   <Label htmlFor="reset-email">E-mail</Label>
                   <Input
                     id="reset-email"
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value)
+                      if (fieldErrors.email) setFieldErrors({ ...fieldErrors, email: undefined })
+                    }}
                     placeholder="seu@email.com"
-                    required
+                    className={fieldErrors.email ? 'border-red-500' : ''}
                   />
+                  {fieldErrors.email && <p className="text-sm text-red-500">{fieldErrors.email}</p>}
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full mt-2" disabled={loading}>
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Enviar link de recuperação
                 </Button>

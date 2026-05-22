@@ -85,55 +85,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, pass: string) => {
     try {
-      const preCheck = await pb.send('/backend/v1/auth/pre-check', {
-        method: 'POST',
-        body: { email },
-      })
-
-      if (!preCheck.exists) {
-        return { success: false, error: 'Credenciais inválidas. Verifique seu e-mail e senha.' }
-      }
-
-      if (preCheck.error) {
-        return { success: false, error: preCheck.message }
-      }
-
-      if (!preCheck.hasPassword) {
-        try {
-          const currentOrigin = window.location.origin.replace(/\/$/, '')
-          await pb.send('/backend/v1/auth/request-reset', {
-            method: 'POST',
-            body: { email, origin: currentOrigin },
-          })
-          return { success: false, needsPasswordSetup: true }
-        } catch (err: any) {
-          return {
-            success: false,
-            error: err.response?.message || 'Ocorreu um erro ao enviar o e-mail.',
-          }
-        }
-      }
-
       const authData = await pb.collection('users').authWithPassword(email, pass)
       const record = authData.record as User
 
       setRealUser(record)
       return { success: true }
     } catch (err: any) {
+      const msg = err.response?.message || 'Verifique seu e-mail e senha e tente novamente.'
       return {
         success: false,
-        error: err.response?.message || 'Verifique seu e-mail e senha e tente novamente.',
+        error:
+          msg === 'Failed to authenticate.'
+            ? 'Credenciais inválidas. Verifique seu e-mail e senha.'
+            : msg,
       }
     }
   }
 
   const requestPasswordReset = async (email: string) => {
     try {
-      const currentOrigin = window.location.origin.replace(/\/$/, '')
-      await pb.send('/backend/v1/auth/request-reset', {
-        method: 'POST',
-        body: { email, origin: currentOrigin },
-      })
+      await pb.collection('users').requestPasswordReset(email)
       return true
     } catch (err) {
       return false
