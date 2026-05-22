@@ -1,7 +1,15 @@
 routerAdd('POST', '/backend/v1/auth/request-reset', (e) => {
-  const body = e.requestInfo().body || {}
+  let body = e.requestInfo().body || {}
+  if (typeof body === 'string') {
+    try {
+      body = JSON.parse(body)
+    } catch (_) {}
+  }
   const email = body.email
-  const origin = body.origin || 'https://crm.elektrasolucoes.tech'
+  let origin = body.origin || 'https://crm.elektrasolucoes.tech'
+  if (origin.endsWith('/')) {
+    origin = origin.slice(0, -1)
+  }
 
   if (!email) {
     return e.badRequestError('Email é obrigatório')
