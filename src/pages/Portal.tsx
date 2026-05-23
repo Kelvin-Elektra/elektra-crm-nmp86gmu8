@@ -1,176 +1,210 @@
 import { useState, useEffect } from 'react'
-import { useAuth } from '@/contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import { z } from 'zod'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { useToast } from '@/hooks/use-toast'
-import { Loader2 } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { toast } from '@/hooks/use-toast'
+
+const emailSchema = z.object({
+  email: z.string().min(1, 'O e-mail é obrigatório.').email('E-mail inválido'),
+})
+
+const passwordSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1, 'A senha é obrigatória'),
+})
 
 export default function Portal() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [needsVerification, setNeedsVerification] = useState(false)
-  const [resending, setResending] = useState(false)
-  const { login, resendVerification } = useAuth()
   const navigate = useNavigate()
-  const { toast } = useToast()
-  const [systemLogo, setSystemLogo] = useState<string | null>(null)
-  const [loginBg, setLoginBg] = useState<string | null>(null)
+  const { signIn } = useAuth()
+
+  const [step, setStep] = useState<1 | 2>(1)
+  const [loading, setLoading] = useState(false)
+  const [settings, setSettings] = useState<any>(null)
+
+  const emailForm = useForm<z.infer<typeof emailSchema>>({
+    resolver: zodResolver(emailSchema),
+    defaultValues: { email: '' },
+  })
+
+  const passwordForm = useForm<z.infer<typeof passwordSchema>>({
+    resolver: zodResolver(passwordSchema),
+    defaultValues: { email: '', password: '' },
+  })
 
   useEffect(() => {
     pb.collection('system_settings')
       .getFirstListItem('')
-      .then((settings) => {
-        if (settings.logo) {
-          setSystemLogo(pb.files.getURL(settings, settings.logo))
-        }
-        if (settings.login_background) {
-          setLoginBg(pb.files.getURL(settings, settings.login_background))
-        }
-      })
+      .then((data) => setSettings(data))
       .catch(() => {})
   }, [])
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const onEmailSubmit = (values: z.infer<typeof emailSchema>) => {
+    passwordForm.setValue('email', values.email)
+    setStep(2)
+  }
+
+  const onPasswordSubmit = async (values: z.infer<typeof passwordSchema>) => {
     setLoading(true)
-    setNeedsVerification(false)
-
-    const res = await login(email, password)
+    const { error } = await signIn(values.email, values.password)
     setLoading(false)
-
-    if (res.success) {
-      navigate('/dashboard')
-    } else {
-      if (res.needsVerification) {
-        setNeedsVerification(true)
-      }
+    if (error) {
       toast({
         title: 'Erro no login',
-        description: res.error,
+        description: error.response?.message || 'Verifique suas credenciais e tente novamente.',
         variant: 'destructive',
       })
+    } else {
+      navigate('/dashboard')
     }
   }
 
   const handleResendVerification = async () => {
-    if (!email) {
+    const email = passwordForm.getValues('email')
+    if (!email) return
+    try {
+      setLoading(true)
+      await pb.collection('users').requestVerification(email)
       toast({
-        title: 'E-mail obrigatório',
-        description: 'Preencha o e-mail para reenviar o link de verificação.',
+        title: 'Sucesso!',
+        description: 'Link de verificação reenviado para seu e-mail.',
+      })
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao enviar link',
+        description: err.response?.message || err.message || 'Tente novamente mais tarde.',
         variant: 'destructive',
       })
-      return
-    }
-
-    setResending(true)
-    const res = await resendVerification(email)
-    setResending(false)
-
-    if (res.success) {
-      toast({
-        title: 'Sucesso',
-        description: 'Link de autenticação enviado com sucesso! Verifique sua caixa de entrada.',
-      })
-    } else {
-      toast({
-        title: 'Erro',
-        description: res.error || 'Não foi possível enviar o link.',
-        variant: 'destructive',
-      })
+    } finally {
+      setLoading(false)
     }
   }
 
+  const bgUrl = settings?.login_background
+    ? pb.files.getURL(settings, settings.login_background)
+    : 'https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?q=80&w=2072&auto=format&fit=crop'
+
+  const logoUrl = settings?.logo ? pb.files.getURL(settings, settings.logo) : null
+
   return (
-    <div className="min-h-screen flex relative overflow-hidden">
-      {/* Continuous background image */}
+    <div className="min-h-screen flex relative overflow-hidden bg-background">
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-        style={{
-          backgroundImage: loginBg
-            ? `url(${loginBg})`
-            : 'url("https://img.usecurling.com/p/1920/1080?q=solar%20panels&color=blue")',
-        }}
+        style={{ backgroundImage: `url(${bgUrl})` }}
       />
+      <div className="absolute inset-0 flex">
+        <div className="w-1/2 h-full hidden md:block" />
+        <div className="w-full md:w-1/2 h-full backdrop-blur-md bg-background/60" />
+      </div>
 
-      {/* Left 50% - Normal/Transparent backdrop to keep background clear */}
-      <div className="hidden lg:flex w-1/2 relative z-10 flex-col justify-between p-12 bg-black/20" />
-
-      {/* Right 50% - Blurred backdrop for login quadrant */}
-      <div className="w-full lg:w-1/2 relative z-10 flex items-center justify-center p-8 backdrop-blur-xl bg-white/10 dark:bg-black/40 border-l border-white/20 dark:border-black/20">
-        <Card className="w-full max-w-md border-0 shadow-2xl bg-white/90 dark:bg-zinc-950/90 backdrop-blur-sm">
-          <CardHeader className="space-y-4 flex flex-col items-center">
-            {systemLogo ? (
-              <img src={systemLogo} alt="Company Logo" className="h-20 object-contain" />
+      <div className="relative z-10 w-full flex items-center justify-center md:justify-end md:pr-[10%] p-4">
+        <Card className="w-full max-w-md shadow-2xl border-0 bg-card/95 backdrop-blur">
+          <CardHeader className="space-y-4">
+            {logoUrl ? (
+              <div className="flex justify-center mb-2">
+                <img src={logoUrl} alt="Logo" className="h-16 object-contain" />
+              </div>
             ) : (
-              <div className="h-20 w-20 bg-primary/20 rounded-full flex items-center justify-center">
-                <span className="text-2xl font-bold text-primary">CRM</span>
+              <div className="flex justify-center mb-2">
+                <div className="h-16 w-16 bg-primary/20 rounded-full flex items-center justify-center">
+                  <span className="text-xl font-bold text-primary">CRM</span>
+                </div>
               </div>
             )}
-            <div className="text-center space-y-1">
-              <CardTitle className="text-2xl font-bold">Bem-vindo(a)</CardTitle>
-              <CardDescription>Faça login para acessar o sistema</CardDescription>
-            </div>
+            <CardTitle className="text-2xl text-center">Acesse sua conta</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">E-mail</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="seu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password">Senha</Label>
-                  <Button
-                    variant="link"
-                    className="p-0 h-auto text-xs"
-                    type="button"
-                    onClick={() => navigate('/reset-password')}
-                  >
-                    Esqueceu a senha?
+            {step === 1 ? (
+              <Form {...emailForm}>
+                <form onSubmit={emailForm.handleSubmit(onEmailSubmit)} className="space-y-4">
+                  <FormField
+                    control={emailForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>E-mail</FormLabel>
+                        <FormControl>
+                          <Input placeholder="seu@email.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button type="submit" className="w-full" size="lg">
+                    Continuar
                   </Button>
-                </div>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <Button className="w-full" type="submit" disabled={loading}>
-                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Entrar'}
-              </Button>
+                </form>
+              </Form>
+            ) : (
+              <Form {...passwordForm}>
+                <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-6">
+                  <div className="flex items-center justify-between text-sm p-3 bg-muted rounded-md">
+                    <span className="text-muted-foreground truncate mr-2 font-medium">
+                      {passwordForm.getValues('email')}
+                    </span>
+                    <Button
+                      variant="link"
+                      className="p-0 h-auto font-semibold"
+                      onClick={() => setStep(1)}
+                      type="button"
+                    >
+                      Alterar
+                    </Button>
+                  </div>
+                  <FormField
+                    control={passwordForm.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Senha</FormLabel>
+                        <FormControl>
+                          <Input type="password" placeholder="••••••••" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button type="submit" className="w-full" size="lg" disabled={loading}>
+                    {loading ? 'Entrando...' : 'Entrar'}
+                  </Button>
 
-              {needsVerification && (
-                <div className="mt-4 p-4 bg-muted/50 rounded-lg text-center space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Sua conta ainda não foi verificada.
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full"
-                    onClick={handleResendVerification}
-                    disabled={resending}
-                  >
-                    {resending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Enviar link de autenticação novamente
-                  </Button>
-                </div>
-              )}
-            </form>
+                  <div className="flex flex-col space-y-2 mt-4 text-center">
+                    <Button
+                      variant="link"
+                      size="sm"
+                      type="button"
+                      onClick={() => navigate('/reset-password')}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      Esqueceu sua senha?
+                    </Button>
+                    <Button
+                      variant="link"
+                      size="sm"
+                      type="button"
+                      onClick={handleResendVerification}
+                      disabled={loading}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      Reenviar link de autenticação
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            )}
           </CardContent>
         </Card>
       </div>

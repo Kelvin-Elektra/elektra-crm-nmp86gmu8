@@ -20,6 +20,7 @@ import Settings from './pages/Settings'
 import NegotiationDetail from './pages/NegotiationDetail'
 import ProposalSettings from './pages/ProposalSettings'
 import PvKitSettings from './pages/PvKitSettings'
+import { WhatsAppSupportButton } from './components/WhatsAppSupportButton'
 
 const RootRoute = () => {
   const { isAuthenticated } = useAuth()
@@ -40,6 +41,7 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
+          <WhatsAppSupportButton />
           <Routes>
             <Route path="/" element={<RootRoute />} />
             <Route path="/reset-password" element={<ResetPassword />} />
