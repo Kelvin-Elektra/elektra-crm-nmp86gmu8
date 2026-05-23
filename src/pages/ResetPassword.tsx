@@ -14,11 +14,35 @@ export default function ResetPassword() {
   const navigate = useNavigate()
   const { toast } = useToast()
 
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [requested, setRequested] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleRequestReset = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      await pb.collection('users').requestPasswordReset(email)
+      setRequested(true)
+      toast({
+        title: 'E-mail enviado',
+        description:
+          'Se o e-mail estiver cadastrado, você receberá um link para redefinir a senha.',
+      })
+    } catch (err: any) {
+      toast({
+        title: 'Erro',
+        description: err.response?.message || 'Falha ao solicitar redefinição.',
+        variant: 'destructive',
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleConfirmReset = async (e: React.FormEvent) => {
     e.preventDefault()
     if (password !== confirmPassword) {
       return toast({ title: 'Erro', description: 'As senhas não conferem', variant: 'destructive' })
@@ -33,20 +57,16 @@ export default function ResetPassword() {
 
     setLoading(true)
     try {
-      await pb.send('/backend/v1/auth/confirm-reset', {
-        method: 'POST',
-        body: { token, password },
-      })
+      await pb.collection('users').confirmPasswordReset(token!, password, confirmPassword)
       toast({
         title: 'Sucesso',
-        description: 'Sua senha foi configurada com sucesso. Você já pode fazer login.',
+        description: 'Sua senha foi atualizada com sucesso. Você já pode fazer login.',
       })
       navigate('/')
     } catch (err: any) {
       toast({
         title: 'Erro',
-        description:
-          err.response?.message || 'Falha ao configurar senha. O link pode ter expirado.',
+        description: err.response?.message || 'Falha ao redefinir senha. O link pode ter expirado.',
         variant: 'destructive',
       })
     } finally {
@@ -57,17 +77,46 @@ export default function ResetPassword() {
   if (!token) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50">
-        <Card className="max-w-md w-full">
+        <Card className="max-w-md w-full shadow-lg">
           <CardHeader>
-            <CardTitle>Link Inválido</CardTitle>
+            <CardTitle>Recuperar Senha</CardTitle>
             <CardDescription>
-              O link de recuperação ou configuração não possui um token válido ou expirou.
+              {requested
+                ? 'Verifique sua caixa de entrada e siga as instruções.'
+                : 'Insira seu e-mail e enviaremos um link para redefinir sua senha.'}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button className="w-full" onClick={() => navigate('/')}>
-              Voltar ao Início
-            </Button>
+            {!requested ? (
+              <form onSubmit={handleRequestReset} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>E-mail</Label>
+                  <Input
+                    type="email"
+                    placeholder="seu@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Enviar Link
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => navigate('/')}
+                >
+                  Voltar
+                </Button>
+              </form>
+            ) : (
+              <Button type="button" className="w-full" onClick={() => navigate('/')}>
+                Voltar ao Início
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -82,7 +131,7 @@ export default function ResetPassword() {
           <CardDescription>Crie uma senha forte e segura para acessar sua conta.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleConfirmReset} className="space-y-5">
             <div className="space-y-2">
               <Label>Nova Senha</Label>
               <Input

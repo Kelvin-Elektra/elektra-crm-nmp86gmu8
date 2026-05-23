@@ -1,247 +1,190 @@
 import { useState, useEffect } from 'react'
-import pb from '@/lib/pocketbase/client'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Loader2, MessageCircle, ArrowLeft } from 'lucide-react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Loader2, ArrowRight, ArrowLeft } from 'lucide-react'
+import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
-import { Link } from 'react-router-dom'
 
 export default function Portal() {
-  const { checkEmail, login, resendVerification } = useAuth()
-  const { toast } = useToast()
-
-  const [settings, setSettings] = useState<any>(null)
-  const [appReady, setAppReady] = useState(false)
-
-  const [step, setStep] = useState<1 | 2>(1)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [step, setStep] = useState(1)
+  const [loading, setLoading] = useState(false)
   const [needsVerification, setNeedsVerification] = useState(false)
+  const { login, checkEmail, resendVerification } = useAuth()
+  const { toast } = useToast()
+  const navigate = useNavigate()
+
+  const [sysSettings, setSysSettings] = useState<any>(null)
 
   useEffect(() => {
-    const init = async () => {
-      const start = Date.now()
-      try {
-        const records = await pb.collection('system_settings').getFullList()
-        if (records.length > 0) {
-          setSettings(records[0])
-        }
-      } catch (e) {
-        console.error('Failed to load settings', e)
-      }
-      const elapsed = Date.now() - start
-      const remaining = Math.max(0, 1000 - elapsed)
-      setTimeout(() => {
-        setAppReady(true)
-      }, remaining)
-    }
-    init()
+    pb.collection('system_settings')
+      .getFullList()
+      .then((res) => {
+        if (res.length > 0) setSysSettings(res[0])
+      })
+      .catch(() => {})
   }, [])
-
-  if (!appReady) {
-    const splashLogo = settings?.logo ? pb.files.getURL(settings, settings.logo) : null
-    return (
-      <div className="flex h-screen w-full items-center justify-center bg-white">
-        {splashLogo ? (
-          <img src={splashLogo} alt="CRM Logo" className="w-48 h-auto animate-pulse" />
-        ) : (
-          <Loader2 className="w-12 h-12 animate-spin text-primary" />
-        )}
-      </div>
-    )
-  }
-
-  const bgUrl = settings?.login_background
-    ? pb.files.getURL(settings, settings.login_background)
-    : 'https://images.unsplash.com/photo-1509391366360-2e959784a276?auto=format&fit=crop&q=80'
-
-  const logoUrl = settings?.logo ? pb.files.getURL(settings, settings.logo) : null
 
   const handleNext = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email) return
-    setError('')
-    setIsLoading(true)
-    const res = await checkEmail(email)
-    setIsLoading(false)
-
-    if (res.success) {
-      setStep(2)
-    } else {
-      setError(res.error || 'Erro ao verificar email.')
+    setLoading(true)
+    try {
+      const res = await checkEmail(email)
+      if (res.success) {
+        setStep(2)
+      } else {
+        toast({ variant: 'destructive', title: 'Acesso Restrito', description: res.error })
+      }
+    } finally {
+      setLoading(false)
     }
   }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!password) return
-    setError('')
+    setLoading(true)
     setNeedsVerification(false)
-    setIsLoading(true)
-    const res = await login(email, password)
-    setIsLoading(false)
-
-    if (!res.success) {
-      setError(res.error || 'Erro ao fazer login.')
-      if (res.needsVerification) {
-        setNeedsVerification(true)
+    try {
+      const res = await login(email, password)
+      if (res.success) {
+        navigate('/dashboard')
+      } else {
+        if (res.needsVerification) {
+          setNeedsVerification(true)
+        }
+        toast({ variant: 'destructive', title: 'Falha no Login', description: res.error })
       }
+    } finally {
+      setLoading(false)
     }
   }
 
-  const handleResendVerification = async () => {
-    setIsLoading(true)
+  const handleResend = async () => {
+    setLoading(true)
     const res = await resendVerification(email)
-    setIsLoading(false)
     if (res.success) {
-      toast({
-        title: 'Email enviado',
-        description: 'Um novo link de verificação foi enviado para o seu email.',
-      })
+      toast({ title: 'E-mail enviado', description: 'Verifique sua caixa de entrada.' })
     } else {
-      toast({
-        title: 'Erro',
-        description: res.error || 'Erro ao reenviar link.',
-        variant: 'destructive',
-      })
+      toast({ variant: 'destructive', title: 'Erro', description: res.error })
     }
+    setLoading(false)
   }
 
-  const supportNumber = settings?.support_info?.replace(/\D/g, '') || ''
+  const bgUrl = sysSettings?.login_background
+    ? pb.files.getURL(sysSettings, sysSettings.login_background)
+    : 'https://img.usecurling.com/p/1200/800?q=solar%20panel'
+
+  const logoUrl = sysSettings?.hub_logo ? pb.files.getURL(sysSettings, sysSettings.hub_logo) : null
 
   return (
-    <div className="flex min-h-screen w-full relative bg-gray-50">
-      {/* Left Side */}
+    <div className="min-h-screen flex bg-slate-50">
       <div
-        className="hidden lg:block lg:w-1/2 bg-cover bg-center"
+        className="hidden lg:flex w-2/3 bg-cover bg-center relative"
         style={{ backgroundImage: `url(${bgUrl})` }}
-      />
-
-      {/* Right Side */}
-      <div className="w-full lg:w-1/2 relative flex items-center justify-center overflow-hidden">
-        {/* Blurred Background with -inset-4 to hide blurry edges */}
-        <div
-          className="absolute -inset-4 bg-cover bg-center blur-[12px] opacity-90"
-          style={{ backgroundImage: `url(${bgUrl})` }}
-        />
-
-        {/* Overlay to ensure readability if image is too bright or dark */}
-        <div className="absolute inset-0 bg-white/20" />
-
-        {/* Solid Pure White Login Card */}
-        <div className="relative z-10 w-full max-w-md p-10 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] mx-4 animate-fade-in-up">
-          {logoUrl && (
-            <div className="flex justify-center mb-8">
-              <img src={logoUrl} alt="Logo" className="h-16 w-auto object-contain" />
-            </div>
-          )}
-
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-gray-900">Bem-vindo</h1>
-            <p className="text-gray-500 mt-2">
-              {step === 1 ? 'Insira seu email para continuar' : 'Insira sua senha para entrar'}
-            </p>
-          </div>
-
-          <form onSubmit={step === 1 ? handleNext : handleLogin} className="space-y-6">
-            {step === 1 ? (
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="seu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  autoFocus
-                />
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Label htmlFor="password">Senha</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  autoFocus
-                />
-              </div>
-            )}
-
-            {error && (
-              <div className="p-3 text-sm text-red-600 bg-red-50 rounded-md border border-red-100">
-                {error}
-              </div>
-            )}
-
-            {needsVerification && (
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={handleResendVerification}
-                disabled={isLoading}
-              >
-                Reenviar Link de Verificação
-              </Button>
-            )}
-
-            <div className="flex items-center gap-3">
-              {step === 2 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setStep(1)
-                    setError('')
-                    setNeedsVerification(false)
-                  }}
-                  disabled={isLoading}
-                  className="px-3"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                </Button>
-              )}
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                {step === 1 ? 'Avançar' : 'Entrar'}
-              </Button>
-            </div>
-          </form>
-
-          {step === 1 && (
-            <div className="mt-6 text-center text-sm text-gray-500">
-              <Link
-                to="/reset-password"
-                className="hover:text-primary underline underline-offset-4"
-              >
-                Esqueceu sua senha?
-              </Link>
-            </div>
-          )}
-        </div>
+      >
+        <div className="absolute inset-0 bg-black/20" />
       </div>
 
-      {/* Floating WhatsApp Button */}
-      {supportNumber && (
-        <a
-          href={`https://wa.me/55${supportNumber}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="fixed bottom-6 right-6 bg-[#25D366] text-white p-4 rounded-full shadow-lg hover:bg-[#20bd5a] transition-transform hover:scale-105 z-50 flex items-center justify-center animate-fade-in"
-          title="Fale com o Suporte"
-        >
-          <MessageCircle className="w-7 h-7" />
-        </a>
-      )}
+      <div className="w-full lg:w-1/3 flex items-center justify-center p-8 bg-white/95 backdrop-blur-[2px] shadow-2xl z-10 relative border-l border-border/50">
+        <Card className="w-full max-w-md shadow-none border-none bg-transparent">
+          <CardHeader className="space-y-6 text-center">
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo" className="h-14 mx-auto object-contain" />
+            ) : (
+              <div className="h-14 w-14 bg-primary/10 rounded-xl flex items-center justify-center mx-auto">
+                <span className="text-xl font-bold text-primary">Elektra</span>
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <CardTitle className="text-2xl font-semibold tracking-tight">Bem-vindo(a)</CardTitle>
+              <CardDescription className="text-base">
+                {step === 1 ? 'Insira seu e-mail para continuar' : 'Insira sua senha para acessar'}
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {step === 1 ? (
+              <form onSubmit={handleNext} className="space-y-4">
+                <div className="space-y-2">
+                  <Input
+                    type="email"
+                    placeholder="E-mail"
+                    className="h-12"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <Button type="submit" className="w-full h-12 text-base" disabled={loading}>
+                  {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
+                  Avançar {!loading && <ArrowRight className="ml-2 h-5 w-5" />}
+                </Button>
+              </form>
+            ) : (
+              <form onSubmit={handleLogin} className="space-y-5">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center px-1">
+                    <span className="text-sm text-muted-foreground">{email}</span>
+                    <button
+                      type="button"
+                      onClick={() => setStep(1)}
+                      className="text-sm text-primary font-medium hover:underline"
+                    >
+                      Alterar
+                    </button>
+                  </div>
+                  <Input
+                    type="password"
+                    placeholder="Senha"
+                    className="h-12"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {needsVerification && (
+                  <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-lg flex flex-col gap-3">
+                    <p className="text-sm text-amber-800 font-medium">
+                      Sua conta ainda não foi verificada.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full bg-white hover:bg-amber-50 text-amber-900 border-amber-300"
+                      onClick={handleResend}
+                      disabled={loading}
+                    >
+                      Reenviar link de autenticação
+                    </Button>
+                  </div>
+                )}
+
+                <Button type="submit" className="w-full h-12 text-base" disabled={loading}>
+                  {loading && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+                  Entrar
+                </Button>
+
+                <div className="text-center pt-2">
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="text-sm text-muted-foreground hover:text-primary"
+                    onClick={() => navigate('/reset-password')}
+                  >
+                    Esqueci minha senha
+                  </Button>
+                </div>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

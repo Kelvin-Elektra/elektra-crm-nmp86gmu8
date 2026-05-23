@@ -118,13 +118,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const authData = await pb.collection('users').authWithPassword(email, pass)
       const record = authData.record as User
 
+      if (record.status === 'inactive') {
+        pb.authStore.clear()
+        return {
+          success: false,
+          error: 'Sua conta está inativa. Entre em contato com o administrador da empresa.',
+        }
+      }
+
       setRealUser(record)
       return { success: true }
     } catch (err: any) {
       const msg = err.response?.message || 'Verifique seu e-mail e senha e tente novamente.'
 
-      if (msg.includes('verificado')) {
-        return { success: false, error: msg, needsVerification: true }
+      if (msg.includes('verificado') || msg.includes('verified')) {
+        return {
+          success: false,
+          error: 'Sua conta ainda não foi verificada.',
+          needsVerification: true,
+        }
       }
 
       return {
@@ -139,10 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const requestPasswordReset = async (email: string) => {
     try {
-      await pb.send('/backend/v1/auth/request-reset', {
-        method: 'POST',
-        body: JSON.stringify({ email, origin: window.location.origin }),
-      })
+      await pb.collection('users').requestPasswordReset(email)
       return { success: true }
     } catch (err: any) {
       return {

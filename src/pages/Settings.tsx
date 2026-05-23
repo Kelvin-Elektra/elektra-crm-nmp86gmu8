@@ -5,8 +5,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useAuth } from '@/contexts/AuthContext'
-import { Building2, User, Users, Plus, KeyRound } from 'lucide-react'
+import { Building2, User, Users, Plus, KeyRound, Edit2, Trash2 } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
@@ -41,8 +48,19 @@ export default function Settings() {
   })
 
   const [team, setTeam] = useState<any[]>([])
+
+  // Create / Reactivate State
   const [newUserOpen, setNewUserOpen] = useState(false)
-  const [newUserForm, setNewUserForm] = useState({ name: '', email: '', password: '' })
+  const [newUserForm, setNewUserForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role_company: 'user',
+  })
+
+  // Edit State
+  const [editUserOpen, setEditUserOpen] = useState(false)
+  const [editingUser, setEditingUser] = useState<any>(null)
 
   const loadCompany = async () => {
     if (user?.company_id && user.company_id.trim() !== '') {
@@ -80,7 +98,7 @@ export default function Settings() {
       try {
         const records = await pb
           .collection('users')
-          .getFullList({ filter: `company_id='${user.company_id}'` })
+          .getFullList({ filter: `company_id='${user.company_id}'`, sort: '-created' })
         setTeam(records)
       } catch {
         /* intentionally ignored */
@@ -132,30 +150,95 @@ export default function Settings() {
 
   const handleCreateUser = async () => {
     try {
-      await pb.collection('users').create({
-        name: newUserForm.name,
-        email: newUserForm.email,
-        password: newUserForm.password,
-        passwordConfirm: newUserForm.password,
-        company_id: user?.company_id,
-        role: 'User',
-        role_company: 'user',
-        status: 'active',
-        verified: false,
-      })
-      toast({
-        title: 'Usuário criado com sucesso!',
-        description: 'Um e-mail de verificação foi enviado.',
-      })
+      const activeUsers = team.filter((u) => u.status === 'active').length
+      const maxUsers = company?.max_users || 5
+
+      const existingUser = await pb
+        .collection('users')
+        .getFirstListItem(`email='${newUserForm.email}'`)
+        .catch(() => null)
+
+      if (existingUser) {
+        if (existingUser.company_id !== user?.company_id) {
+          throw new Error('E-mail já está em uso por outra empresa no sistema.')
+        }
+        if (existingUser.status === 'active') {
+          throw new Error('Este usuário já está ativo na sua equipe.')
+        }
+        if (activeUsers >= maxUsers) {
+          throw new Error(
+            `Limite de usuários atingido (${maxUsers}). Mude de plano para adicionar mais.`,
+          )
+        }
+
+        // Reactivate soft-deleted user
+        await pb.collection('users').update(existingUser.id, {
+          status: 'active',
+          verified: false,
+          role_company: newUserForm.role_company,
+          name: newUserForm.name,
+        })
+        await pb.collection('users').requestVerification(newUserForm.email)
+        toast({ title: 'Usuário reativado e e-mail de verificação enviado!' })
+      } else {
+        if (activeUsers >= maxUsers) {
+          throw new Error(
+            `Limite de usuários atingido (${maxUsers}). Mude de plano para adicionar mais.`,
+          )
+        }
+        // Create new user
+        await pb.collection('users').create({
+          name: newUserForm.name,
+          email: newUserForm.email,
+          password: newUserForm.password,
+          passwordConfirm: newUserForm.password,
+          company_id: user?.company_id,
+          role: 'User',
+          role_company: newUserForm.role_company,
+          status: 'active',
+          verified: false,
+        })
+        await pb.collection('users').requestVerification(newUserForm.email)
+        toast({
+          title: 'Usuário criado com sucesso!',
+          description: 'Um e-mail de verificação foi enviado.',
+        })
+      }
       setNewUserOpen(false)
-      setNewUserForm({ name: '', email: '', password: '' })
+      setNewUserForm({ name: '', email: '', password: '', role_company: 'user' })
       loadTeam()
     } catch (err: any) {
       toast({
         variant: 'destructive',
-        title: 'Erro ao criar usuário',
-        description: err.response?.message,
+        title: 'Erro ao adicionar usuário',
+        description: err.response?.message || err.message,
       })
+    }
+  }
+
+  const handleUpdateUser = async () => {
+    try {
+      await pb.collection('users').update(editingUser.id, {
+        name: editingUser.name,
+        role_company: editingUser.role_company,
+      })
+      toast({ title: 'Usuário atualizado com sucesso!' })
+      setEditUserOpen(false)
+      setEditingUser(null)
+      loadTeam()
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erro', description: err.message })
+    }
+  }
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm('Tem certeza que deseja desativar este usuário? O acesso será revogado.')) return
+    try {
+      await pb.collection('users').update(userId, { status: 'inactive', verified: false })
+      toast({ title: 'Usuário desativado.' })
+      loadTeam()
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erro ao desativar', description: err.message })
     }
   }
 
@@ -172,7 +255,8 @@ export default function Settings() {
     }
   }
 
-  const isOwner = user?.role === 'User_owner' || user?.role === 'User_elektra'
+  const isOwner =
+    user?.role === 'User_owner' || user?.role === 'User_elektra' || user?.role_company === 'admin'
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl">
@@ -357,10 +441,22 @@ export default function Settings() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                  <CardTitle>Equipe</CardTitle>
+                  <CardTitle>
+                    Equipe
+                    <span className="text-sm font-normal text-muted-foreground ml-2">
+                      (Ativos: {team.filter((u) => u.status === 'active').length} /{' '}
+                      {company?.max_users || 5})
+                    </span>
+                  </CardTitle>
                   <CardDescription>Gerencie os usuários da sua empresa.</CardDescription>
                 </div>
-                <Button onClick={() => setNewUserOpen(true)} size="sm">
+                <Button
+                  onClick={() => setNewUserOpen(true)}
+                  size="sm"
+                  disabled={
+                    team.filter((u) => u.status === 'active').length >= (company?.max_users || 5)
+                  }
+                >
                   <Plus className="mr-2 h-4 w-4" /> Adicionar Usuário
                 </Button>
               </CardHeader>
@@ -371,17 +467,45 @@ export default function Settings() {
                       <TableRow>
                         <TableHead>Nome</TableHead>
                         <TableHead>Email</TableHead>
+                        <TableHead>Perfil</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {team.map((member) => (
-                        <TableRow key={member.id}>
+                        <TableRow
+                          key={member.id}
+                          className={member.status === 'inactive' ? 'opacity-50 bg-slate-50' : ''}
+                        >
                           <TableCell className="font-medium">{member.name}</TableCell>
                           <TableCell>{member.email}</TableCell>
                           <TableCell>
-                            {member.verified ? (
+                            {member.role_company === 'admin' ? (
+                              <Badge
+                                variant="outline"
+                                className="bg-blue-50 text-blue-700 hover:bg-blue-50"
+                              >
+                                Administrador
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="bg-slate-50 text-slate-700 hover:bg-slate-50"
+                              >
+                                Usuário
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {member.status === 'inactive' ? (
+                              <Badge
+                                variant="outline"
+                                className="bg-red-50 text-red-700 hover:bg-red-50"
+                              >
+                                Inativo
+                              </Badge>
+                            ) : member.verified ? (
                               <Badge
                                 variant="outline"
                                 className="bg-green-50 text-green-700 hover:bg-green-50"
@@ -398,20 +522,46 @@ export default function Settings() {
                             )}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleAdminReset(member.id)}
-                              title="Enviar Redefinição de Senha"
-                            >
-                              <KeyRound className="h-4 w-4 text-muted-foreground" />
-                            </Button>
+                            {member.status === 'active' && member.id !== user?.id && (
+                              <div className="flex justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleAdminReset(member.id)}
+                                  title="Enviar Redefinição de Senha"
+                                >
+                                  <KeyRound className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => {
+                                    setEditingUser(member)
+                                    setEditUserOpen(true)
+                                  }}
+                                  title="Editar"
+                                >
+                                  <Edit2 className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDeleteUser(member.id)}
+                                  title="Desativar"
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                </Button>
+                              </div>
+                            )}
+                            {member.id === user?.id && (
+                              <span className="text-sm text-muted-foreground pr-4">Você</span>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}
                       {team.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">
+                          <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
                             Nenhum usuário encontrado.
                           </TableCell>
                         </TableRow>
@@ -566,6 +716,7 @@ export default function Settings() {
               <Label>Email</Label>
               <Input
                 type="email"
+                placeholder="Se o e-mail já existir e estiver inativo, ele será reativado."
                 value={newUserForm.email}
                 onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
               />
@@ -579,12 +730,67 @@ export default function Settings() {
                 onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
               />
             </div>
+            <div className="space-y-2">
+              <Label>Perfil de Acesso</Label>
+              <Select
+                value={newUserForm.role_company}
+                onValueChange={(val) => setNewUserForm({ ...newUserForm, role_company: val })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="user">Usuário Padrão</SelectItem>
+                  <SelectItem value="admin">Administrador da Empresa</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewUserOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleCreateUser}>Criar Usuário</Button>
+            <Button onClick={handleCreateUser}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editUserOpen} onOpenChange={setEditUserOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Usuário</DialogTitle>
+          </DialogHeader>
+          {editingUser && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Nome</Label>
+                <Input
+                  value={editingUser.name}
+                  onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Perfil de Acesso</Label>
+                <Select
+                  value={editingUser.role_company}
+                  onValueChange={(val) => setEditingUser({ ...editingUser, role_company: val })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">Usuário Padrão</SelectItem>
+                    <SelectItem value="admin">Administrador da Empresa</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditUserOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleUpdateUser}>Salvar Alterações</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
