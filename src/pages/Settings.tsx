@@ -712,7 +712,7 @@ export default function Settings() {
               <Label>Email</Label>
               <Input
                 type="email"
-                placeholder="Se o e-mail já existir e estiver inativo, ele será reativado."
+                placeholder="seu-email@exemplo.com"
                 value={newUserForm.email}
                 onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
               />
