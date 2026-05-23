@@ -30,7 +30,7 @@ const passwordSchema = z.object({
 
 export default function Portal() {
   const navigate = useNavigate()
-  const { signIn } = useAuth()
+  const { login } = useAuth()
 
   const [step, setStep] = useState<1 | 2>(1)
   const [loading, setLoading] = useState(false)
@@ -53,12 +53,12 @@ export default function Portal() {
 
   const onPasswordSubmit = async (values: z.infer<typeof passwordSchema>) => {
     setLoading(true)
-    const { error } = await signIn(values.email, values.password)
+    const result = await login(values.email, values.password)
     setLoading(false)
-    if (error) {
+    if (!result.success) {
       toast({
         title: 'Erro no login',
-        description: error.response?.message || 'Verifique suas credenciais e tente novamente.',
+        description: result.error || 'Verifique suas credenciais e tente novamente.',
         variant: 'destructive',
       })
     } else {
