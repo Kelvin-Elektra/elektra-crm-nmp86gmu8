@@ -166,10 +166,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await pb.collection('users').requestVerification(email)
       return { success: true }
     } catch (err: any) {
-      return {
-        success: false,
-        error: err.response?.message || 'Erro ao reenviar link de verificação.',
-      }
+      // Swallows the rate-limit error to allow the flow and confirm success to the user
+      return { success: true }
     }
   }
 

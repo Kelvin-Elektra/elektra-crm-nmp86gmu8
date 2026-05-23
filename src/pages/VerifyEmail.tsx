@@ -15,11 +15,8 @@ export default function VerifyEmail() {
       return
     }
 
-    pb.send('/backend/v1/auth/confirm-verification', {
-      method: 'POST',
-      body: JSON.stringify({ token }),
-      headers: { 'Content-Type': 'application/json' },
-    })
+    pb.collection('users')
+      .confirmVerification(token)
       .then(() => {
         setStatus('E-mail verificado com sucesso! Redirecionando para o login...')
         setTimeout(() => navigate('/'), 3000)
