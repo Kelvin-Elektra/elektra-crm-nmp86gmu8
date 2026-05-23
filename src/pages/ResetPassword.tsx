@@ -57,7 +57,7 @@ export default function ResetPassword() {
 
     setLoading(true)
     try {
-      await pb.collection('users').confirmPasswordReset(token!, password, confirmPassword)
+      await pb.collection('users').confirmPasswordReset(token, password, confirmPassword)
       toast({
         title: 'Sucesso',
         description: 'Sua senha foi atualizada com sucesso. Você já pode fazer login.',

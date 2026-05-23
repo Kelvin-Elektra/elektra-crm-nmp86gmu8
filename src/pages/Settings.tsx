@@ -242,13 +242,9 @@ export default function Settings() {
     }
   }
 
-  const handleAdminReset = async (userId: string) => {
+  const handleAdminReset = async (email: string) => {
     try {
-      await pb.send('/backend/v1/auth/admin-reset', {
-        method: 'POST',
-        body: JSON.stringify({ userId, origin: window.location.origin }),
-        headers: { 'Content-Type': 'application/json' },
-      })
+      await pb.collection('users').requestPasswordReset(email)
       toast({ title: 'Sucesso', description: 'E-mail de redefinição de senha enviado ao usuário.' })
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Erro', description: err.response?.message })
@@ -527,7 +523,7 @@ export default function Settings() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  onClick={() => handleAdminReset(member.id)}
+                                  onClick={() => handleAdminReset(member.email)}
                                   title="Enviar Redefinição de Senha"
                                 >
                                   <KeyRound className="h-4 w-4 text-muted-foreground" />

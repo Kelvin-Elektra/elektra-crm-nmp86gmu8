@@ -2,40 +2,39 @@ routerAdd(
   'POST',
   '/backend/v1/auth/admin-reset',
   (e) => {
-    const admin = e.auth
-    if (!admin) return e.unauthorizedError('Não autenticado')
-
-    if (admin.getString('role') !== 'User_owner' && admin.getString('role') !== 'User_elektra') {
-      return e.forbiddenError('Acesso negado')
-    }
-
     let body = e.requestInfo().body || {}
-    const targetId = body.userId
-
-    if (!targetId) return e.badRequestError('ID do usuário é obrigatório')
-
-    let targetUser
-    try {
-      targetUser = $app.findRecordById('users', targetId)
-    } catch (_) {
-      return e.notFoundError('Usuário não encontrado')
+    if (typeof body === 'string') {
+      try {
+        body = JSON.parse(body)
+      } catch (_) {}
     }
+    const userId = body.userId
+    let origin = body.origin || 'https://crm.elektrasolucoes.tech'
+    if (origin.endsWith('/')) origin = origin.slice(0, -1)
 
-    if (admin.getString('role') === 'User_owner') {
-      if (targetUser.getString('company_id') !== admin.getString('company_id')) {
-        return e.forbiddenError('Usuário não pertence à sua companhia')
+    if (!userId) return e.badRequestError('Usuário é obrigatório')
+
+    const targetUser = $app.findRecordById('users', userId)
+
+    if (e.auth.id !== targetUser.id) {
+      if (
+        e.auth.getString('role') !== 'User_elektra' &&
+        e.auth.getString('company_id') !== targetUser.getString('company_id')
+      ) {
+        return e.forbiddenError('Não autorizado')
+      }
+      const roleCompany = e.auth.getString('role_company')
+      const role = e.auth.getString('role')
+      if (role !== 'User_owner' && roleCompany !== 'admin' && role !== 'User_elektra') {
+        return e.forbiddenError('Apenas administradores podem redefinir senhas')
       }
     }
 
-    const secret = $secrets.get('SSO_SECRET') || 'elektra_reset_secret_key_2026'
-    const token = $security.createJWT(
-      { id: targetUser.id, email: targetUser.getString('email') },
-      secret,
-      3600,
-    )
+    const email = targetUser.getString('email')
+    if (!email) return e.badRequestError('Usuário não possui email')
 
-    let origin = body.origin || 'https://crm.elektrasolucoes.tech'
-    if (origin.endsWith('/')) origin = origin.slice(0, -1)
+    const secret = $secrets.get('SSO_SECRET') || 'elektra_reset_secret_key_2026'
+    const token = $security.createJWT({ id: targetUser.id, email }, secret, 3600)
     const resetLink = `${origin}/reset-password?token=${token}`
 
     const resendKey = $secrets.get('RESEND_API_KEY')
@@ -43,8 +42,8 @@ routerAdd(
       const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2>Olá, ${targetUser.getString('name') || 'Usuário'}</h2>
-        <p>O administrador da sua empresa solicitou a redefinição da sua senha no Elektra CRM.</p>
-        <p><a href="${resetLink}" style="display: inline-block; padding: 10px 20px; background-color: #2563eb; color: #fff; text-decoration: none; border-radius: 5px;">Configurar Minha Senha</a></p>
+        <p>Um administrador solicitou a redefinição da sua senha no Elektra CRM.</p>
+        <p><a href="${resetLink}" style="display: inline-block; padding: 10px 20px; background-color: #2563eb; color: #fff; text-decoration: none; border-radius: 5px;">Configurar Nova Senha</a></p>
         <p>Se o botão não funcionar, copie e cole o link abaixo no seu navegador:</p>
         <p><a href="${resetLink}">${resetLink}</a></p>
       </div>
@@ -58,7 +57,7 @@ routerAdd(
         },
         body: JSON.stringify({
           from: 'Elektra CRM <suporte@elektrasolucoes.tech>',
-          to: targetUser.getString('email'),
+          to: email,
           subject: 'Redefinição de Senha - Elektra CRM',
           html: html,
         }),
@@ -66,9 +65,7 @@ routerAdd(
       })
 
       if (resendReq.statusCode >= 400) {
-        $app
-          .logger()
-          .error('Erro ao enviar email via Resend (admin-reset)', 'status', resendReq.statusCode)
+        $app.logger().error('Erro ao enviar email de reset (admin)', 'status', resendReq.statusCode)
         return e.internalServerError('Erro ao enviar o e-mail.')
       }
     }
