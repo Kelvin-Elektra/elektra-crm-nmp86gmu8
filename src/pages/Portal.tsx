@@ -34,6 +34,7 @@ export default function Portal() {
 
   const [step, setStep] = useState<1 | 2>(1)
   const [loading, setLoading] = useState(false)
+  const [needsVerification, setNeedsVerification] = useState(false)
   const [settings] = useState<any>(getCachedSystemSettings())
 
   const emailForm = useForm<z.infer<typeof emailSchema>>({
@@ -53,9 +54,13 @@ export default function Portal() {
 
   const onPasswordSubmit = async (values: z.infer<typeof passwordSchema>) => {
     setLoading(true)
+    setNeedsVerification(false)
     const result = await login(values.email, values.password)
     setLoading(false)
     if (!result.success) {
+      if (result.needsVerification) {
+        setNeedsVerification(true)
+      }
       toast({
         title: 'Erro no login',
         description: result.error || 'Verifique suas credenciais e tente novamente.',
@@ -74,12 +79,16 @@ export default function Portal() {
       await pb.collection('users').requestVerification(email)
       toast({
         title: 'Sucesso!',
-        description: 'Link de verificação reenviado para seu e-mail.',
+        description:
+          'Link de autenticação reenviado para seu e-mail. Verifique sua caixa de entrada e spam.',
       })
     } catch (err: any) {
       toast({
         title: 'Erro ao enviar link',
-        description: err.response?.message || err.message || 'Tente novamente mais tarde.',
+        description:
+          err.response?.message ||
+          err.message ||
+          'Falha ao enviar e-mail. Tente novamente mais tarde.',
         variant: 'destructive',
       })
     } finally {
@@ -179,16 +188,18 @@ export default function Portal() {
                     >
                       Esqueceu sua senha?
                     </Button>
-                    <Button
-                      variant="link"
-                      size="sm"
-                      type="button"
-                      onClick={handleResendVerification}
-                      disabled={loading}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      Reenviar link de autenticação
-                    </Button>
+                    {needsVerification && (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        type="button"
+                        onClick={handleResendVerification}
+                        disabled={loading}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        Reenviar link de autenticação
+                      </Button>
+                    )}
                   </div>
                 </form>
               </Form>

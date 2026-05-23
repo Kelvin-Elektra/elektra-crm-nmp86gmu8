@@ -19,7 +19,13 @@ export function WhatsAppSupportButton() {
   if (!supportInfo) return null
 
   const isUrl = supportInfo.startsWith('http')
-  const href = isUrl ? supportInfo : `https://wa.me/${supportInfo.replace(/\D/g, '')}`
+  let href = supportInfo
+  if (!isUrl) {
+    const cleanNumber = supportInfo.replace(/\D/g, '')
+    const finalNumber =
+      cleanNumber.length > 0 && cleanNumber.length <= 11 ? `55${cleanNumber}` : cleanNumber
+    href = `https://wa.me/${finalNumber}`
+  }
 
   return (
     <a
