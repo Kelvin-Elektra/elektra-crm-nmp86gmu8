@@ -24,12 +24,16 @@ export default function ResetPassword() {
     e.preventDefault()
     setLoading(true)
     try {
-      await pb.collection('users').requestPasswordReset(email)
+      await pb.send('/backend/v1/auth/request-reset', {
+        method: 'POST',
+        body: JSON.stringify({ email, origin: window.location.origin }),
+        headers: { 'Content-Type': 'application/json' },
+      })
       setRequested(true)
       toast({
         title: 'E-mail enviado',
         description:
-          'Se o e-mail estiver cadastrado, você receberá um link para redefinir a senha.',
+          'Se o e-mail estiver cadastrado, você receberá um link para redefinir a senha. Verifique sua caixa de entrada e também a pasta de spam.',
       })
     } catch (err: any) {
       toast({
@@ -82,7 +86,7 @@ export default function ResetPassword() {
             <CardTitle>Recuperar Senha</CardTitle>
             <CardDescription>
               {requested
-                ? 'Verifique sua caixa de entrada e siga as instruções.'
+                ? 'Verifique sua caixa de entrada (e a pasta de spam) e siga as instruções.'
                 : 'Insira seu e-mail e enviaremos um link para redefinir sua senha.'}
             </CardDescription>
           </CardHeader>

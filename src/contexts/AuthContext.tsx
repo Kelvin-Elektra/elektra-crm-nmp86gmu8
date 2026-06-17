@@ -151,7 +151,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const requestPasswordReset = async (email: string) => {
     try {
-      await pb.collection('users').requestPasswordReset(email)
+      await pb.send('/backend/v1/auth/request-reset', {
+        method: 'POST',
+        body: JSON.stringify({ email, origin: window.location.origin }),
+        headers: { 'Content-Type': 'application/json' },
+      })
       return { success: true }
     } catch (err: any) {
       return {

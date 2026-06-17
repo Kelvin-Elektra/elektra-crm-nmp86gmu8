@@ -22,26 +22,6 @@ routerAdd('POST', '/backend/v1/auth/request-reset', (e) => {
     return e.json(200, { success: true })
   }
 
-  const role = user.getString('role')
-  if (role !== 'User_owner' && role !== 'User_elektra') {
-    let ownerName = 'Proprietário'
-    try {
-      const owners = $app.findRecordsByFilter(
-        'users',
-        `company_id='${user.getString('company_id')}' && role='User_owner'`,
-        '',
-        1,
-        0,
-      )
-      if (owners.length > 0) {
-        ownerName = owners[0].getString('name') || ownerName
-      }
-    } catch (_) {}
-    return e.badRequestError(
-      `Entre em contato com o Proprietário da Companhia: ${ownerName} para redefinir a senha.`,
-    )
-  }
-
   const secret = $secrets.get('SSO_SECRET') || 'elektra_reset_secret_key_2026'
   const token = $security.createJWT({ id: user.id, email: user.email }, secret, 3600)
   const resetLink = `${origin}/reset-password?token=${token}`
