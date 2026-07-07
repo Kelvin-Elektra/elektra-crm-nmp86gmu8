@@ -18,9 +18,13 @@ import { ProposalViewer } from '../ProposalViewer'
 import { ProposalCostModal } from './ProposalCostModal'
 import { ProposalWizardModal } from './ProposalWizardModal'
 import { Badge } from '@/components/ui/badge'
+import { useAuth } from '@/contexts/AuthContext'
 
 export function ProposalsTab({ proposals, neg, reload }: any) {
+  const { user } = useAuth()
   const { toast } = useToast()
+  const isAdmin =
+    user?.role === 'User_elektra' || user?.role_company === 'admin' || user?.role === 'User_owner'
   const [viewerOpen, setViewerOpen] = useState<any>(null)
   const [costModalOpen, setCostModalOpen] = useState<any>(null)
   const [wizardOpen, setWizardOpen] = useState(false)
@@ -138,14 +142,16 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
                   >
                     <Eye className="h-4 w-4 mr-2" /> Visualizar
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCostModalOpen(p)}
-                    title="Editar Custos"
-                  >
-                    <DollarSign className="h-4 w-4 mr-2 text-green-600" /> Custos
-                  </Button>
+                  {isAdmin && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCostModalOpen(p)}
+                      title="Editar Custos"
+                    >
+                      <DollarSign className="h-4 w-4 mr-2 text-green-600" /> Custos
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"

@@ -56,6 +56,7 @@ export function CostsTab() {
     rate: 'Percentual sobre a venda',
     tax: 'Imposto',
     margin: 'Margem',
+    kit_percent: 'Margem fake (% sobre o preço do kit)',
   }
 
   const handleNumberChange = (field: string, value: string) => {
@@ -280,6 +281,7 @@ export function CostsTab() {
                   <SelectItem value="rate">Percentual sobre o valor da venda (%)</SelectItem>
                   <SelectItem value="tax">Imposto (%)</SelectItem>
                   <SelectItem value="margin">Margem (%)</SelectItem>
+                  <SelectItem value="kit_percent">Margem fake (% sobre o preço do kit)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -485,7 +487,9 @@ export function CostsTab() {
                           <>
                             {d.calc_method === 'fixed' ? 'R$ ' : ''}
                             {formatNumber(d.value)}
-                            {['rate', 'tax', 'margin'].includes(d.calc_method) ? '%' : ''}
+                            {['rate', 'tax', 'margin', 'kit_percent'].includes(d.calc_method)
+                              ? '%'
+                              : ''}
                           </>
                         )}
                       </td>

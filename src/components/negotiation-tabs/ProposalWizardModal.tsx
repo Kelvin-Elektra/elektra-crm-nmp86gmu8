@@ -18,11 +18,16 @@ import pb from '@/lib/pocketbase/client'
 import { useAuth } from '@/contexts/AuthContext'
 import { extractSizingMetrics, getBaseValue } from '@/lib/sizing-utils'
 
+const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+
 export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewer }: any) {
   const { user } = useAuth()
   const { toast } = useToast()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
+
+  const isAdmin =
+    user?.role === 'User_elektra' || user?.role_company === 'admin' || user?.role === 'User_owner'
 
   const [validity, setValidity] = useState('')
   const [paymentTerms, setPaymentTerms] = useState('')
@@ -49,8 +54,16 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
   useEffect(() => {
     if (!rawPricingData) return
 
-    const { autoKitPrice, fixedCosts, varCosts, rateSum, taxSum, marginSum, settings } =
-      rawPricingData
+    const {
+      autoKitPrice,
+      fixedCosts,
+      varCosts,
+      rateSum,
+      taxSum,
+      marginSum,
+      kitPercentSum,
+      settings,
+    } = rawPricingData
     const currentKitPrice = pricingMode === 'manual' ? manualKitValue : autoKitPrice
 
     const safeKitPrice = Number.isFinite(currentKitPrice) ? currentKitPrice : 0
@@ -59,8 +72,10 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
     const safeRate = Number.isFinite(rateSum) ? rateSum : 0
     const safeMargin = Number.isFinite(marginSum) ? marginSum : 0
     const safeTax = Number.isFinite(taxSum) ? taxSum : 0
+    const safeKitPercent = Number.isFinite(kitPercentSum) ? kitPercentSum : 0
 
-    const C = safeKitPrice + safeFixed + safeVar
+    const kitPercentAmount = safeKitPrice * safeKitPercent
+    const C = safeKitPrice + safeFixed + safeVar + kitPercentAmount
     const R = safeRate
     const M = safeMargin
     const T = safeTax
@@ -72,7 +87,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
     if (denominator <= 0 || !Number.isFinite(denominator)) {
       salePrice = (neg.sizing?.kit_power_kwp || 0) * 3500
     } else if (billingModel === 'intermediated') {
-      salePrice = (safeFixed + safeVar + (1 - T) * safeKitPrice) / denominator
+      salePrice = (safeFixed + safeVar + kitPercentAmount + (1 - T) * safeKitPrice) / denominator
     } else {
       salePrice = C / denominator
     }
@@ -81,6 +96,16 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
       salePrice = (neg.sizing?.kit_power_kwp || 0) * 3500
     }
 
+    const updatedAppliedCosts = rawPricingData.appliedCosts?.map((cost: any) => {
+      if (['rate', 'tax', 'margin'].includes(cost.method)) {
+        return { ...cost, calculatedAmount: salePrice * ((Number(cost.value) || 0) / 100) }
+      }
+      if (cost.method === 'kit_percent') {
+        return { ...cost, calculatedAmount: safeKitPrice * ((Number(cost.value) || 0) / 100) }
+      }
+      return cost
+    })
+
     setTotalValue(salePrice)
     setPricingDetails({
       ...rawPricingData,
@@ -88,6 +113,8 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
       manualKitValue,
       kitPrice: safeKitPrice,
       salePrice,
+      kitPercentAmount,
+      appliedCosts: updatedAppliedCosts,
     })
   }, [rawPricingData, pricingMode, manualKitValue, neg.sizing])
 
@@ -148,6 +175,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
       let rateSum = 0
       let taxSum = 0
       let marginSum = 0
+      let kitPercentSum = 0
 
       const appliedCosts: any[] = []
 
@@ -187,6 +215,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
           if (c.calc_method === 'rate') rateSum += (Number(c.value) || 0) / 100
           if (c.calc_method === 'tax') taxSum += (Number(c.value) || 0) / 100
           if (c.calc_method === 'margin') marginSum += (Number(c.value) || 0) / 100
+          if (c.calc_method === 'kit_percent') kitPercentSum += (Number(c.value) || 0) / 100
 
           const effectiveBase =
             c.calc_method === 'variable' && (c.calc_base === 'fixed' || !c.calc_base)
@@ -212,6 +241,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         rateSum,
         taxSum,
         marginSum,
+        kitPercentSum,
         settings,
         appliedCosts,
         kitComposition,
@@ -226,11 +256,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
 
       const defMode = settings.default_pricing_mode || 'automatic'
       setPricingMode(defMode)
-      if (defMode === 'manual') {
-        setManualKitValue(autoKitPrice)
-      } else {
-        setManualKitValue(autoKitPrice)
-      }
+      setManualKitValue(autoKitPrice)
     } catch (e) {
       console.error(e)
     } finally {
@@ -240,6 +266,18 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
 
   const handleNext = () => setStep(2)
   const handlePrev = () => setStep(1)
+
+  const formatCostDisplay = (cost: any) => {
+    const isPercent = ['rate', 'tax', 'margin', 'kit_percent'].includes(cost.method)
+    if (isPercent) {
+      const kitPriceForCalc =
+        pricingMode === 'manual' ? manualKitValue : rawPricingData?.autoKitPrice || 0
+      const calcBase = cost.method === 'kit_percent' ? kitPriceForCalc : totalValue
+      const calcAmount = calcBase * ((Number(cost.value) || 0) / 100)
+      return `${cost.value}% (${BRL.format(calcAmount)})`
+    }
+    return BRL.format(cost.amount || 0)
+  }
 
   const handleGenerate = async () => {
     const maxDiscount = (user as any)?.max_discount || 0
@@ -271,6 +309,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         rawSettings: pricingDetails?.rawSettings || {},
       }
 
+      const kitPercentAmt = pricingDetails?.kitPercentAmount || 0
       const cost_breakdown = [
         {
           name: 'Kit Fotovoltaico (Equipamentos e Insumos)',
@@ -285,6 +324,12 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
           price: pricingDetails.fixedCosts + pricingDetails.varCosts,
         },
         {
+          name: 'Margem Fake sobre Kit',
+          cost: kitPercentAmt,
+          margin: 0,
+          price: kitPercentAmt,
+        },
+        {
           name: 'Margens e Taxas Aplicadas',
           cost: 0,
           margin: 0,
@@ -292,7 +337,8 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
             finalPrice -
             pricingDetails.kitPrice -
             pricingDetails.fixedCosts -
-            pricingDetails.varCosts,
+            pricingDetails.varCosts -
+            kitPercentAmt,
         },
       ]
 
@@ -354,81 +400,81 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
               </div>
             </div>
 
-            <div className="bg-primary/5 p-4 rounded-lg border border-primary/20 space-y-4">
-              <h4 className="font-semibold text-sm border-b border-primary/10 pb-2">
-                Composição do Custo do Kit
-              </h4>
+            {isAdmin && (
+              <div className="bg-primary/5 p-4 rounded-lg border border-primary/20 space-y-4">
+                <h4 className="font-semibold text-sm border-b border-primary/10 pb-2">
+                  Composição do Custo do Kit
+                </h4>
 
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Modo de Precificação:</span>
-                <RadioGroup
-                  value={pricingMode}
-                  onValueChange={(v) => setPricingMode(v as 'automatic' | 'manual')}
-                  className="flex gap-4"
-                  disabled={user?.role === 'user'}
-                >
-                  <div className="flex items-center space-x-1">
-                    <RadioGroupItem
-                      value="automatic"
-                      id="mode-auto"
-                      disabled={user?.role === 'user'}
-                    />
-                    <Label
-                      htmlFor="mode-auto"
-                      className={`cursor-pointer ${user?.role === 'user' ? 'opacity-50' : ''}`}
-                    >
-                      Automático
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <RadioGroupItem
-                      value="manual"
-                      id="mode-manual"
-                      disabled={user?.role === 'user'}
-                    />
-                    <Label
-                      htmlFor="mode-manual"
-                      className={`cursor-pointer ${user?.role === 'user' ? 'opacity-50' : ''}`}
-                    >
-                      Manual
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Modo de Precificação:</span>
+                  <RadioGroup
+                    value={pricingMode}
+                    onValueChange={(v) => setPricingMode(v as 'automatic' | 'manual')}
+                    className="flex gap-4"
+                    disabled={user?.role === 'user'}
+                  >
+                    <div className="flex items-center space-x-1">
+                      <RadioGroupItem
+                        value="automatic"
+                        id="mode-auto"
+                        disabled={user?.role === 'user'}
+                      />
+                      <Label
+                        htmlFor="mode-auto"
+                        className={`cursor-pointer ${user?.role === 'user' ? 'opacity-50' : ''}`}
+                      >
+                        Automático
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <RadioGroupItem
+                        value="manual"
+                        id="mode-manual"
+                        disabled={user?.role === 'user'}
+                      />
+                      <Label
+                        htmlFor="mode-manual"
+                        className={`cursor-pointer ${user?.role === 'user' ? 'opacity-50' : ''}`}
+                      >
+                        Manual
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
 
-              {pricingMode === 'manual' ? (
-                <div className="flex justify-between items-center bg-white p-3 rounded-md border shadow-sm">
-                  <span className="text-muted-foreground font-medium">
-                    Custo Base do Kit (Manual):
-                  </span>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                      R$
+                {pricingMode === 'manual' ? (
+                  <div className="flex justify-between items-center bg-white p-3 rounded-md border shadow-sm">
+                    <span className="text-muted-foreground font-medium">
+                      Custo Base do Kit (Manual):
                     </span>
-                    <Input
-                      type="number"
-                      className="w-36 text-right pl-8 font-medium"
-                      value={manualKitValue || ''}
-                      onChange={(e) => setManualKitValue(Number(e.target.value))}
-                      disabled={user?.role === 'user'}
-                    />
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                        R$
+                      </span>
+                      <Input
+                        type="number"
+                        className="w-36 text-right pl-8 font-medium"
+                        value={manualKitValue || ''}
+                        onChange={(e) => setManualKitValue(Number(e.target.value))}
+                        disabled={user?.role === 'user'}
+                      />
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="flex justify-between items-center bg-white p-3 rounded-md border shadow-sm">
-                  <span className="text-muted-foreground font-medium">
-                    Custo Formado do Kit (Auto):
-                  </span>
-                  <span className="font-semibold text-lg">
-                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                      rawPricingData?.autoKitPrice || 0,
-                    )}
-                  </span>
-                </div>
-              )}
-            </div>
+                ) : (
+                  <div className="flex justify-between items-center bg-white p-3 rounded-md border shadow-sm">
+                    <span className="text-muted-foreground font-medium">
+                      Custo Formado do Kit (Auto):
+                    </span>
+                    <span className="font-semibold text-lg">
+                      {BRL.format(rawPricingData?.autoKitPrice || 0)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
 
-            {rawPricingData?.appliedCosts && rawPricingData.appliedCosts.length > 0 && (
+            {isAdmin && rawPricingData?.appliedCosts && rawPricingData.appliedCosts.length > 0 && (
               <div className="bg-muted/30 p-4 rounded-lg border space-y-2">
                 <h4 className="font-semibold text-sm border-b pb-2">
                   Detalhamento de Custos Aplicados
@@ -468,14 +514,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
                         cost.name
                       )}
                     </span>
-                    <span className="font-medium">
-                      {['rate', 'tax', 'margin'].includes(cost.method)
-                        ? `${cost.value}%`
-                        : new Intl.NumberFormat('pt-BR', {
-                            style: 'currency',
-                            currency: 'BRL',
-                          }).format(cost.amount || 0)}
-                    </span>
+                    <span className="font-medium">{formatCostDisplay(cost)}</span>
                   </div>
                 ))}
               </div>
@@ -487,9 +526,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
                   Preço de Venda Base Calculado:
                 </span>
                 <span className="font-bold text-primary text-xl">
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                    totalValue || 0,
-                  )}
+                  {BRL.format(totalValue || 0)}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-2 italic">
@@ -552,9 +589,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
             <div className="bg-primary/5 p-4 rounded-lg border border-primary/20 flex justify-between items-center mt-4">
               <span className="font-medium text-lg">Valor Final:</span>
               <span className="font-bold text-xl text-primary">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                  totalValue * (1 - discount / 100),
-                )}
+                {BRL.format(totalValue * (1 - discount / 100))}
               </span>
             </div>
             <DialogFooter className="mt-6">
