@@ -320,6 +320,47 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
             </div>
           )}
         </div>
+        {snapshotPricing?.appliedCosts && snapshotPricing.appliedCosts.length > 0 && (
+          <div className="space-y-3 pt-4 border-t">
+            <h3 className="font-semibold text-sm">Detalhamento de Custos Variáveis e Aplicados</h3>
+            <div className="space-y-1">
+              {snapshotPricing.appliedCosts.map((cost: any, idx: number) => (
+                <div key={idx} className="flex justify-between text-sm py-1">
+                  <span className="text-muted-foreground">
+                    {cost.method === 'variable' && cost.multiplier ? (
+                      <>
+                        {cost.name}:{' '}
+                        {cost.multiplier.toLocaleString('pt-BR', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}{' '}
+                        ×{' '}
+                        {cost.baseValue?.toLocaleString('pt-BR', {
+                          maximumFractionDigits: 2,
+                        })}{' '}
+                        {cost.calcBase === 'modules'
+                          ? 'módulos'
+                          : cost.calcBase === 'kwp'
+                            ? 'kWp'
+                            : cost.calcBase === 'kw'
+                              ? 'kW'
+                              : ''}
+                      </>
+                    ) : (
+                      cost.name
+                    )}
+                  </span>
+                  <span className="font-medium">
+                    {new Intl.NumberFormat('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    }).format(cost.amount || 0)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar

@@ -139,7 +139,8 @@ export function CostsTab() {
       min_val: form.range_type !== 'none' && form.min_val ? parseNumber(form.min_val) : null,
       max_val: form.range_type !== 'none' && form.max_val ? parseNumber(form.max_val) : null,
       installation_id: form.installation_id !== 'none' ? form.installation_id : null,
-      calc_base: form.calc_base,
+      calc_base:
+        form.calc_method === 'variable' && form.calc_base === 'fixed' ? 'modules' : form.calc_base,
       multiplier: parseNumber(form.multiplier) || null,
       user_id: form.user_id !== 'all' ? form.user_id : null,
       company_id: user.company_id,
@@ -161,6 +162,10 @@ export function CostsTab() {
   }
 
   const handleEdit = (item: any) => {
+    const safeCalcBase =
+      item.calc_method === 'variable' && (item.calc_base === 'fixed' || !item.calc_base)
+        ? 'modules'
+        : item.calc_base || 'fixed'
     setForm({
       name: item.name,
       range_type: item.range_type,
@@ -169,7 +174,7 @@ export function CostsTab() {
       min_val: formatNumber(item.min_val),
       max_val: formatNumber(item.max_val),
       installation_id: item.installation_id || 'none',
-      calc_base: item.calc_base || 'fixed',
+      calc_base: safeCalcBase,
       multiplier: formatNumber(item.multiplier),
       user_id: item.user_id || 'all',
     })
@@ -256,7 +261,15 @@ export function CostsTab() {
               <Label className="font-semibold">Método de Cálculo</Label>
               <Select
                 value={form.calc_method}
-                onValueChange={(v) => setForm({ ...form, calc_method: v })}
+                onValueChange={(v) => {
+                  if (v === 'variable' && (form.calc_base === 'fixed' || !form.calc_base)) {
+                    setForm({ ...form, calc_method: v, calc_base: 'modules' })
+                  } else if (v !== 'variable') {
+                    setForm({ ...form, calc_method: v, calc_base: 'fixed' })
+                  } else {
+                    setForm({ ...form, calc_method: v })
+                  }
+                }}
               >
                 <SelectTrigger className="bg-background">
                   <SelectValue />
@@ -289,7 +302,9 @@ export function CostsTab() {
             {form.calc_method === 'variable' && (
               <>
                 <div className="space-y-2 md:col-span-3">
-                  <Label className="font-semibold">Base de Cálculo Variável</Label>
+                  <Label className="font-semibold">
+                    Base de Cálculo Variável <span className="text-destructive">*</span>
+                  </Label>
                   <Select
                     value={form.calc_base}
                     onValueChange={(v) => setForm({ ...form, calc_base: v })}
@@ -303,10 +318,16 @@ export function CostsTab() {
                       <SelectItem value="kw">Potência do Inversor (kW)</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Define a base do cálculo: Multiplicador × Base = Custo Final.
+                  </p>
                 </div>
                 <div className="space-y-2 md:col-span-3">
-                  <Label className="font-semibold">Multiplicador</Label>
+                  <Label className="font-semibold">
+                    Multiplicador <span className="text-destructive">*</span>
+                  </Label>
                   <Input
+                    required
                     type="text"
                     value={form.multiplier}
                     onChange={(e) => handleNumberChange('multiplier', e.target.value)}
@@ -449,9 +470,24 @@ export function CostsTab() {
                       <td className="p-3 font-medium">{d.name}</td>
                       <td className="p-3">{methodLabels[d.calc_method] || d.calc_method}</td>
                       <td className="p-3 font-medium">
-                        {['fixed', 'variable'].includes(d.calc_method) ? 'R$ ' : ''}
-                        {formatNumber(d.value)}
-                        {['rate', 'tax', 'margin'].includes(d.calc_method) ? '%' : ''}
+                        {d.calc_method === 'variable' ? (
+                          <span className="text-muted-foreground text-xs">
+                            {formatNumber(d.multiplier)} ×{' '}
+                            {d.calc_base === 'modules'
+                              ? 'módulos'
+                              : d.calc_base === 'kwp'
+                                ? 'kWp'
+                                : d.calc_base === 'kw'
+                                  ? 'kW'
+                                  : d.calc_base}
+                          </span>
+                        ) : (
+                          <>
+                            {d.calc_method === 'fixed' ? 'R$ ' : ''}
+                            {formatNumber(d.value)}
+                            {['rate', 'tax', 'margin'].includes(d.calc_method) ? '%' : ''}
+                          </>
+                        )}
                       </td>
                       <td className="p-3 capitalize text-muted-foreground">
                         {d.range_type === 'none'

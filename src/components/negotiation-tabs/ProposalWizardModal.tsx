@@ -16,6 +16,7 @@ import { FileText, ArrowRight, ArrowLeft } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { useAuth } from '@/contexts/AuthContext'
+import { extractSizingMetrics, getBaseValue } from '@/lib/sizing-utils'
 
 export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewer }: any) {
   const { user } = useAuth()
@@ -125,9 +126,11 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         .filter((c) => c.type === 'supply')
         .reduce((acc, c) => acc + c.total, 0)
 
-      const baseKwp = sizing.kit_power_kwp || 0
-      const baseMods = sizing.module_qty || 0
-      const baseKw = invs.reduce((acc, i) => acc + (i?.power || 0) * i.qty, 0)
+      const modPowerW = modRec?.power || 0
+      const metrics = extractSizingMetrics(neg, modPowerW, invs)
+      const baseKwp = metrics.totalKwp
+      const baseMods = metrics.totalModules
+      const baseKw = metrics.totalKw
       const instId = sizing.installation_id || 'none'
 
       let fixedCosts = 0
@@ -164,18 +167,30 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
             amount = c.value
           }
           if (c.calc_method === 'variable') {
-            let baseVal = 0
-            if (c.calc_base === 'kwp') baseVal = baseKwp
-            else if (c.calc_base === 'modules') baseVal = baseMods
-            else if (c.calc_base === 'kw') baseVal = baseKw
-            amount = (c.multiplier || c.value) * baseVal
+            const effectiveBase = c.calc_base === 'fixed' || !c.calc_base ? 'modules' : c.calc_base
+            const baseVal = getBaseValue(effectiveBase, metrics)
+            const multiplier = Number(c.multiplier) || 0
+            amount = multiplier * baseVal
             varCosts += amount
           }
           if (c.calc_method === 'rate') rateSum += c.value / 100
           if (c.calc_method === 'tax') taxSum += c.value / 100
           if (c.calc_method === 'margin') marginSum += c.value / 100
 
-          appliedCosts.push({ name: c.name, method: c.calc_method, value: c.value, amount })
+          const effectiveBase =
+            c.calc_method === 'variable' && (c.calc_base === 'fixed' || !c.calc_base)
+              ? 'modules'
+              : c.calc_base
+          appliedCosts.push({
+            name: c.name,
+            method: c.calc_method,
+            value: c.value,
+            amount,
+            multiplier: c.calc_method === 'variable' ? Number(c.multiplier) || 0 : undefined,
+            calcBase: c.calc_method === 'variable' ? effectiveBase : undefined,
+            baseValue:
+              c.calc_method === 'variable' ? getBaseValue(effectiveBase, metrics) : undefined,
+          })
         }
       })
 
@@ -191,6 +206,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         kitComposition,
         equipment: { modules: modRec, inverters: invs },
         supplies: suppliesCost,
+        hasSizing: metrics.hasSizing,
       })
 
       const defMode = settings.default_pricing_mode || 'automatic'
@@ -392,6 +408,57 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
                 </div>
               )}
             </div>
+
+            {rawPricingData?.appliedCosts && rawPricingData.appliedCosts.length > 0 && (
+              <div className="bg-muted/30 p-4 rounded-lg border space-y-2">
+                <h4 className="font-semibold text-sm border-b pb-2">
+                  Detalhamento de Custos Aplicados
+                </h4>
+                {!rawPricingData?.hasSizing && (
+                  <p className="text-xs text-destructive font-medium">
+                    ⚠ Esta negociação não possui dimensionamento completo. Custos variáveis podem
+                    não ser calculados corretamente.
+                  </p>
+                )}
+                {rawPricingData.appliedCosts.map((cost: any, idx: number) => (
+                  <div
+                    key={idx}
+                    className="flex justify-between text-sm py-1 border-b last:border-0"
+                  >
+                    <span className="text-muted-foreground">
+                      {cost.method === 'variable' && cost.multiplier ? (
+                        <>
+                          {cost.name}:{' '}
+                          {cost.multiplier.toLocaleString('pt-BR', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{' '}
+                          ×{' '}
+                          {cost.baseValue?.toLocaleString('pt-BR', {
+                            maximumFractionDigits: 2,
+                          })}{' '}
+                          {cost.calcBase === 'modules'
+                            ? 'módulos'
+                            : cost.calcBase === 'kwp'
+                              ? 'kWp'
+                              : cost.calcBase === 'kw'
+                                ? 'kW'
+                                : ''}
+                        </>
+                      ) : (
+                        cost.name
+                      )}
+                    </span>
+                    <span className="font-medium">
+                      {new Intl.NumberFormat('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      }).format(cost.amount || 0)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="bg-muted/30 p-4 rounded-lg border">
               <div className="flex justify-between items-center">

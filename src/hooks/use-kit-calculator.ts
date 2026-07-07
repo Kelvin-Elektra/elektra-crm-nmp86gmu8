@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import pb from '@/lib/pocketbase/client'
+import { extractSizingMetrics } from '@/lib/sizing-utils'
 
 export interface KitCompositionItem {
   name: string
@@ -26,28 +27,23 @@ export async function calculateKitPrice(
       pb.collection('pv_modules').getFullList({ filter: `company_id = '${neg.company_id}'` }),
     ])
 
-    let totalModules = Number(sizing.module_qty || sizing.total_modules || 0)
-    if (neg.use_roof_faces && Array.isArray(neg.roof_faces_data)) {
-      totalModules = neg.roof_faces_data.reduce(
-        (acc: number, f: any) => acc + (Number(f.modules) || 0),
-        0,
-      )
-    }
-
-    let totalKwp = Number(
-      sizing.kit_power_kwp || sizing.system_power || sizing.total_kwp || sizing.power || 0,
-    )
     let modPowerW = 0
     if (sizing.selected_module_id) {
       const mod = allModules.find((m) => m.id === sizing.selected_module_id)
       if (mod) modPowerW = Number(mod.power || 0)
     }
 
-    if (neg.use_roof_faces && Array.isArray(neg.roof_faces_data) && modPowerW > 0) {
-      totalKwp = (totalModules * modPowerW) / 1000
-    }
+    const resolvedInverters = (sizing.inverters || []).map((inv: any) => {
+      const data = allInverters.find((i) => i.id === inv.id)
+      return {
+        power: Number(data?.power || 0),
+        qty: Number(inv.qty || inv.quantity || 0),
+      }
+    })
 
-    totalKwp = Math.round(totalKwp * 10000) / 10000
+    const metrics = extractSizingMetrics(neg, modPowerW, resolvedInverters)
+    let totalModules = metrics.totalModules
+    let totalKwp = Math.round(metrics.totalKwp * 10000) / 10000
 
     let totalMppt = Number(sizing.total_mppt || 0)
     let total = 0
