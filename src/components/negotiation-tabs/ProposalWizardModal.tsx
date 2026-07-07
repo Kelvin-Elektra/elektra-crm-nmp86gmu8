@@ -64,7 +64,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
       salePrice = (neg.sizing?.kit_power_kwp || 0) * 3500 // fallback
     } else {
       if (billingModel === 'intermediated') {
-        salePrice = (C - currentKitPrice * T) / (1 - R - M - T)
+        salePrice = ((1 - T) * currentKitPrice) / (1 - (R + M) - T)
       } else {
         salePrice = C / (1 - R - M - T)
       }

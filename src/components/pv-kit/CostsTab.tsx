@@ -50,6 +50,14 @@ export function CostsTab() {
     'Margem de contribuição',
   ]
 
+  const methodLabels: Record<string, string> = {
+    fixed: 'Valor fixo',
+    variable: 'Valor variável',
+    rate: 'Taxa/Alíquota',
+    tax: 'Imposto',
+    margin: 'Margem',
+  }
+
   const handleNumberChange = (field: string, value: string) => {
     let clean = value.replace(/[^0-9,.-]/g, '')
     const parts = clean.split(',')
@@ -78,7 +86,7 @@ export function CostsTab() {
 
       const usr = await pb
         .collection('users')
-        .getFullList({ filter: `company_id='${user.company_id}'` })
+        .getFullList({ filter: `company_id='${user.company_id}' && status='active'` })
       setUsers(usr)
 
       try {
@@ -126,7 +134,7 @@ export function CostsTab() {
     const payload = {
       name: form.name,
       calc_method: form.calc_method,
-      value: parseNumber(form.value) || 0,
+      value: form.calc_method === 'variable' ? null : (parseNumber(form.value) ?? 0),
       range_type: form.range_type,
       min_val: form.range_type !== 'none' && form.min_val ? parseNumber(form.min_val) : null,
       max_val: form.range_type !== 'none' && form.max_val ? parseNumber(form.max_val) : null,
@@ -256,25 +264,27 @@ export function CostsTab() {
                 <SelectContent>
                   <SelectItem value="fixed">Valor fixo (R$)</SelectItem>
                   <SelectItem value="variable">Valor variável (R$)</SelectItem>
-                  <SelectItem value="rate">Percentual sobre o valor da venda (%)</SelectItem>
+                  <SelectItem value="rate">Taxa/Alíquota (%)</SelectItem>
                   <SelectItem value="tax">Imposto (%)</SelectItem>
-                  <SelectItem value="margin">Margem de contribuição (%)</SelectItem>
+                  <SelectItem value="margin">Margem (%)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="space-y-2 md:col-span-2">
-              <Label className="font-semibold">
-                {['fixed', 'variable'].includes(form.calc_method) ? 'Valor (R$)' : 'Valor (%)'}
-              </Label>
-              <Input
-                required
-                type="text"
-                value={form.value}
-                onChange={(e) => handleNumberChange('value', e.target.value)}
-                className="bg-background"
-              />
-            </div>
+            {form.calc_method !== 'variable' && (
+              <div className="space-y-2 md:col-span-2">
+                <Label className="font-semibold">
+                  {form.calc_method === 'fixed' ? 'Valor (R$)' : 'Valor (%)'}
+                </Label>
+                <Input
+                  required
+                  type="text"
+                  value={form.value}
+                  onChange={(e) => handleNumberChange('value', e.target.value)}
+                  className="bg-background"
+                />
+              </div>
+            )}
 
             {form.calc_method === 'variable' && (
               <>
@@ -295,15 +305,7 @@ export function CostsTab() {
                   </Select>
                 </div>
                 <div className="space-y-2 md:col-span-3">
-                  <Label className="font-semibold">
-                    Multiplicador (R$ /{' '}
-                    {form.calc_base === 'kwp'
-                      ? 'kWp'
-                      : form.calc_base === 'modules'
-                        ? 'módulo'
-                        : 'kW'}
-                    )
-                  </Label>
+                  <Label className="font-semibold">Multiplicador</Label>
                   <Input
                     type="text"
                     value={form.multiplier}
@@ -445,11 +447,11 @@ export function CostsTab() {
                   data.map((d) => (
                     <tr key={d.id} className="border-t hover:bg-muted/30 transition-colors">
                       <td className="p-3 font-medium">{d.name}</td>
-                      <td className="p-3 capitalize">{d.calc_method}</td>
+                      <td className="p-3">{methodLabels[d.calc_method] || d.calc_method}</td>
                       <td className="p-3 font-medium">
                         {['fixed', 'variable'].includes(d.calc_method) ? 'R$ ' : ''}
                         {formatNumber(d.value)}
-                        {!['fixed', 'variable'].includes(d.calc_method) ? '%' : ''}
+                        {['rate', 'tax', 'margin'].includes(d.calc_method) ? '%' : ''}
                       </td>
                       <td className="p-3 capitalize text-muted-foreground">
                         {d.range_type === 'none'
