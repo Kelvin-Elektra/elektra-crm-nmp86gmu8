@@ -490,49 +490,74 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
                     key={idx}
                     className="flex justify-between text-sm py-1 border-b last:border-0"
                   >
-                    <span className="text-muted-foreground">
-                      {cost.method === 'variable' && cost.multiplier ? (
-                        <>
-                          {cost.name}:{' '}
-                          {cost.multiplier.toLocaleString('pt-BR', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}{' '}
-                          ×{' '}
-                          {cost.baseValue?.toLocaleString('pt-BR', {
-                            maximumFractionDigits: 2,
-                          })}{' '}
-                          {cost.calcBase === 'modules'
-                            ? 'módulos'
-                            : cost.calcBase === 'kwp'
-                              ? 'kWp'
-                              : cost.calcBase === 'kw'
-                                ? 'kW'
-                                : ''}
-                        </>
-                      ) : (
-                        cost.name
-                      )}
-                    </span>
+                    <span className="text-muted-foreground">{cost.name}</span>
                     <span className="font-medium">{formatCostDisplay(cost)}</span>
                   </div>
                 ))}
               </div>
             )}
 
+            {isAdmin && rawPricingData && (
+              <div className="bg-primary/5 p-4 rounded-lg border border-primary/20 space-y-2">
+                <h4 className="font-semibold text-sm border-b border-primary/10 pb-2">
+                  Resumo de Custos
+                </h4>
+                {(() => {
+                  const currentKit =
+                    pricingMode === 'manual' ? manualKitValue : rawPricingData.autoKitPrice || 0
+                  const kitPercentAmt = currentKit * (rawPricingData.kitPercentSum || 0)
+                  const totalCosts =
+                    currentKit +
+                    (rawPricingData.fixedCosts || 0) +
+                    (rawPricingData.varCosts || 0) +
+                    kitPercentAmt
+                  return (
+                    <>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Custo do Kit:</span>
+                        <span className="font-medium">{BRL.format(currentKit)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Custos Fixos:</span>
+                        <span className="font-medium">
+                          {BRL.format(rawPricingData.fixedCosts || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Custos Variáveis:</span>
+                        <span className="font-medium">
+                          {BRL.format(rawPricingData.varCosts || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Margem Fake:</span>
+                        <span className="font-medium">{BRL.format(kitPercentAmt)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm font-semibold border-t pt-2">
+                        <span>Total (Kit + Custos):</span>
+                        <span>{BRL.format(totalCosts)}</span>
+                      </div>
+                    </>
+                  )
+                })()}
+              </div>
+            )}
+
             <div className="bg-muted/30 p-4 rounded-lg border">
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground font-medium">
-                  Preço de Venda Base Calculado:
+                  {isAdmin ? 'Preço de Venda Base Calculado:' : 'Valor da Venda:'}
                 </span>
                 <span className="font-bold text-primary text-xl">
                   {BRL.format(totalValue || 0)}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground mt-2 italic">
-                A formação de preços utiliza os insumos, regras de custo, impostos e margens
-                configurados no painel de administração.
-              </p>
+              {isAdmin && (
+                <p className="text-xs text-muted-foreground mt-2 italic">
+                  A formação de preços utiliza os insumos, regras de custo, impostos e margens
+                  configurados no painel de administração.
+                </p>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)}>

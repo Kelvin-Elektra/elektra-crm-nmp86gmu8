@@ -55,7 +55,7 @@ export function CostsTab() {
     variable: 'Valor variável',
     rate: 'Percentual sobre a venda',
     tax: 'Imposto',
-    margin: 'Margem',
+    margin: 'Margem real (% sobre o valor da venda)',
     kit_percent: 'Margem fake (% sobre o preço do kit)',
   }
 
@@ -280,7 +280,7 @@ export function CostsTab() {
                   <SelectItem value="variable">Valor variável (R$)</SelectItem>
                   <SelectItem value="rate">Percentual sobre o valor da venda (%)</SelectItem>
                   <SelectItem value="tax">Imposto (%)</SelectItem>
-                  <SelectItem value="margin">Margem (%)</SelectItem>
+                  <SelectItem value="margin">Margem real (% sobre o valor da venda)</SelectItem>
                   <SelectItem value="kit_percent">Margem fake (% sobre o preço do kit)</SelectItem>
                 </SelectContent>
               </Select>

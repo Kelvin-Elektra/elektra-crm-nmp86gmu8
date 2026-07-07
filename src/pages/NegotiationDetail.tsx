@@ -50,6 +50,7 @@ export default function NegotiationDetail() {
       const data = await getNegotiation(id)
       setNeg(data)
       const props = await getProposalsByNeg(id)
+      props.sort((a: any, b: any) => new Date(b.created).getTime() - new Date(a.created).getTime())
       setProposals(props)
       const stgs = await pb.collection('pipeline_stages').getFullList()
       setPipelineStages(stgs)

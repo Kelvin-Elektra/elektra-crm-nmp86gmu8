@@ -90,8 +90,8 @@ export function AdminCostsModal({ open, onOpenChange, negId }: any) {
                       onChange={(e) => handleUpdate(idx, 'cost', e.target.value)}
                     />
                   </div>
-                  <div className="w-24">
-                    <Label>Margem (%)</Label>
+                  <div className="w-56">
+                    <Label>Margem real (% sobre o valor da venda)</Label>
                     <Input
                       type="number"
                       value={b.margin}

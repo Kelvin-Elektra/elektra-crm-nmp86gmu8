@@ -196,7 +196,7 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
                                   />
                                 </div>
                                 <div className="w-1/3">
-                                  <Label>Margem (%)</Label>
+                                  <Label>Margem real (% sobre o valor da venda)</Label>
                                   <Input
                                     type="number"
                                     value={b.margin}
@@ -321,8 +321,8 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
                             className="mt-1"
                           />
                         </div>
-                        <div className="w-24">
-                          <Label>Margem (%)</Label>
+                        <div className="w-56">
+                          <Label>Margem real (% sobre o valor da venda)</Label>
                           <Input
                             type="number"
                             value={b.margin}
@@ -342,6 +342,15 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
                       </div>
                     )
                   })}
+                </div>
+              )}
+
+              {costs.length > 0 && (
+                <div className="bg-primary/5 p-4 rounded-lg border border-primary/20 flex justify-between items-center">
+                  <span className="font-semibold text-lg">Total (Kit + Custos):</span>
+                  <span className="font-bold text-xl text-primary">
+                    {BRL.format(costs.reduce((acc: number, c: any) => acc + (c.price || 0), 0))}
+                  </span>
                 </div>
               )}
             </div>
