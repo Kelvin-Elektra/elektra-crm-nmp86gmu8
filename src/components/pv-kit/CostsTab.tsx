@@ -53,7 +53,7 @@ export function CostsTab() {
   const methodLabels: Record<string, string> = {
     fixed: 'Valor fixo',
     variable: 'Valor variável',
-    rate: 'Taxa/Alíquota',
+    rate: 'Percentual sobre a venda',
     tax: 'Imposto',
     margin: 'Margem',
   }
@@ -277,7 +277,7 @@ export function CostsTab() {
                 <SelectContent>
                   <SelectItem value="fixed">Valor fixo (R$)</SelectItem>
                   <SelectItem value="variable">Valor variável (R$)</SelectItem>
-                  <SelectItem value="rate">Taxa/Alíquota (%)</SelectItem>
+                  <SelectItem value="rate">Percentual sobre o valor da venda (%)</SelectItem>
                   <SelectItem value="tax">Imposto (%)</SelectItem>
                   <SelectItem value="margin">Margem (%)</SelectItem>
                 </SelectContent>

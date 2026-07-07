@@ -351,10 +351,12 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
                     )}
                   </span>
                   <span className="font-medium">
-                    {new Intl.NumberFormat('pt-BR', {
-                      style: 'currency',
-                      currency: 'BRL',
-                    }).format(cost.amount || 0)}
+                    {['rate', 'tax', 'margin'].includes(cost.method)
+                      ? `${cost.value}%`
+                      : new Intl.NumberFormat('pt-BR', {
+                          style: 'currency',
+                          currency: 'BRL',
+                        }).format(cost.amount || 0)}
                   </span>
                 </div>
               ))}

@@ -53,22 +53,32 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
       rawPricingData
     const currentKitPrice = pricingMode === 'manual' ? manualKitValue : autoKitPrice
 
-    const C = currentKitPrice + fixedCosts + varCosts
-    const R = rateSum
-    const M = marginSum
-    const T = taxSum
+    const safeKitPrice = Number.isFinite(currentKitPrice) ? currentKitPrice : 0
+    const safeFixed = Number.isFinite(fixedCosts) ? fixedCosts : 0
+    const safeVar = Number.isFinite(varCosts) ? varCosts : 0
+    const safeRate = Number.isFinite(rateSum) ? rateSum : 0
+    const safeMargin = Number.isFinite(marginSum) ? marginSum : 0
+    const safeTax = Number.isFinite(taxSum) ? taxSum : 0
+
+    const C = safeKitPrice + safeFixed + safeVar
+    const R = safeRate
+    const M = safeMargin
+    const T = safeTax
 
     let salePrice = 0
-    const billingModel = settings.billing_model || 'direct'
+    const billingModel = settings?.billing_model || 'direct'
+    const denominator = 1 - R - M - T
 
-    if (1 - R - M - T <= 0) {
-      salePrice = (neg.sizing?.kit_power_kwp || 0) * 3500 // fallback
+    if (denominator <= 0 || !Number.isFinite(denominator)) {
+      salePrice = (neg.sizing?.kit_power_kwp || 0) * 3500
+    } else if (billingModel === 'intermediated') {
+      salePrice = (safeFixed + safeVar + (1 - T) * safeKitPrice) / denominator
     } else {
-      if (billingModel === 'intermediated') {
-        salePrice = ((1 - T) * currentKitPrice) / (1 - (R + M) - T)
-      } else {
-        salePrice = C / (1 - R - M - T)
-      }
+      salePrice = C / denominator
+    }
+
+    if (!Number.isFinite(salePrice) || salePrice <= 0) {
+      salePrice = (neg.sizing?.kit_power_kwp || 0) * 3500
     }
 
     setTotalValue(salePrice)
@@ -76,7 +86,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
       ...rawPricingData,
       pricingMode,
       manualKitValue,
-      kitPrice: currentKitPrice,
+      kitPrice: safeKitPrice,
       salePrice,
     })
   }, [rawPricingData, pricingMode, manualKitValue, neg.sizing])
@@ -163,19 +173,20 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         if (matched) {
           let amount = 0
           if (c.calc_method === 'fixed') {
-            fixedCosts += c.value
-            amount = c.value
+            const val = Number(c.value) || 0
+            fixedCosts += val
+            amount = val
           }
           if (c.calc_method === 'variable') {
             const effectiveBase = c.calc_base === 'fixed' || !c.calc_base ? 'modules' : c.calc_base
-            const baseVal = getBaseValue(effectiveBase, metrics)
+            const baseVal = getBaseValue(effectiveBase, metrics) || 0
             const multiplier = Number(c.multiplier) || 0
             amount = multiplier * baseVal
             varCosts += amount
           }
-          if (c.calc_method === 'rate') rateSum += c.value / 100
-          if (c.calc_method === 'tax') taxSum += c.value / 100
-          if (c.calc_method === 'margin') marginSum += c.value / 100
+          if (c.calc_method === 'rate') rateSum += (Number(c.value) || 0) / 100
+          if (c.calc_method === 'tax') taxSum += (Number(c.value) || 0) / 100
+          if (c.calc_method === 'margin') marginSum += (Number(c.value) || 0) / 100
 
           const effectiveBase =
             c.calc_method === 'variable' && (c.calc_base === 'fixed' || !c.calc_base)
@@ -207,6 +218,10 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         equipment: { modules: modRec, inverters: invs },
         supplies: suppliesCost,
         hasSizing: metrics.hasSizing,
+        rawCosts: pv_costs,
+        rawModule: modRec,
+        rawInverters: invs,
+        rawSettings: settings,
       })
 
       const defMode = settings.default_pricing_mode || 'automatic'
@@ -250,6 +265,10 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
           'modern',
         branding: pricingDetails?.settings?.branding || {},
         pages_layout: pricingDetails?.settings?.pages_layout || [],
+        rawCosts: pricingDetails?.rawCosts || [],
+        rawModule: pricingDetails?.rawModule || null,
+        rawInverters: pricingDetails?.rawInverters || [],
+        rawSettings: pricingDetails?.rawSettings || {},
       }
 
       const cost_breakdown = [
@@ -270,7 +289,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
           cost: 0,
           margin: 0,
           price:
-            totalValue -
+            finalPrice -
             pricingDetails.kitPrice -
             pricingDetails.fixedCosts -
             pricingDetails.varCosts,
@@ -450,10 +469,12 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
                       )}
                     </span>
                     <span className="font-medium">
-                      {new Intl.NumberFormat('pt-BR', {
-                        style: 'currency',
-                        currency: 'BRL',
-                      }).format(cost.amount || 0)}
+                      {['rate', 'tax', 'margin'].includes(cost.method)
+                        ? `${cost.value}%`
+                        : new Intl.NumberFormat('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL',
+                          }).format(cost.amount || 0)}
                     </span>
                   </div>
                 ))}
