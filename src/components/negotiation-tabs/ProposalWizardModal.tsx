@@ -106,10 +106,18 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         .collection('proposal_settings')
         .getFirstListItem(`company_id='${companyId}'`)
         .catch(() => ({}))
-      const pv_costs = await pb
+      const allCosts = await pb
         .collection('pv_costs')
         .getFullList({ filter: `company_id='${companyId}'` })
         .catch(() => [])
+
+      const ownerId = neg.owner_id || ''
+      const generalCosts = allCosts.filter((c) => !c.user_id || c.user_id === '')
+      const specificCosts = allCosts.filter((c) => c.user_id === ownerId)
+      const pv_costs = [
+        ...specificCosts,
+        ...generalCosts.filter((gc) => !specificCosts.some((sc) => sc.name === gc.name)),
+      ]
 
       const { calculateKitPrice } = await import('@/hooks/use-kit-calculator')
       const { kitPrice: autoKitPrice, kitComposition } = await calculateKitPrice(neg)

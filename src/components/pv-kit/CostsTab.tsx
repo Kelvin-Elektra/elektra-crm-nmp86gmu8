@@ -21,6 +21,7 @@ export function CostsTab() {
   const { toast } = useToast()
   const [data, setData] = useState<any[]>([])
   const [installations, setInstallations] = useState<any[]>([])
+  const [users, setUsers] = useState<any[]>([])
   const [settingsId, setSettingsId] = useState<string | null>(null)
   const [billingModel, setBillingModel] = useState('direct')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -36,6 +37,7 @@ export function CostsTab() {
     installation_id: 'none',
     calc_base: 'fixed',
     multiplier: '',
+    user_id: 'all',
   }
   const [form, setForm] = useState(initialForm)
 
@@ -65,12 +67,19 @@ export function CostsTab() {
     if (!user?.company_id) return
     setLoading(true)
     try {
-      const res = await pb.collection('pv_costs').getFullList()
+      const res = await pb
+        .collection('pv_costs')
+        .getFullList({ filter: `company_id='${user.company_id}'` })
       setData(res)
       const inst = await pb
         .collection('pv_installations')
         .getFullList({ filter: `company_id='${user.company_id}'` })
       setInstallations(inst)
+
+      const usr = await pb
+        .collection('users')
+        .getFullList({ filter: `company_id='${user.company_id}'` })
+      setUsers(usr)
 
       try {
         const settings = await pb
@@ -124,6 +133,7 @@ export function CostsTab() {
       installation_id: form.installation_id !== 'none' ? form.installation_id : null,
       calc_base: form.calc_base,
       multiplier: parseNumber(form.multiplier) || null,
+      user_id: form.user_id !== 'all' ? form.user_id : null,
       company_id: user.company_id,
     }
 
@@ -153,6 +163,7 @@ export function CostsTab() {
       installation_id: item.installation_id || 'none',
       calc_base: item.calc_base || 'fixed',
       multiplier: formatNumber(item.multiplier),
+      user_id: item.user_id || 'all',
     })
     setEditingId(item.id)
   }
@@ -253,7 +264,9 @@ export function CostsTab() {
             </div>
 
             <div className="space-y-2 md:col-span-2">
-              <Label className="font-semibold">Valor / %</Label>
+              <Label className="font-semibold">
+                {['fixed', 'variable'].includes(form.calc_method) ? 'Valor (R$)' : 'Valor (%)'}
+              </Label>
               <Input
                 required
                 type="text"
@@ -282,13 +295,25 @@ export function CostsTab() {
                   </Select>
                 </div>
                 <div className="space-y-2 md:col-span-3">
-                  <Label className="font-semibold">Multiplicador (R$)</Label>
+                  <Label className="font-semibold">
+                    Multiplicador (R$ /{' '}
+                    {form.calc_base === 'kwp'
+                      ? 'kWp'
+                      : form.calc_base === 'modules'
+                        ? 'módulo'
+                        : 'kW'}
+                    )
+                  </Label>
                   <Input
                     type="text"
                     value={form.multiplier}
                     onChange={(e) => handleNumberChange('multiplier', e.target.value)}
                     className="bg-background"
+                    placeholder="Ex: 150,00"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Valor unitário aplicado sobre a base de cálculo selecionada.
+                  </p>
                 </div>
               </>
             )}
@@ -354,6 +379,23 @@ export function CostsTab() {
               </Select>
             </div>
 
+            <div className="space-y-2 md:col-span-3">
+              <Label className="font-semibold">Colaborador</Label>
+              <Select value={form.user_id} onValueChange={(v) => setForm({ ...form, user_id: v })}>
+                <SelectTrigger className="bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os colaboradores</SelectItem>
+                  {users.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.name || u.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="md:col-span-6 flex justify-end gap-2 mt-2">
               {editingId && (
                 <Button type="button" variant="outline" onClick={resetForm}>
@@ -380,6 +422,7 @@ export function CostsTab() {
                   <th className="p-3 font-medium">Método</th>
                   <th className="p-3 font-medium">Valor / %</th>
                   <th className="p-3 font-medium">Faixa / Condição</th>
+                  <th className="p-3 font-medium">Colaborador</th>
                   <th className="p-3 font-medium text-right">Ações</th>
                 </tr>
               </thead>
@@ -387,14 +430,14 @@ export function CostsTab() {
                 {loading ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <tr key={i} className="border-t">
-                      <td colSpan={5} className="p-3">
+                      <td colSpan={6} className="p-3">
                         <Skeleton className="h-8 w-full" />
                       </td>
                     </tr>
                   ))
                 ) : data.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-6 text-center text-muted-foreground">
+                    <td colSpan={6} className="p-6 text-center text-muted-foreground">
                       Nenhuma regra de custo configurada.
                     </td>
                   </tr>
@@ -413,6 +456,11 @@ export function CostsTab() {
                           ? 'Geral'
                           : `${d.range_type} (${d.min_val || 0}-${d.max_val || '∞'})`}
                         {d.installation_id ? ` • Inst. Específica` : ''}
+                      </td>
+                      <td className="p-3 text-muted-foreground">
+                        {d.user_id
+                          ? users.find((u) => u.id === d.user_id)?.name || 'Colaborador'
+                          : 'Todos'}
                       </td>
                       <td className="p-3 text-right">
                         <Button variant="ghost" size="icon" onClick={() => handleEdit(d)}>
