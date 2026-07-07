@@ -497,52 +497,6 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
               </div>
             )}
 
-            {isAdmin && rawPricingData && (
-              <div className="bg-primary/5 p-4 rounded-lg border border-primary/20 space-y-2">
-                <h4 className="font-semibold text-sm border-b border-primary/10 pb-2">
-                  Resumo de Custos
-                </h4>
-                {(() => {
-                  const currentKit =
-                    pricingMode === 'manual' ? manualKitValue : rawPricingData.autoKitPrice || 0
-                  const kitPercentAmt = currentKit * (rawPricingData.kitPercentSum || 0)
-                  const totalCosts =
-                    currentKit +
-                    (rawPricingData.fixedCosts || 0) +
-                    (rawPricingData.varCosts || 0) +
-                    kitPercentAmt
-                  return (
-                    <>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Custo do Kit:</span>
-                        <span className="font-medium">{BRL.format(currentKit)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Custos Fixos:</span>
-                        <span className="font-medium">
-                          {BRL.format(rawPricingData.fixedCosts || 0)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Custos Variáveis:</span>
-                        <span className="font-medium">
-                          {BRL.format(rawPricingData.varCosts || 0)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Margem Fake:</span>
-                        <span className="font-medium">{BRL.format(kitPercentAmt)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm font-semibold border-t pt-2">
-                        <span>Total (Kit + Custos):</span>
-                        <span>{BRL.format(totalCosts)}</span>
-                      </div>
-                    </>
-                  )
-                })()}
-              </div>
-            )}
-
             <div className="bg-muted/30 p-4 rounded-lg border">
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground font-medium">

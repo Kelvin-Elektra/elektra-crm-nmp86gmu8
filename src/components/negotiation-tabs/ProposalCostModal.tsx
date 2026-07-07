@@ -185,34 +185,13 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
                               </div>
                             </AccordionTrigger>
                             <AccordionContent className="pt-0 pb-5 px-5">
-                              <div className="flex gap-4 items-end mb-6 border-b pb-6">
-                                <div className="w-1/3">
-                                  <Label>Custo Base (R$)</Label>
-                                  <Input
-                                    type="number"
-                                    value={b.cost}
-                                    onChange={(e) => handleUpdate(idx, 'cost', e.target.value)}
-                                    className="mt-1"
-                                  />
-                                </div>
-                                <div className="w-1/3">
-                                  <Label>Margem real (% sobre o valor da venda)</Label>
-                                  <Input
-                                    type="number"
-                                    value={b.margin}
-                                    onChange={(e) => handleUpdate(idx, 'margin', e.target.value)}
-                                    className="mt-1"
-                                  />
-                                </div>
-                                <div className="w-1/3">
-                                  <Label>Preço Calculado (R$)</Label>
-                                  <Input
-                                    type="number"
-                                    value={b.price?.toFixed(2)}
-                                    readOnly
-                                    className="bg-muted mt-1 font-medium"
-                                  />
-                                </div>
+                              <div className="flex justify-between items-center mb-6 border-b pb-6">
+                                <span className="text-muted-foreground font-medium">
+                                  Valor do Kit Fotovoltaico:
+                                </span>
+                                <span className="font-bold text-primary text-lg">
+                                  {BRL.format(b.price || 0)}
+                                </span>
                               </div>
 
                               <h4 className="font-medium text-sm mb-3 text-muted-foreground">
@@ -304,16 +283,16 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
                     return (
                       <div
                         key={idx}
-                        className="flex gap-4 items-end border-b pb-4 last:border-0 bg-card p-4 rounded-lg border shadow-sm"
+                        className="flex gap-4 items-center border-b pb-4 last:border-0 bg-card p-4 rounded-lg border shadow-sm"
                       >
                         <div className="flex-1">
-                          <Label className="text-muted-foreground text-xs">Item Adicional</Label>
+                          <Label className="text-muted-foreground text-xs">Item de Custo</Label>
                           <p className="font-medium mt-1 truncate text-base" title={b.name}>
                             {b.name}
                           </p>
                         </div>
-                        <div className="w-28">
-                          <Label>Custo (R$)</Label>
+                        <div className="w-32">
+                          <Label>Base (R$)</Label>
                           <Input
                             type="number"
                             value={b.cost}
@@ -321,17 +300,8 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
                             className="mt-1"
                           />
                         </div>
-                        <div className="w-56">
-                          <Label>Margem real (% sobre o valor da venda)</Label>
-                          <Input
-                            type="number"
-                            value={b.margin}
-                            onChange={(e) => handleUpdate(idx, 'margin', e.target.value)}
-                            className="mt-1"
-                          />
-                        </div>
-                        <div className="w-32">
-                          <Label>Preço (R$)</Label>
+                        <div className="w-36">
+                          <Label>Valor (R$)</Label>
                           <Input
                             type="number"
                             value={b.price?.toFixed(2)}
@@ -354,45 +324,6 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
                 </div>
               )}
             </div>
-
-            {snapshotPricing?.appliedCosts && snapshotPricing.appliedCosts.length > 0 && (
-              <div className="space-y-3 pt-4 border-t">
-                <h3 className="font-semibold text-sm">
-                  Detalhamento de Custos Variáveis e Aplicados
-                </h3>
-                <div className="space-y-1">
-                  {snapshotPricing.appliedCosts.map((cost: any, idx: number) => (
-                    <div key={idx} className="flex justify-between text-sm py-1">
-                      <span className="text-muted-foreground">
-                        {cost.method === 'variable' && cost.multiplier ? (
-                          <>
-                            {cost.name}:{' '}
-                            {cost.multiplier.toLocaleString('pt-BR', {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })}{' '}
-                            ×{' '}
-                            {cost.baseValue?.toLocaleString('pt-BR', {
-                              maximumFractionDigits: 2,
-                            })}{' '}
-                            {cost.calcBase === 'modules'
-                              ? 'módulos'
-                              : cost.calcBase === 'kwp'
-                                ? 'kWp'
-                                : cost.calcBase === 'kw'
-                                  ? 'kW'
-                                  : ''}
-                          </>
-                        ) : (
-                          cost.name
-                        )}
-                      </span>
-                      <span className="font-medium">{formatSnapshotCost(cost)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </>
         )}
 
