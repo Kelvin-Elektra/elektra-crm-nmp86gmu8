@@ -10,11 +10,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Trash2, Settings2, Pencil } from 'lucide-react'
+import { Plus, Trash2, Settings2, Pencil, Wand2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 export function CostsTab() {
   const { user } = useAuth()
@@ -38,16 +39,22 @@ export function CostsTab() {
     calc_base: 'fixed',
     multiplier: '',
     user_id: 'all',
+    is_real_margin: false,
   }
   const [form, setForm] = useState(initialForm)
 
-  const defaultCostNames = [
-    'Comissão de venda',
-    'Mão de obra',
-    'Engenharia',
-    'Material complementar',
-    'Imposto',
-    'Margem de contribuição',
+  const standardCostTemplates = [
+    { name: 'Comissão de venda', calc_method: 'commission', value: 5 },
+    { name: 'Mão de obra', calc_method: 'fixed', value: 3000 },
+    { name: 'Engenharia', calc_method: 'fixed', value: 1500 },
+    {
+      name: 'Material complementar',
+      calc_method: 'variable',
+      calc_base: 'modules',
+      multiplier: 50,
+    },
+    { name: 'Imposto', calc_method: 'tax', value: 7 },
+    { name: 'Margem de contribuição', calc_method: 'margin', value: 25 },
   ]
 
   const methodLabels: Record<string, string> = {
@@ -57,6 +64,7 @@ export function CostsTab() {
     tax: 'Imposto',
     margin: 'Margem real (% sobre o valor da venda)',
     kit_percent: 'Margem fake (% sobre o preço do kit)',
+    commission: 'Comissão (% sobre o valor da venda)',
   }
 
   const handleNumberChange = (field: string, value: string) => {
@@ -132,6 +140,30 @@ export function CostsTab() {
     e.preventDefault()
     if (!user?.company_id) return
 
+    if (form.calc_method === 'margin' && !editingId) {
+      const existingMargin = data.find((d) => d.calc_method === 'margin')
+      if (existingMargin) {
+        if (!confirm('Já existe um custo do tipo "Margem". Deseja substituí-lo?')) return
+        try {
+          await pb.collection('pv_costs').delete(existingMargin.id)
+        } catch {
+          /* ignored */
+        }
+      }
+    }
+
+    if (form.calc_method === 'margin' && editingId) {
+      const existingMargin = data.find((d) => d.calc_method === 'margin' && d.id !== editingId)
+      if (existingMargin) {
+        if (!confirm('Já existe outro custo do tipo "Margem". Deseja substituí-lo?')) return
+        try {
+          await pb.collection('pv_costs').delete(existingMargin.id)
+        } catch {
+          /* ignored */
+        }
+      }
+    }
+
     const payload = {
       name: form.name,
       calc_method: form.calc_method,
@@ -144,6 +176,7 @@ export function CostsTab() {
         form.calc_method === 'variable' && form.calc_base === 'fixed' ? 'modules' : form.calc_base,
       multiplier: parseNumber(form.multiplier) || null,
       user_id: form.user_id !== 'all' ? form.user_id : null,
+      is_real_margin: form.calc_method === 'margin',
       company_id: user.company_id,
     }
 
@@ -157,8 +190,9 @@ export function CostsTab() {
       }
       resetForm()
       loadData()
-    } catch (err) {
-      toast({ variant: 'destructive', title: 'Erro', description: 'Falha ao salvar.' })
+    } catch (err: any) {
+      const msg = err?.response?.message || 'Falha ao salvar.'
+      toast({ variant: 'destructive', title: 'Erro', description: msg })
     }
   }
 
@@ -178,6 +212,7 @@ export function CostsTab() {
       calc_base: safeCalcBase,
       multiplier: formatNumber(item.multiplier),
       user_id: item.user_id || 'all',
+      is_real_margin: item.is_real_margin || false,
     })
     setEditingId(item.id)
   }
@@ -244,18 +279,41 @@ export function CostsTab() {
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className="bg-background"
               />
-              <div className="flex flex-wrap gap-1.5 mt-1">
-                {defaultCostNames.map((n) => (
-                  <button
-                    type="button"
-                    key={n}
-                    onClick={() => setForm({ ...form, name: n })}
-                    className="text-[11px] bg-background border hover:bg-primary hover:text-primary-foreground px-2.5 py-1 rounded-md transition-colors"
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="outline" size="sm" className="text-xs mt-1">
+                    <Wand2 className="w-3 h-3 mr-1" /> Buscar Sugestões
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80" align="start">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium mb-2">Modelos Padrão</p>
+                    {standardCostTemplates.map((t) => (
+                      <button
+                        type="button"
+                        key={t.name}
+                        onClick={() =>
+                          setForm({
+                            ...form,
+                            name: t.name,
+                            calc_method: t.calc_method,
+                            value: t.value ? formatNumber(t.value) : '',
+                            calc_base:
+                              t.calc_base || (t.calc_method === 'variable' ? 'modules' : 'fixed'),
+                            multiplier: t.multiplier ? formatNumber(t.multiplier) : '',
+                          })
+                        }
+                        className="w-full text-left text-sm px-3 py-2 rounded-md hover:bg-muted transition-colors border"
+                      >
+                        <span className="font-medium">{t.name}</span>
+                        <span className="text-xs text-muted-foreground ml-2">
+                          {methodLabels[t.calc_method]}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div className="space-y-2 md:col-span-2">
@@ -282,6 +340,7 @@ export function CostsTab() {
                   <SelectItem value="tax">Imposto (%)</SelectItem>
                   <SelectItem value="margin">Margem real (% sobre o valor da venda)</SelectItem>
                   <SelectItem value="kit_percent">Margem fake (% sobre o preço do kit)</SelectItem>
+                  <SelectItem value="commission">Comissão (% sobre o valor da venda)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -447,6 +506,7 @@ export function CostsTab() {
                   <th className="p-3 font-medium">Método</th>
                   <th className="p-3 font-medium">Valor / %</th>
                   <th className="p-3 font-medium">Faixa / Condição</th>
+                  <th className="p-3 font-medium">Margem</th>
                   <th className="p-3 font-medium">Colaborador</th>
                   <th className="p-3 font-medium text-right">Ações</th>
                 </tr>
@@ -455,14 +515,14 @@ export function CostsTab() {
                 {loading ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <tr key={i} className="border-t">
-                      <td colSpan={6} className="p-3">
+                      <td colSpan={7} className="p-3">
                         <Skeleton className="h-8 w-full" />
                       </td>
                     </tr>
                   ))
                 ) : data.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="p-6 text-center text-muted-foreground">
+                    <td colSpan={7} className="p-6 text-center text-muted-foreground">
                       Nenhuma regra de custo configurada.
                     </td>
                   </tr>
@@ -487,7 +547,9 @@ export function CostsTab() {
                           <>
                             {d.calc_method === 'fixed' ? 'R$ ' : ''}
                             {formatNumber(d.value)}
-                            {['rate', 'tax', 'margin', 'kit_percent'].includes(d.calc_method)
+                            {['rate', 'tax', 'margin', 'kit_percent', 'commission'].includes(
+                              d.calc_method,
+                            )
                               ? '%'
                               : ''}
                           </>
@@ -498,6 +560,15 @@ export function CostsTab() {
                           ? 'Geral'
                           : `${d.range_type} (${d.min_val || 0}-${d.max_val || '∞'})`}
                         {d.installation_id ? ` • Inst. Específica` : ''}
+                      </td>
+                      <td className="p-3">
+                        {d.is_real_margin ? (
+                          <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">
+                            Margem Real
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
                       </td>
                       <td className="p-3 text-muted-foreground">
                         {d.user_id

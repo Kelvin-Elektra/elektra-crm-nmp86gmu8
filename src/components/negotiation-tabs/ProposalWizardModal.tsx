@@ -62,6 +62,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
       taxSum,
       marginSum,
       kitPercentSum,
+      commissionSum,
       settings,
     } = rawPricingData
     const currentKitPrice = pricingMode === 'manual' ? manualKitValue : autoKitPrice
@@ -73,6 +74,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
     const safeMargin = Number.isFinite(marginSum) ? marginSum : 0
     const safeTax = Number.isFinite(taxSum) ? taxSum : 0
     const safeKitPercent = Number.isFinite(kitPercentSum) ? kitPercentSum : 0
+    const safeCommission = Number.isFinite(commissionSum) ? commissionSum : 0
 
     const kitPercentAmount = safeKitPrice * safeKitPercent
     const C = safeKitPrice + safeFixed + safeVar + kitPercentAmount
@@ -82,7 +84,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
 
     let salePrice = 0
     const billingModel = settings?.billing_model || 'direct'
-    const denominator = 1 - R - M - T
+    const denominator = 1 - R - M - T - safeCommission
 
     if (denominator <= 0 || !Number.isFinite(denominator)) {
       salePrice = (neg.sizing?.kit_power_kwp || 0) * 3500
@@ -97,7 +99,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
     }
 
     const updatedAppliedCosts = rawPricingData.appliedCosts?.map((cost: any) => {
-      if (['rate', 'tax', 'margin'].includes(cost.method)) {
+      if (['rate', 'tax', 'margin', 'commission'].includes(cost.method)) {
         return { ...cost, calculatedAmount: salePrice * ((Number(cost.value) || 0) / 100) }
       }
       if (cost.method === 'kit_percent') {
@@ -176,6 +178,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
       let taxSum = 0
       let marginSum = 0
       let kitPercentSum = 0
+      let commissionSum = 0
 
       const appliedCosts: any[] = []
 
@@ -216,6 +219,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
           if (c.calc_method === 'tax') taxSum += (Number(c.value) || 0) / 100
           if (c.calc_method === 'margin') marginSum += (Number(c.value) || 0) / 100
           if (c.calc_method === 'kit_percent') kitPercentSum += (Number(c.value) || 0) / 100
+          if (c.calc_method === 'commission') commissionSum += (Number(c.value) || 0) / 100
 
           const effectiveBase =
             c.calc_method === 'variable' && (c.calc_base === 'fixed' || !c.calc_base)
@@ -242,6 +246,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         taxSum,
         marginSum,
         kitPercentSum,
+        commissionSum,
         settings,
         appliedCosts,
         kitComposition,
@@ -268,7 +273,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
   const handlePrev = () => setStep(1)
 
   const formatCostDisplay = (cost: any) => {
-    const isPercent = ['rate', 'tax', 'margin', 'kit_percent'].includes(cost.method)
+    const isPercent = ['rate', 'tax', 'margin', 'kit_percent', 'commission'].includes(cost.method)
     if (isPercent) {
       const kitPriceForCalc =
         pricingMode === 'manual' ? manualKitValue : rawPricingData?.autoKitPrice || 0
@@ -565,6 +570,35 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
               <Label>Observações Internas (Não sai no PDF)</Label>
               <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
             </div>
+            {isAdmin && discount > 0 && rawPricingData?.marginSum !== undefined && (
+              <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg space-y-2">
+                <h4 className="font-semibold text-sm text-amber-900">Impacto na Margem Real</h4>
+                <div className="flex justify-between text-sm">
+                  <span className="text-amber-700">Margem Original:</span>
+                  <span className="font-medium text-amber-900">
+                    {BRL.format(totalValue * (rawPricingData?.marginSum || 0))} (
+                    {((rawPricingData?.marginSum || 0) * 100).toFixed(1)}%)
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-amber-700">Desconto Aplicado:</span>
+                  <span className="font-medium text-destructive">
+                    - {BRL.format((totalValue * discount) / 100)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm font-semibold pt-1 border-t border-amber-200">
+                  <span className="text-amber-900">Margem Ajustada:</span>
+                  <span className="text-amber-700">
+                    {BRL.format(
+                      totalValue * (rawPricingData?.marginSum || 0) - (totalValue * discount) / 100,
+                    )}{' '}
+                    ({Math.max(0, (rawPricingData?.marginSum || 0) * 100 - discount).toFixed(1)}
+                    %)
+                  </span>
+                </div>
+              </div>
+            )}
+
             <div className="bg-muted/30 p-4 rounded-lg border space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Subtotal:</span>

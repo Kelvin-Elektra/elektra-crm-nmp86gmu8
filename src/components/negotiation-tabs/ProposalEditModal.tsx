@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -23,6 +23,21 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
 
+  const isAdmin =
+    user?.role === 'User_elektra' || user?.role_company === 'admin' || user?.role === 'User_owner'
+
+  const snapshot = useMemo(() => {
+    try {
+      return typeof proposal?.snapshot_data === 'string'
+        ? JSON.parse(proposal.snapshot_data)
+        : proposal?.snapshot_data || {}
+    } catch {
+      return {}
+    }
+  }, [proposal])
+
+  const marginSum = snapshot?.pricing?.marginSum || 0
+
   const storedDiscount = proposal?.discount_amount || 0
   const storedTotal = proposal?.total_value || proposal?.price || 0
   const subtotal = storedDiscount > 0 ? storedTotal / (1 - storedDiscount / 100) : storedTotal
@@ -36,6 +51,10 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
 
   const discountValue = subtotal * (discountPercent / 100)
   const finalTotal = subtotal - discountValue
+
+  const originalMarginAmount = subtotal * marginSum
+  const adjustedMarginAmount = originalMarginAmount - discountValue
+  const adjustedMarginPct = Math.max(0, marginSum * 100 - discountPercent)
 
   const handleSave = async () => {
     const maxDiscount = user?.max_discount || 0
@@ -93,6 +112,28 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
               Máx. permitido: {user?.max_discount || 0}%
             </p>
           </div>
+
+          {isAdmin && marginSum > 0 && discountPercent > 0 && (
+            <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg space-y-2">
+              <h4 className="font-semibold text-sm text-amber-900">Impacto na Margem Real</h4>
+              <div className="flex justify-between text-sm">
+                <span className="text-amber-700">Margem Original:</span>
+                <span className="font-medium text-amber-900">
+                  {BRL.format(originalMarginAmount)} ({(marginSum * 100).toFixed(1)}%)
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-amber-700">Desconto Aplicado:</span>
+                <span className="font-medium text-destructive">- {BRL.format(discountValue)}</span>
+              </div>
+              <div className="flex justify-between text-sm font-semibold pt-1 border-t border-amber-200">
+                <span className="text-amber-900">Margem Ajustada:</span>
+                <span className="text-amber-700">
+                  {BRL.format(adjustedMarginAmount)} ({adjustedMarginPct.toFixed(1)}%)
+                </span>
+              </div>
+            </div>
+          )}
 
           <div className="bg-muted/30 p-4 rounded-lg border space-y-2">
             <div className="flex justify-between text-sm">

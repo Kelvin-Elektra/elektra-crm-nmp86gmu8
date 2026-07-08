@@ -62,6 +62,7 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
       const appliedCosts = pricing.appliedCosts || []
       const kitComposition = pricing.kitComposition || []
       const kitPrice = pricing.kitPrice || 0
+      const marginSum = pricing.marginSum || 0
 
       let costItems: CostItem[] = []
 
@@ -73,7 +74,9 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
           value: kitPrice,
         })
         appliedCosts.forEach((c: any) => {
-          const isPercent = ['rate', 'tax', 'margin', 'kit_percent'].includes(c.method)
+          const isPercent = ['rate', 'tax', 'margin', 'kit_percent', 'commission'].includes(
+            c.method,
+          )
           costItems.push({
             name: c.name,
             method: c.method,
@@ -325,6 +328,24 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
 
           {proposal?.discount_amount > 0 && (
             <>
+              {marginSum > 0 && (
+                <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg space-y-1.5">
+                  <p className="text-sm font-semibold text-amber-900">Impacto na Margem Real</p>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-amber-700">Margem Original:</span>
+                    <span className="font-medium text-amber-900">
+                      {BRL.format(total * marginSum)} ({(marginSum * 100).toFixed(1)}%)
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-amber-700">Margem Ajustada:</span>
+                    <span className="font-medium text-amber-700">
+                      {BRL.format(total * marginSum - (total * proposal.discount_amount) / 100)} (
+                      {Math.max(0, marginSum * 100 - proposal.discount_amount).toFixed(1)}%)
+                    </span>
+                  </div>
+                </div>
+              )}
               <div className="bg-muted/30 p-3 rounded-lg flex justify-between text-sm">
                 <span className="text-muted-foreground">
                   Desconto aplicado ({proposal.discount_amount}%):

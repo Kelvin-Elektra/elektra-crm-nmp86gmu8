@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-08T12:30:02.303Z",
+  "generatedAt": "2026-07-08T12:57:28.267Z",
   "collections": [
     {
       "name": "users",
@@ -1328,7 +1328,8 @@
             "rate",
             "tax",
             "margin",
-            "kit_percent"
+            "kit_percent",
+            "commission"
           ]
         },
         {
@@ -1387,6 +1388,12 @@
           "required": false,
           "system": false,
           "collectionRef": "users"
+        },
+        {
+          "name": "is_real_margin",
+          "type": "bool",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
