@@ -99,7 +99,14 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
     }
 
     const updatedAppliedCosts = rawPricingData.appliedCosts?.map((cost: any) => {
-      if (['rate', 'tax', 'margin', 'commission'].includes(cost.method)) {
+      if (cost.method === 'tax') {
+        const taxWeight = (Number(cost.taxWeight) || 100) / 100
+        return {
+          ...cost,
+          calculatedAmount: salePrice * ((Number(cost.value) || 0) / 100) * taxWeight,
+        }
+      }
+      if (['rate', 'margin', 'commission'].includes(cost.method)) {
         return { ...cost, calculatedAmount: salePrice * ((Number(cost.value) || 0) / 100) }
       }
       if (cost.method === 'kit_percent') {

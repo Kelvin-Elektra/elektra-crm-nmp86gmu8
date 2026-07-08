@@ -60,9 +60,9 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
 
       const pricing = snap.pricing || {}
       const appliedCosts = pricing.appliedCosts || []
-      const kitComposition = pricing.kitComposition || []
       const kitPrice = pricing.kitPrice || 0
       const marginSum = pricing.marginSum || 0
+      const salePrice = pricing.salePrice || 0
 
       let costItems: CostItem[] = []
 
@@ -79,13 +79,19 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
           )
           const weightLabel =
             c.method === 'tax' && c.taxWeight != null ? ` • Peso: ${c.taxWeight}%` : ''
+          let displayValue = c.calculatedAmount || c.amount || 0
+          if (c.method === 'tax') {
+            const rate = (Number(c.value) || 0) / 100
+            const weight = (Number(c.taxWeight) || 100) / 100
+            displayValue = salePrice * rate * weight
+          }
           costItems.push({
             name: c.name,
             method: c.method,
             percentage: isPercent ? `${c.value}%${weightLabel}` : '—',
-            value: c.calculatedAmount || c.amount || 0,
+            value: displayValue,
           })
-        })
+        })        })
       } else {
         let breakdown = proposal.cost_breakdown || []
         if (typeof breakdown === 'string') {
