@@ -55,15 +55,11 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
   const originalMarginAmount = subtotal * marginSum
   const adjustedMarginAmount = originalMarginAmount - discountValue
   const adjustedMarginPct = Math.max(0, marginSum * 100 - discountPercent)
+  const maxDiscount = (user as any)?.max_discount || 0
+  const discountExceeded = maxDiscount > 0 && discountPercent > maxDiscount
 
   const handleSave = async () => {
-    const maxDiscount = user?.max_discount || 0
-    if (maxDiscount > 0 && discountPercent > maxDiscount) {
-      toast({
-        variant: 'destructive',
-        title: 'Desconto não permitido',
-        description: `O desconto máximo permitido para você é de ${maxDiscount}%.`,
-      })
+    if (discountExceeded) {
       return
     }
 
@@ -104,13 +100,16 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
             <Input
               type="number"
               min="0"
-              max={user?.max_discount || 0}
+              max={maxDiscount || undefined}
               value={discountPercent}
               onChange={(e) => setDiscountPercent(Number(e.target.value))}
             />
-            <p className="text-xs text-muted-foreground">
-              Máx. permitido: {user?.max_discount || 0}%
-            </p>
+            <p className="text-xs text-muted-foreground">Máx. permitido: {maxDiscount}%</p>
+            {discountExceeded && (
+              <p className="text-sm text-destructive font-medium">
+                Desconto excede o limite permitido para o seu usuário.
+              </p>
+            )}
           </div>
 
           {isAdmin && marginSum > 0 && discountPercent > 0 && (
@@ -171,7 +170,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={loading}>
+          <Button onClick={handleSave} disabled={loading || discountExceeded}>
             Salvar
           </Button>
         </DialogFooter>

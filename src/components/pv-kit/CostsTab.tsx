@@ -16,6 +16,7 @@ import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { TaxConfigCard } from '@/components/pv-kit/TaxConfigCard'
 
 export function CostsTab() {
   const { user } = useAuth()
@@ -42,6 +43,9 @@ export function CostsTab() {
     is_real_margin: false,
   }
   const [form, setForm] = useState(initialForm)
+
+  const hasMargin = data.some((d) => d.calc_method === 'margin')
+  const hasKitPercent = data.some((d) => d.calc_method === 'kit_percent')
 
   const standardCostTemplates = [
     { name: 'Comissão de venda', calc_method: 'commission', value: 5 },
@@ -140,27 +144,29 @@ export function CostsTab() {
     e.preventDefault()
     if (!user?.company_id) return
 
-    if (form.calc_method === 'margin' && !editingId) {
-      const existingMargin = data.find((d) => d.calc_method === 'margin')
-      if (existingMargin) {
-        if (!confirm('Já existe um custo do tipo "Margem". Deseja substituí-lo?')) return
-        try {
-          await pb.collection('pv_costs').delete(existingMargin.id)
-        } catch {
-          /* ignored */
-        }
+    const marginMethods = ['margin', 'kit_percent']
+    if (marginMethods.includes(form.calc_method) && !editingId) {
+      const existing = data.find((d) => marginMethods.includes(d.calc_method))
+      if (existing) {
+        toast({
+          variant: 'destructive',
+          title: 'Margem já configurada',
+          description: `Já existe um custo do tipo "${existing.calc_method === 'margin' ? 'Margem Real' : 'Margem Fake'}". Apenas um tipo de margem pode estar ativo por empresa.`,
+        })
+        return
       }
     }
 
-    if (form.calc_method === 'margin' && editingId) {
-      const existingMargin = data.find((d) => d.calc_method === 'margin' && d.id !== editingId)
-      if (existingMargin) {
-        if (!confirm('Já existe outro custo do tipo "Margem". Deseja substituí-lo?')) return
-        try {
-          await pb.collection('pv_costs').delete(existingMargin.id)
-        } catch {
-          /* ignored */
-        }
+    if (marginMethods.includes(form.calc_method) && editingId) {
+      const existing = data.find((d) => marginMethods.includes(d.calc_method) && d.id !== editingId)
+      if (existing) {
+        toast({
+          variant: 'destructive',
+          title: 'Margem já configurada',
+          description:
+            'Já existe outro custo do tipo margem. Apenas um tipo de margem pode estar ativo por empresa.',
+        })
+        return
       }
     }
 
@@ -234,6 +240,7 @@ export function CostsTab() {
 
   return (
     <div className="space-y-6">
+      <TaxConfigCard />
       <Card className="bg-primary/5 border-primary/20">
         <CardHeader className="pb-4">
           <CardTitle className="text-lg flex items-center">
@@ -338,8 +345,14 @@ export function CostsTab() {
                   <SelectItem value="variable">Valor variável (R$)</SelectItem>
                   <SelectItem value="rate">Percentual sobre o valor da venda (%)</SelectItem>
                   <SelectItem value="tax">Imposto (%)</SelectItem>
-                  <SelectItem value="margin">Margem real (% sobre o valor da venda)</SelectItem>
-                  <SelectItem value="kit_percent">Margem fake (% sobre o preço do kit)</SelectItem>
+                  <SelectItem value="margin" disabled={hasKitPercent}>
+                    Margem real (% sobre o valor da venda)
+                    {hasKitPercent ? ' (bloqueado: margem fake ativa)' : ''}
+                  </SelectItem>
+                  <SelectItem value="kit_percent" disabled={hasMargin}>
+                    Margem fake (% sobre o preço do kit)
+                    {hasMargin ? ' (bloqueado: margem real ativa)' : ''}
+                  </SelectItem>
                   <SelectItem value="commission">Comissão (% sobre o valor da venda)</SelectItem>
                 </SelectContent>
               </Select>
