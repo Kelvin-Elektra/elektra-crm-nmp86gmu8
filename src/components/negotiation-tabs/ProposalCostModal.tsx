@@ -91,7 +91,7 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
             percentage: isPercent ? `${c.value}%${weightLabel}` : '—',
             value: displayValue,
           })
-        })        })
+        })
       } else {
         let breakdown = proposal.cost_breakdown || []
         if (typeof breakdown === 'string') {
