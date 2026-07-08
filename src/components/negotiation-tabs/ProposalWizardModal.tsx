@@ -347,7 +347,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         negotiation_id: neg.id,
         description:
           description || `Proposta Sistema ${(neg.sizing?.kit_power_kwp || 0).toFixed(2)} kWp`,
-        price: finalPrice,
+        price: totalValue,
         status: 'draft',
         validity_date: validity ? new Date(validity).toISOString() : null,
         payment_terms: paymentTerms,
@@ -565,11 +565,23 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
               <Label>Observações Internas (Não sai no PDF)</Label>
               <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
             </div>
-            <div className="bg-primary/5 p-4 rounded-lg border border-primary/20 flex justify-between items-center mt-4">
-              <span className="font-medium text-lg">Valor Final:</span>
-              <span className="font-bold text-xl text-primary">
-                {BRL.format(totalValue * (1 - discount / 100))}
-              </span>
+            <div className="bg-muted/30 p-4 rounded-lg border space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Subtotal:</span>
+                <span className="font-medium">{BRL.format(totalValue)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Desconto ({discount}%):</span>
+                <span className="font-medium text-destructive">
+                  - {BRL.format((totalValue * discount) / 100)}
+                </span>
+              </div>
+              <div className="flex justify-between text-base font-bold pt-2 border-t">
+                <span>Total Final:</span>
+                <span className="text-primary">
+                  {BRL.format(totalValue * (1 - discount / 100))}
+                </span>
+              </div>
             </div>
             <DialogFooter className="mt-6">
               <Button variant="outline" onClick={handlePrev}>

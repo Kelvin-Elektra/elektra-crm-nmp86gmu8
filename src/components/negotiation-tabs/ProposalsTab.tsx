@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, Eye, DollarSign, FileText, Trash2, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { Plus, Eye, DollarSign, FileText, Trash2, ThumbsUp, ThumbsDown, Pencil } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import { format } from 'date-fns'
 import { ProposalViewer } from '../ProposalViewer'
 import { ProposalCostModal } from './ProposalCostModal'
 import { ProposalWizardModal } from './ProposalWizardModal'
+import { ProposalEditModal } from './ProposalEditModal'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -29,6 +30,7 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
   const [costModalOpen, setCostModalOpen] = useState<any>(null)
   const [wizardOpen, setWizardOpen] = useState(false)
   const [closeSaleModal, setCloseSaleModal] = useState<any>(null)
+  const [editModalOpen, setEditModalOpen] = useState<any>(null)
   const [closingDate, setClosingDate] = useState(format(new Date(), 'yyyy-MM-dd'))
 
   const handleConfirmSale = async () => {
@@ -146,6 +148,16 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => setEditModalOpen(p)}
+                      title="Editar Proposta"
+                    >
+                      <Pencil className="h-4 w-4 mr-2" /> Editar
+                    </Button>
+                  )}
+                  {isAdmin && (
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => setCostModalOpen(p)}
                       title="Editar Custos"
                     >
@@ -213,6 +225,15 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
           proposal={costModalOpen}
           reload={reload}
           neg={neg}
+        />
+      )}
+
+      {editModalOpen && (
+        <ProposalEditModal
+          open={!!editModalOpen}
+          onOpenChange={(v: boolean) => !v && setEditModalOpen(null)}
+          proposal={editModalOpen}
+          reload={reload}
         />
       )}
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, Fragment } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -10,93 +10,167 @@ import {
 import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion'
-import { Badge } from '@/components/ui/badge'
-import { useKitCalculator } from '@/hooks/use-kit-calculator'
+import { cn } from '@/lib/utils'
+import { ChevronDown, ChevronRight, Package } from 'lucide-react'
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+
+interface CostItem {
+  name: string
+  method: string
+  percentage: string
+  value: number
+}
+
+interface KitItem {
+  name: string
+  qty: number
+  total: number
+  type: string
+  ruleApplied?: boolean
+}
 
 export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }: any) {
   const { user } = useAuth()
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
-  const [costs, setCosts] = useState<any[]>([])
-  const [negData, setNegData] = useState<any>(neg)
+  const [costs, setCosts] = useState<CostItem[]>([])
+  const [kitItems, setKitItems] = useState<KitItem[]>([])
+  const [snapshot, setSnapshot] = useState<any>(null)
+  const [expandedKit, setExpandedKit] = useState(true)
 
   const isAdmin =
     user?.role === 'User_elektra' || user?.role_company === 'admin' || user?.role === 'User_owner'
 
   useEffect(() => {
-    if (open && proposal?.negotiation_id && !neg) {
-      pb.collection('negotiations')
-        .getOne(proposal.negotiation_id)
-        .then(setNegData)
-        .catch(console.error)
-    } else if (neg) {
-      setNegData(neg)
-    }
-  }, [open, proposal, neg])
-
-  const [snapshotPricing, setSnapshotPricing] = useState<any>(null)
-
-  useEffect(() => {
-    if (proposal?.snapshot_data?.pricing) {
-      setSnapshotPricing(proposal.snapshot_data.pricing)
-    } else {
-      setSnapshotPricing(null)
-    }
-  }, [proposal])
-
-  const calcResult = useKitCalculator(negData)
-
-  const kitPrice = snapshotPricing ? snapshotPricing.kitPrice : calcResult.kitPrice
-  const kitComposition = snapshotPricing?.kitComposition
-    ? snapshotPricing.kitComposition
-    : calcResult.kitComposition
-  const calcLoading = snapshotPricing ? false : calcResult.loading
-  const isManualMode = snapshotPricing?.pricingMode === 'manual'
-
-  useEffect(() => {
     if (open && proposal) {
-      let data = proposal.cost_breakdown || []
-      if (typeof data === 'string') {
-        try {
-          data = JSON.parse(data)
-        } catch (e) {
-          data = []
-        }
+      let snap: any = {}
+      try {
+        snap =
+          typeof proposal.snapshot_data === 'string'
+            ? JSON.parse(proposal.snapshot_data)
+            : proposal.snapshot_data || {}
+      } catch {
+        snap = {}
       }
-      setCosts(data)
+      setSnapshot(snap)
+
+      const pricing = snap.pricing || {}
+      const appliedCosts = pricing.appliedCosts || []
+      const kitComposition = pricing.kitComposition || []
+      const kitPrice = pricing.kitPrice || 0
+
+      let costItems: CostItem[] = []
+
+      if (appliedCosts.length > 0) {
+        costItems.push({
+          name: 'Kit Fotovoltaico (Equipamentos e Insumos)',
+          method: 'kit',
+          percentage: '—',
+          value: kitPrice,
+        })
+        appliedCosts.forEach((c: any) => {
+          const isPercent = ['rate', 'tax', 'margin', 'kit_percent'].includes(c.method)
+          costItems.push({
+            name: c.name,
+            method: c.method,
+            percentage: isPercent ? `${c.value}%` : '—',
+            value: c.calculatedAmount || c.amount || 0,
+          })
+        })
+      } else {
+        let breakdown = proposal.cost_breakdown || []
+        if (typeof breakdown === 'string') {
+          try {
+            breakdown = JSON.parse(breakdown)
+          } catch {
+            breakdown = []
+          }
+        }
+        costItems = breakdown.map((c: any) => ({
+          name: c.name,
+          method: 'fixed',
+          percentage: '—',
+          value: c.price || c.cost || 0,
+        }))
+      }
+
+      setCosts(costItems)
+      setKitItems(kitComposition.map((item: any) => ({ ...item })))
+      setExpandedKit(true)
     }
   }, [open, proposal])
 
-  const handleUpdate = (idx: number, field: string, val: string) => {
+  const kitTotal = useMemo(
+    () => kitItems.reduce((acc, item) => acc + (Number(item.total) || 0), 0),
+    [kitItems],
+  )
+
+  const hasKitItems = kitItems.length > 0
+
+  const total = useMemo(() => {
+    return costs.reduce((acc, c) => {
+      if (c.method === 'kit' && hasKitItems) return acc + kitTotal
+      return acc + (Number(c.value) || 0)
+    }, 0)
+  }, [costs, kitTotal, hasKitItems])
+
+  const handleCostChange = (idx: number, val: string) => {
     const arr = [...costs]
-    arr[idx][field] = Number(val)
-    if (field === 'cost' || field === 'margin') {
-      arr[idx].price = arr[idx].cost * (1 + arr[idx].margin / 100)
-    }
+    arr[idx].value = Number(val) || 0
     setCosts(arr)
+  }
+
+  const handleKitItemChange = (idx: number, val: string) => {
+    const arr = [...kitItems]
+    arr[idx].total = Number(val) || 0
+    setKitItems(arr)
   }
 
   const handleSave = async () => {
     setLoading(true)
     try {
-      const newPrice = costs.reduce((acc, c) => acc + (c.price || 0), 0)
-      await pb.collection('proposals').update(proposal.id, {
-        cost_breakdown: costs,
-        price: newPrice,
-        total_value: newPrice,
+      const discountAmount = proposal?.discount_amount || 0
+      const newSubtotal = total
+      const newFinal = newSubtotal * (1 - discountAmount / 100)
+
+      const cost_breakdown = costs.map((c) => {
+        if (c.method === 'kit' && hasKitItems) {
+          return { name: c.name, cost: kitTotal, margin: 0, price: kitTotal }
+        }
+        return { name: c.name, cost: c.value, margin: 0, price: c.value }
       })
+
+      const updatedSnapshot = { ...snapshot }
+      if (updatedSnapshot.pricing) {
+        if (hasKitItems) {
+          updatedSnapshot.pricing.kitPrice = kitTotal
+          updatedSnapshot.pricing.kitComposition = kitItems
+        }
+        updatedSnapshot.pricing.salePrice = newSubtotal
+        if (updatedSnapshot.pricing.appliedCosts) {
+          updatedSnapshot.pricing.appliedCosts = updatedSnapshot.pricing.appliedCosts.map(
+            (c: any) => {
+              const updated = costs.find((nc) => nc.name === c.name && nc.method !== 'kit')
+              if (updated) {
+                return { ...c, calculatedAmount: updated.value, amount: updated.value }
+              }
+              return c
+            },
+          )
+        }
+      }
+
+      await pb.collection('proposals').update(proposal.id, {
+        cost_breakdown,
+        price: newSubtotal,
+        total_value: newFinal,
+        snapshot_data: updatedSnapshot,
+      })
+
       toast({ title: 'Custos atualizados e preço recalculado' })
       reload()
       onOpenChange(false)
@@ -107,23 +181,37 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
     }
   }
 
-  const formatSnapshotCost = (cost: any) => {
-    const isPercent = ['rate', 'tax', 'margin', 'kit_percent'].includes(cost.method)
-    if (isPercent) {
-      const snapshotKitPrice = snapshotPricing?.kitPrice || 0
-      const snapshotSalePrice = snapshotPricing?.salePrice || 0
-      const calcBase = cost.method === 'kit_percent' ? snapshotKitPrice : snapshotSalePrice
-      const calcAmount = cost.calculatedAmount || calcBase * ((Number(cost.value) || 0) / 100)
-      return `${cost.value}% (${BRL.format(calcAmount)})`
-    }
-    return BRL.format(cost.amount || 0)
+  if (!isAdmin) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Valor da Proposta</DialogTitle>
+            <VisuallyHidden>
+              <DialogDescription>Valor total da proposta comercial.</DialogDescription>
+            </VisuallyHidden>
+          </DialogHeader>
+          <div className="py-12 text-center">
+            <p className="text-muted-foreground mb-2">Valor Total da Venda</p>
+            <p className="text-3xl font-bold text-primary">
+              {BRL.format(proposal?.total_value || proposal?.price || 0)}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    )
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Custos da Proposta #{proposal?.id}</DialogTitle>
+          <DialogTitle>Custos da Proposta</DialogTitle>
           <VisuallyHidden>
             <DialogDescription>
               Visualize e edite os custos específicos desta proposta.
@@ -131,211 +219,137 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
           </VisuallyHidden>
         </DialogHeader>
 
-        {!isAdmin ? (
-          <div className="py-12 text-center">
-            <p className="text-muted-foreground mb-2">Valor Total da Proposta</p>
-            <p className="text-3xl font-bold text-primary">
-              {BRL.format(proposal?.total_value || proposal?.price || 0)}
+        <div className="space-y-4 py-4">
+          {costs.length === 0 ? (
+            <p className="text-muted-foreground text-center p-6 border rounded-lg bg-muted/20">
+              Nenhum detalhamento de custo salvo para esta proposta.
             </p>
-          </div>
-        ) : (
-          <>
-            <div className="space-y-6 py-4">
-              <h3 className="font-semibold text-lg mb-2">Composição e Detalhamento de Custos</h3>
-
-              {costs.length === 0 ? (
-                <p className="text-muted-foreground text-center p-6 border rounded-lg bg-muted/20">
-                  Nenhum detalhamento de custo salvo para esta proposta.
-                </p>
-              ) : (
-                <div className="space-y-6">
-                  {costs.map((b, idx) => {
-                    const isKit =
-                      b.name === 'Kit Fotovoltaico' ||
-                      b.name === 'Kit Fotovoltaico (Equipamentos e Insumos)' ||
-                      b.type === 'kit'
-
-                    if (isKit) {
-                      return (
-                        <Accordion type="single" collapsible className="w-full" key={idx}>
-                          <AccordionItem
-                            value="kit"
-                            className="border rounded-lg bg-card shadow-sm"
-                          >
-                            <AccordionTrigger className="hover:no-underline px-5 py-4">
-                              <div className="flex items-center justify-between w-full pr-4">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-semibold text-base">
-                                    {b.name === 'Kit Fotovoltaico'
-                                      ? 'Kit Fotovoltaico (Equipamentos e Insumos)'
-                                      : b.name}
-                                  </span>
-                                  {isManualMode && (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-[10px] bg-yellow-50 text-yellow-800 border-yellow-200"
-                                    >
-                                      Modo Manual
-                                    </Badge>
-                                  )}
-                                </div>
-                                <span className="font-bold text-primary text-lg">
-                                  {BRL.format(b.price || 0)}
-                                </span>
-                              </div>
-                            </AccordionTrigger>
-                            <AccordionContent className="pt-0 pb-5 px-5">
-                              <div className="flex justify-between items-center mb-6 border-b pb-6">
-                                <span className="text-muted-foreground font-medium">
-                                  Valor do Kit Fotovoltaico:
-                                </span>
-                                <span className="font-bold text-primary text-lg">
-                                  {BRL.format(b.price || 0)}
-                                </span>
-                              </div>
-
-                              <h4 className="font-medium text-sm mb-3 text-muted-foreground">
-                                {isManualMode
-                                  ? 'Itens Considerados no Dimensionamento Técnico:'
-                                  : 'Itens Inclusos no Kit:'}
-                              </h4>
-                              {calcLoading ? (
-                                <div className="flex justify-center p-4 text-muted-foreground animate-pulse bg-muted/20 rounded-md">
-                                  Carregando composição...
-                                </div>
-                              ) : kitComposition.filter((i: any) => i.qty > 0).length === 0 ? (
-                                <p className="text-muted-foreground text-sm text-center p-4 bg-muted/20 rounded-md">
-                                  Nenhum equipamento ou insumo válido definido.
-                                </p>
-                              ) : (
-                                <div className="border rounded-md overflow-hidden bg-background">
-                                  <table className="w-full text-sm">
-                                    <thead className="bg-muted/50 border-b">
-                                      <tr>
-                                        <th className="text-left p-3 font-medium">
-                                          Equipamento/Insumo
-                                        </th>
-                                        <th className="text-center p-3 font-medium">Tipo</th>
-                                        <th className="text-right p-3 font-medium">Qtd</th>
-                                        <th className="text-right p-3 font-medium">
-                                          Custo Estimado
-                                        </th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {kitComposition
-                                        .filter((item: any) => item.qty > 0)
-                                        .map((item: any, itemIdx: number) => (
-                                          <tr
-                                            key={itemIdx}
-                                            className="border-b last:border-0 hover:bg-muted/20 transition-colors"
-                                          >
-                                            <td className="p-3">
-                                              <div className="flex items-center gap-2">
-                                                <span className="font-medium">{item.name}</span>
-                                                {item.ruleApplied && (
-                                                  <Badge
-                                                    variant="secondary"
-                                                    className="text-[10px] h-5 px-1.5 font-normal"
-                                                  >
-                                                    Regra Aplicada
-                                                  </Badge>
-                                                )}
-                                              </div>
-                                            </td>
-                                            <td className="p-3 text-center text-muted-foreground capitalize">
-                                              {item.type === 'supply'
-                                                ? 'Insumo'
-                                                : item.type === 'module'
-                                                  ? 'Módulo'
-                                                  : 'Inversor'}
-                                            </td>
-                                            <td className="p-3 text-right tabular-nums">
-                                              {item.qty.toLocaleString('pt-BR', {
-                                                maximumFractionDigits: 2,
-                                              })}
-                                            </td>
-                                            <td className="p-3 text-right font-medium tabular-nums text-muted-foreground">
-                                              {BRL.format(item.total)}
-                                            </td>
-                                          </tr>
-                                        ))}
-                                      <tr className="bg-muted/30 font-semibold text-sm border-t-2">
-                                        <td colSpan={3} className="p-3 text-right">
-                                          {isManualMode
-                                            ? 'Valor Base Manual Informado:'
-                                            : 'Soma Estimada do Kit:'}
-                                        </td>
-                                        <td className="p-3 text-right text-foreground tabular-nums">
-                                          {BRL.format(kitPrice)}
-                                        </td>
-                                      </tr>
-                                    </tbody>
-                                  </table>
-                                </div>
-                              )}
-                            </AccordionContent>
-                          </AccordionItem>
-                        </Accordion>
-                      )
-                    }
-
+          ) : (
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 border-b">
+                  <tr>
+                    <th className="text-left p-3 font-medium">Descrição</th>
+                    <th className="text-center p-3 font-medium w-28">Percentual (%)</th>
+                    <th className="text-right p-3 font-medium w-40">Valor (R$)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {costs.map((c, idx) => {
+                    const isKit = c.method === 'kit'
+                    const kitReadOnly = isKit && hasKitItems
                     return (
-                      <div
-                        key={idx}
-                        className="flex gap-4 items-center border-b pb-4 last:border-0 bg-card p-4 rounded-lg border shadow-sm"
-                      >
-                        <div className="flex-1">
-                          <Label className="text-muted-foreground text-xs">Item de Custo</Label>
-                          <p className="font-medium mt-1 truncate text-base" title={b.name}>
-                            {b.name}
-                          </p>
-                        </div>
-                        <div className="w-32">
-                          <Label>Base (R$)</Label>
-                          <Input
-                            type="number"
-                            value={b.cost}
-                            onChange={(e) => handleUpdate(idx, 'cost', e.target.value)}
-                            className="mt-1"
-                          />
-                        </div>
-                        <div className="w-36">
-                          <Label>Valor (R$)</Label>
-                          <Input
-                            type="number"
-                            value={b.price?.toFixed(2)}
-                            readOnly
-                            className="bg-muted mt-1 font-medium text-primary"
-                          />
-                        </div>
-                      </div>
+                      <Fragment key={`cost-${idx}`}>
+                        <tr className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+                          <td className="p-3">
+                            {isKit ? (
+                              <button
+                                type="button"
+                                className="flex items-center gap-1 font-medium"
+                                onClick={() => setExpandedKit(!expandedKit)}
+                              >
+                                {expandedKit ? (
+                                  <ChevronDown className="w-4 h-4" />
+                                ) : (
+                                  <ChevronRight className="w-4 h-4" />
+                                )}
+                                <Package className="w-4 h-4 text-primary" />
+                                {c.name}
+                              </button>
+                            ) : (
+                              <span className="font-medium">{c.name}</span>
+                            )}
+                          </td>
+                          <td className="p-3 text-center text-muted-foreground">{c.percentage}</td>
+                          <td className="p-3 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <span className="text-muted-foreground text-sm">R$</span>
+                              <Input
+                                type="number"
+                                value={
+                                  kitReadOnly ? kitTotal.toFixed(2) : c.value?.toFixed(2) || '0.00'
+                                }
+                                onChange={(e) => handleCostChange(idx, e.target.value)}
+                                readOnly={kitReadOnly}
+                                className={cn(
+                                  'w-32 text-right font-medium',
+                                  kitReadOnly && 'bg-muted cursor-not-allowed',
+                                )}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                        {isKit &&
+                          expandedKit &&
+                          hasKitItems &&
+                          kitItems.map((item, kIdx) => (
+                            <tr key={`kit-${kIdx}`} className="bg-muted/10 border-b last:border-0">
+                              <td className="p-3 pl-10 text-muted-foreground">
+                                <span className="text-sm">{item.name}</span>
+                                <span className="ml-2 text-xs text-muted-foreground/60">
+                                  ({item.qty?.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}
+                                  x)
+                                </span>
+                              </td>
+                              <td className="p-3 text-center text-muted-foreground/40">—</td>
+                              <td className="p-3 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <span className="text-muted-foreground text-xs">R$</span>
+                                  <Input
+                                    type="number"
+                                    value={item.total?.toFixed(2) || '0.00'}
+                                    onChange={(e) => handleKitItemChange(kIdx, e.target.value)}
+                                    className="w-32 text-right text-sm"
+                                  />
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                      </Fragment>
                     )
                   })}
-                </div>
-              )}
-
-              {costs.length > 0 && (
-                <div className="bg-primary/5 p-4 rounded-lg border border-primary/20 flex justify-between items-center">
-                  <span className="font-semibold text-lg">Total (Kit + Custos):</span>
-                  <span className="font-bold text-xl text-primary">
-                    {BRL.format(costs.reduce((acc: number, c: any) => acc + (c.price || 0), 0))}
-                  </span>
-                </div>
-              )}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-primary/5 font-semibold border-t-2">
+                    <td className="p-3 text-right" colSpan={2}>
+                      Total:
+                    </td>
+                    <td className="p-3 text-right text-primary text-lg tabular-nums">
+                      {BRL.format(total)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
-          </>
-        )}
+          )}
+
+          {proposal?.discount_amount > 0 && (
+            <>
+              <div className="bg-muted/30 p-3 rounded-lg flex justify-between text-sm">
+                <span className="text-muted-foreground">
+                  Desconto aplicado ({proposal.discount_amount}%):
+                </span>
+                <span className="font-medium text-destructive">
+                  - {BRL.format((total * proposal.discount_amount) / 100)}
+                </span>
+              </div>
+              <div className="bg-primary/5 p-3 rounded-lg flex justify-between text-sm font-semibold">
+                <span>Total com desconto:</span>
+                <span className="text-primary">
+                  {BRL.format(total * (1 - (proposal.discount_amount || 0) / 100))}
+                </span>
+              </div>
+            </>
+          )}
+        </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {isAdmin ? 'Cancelar' : 'Fechar'}
+            Cancelar
           </Button>
-          {isAdmin && (
-            <Button onClick={handleSave} disabled={loading || costs.length === 0}>
-              Salvar
-            </Button>
-          )}
+          <Button onClick={handleSave} disabled={loading || costs.length === 0}>
+            Salvar
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
