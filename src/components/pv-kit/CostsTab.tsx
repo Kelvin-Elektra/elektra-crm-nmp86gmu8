@@ -16,7 +16,7 @@ import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { TaxConfigCard } from '@/components/pv-kit/TaxConfigCard'
+import { useRealtime } from '@/hooks/use-realtime'
 
 export function CostsTab() {
   const { user } = useAuth()
@@ -41,6 +41,7 @@ export function CostsTab() {
     multiplier: '',
     user_id: 'all',
     is_real_margin: false,
+    tax_weight: '100',
   }
   const [form, setForm] = useState(initialForm)
 
@@ -122,6 +123,10 @@ export function CostsTab() {
     loadData()
   }, [user])
 
+  useRealtime('pv_costs', () => {
+    loadData()
+  })
+
   const handleBillingModelChange = async (val: string) => {
     setBillingModel(val)
     if (!user?.company_id) return
@@ -183,6 +188,7 @@ export function CostsTab() {
       multiplier: parseNumber(form.multiplier) || null,
       user_id: form.user_id !== 'all' ? form.user_id : null,
       is_real_margin: form.calc_method === 'margin',
+      tax_weight: form.calc_method === 'tax' ? (parseNumber(form.tax_weight) ?? 100) : null,
       company_id: user.company_id,
     }
 
@@ -193,6 +199,19 @@ export function CostsTab() {
       } else {
         await pb.collection('pv_costs').create(payload)
         toast({ title: 'Sucesso', description: 'Custo/Imposto adicionado.' })
+      }
+      const taxCosts = await pb
+        .collection('pv_costs')
+        .getFullList({ filter: `company_id='${user.company_id}' && calc_method='tax'` })
+      const totalWeight = taxCosts.reduce(
+        (sum: number, c: any) => sum + (Number(c.tax_weight) || 0),
+        0,
+      )
+      if (taxCosts.length > 0 && totalWeight !== 100) {
+        toast({
+          title: 'Atenção: Pesos dos Impostos',
+          description: `O sistema recomenda revisar os pesos para que o imposto da venda seja aplicado corretamente (Total atual: ${totalWeight}%).`,
+        })
       }
       resetForm()
       loadData()
@@ -219,6 +238,7 @@ export function CostsTab() {
       multiplier: formatNumber(item.multiplier),
       user_id: item.user_id || 'all',
       is_real_margin: item.is_real_margin || false,
+      tax_weight: formatNumber(item.tax_weight || 100),
     })
     setEditingId(item.id)
   }
@@ -240,7 +260,6 @@ export function CostsTab() {
 
   return (
     <div className="space-y-6">
-      <TaxConfigCard />
       <Card className="bg-primary/5 border-primary/20">
         <CardHeader className="pb-4">
           <CardTitle className="text-lg flex items-center">
@@ -493,6 +512,23 @@ export function CostsTab() {
               </Select>
             </div>
 
+            {form.calc_method === 'tax' && (
+              <div className="space-y-2 md:col-span-6">
+                <Label className="font-semibold">Peso do Imposto (%)</Label>
+                <Input
+                  type="text"
+                  value={form.tax_weight}
+                  onChange={(e) => handleNumberChange('tax_weight', e.target.value)}
+                  className="bg-background"
+                  placeholder="Ex: 100"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Define o peso de incidência deste imposto. A soma dos pesos de todos os impostos
+                  deve totalizar 100% para o cálculo correto.
+                </p>
+              </div>
+            )}
+
             <div className="md:col-span-6 flex justify-end gap-2 mt-2">
               {editingId && (
                 <Button type="button" variant="outline" onClick={resetForm}>
@@ -565,6 +601,11 @@ export function CostsTab() {
                             )
                               ? '%'
                               : ''}
+                            {d.calc_method === 'tax' && d.tax_weight != null && (
+                              <span className="text-muted-foreground text-xs ml-1">
+                                (Peso: {formatNumber(d.tax_weight)}%)
+                              </span>
+                            )}
                           </>
                         )}
                       </td>

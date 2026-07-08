@@ -56,7 +56,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
   const adjustedMarginAmount = originalMarginAmount - discountValue
   const adjustedMarginPct = Math.max(0, marginSum * 100 - discountPercent)
   const maxDiscount = (user as any)?.max_discount || 0
-  const discountExceeded = maxDiscount > 0 && discountPercent > maxDiscount
+  const discountExceeded = discountPercent > maxDiscount
 
   const handleSave = async () => {
     if (discountExceeded) {
@@ -100,7 +100,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
             <Input
               type="number"
               min="0"
-              max={maxDiscount || undefined}
+              max={maxDiscount}
               value={discountPercent}
               onChange={(e) => setDiscountPercent(Number(e.target.value))}
             />

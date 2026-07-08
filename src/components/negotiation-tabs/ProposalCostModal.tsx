@@ -77,10 +77,12 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
           const isPercent = ['rate', 'tax', 'margin', 'kit_percent', 'commission'].includes(
             c.method,
           )
+          const weightLabel =
+            c.method === 'tax' && c.taxWeight != null ? ` • Peso: ${c.taxWeight}%` : ''
           costItems.push({
             name: c.name,
             method: c.method,
-            percentage: isPercent ? `${c.value}%` : '—',
+            percentage: isPercent ? `${c.value}%${weightLabel}` : '—',
             value: c.calculatedAmount || c.amount || 0,
           })
         })

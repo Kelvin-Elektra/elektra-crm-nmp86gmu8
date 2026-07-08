@@ -216,7 +216,10 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
             varCosts += amount
           }
           if (c.calc_method === 'rate') rateSum += (Number(c.value) || 0) / 100
-          if (c.calc_method === 'tax') taxSum += (Number(c.value) || 0) / 100
+          if (c.calc_method === 'tax') {
+            const taxWeight = (Number(c.tax_weight) || 100) / 100
+            taxSum += ((Number(c.value) || 0) / 100) * taxWeight
+          }
           if (c.calc_method === 'margin') marginSum += (Number(c.value) || 0) / 100
           if (c.calc_method === 'kit_percent') kitPercentSum += (Number(c.value) || 0) / 100
           if (c.calc_method === 'commission') commissionSum += (Number(c.value) || 0) / 100
@@ -234,6 +237,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
             calcBase: c.calc_method === 'variable' ? effectiveBase : undefined,
             baseValue:
               c.calc_method === 'variable' ? getBaseValue(effectiveBase, metrics) : undefined,
+            taxWeight: c.calc_method === 'tax' ? Number(c.tax_weight) || 100 : undefined,
           })
         }
       })
@@ -278,8 +282,12 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
       const kitPriceForCalc =
         pricingMode === 'manual' ? manualKitValue : rawPricingData?.autoKitPrice || 0
       const calcBase = cost.method === 'kit_percent' ? kitPriceForCalc : totalValue
-      const calcAmount = calcBase * ((Number(cost.value) || 0) / 100)
-      return `${cost.value}% (${BRL.format(calcAmount)})`
+      const weight = cost.method === 'tax' ? (Number(cost.taxWeight) || 100) / 100 : 1
+      const effectiveRate = ((Number(cost.value) || 0) / 100) * weight
+      const calcAmount = calcBase * effectiveRate
+      const weightLabel =
+        cost.method === 'tax' && cost.taxWeight != null ? ` • Peso: ${cost.taxWeight}%` : ''
+      return `${cost.value}%${weightLabel} (${BRL.format(calcAmount)})`
     }
     return BRL.format(cost.amount || 0)
   }

@@ -34,16 +34,15 @@ export function calculateSalePrice(input: PricingInput): number {
 }
 
 export function buildTaxEntries(
-  taxCosts: Array<{ value: number }>,
-  tax1Weight: number,
-  tax2Weight: number,
+  taxCosts: Array<{ value: number; tax_weight?: number }>,
+  tax1Weight?: number,
+  tax2Weight?: number,
 ): TaxEntry[] {
   const entries: TaxEntry[] = []
-  if (taxCosts[0]) {
-    entries.push({ rate: taxCosts[0].value || 0, weight: tax1Weight ?? 100 })
-  }
-  if (taxCosts[1]) {
-    entries.push({ rate: taxCosts[1].value || 0, weight: tax2Weight ?? 0 })
-  }
+  taxCosts.forEach((c, idx) => {
+    const weight =
+      c.tax_weight != null ? c.tax_weight : idx === 0 ? (tax1Weight ?? 100) : (tax2Weight ?? 0)
+    entries.push({ rate: c.value || 0, weight })
+  })
   return entries
 }
