@@ -18,6 +18,8 @@ import {
   Plus,
   Eye,
   Settings2,
+  Percent,
+  Wand2,
 } from 'lucide-react'
 import {
   Dialog,
@@ -57,6 +59,13 @@ export default function ProposalSettings() {
   const [pagesLayout, setPagesLayout] = useState<{ id: string; elements: string[] }[]>([])
 
   const [previewOpen, setPreviewOpen] = useState<string | null>(null)
+  const [simultaneityFactors, setSimultaneityFactors] = useState<Record<string, string>>({
+    Residencial: '30',
+    Industrial: '60',
+    Comercial: '50',
+    Rural: '40',
+    Outros: '35',
+  })
 
   const dummyNegotiation = {
     company_id: user?.company_id,
@@ -110,6 +119,16 @@ export default function ProposalSettings() {
           setActiveTemplate(record.active_template_id || record.template)
         if (record.indicators) setIndicators(record.indicators as any)
         if (record.branding) setBranding(record.branding as any)
+        if (record.pricing?.simultaneity_factors) {
+          const factors = record.pricing.simultaneity_factors
+          setSimultaneityFactors({
+            Residencial: String(factors.Residencial ?? '30'),
+            Industrial: String(factors.Industrial ?? '60'),
+            Comercial: String(factors.Comercial ?? '50'),
+            Rural: String(factors.Rural ?? '40'),
+            Outros: String(factors.Outros ?? '35'),
+          })
+        }
 
         if (
           record.pages_layout &&
@@ -144,12 +163,22 @@ export default function ProposalSettings() {
     if (!user?.company_id) return
     setLoading(true)
     try {
+      const pricing = {
+        simultaneity_factors: {
+          Residencial: Number(simultaneityFactors.Residencial) || 30,
+          Industrial: Number(simultaneityFactors.Industrial) || 60,
+          Comercial: Number(simultaneityFactors.Comercial) || 50,
+          Rural: Number(simultaneityFactors.Rural) || 40,
+          Outros: Number(simultaneityFactors.Outros) || 35,
+        },
+      }
       const data = {
         company_id: user.company_id,
         active_template_id: activeTemplate,
         indicators,
         branding,
         pages_layout: pagesLayout,
+        pricing,
       }
       if (settingsId) {
         await pb.collection('proposal_settings').update(settingsId, data)
@@ -260,6 +289,9 @@ export default function ProposalSettings() {
           </TabsTrigger>
           <TabsTrigger value="indicadores" className="py-2.5 rounded-lg flex-1 sm:flex-none">
             <BarChart className="mr-2 h-4 w-4" /> Indicadores
+          </TabsTrigger>
+          <TabsTrigger value="simultaneidade" className="py-2.5 rounded-lg flex-1 sm:flex-none">
+            <Percent className="mr-2 h-4 w-4" /> Simultaneidade
           </TabsTrigger>
         </TabsList>
 
@@ -435,6 +467,63 @@ export default function ProposalSettings() {
                   type="number"
                 />
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="simultaneidade" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Fatores de Simultaneidade</CardTitle>
+              <CardDescription>
+                Defina os percentuais padrão de autoconsumo para cada categoria de consumidor. Estes
+                valores serão aplicados automaticamente ao selecionar a categoria na negociação.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 max-w-md">
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setSimultaneityFactors({
+                      Residencial: '30',
+                      Industrial: '60',
+                      Comercial: '50',
+                      Rural: '40',
+                      Outros: '35',
+                    })
+                  }
+                >
+                  <Wand2 className="w-4 h-4 mr-2" /> Preencher Sugestões
+                </Button>
+              </div>
+              {[
+                { key: 'Residencial', label: 'Residencial' },
+                { key: 'Industrial', label: 'Industrial' },
+                { key: 'Comercial', label: 'Comercial' },
+                { key: 'Rural', label: 'Rural' },
+                { key: 'Outros', label: 'Outros' },
+              ].map((cat) => (
+                <div key={cat.key} className="space-y-2">
+                  <Label>{cat.label} (%)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={simultaneityFactors[cat.key]}
+                    onChange={(e) =>
+                      setSimultaneityFactors({
+                        ...simultaneityFactors,
+                        [cat.key]: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              ))}
+              <Button onClick={handleSave} disabled={loading} className="w-full">
+                <Save className="mr-2 h-4 w-4" /> Salvar Fatores
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>

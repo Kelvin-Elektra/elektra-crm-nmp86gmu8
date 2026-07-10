@@ -101,6 +101,7 @@ export function TariffsTab() {
     te: '',
     tusd: '',
     icms_exemption: 'none',
+    icms_rate: '',
   })
 
   // Edit/Delete modals
@@ -223,6 +224,7 @@ export function TariffsTab() {
           te: parseNumber(ruleForm.te),
           tusd: parseNumber(ruleForm.tusd),
           icms_exemption: ruleForm.icms_exemption,
+          icms_rate: parseNumber(ruleForm.icms_rate),
           network_type: '',
           voltage: '',
         })
@@ -233,11 +235,12 @@ export function TariffsTab() {
           te: parseNumber(ruleForm.te),
           tusd: parseNumber(ruleForm.tusd),
           icms_exemption: ruleForm.icms_exemption,
+          icms_rate: parseNumber(ruleForm.icms_rate),
         })
       }
 
       toast({ title: 'Sucesso', description: 'Regras tarifárias salvas com sucesso.' })
-      setRuleForm({ ...ruleForm, classes: [], te: '', tusd: '' })
+      setRuleForm({ ...ruleForm, classes: [], te: '', tusd: '', icms_rate: '' })
       setDuplicateRulesDialog({ open: false, existing: [], newClasses: [] })
       loadData()
     } catch (e: any) {
@@ -275,6 +278,7 @@ export function TariffsTab() {
         te: parseNumber(editTariffRule.te),
         tusd: parseNumber(editTariffRule.tusd),
         icms_exemption: editTariffRule.icms_exemption,
+        icms_rate: parseNumber(editTariffRule.icms_rate || '0'),
       })
       toast({ title: 'Sucesso', description: 'Tarifa atualizada.' })
       setEditTariffRule(null)
@@ -594,6 +598,22 @@ export function TariffsTab() {
                   </Select>
                 </div>
 
+                <div className="space-y-2">
+                  <Label>Alíquota ICMS (%)</Label>
+                  <div className="relative max-w-[200px]">
+                    <Input
+                      placeholder="18"
+                      className="bg-background"
+                      value={ruleForm.icms_rate}
+                      onChange={(e) =>
+                        handleNumberChange(e.target.value, (v) =>
+                          setRuleForm({ ...ruleForm, icms_rate: v }),
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+
                 <div className="md:col-span-2 flex justify-end">
                   <Button onClick={handleCreateRule}>Salvar Tarifas</Button>
                 </div>
@@ -615,6 +635,7 @@ export function TariffsTab() {
                       <TableHead>TE</TableHead>
                       <TableHead>TUSD</TableHead>
                       <TableHead>Isenção</TableHead>
+                      <TableHead>ICMS %</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -626,6 +647,7 @@ export function TariffsTab() {
                         <TableCell>R$ {formatNumber(r.te)}</TableCell>
                         <TableCell>R$ {formatNumber(r.tusd)}</TableCell>
                         <TableCell className="capitalize">{r.icms_exemption}</TableCell>
+                        <TableCell>{r.icms_rate ? `${formatNumber(r.icms_rate)}%` : '-'}</TableCell>
                         <TableCell className="text-right">
                           <Button
                             variant="ghost"
@@ -635,6 +657,7 @@ export function TariffsTab() {
                                 ...r,
                                 te: formatNumber(r.te),
                                 tusd: formatNumber(r.tusd),
+                                icms_rate: formatNumber(r.icms_rate),
                               })
                             }
                           >
@@ -648,7 +671,7 @@ export function TariffsTab() {
                     ))}
                     {rules.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
+                        <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
                           Nenhuma regra tarifária encontrada.
                         </TableCell>
                       </TableRow>
@@ -834,6 +857,18 @@ export function TariffsTab() {
                   <SelectItem value="both">Ambas</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Alíquota ICMS (%)</Label>
+              <Input
+                placeholder="18"
+                value={editTariffRule?.icms_rate || ''}
+                onChange={(e) =>
+                  handleNumberChange(e.target.value, (v) =>
+                    setEditTariffRule({ ...editTariffRule, icms_rate: v }),
+                  )
+                }
+              />
             </div>
           </div>
           <DialogFooter>

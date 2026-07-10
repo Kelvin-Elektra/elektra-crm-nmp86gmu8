@@ -9,19 +9,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { TrendingUp, PiggyBank, Receipt, Calculator } from 'lucide-react'
+import { TrendingUp, PiggyBank, Receipt, Calculator, Zap, Percent, Lightbulb } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { updateNegotiation } from '@/services/db'
+import pb from '@/lib/pocketbase/client'
 import {
   calculateFinancialProjection,
-  fetchTariffRate,
+  fetchTariffDetails,
   fetchLatestProposalPrice,
   DEFAULT_SIMULTANEITY_FACTORS,
   CONSUMER_CATEGORIES,
-  DEFAULT_TARIFF_RATE,
+  FIO_B_RATE,
+  type TariffDetails,
 } from '@/lib/financial-analysis'
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+
+const ICMS_LABELS: Record<string, string> = {
+  none: 'Sem Isenção',
+  te: 'Isento TE',
+  tusd: 'Isento TUSD',
+  both: 'Isento Ambos',
+}
 
 export function FinancialAnalysisCard({
   neg,
@@ -33,63 +42,104 @@ export function FinancialAnalysisCard({
   reload: () => void
 }) {
   const { toast } = useToast()
-  const sizing = neg.sizing || {}
 
-  const [consumerCategory, setConsumerCategory] = useState(sizing.consumer_category || '')
-  const [simultaneityFactor, setSimultaneityFactor] = useState(
-    sizing.simultaneity_factor != null
-      ? sizing.simultaneity_factor
-      : DEFAULT_SIMULTANEITY_FACTORS[sizing.consumer_category] || 30,
+  const [consumerCategory, setConsumerCategory] = useState(
+    neg.consumer_category || neg.sizing?.consumer_category || '',
   )
-  const [tariffRate, setTariffRate] = useState(DEFAULT_TARIFF_RATE)
+  const [simultaneityFactor, setSimultaneityFactor] = useState(
+    neg.simultaneity_factor != null
+      ? neg.simultaneity_factor
+      : neg.sizing?.simultaneity_factor != null
+        ? neg.sizing?.simultaneity_factor
+        : DEFAULT_SIMULTANEITY_FACTORS[neg.consumer_category || neg.sizing?.consumer_category] ||
+          30,
+  )
+  const [publicLightingFee, setPublicLightingFee] = useState(
+    neg.public_lighting_fee != null ? neg.public_lighting_fee : 0,
+  )
+  const [tariffDetails, setTariffDetails] = useState<TariffDetails>({
+    te: 0,
+    tusd: 0,
+    icms_rate: 0,
+    icms_exemption: 'none',
+  })
   const [systemPrice, setSystemPrice] = useState(0)
+  const [defaultFactors, setDefaultFactors] = useState<Record<string, number>>(
+    DEFAULT_SIMULTANEITY_FACTORS,
+  )
+
+  useEffect(() => {
+    if (!neg.company_id)
+      return pb
+        .collection('proposal_settings')
+        .getFirstListItem(`company_id='${neg.company_id}'`)
+        .then((record) => {
+          if (record.pricing?.simultaneity_factors) {
+            setDefaultFactors({
+              ...DEFAULT_SIMULTANEITY_FACTORS,
+              ...record.pricing.simultaneity_factors,
+            })
+          }
+        })
+        .catch(() => {})
+  }, [neg.company_id])
 
   useEffect(() => {
     const loadData = async () => {
-      const tariff = await fetchTariffRate(neg.utility_id, sizing.consumer_category)
-      setTariffRate(tariff)
+      const cat = neg.consumer_category || neg.sizing?.consumer_category || ''
+      const details = await fetchTariffDetails(neg.utility_id, cat)
+      setTariffDetails(details)
       const price = await fetchLatestProposalPrice(neg.id)
-      setSystemPrice(price || (Number(sizing.kit_power_kwp) || 0) * 4000)
+      setSystemPrice(price || (Number(neg.sizing?.kit_power_kwp) || 0) * 4000)
     }
     loadData()
   }, [neg.id, neg.utility_id])
 
-  const sizingKey = JSON.stringify(neg.sizing || {})
+  const negKey = JSON.stringify(neg.sizing || {})
   useEffect(() => {
-    const s = JSON.parse(sizingKey)
-    setConsumerCategory(s.consumer_category || '')
+    setConsumerCategory(neg.consumer_category || neg.sizing?.consumer_category || '')
     setSimultaneityFactor(
-      s.simultaneity_factor != null
-        ? s.simultaneity_factor
-        : DEFAULT_SIMULTANEITY_FACTORS[s.consumer_category] || 30,
+      neg.simultaneity_factor != null
+        ? neg.simultaneity_factor
+        : neg.sizing?.simultaneity_factor != null
+          ? neg.sizing?.simultaneity_factor
+          : DEFAULT_SIMULTANEITY_FACTORS[neg.consumer_category || neg.sizing?.consumer_category] ||
+            30,
     )
-  }, [sizingKey])
+    setPublicLightingFee(neg.public_lighting_fee != null ? neg.public_lighting_fee : 0)
+  }, [neg.consumer_category, neg.simultaneity_factor, neg.public_lighting_fee, negKey])
 
   const handleCategoryChange = (category: string) => {
     setConsumerCategory(category)
-    const defaultFactor = DEFAULT_SIMULTANEITY_FACTORS[category] || 30
+    const defaultFactor = defaultFactors[category] || 30
     setSimultaneityFactor(defaultFactor)
-    saveFinancialData(category, defaultFactor)
-    fetchTariffRate(neg.utility_id, category).then(setTariffRate)
+    saveFinancialData(category, defaultFactor, publicLightingFee)
+    fetchTariffDetails(neg.utility_id, category).then(setTariffDetails)
   }
 
   const handleFactorChange = (val: string) => {
-    const num = Math.min(100, Math.max(0, Number(val) || 0))
-    setSimultaneityFactor(num)
+    setSimultaneityFactor(Math.min(100, Math.max(0, Number(val) || 0)))
   }
 
   const handleFactorBlur = () => {
-    saveFinancialData(consumerCategory, simultaneityFactor)
+    saveFinancialData(consumerCategory, simultaneityFactor, publicLightingFee)
   }
 
-  const saveFinancialData = async (category: string, factor: number) => {
+  const handleLightingFeeChange = (val: string) => {
+    setPublicLightingFee(Number(val) || 0)
+  }
+
+  const handleLightingFeeBlur = () => {
+    saveFinancialData(consumerCategory, simultaneityFactor, publicLightingFee)
+  }
+
+  const saveFinancialData = async (category: string, factor: number, lightingFee: number) => {
     try {
       await updateNegotiation(neg.id, {
-        sizing: {
-          ...neg.sizing,
-          consumer_category: category,
-          simultaneity_factor: factor,
-        },
+        consumer_category: category,
+        simultaneity_factor: factor,
+        public_lighting_fee: lightingFee,
+        sizing: { ...neg.sizing, consumer_category: category, simultaneity_factor: factor },
       })
       toast({ description: 'Dados financeiros salvos' })
       reload()
@@ -103,8 +153,9 @@ export function FinancialAnalysisCard({
     avgConsumption,
     estMonthlyGen,
     simultaneityFactor,
-    tariffRate,
+    tariffDetails,
     systemPrice,
+    publicLightingFee,
   })
 
   const roiLabel =
@@ -125,7 +176,7 @@ export function FinancialAnalysisCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
             <Label>Categoria do Consumidor</Label>
             <Select value={consumerCategory} onValueChange={handleCategoryChange}>
@@ -151,9 +202,19 @@ export function FinancialAnalysisCard({
               onChange={(e) => handleFactorChange(e.target.value)}
               onBlur={handleFactorBlur}
             />
-            <p className="text-xs text-muted-foreground">
-              Percentual da geração consumido na hora (autoconsumo)
-            </p>
+            <p className="text-xs text-muted-foreground">Autoconsumo (% da geração)</p>
+          </div>
+          <div className="space-y-2">
+            <Label>Taxa de Iluminação Pública (R$)</Label>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={publicLightingFee}
+              onChange={(e) => handleLightingFeeChange(e.target.value)}
+              onBlur={handleLightingFeeBlur}
+            />
+            <p className="text-xs text-muted-foreground">Outras taxas mensais fixas</p>
           </div>
         </div>
 
@@ -166,7 +227,6 @@ export function FinancialAnalysisCard({
             <p className="text-2xl font-bold">{BRL.format(projection.currentMonthlyCost)}</p>
             <p className="text-xs text-muted-foreground mt-1">por mês</p>
           </div>
-
           <div className="bg-green-50 rounded-lg p-4 border border-green-200">
             <div className="flex items-center gap-2 mb-2">
               <PiggyBank className="w-4 h-4 text-green-600" />
@@ -177,7 +237,6 @@ export function FinancialAnalysisCard({
             </p>
             <p className="text-xs text-green-700/70 mt-1">estimada por mês</p>
           </div>
-
           <div className="bg-green-50 rounded-lg p-4 border border-green-200">
             <div className="flex items-center gap-2 mb-2">
               <TrendingUp className="w-4 h-4 text-green-600" />
@@ -217,24 +276,130 @@ export function FinancialAnalysisCard({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-          <div className="flex flex-col">
-            <span className="text-muted-foreground text-xs">Geração Mensal</span>
-            <span className="font-medium">{Math.round(estMonthlyGen)} kWh</span>
+        <div className="border rounded-lg overflow-hidden">
+          <div className="bg-muted/50 px-4 py-3 border-b">
+            <h4 className="font-semibold text-sm flex items-center gap-2">
+              <Receipt className="w-4 h-4 text-muted-foreground" />
+              Detalhamento do Cálculo
+            </h4>
           </div>
-          <div className="flex flex-col">
-            <span className="text-muted-foreground text-xs">Autoconsumo</span>
-            <span className="font-medium">{Math.round(projection.selfConsumed)} kWh</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-muted-foreground text-xs">Exportado à rede</span>
-            <span className="font-medium">{Math.round(projection.exportedToGrid)} kWh</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-muted-foreground text-xs">Tarifa Utilizada</span>
-            <span className="font-medium">
-              {BRL.format(tariffRate)} <span className="text-xs text-muted-foreground">/kWh</span>
-            </span>
+          <div className="p-4 space-y-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm pb-3 border-b">
+              <div className="flex flex-col">
+                <span className="text-muted-foreground text-xs">TE (Tarifa de Energia)</span>
+                <span className="font-medium">
+                  {BRL.format(tariffDetails.te)}{' '}
+                  <span className="text-xs text-muted-foreground">/kWh</span>
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-muted-foreground text-xs">TUSD (Uso da Rede)</span>
+                <span className="font-medium">
+                  {BRL.format(tariffDetails.tusd)}{' '}
+                  <span className="text-xs text-muted-foreground">/kWh</span>
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-muted-foreground text-xs">Alíquota ICMS</span>
+                <span className="font-medium">
+                  {tariffDetails.icms_rate ? `${tariffDetails.icms_rate}%` : '-'}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-muted-foreground text-xs">Isenção ICMS</span>
+                <span className="font-medium">
+                  {ICMS_LABELS[tariffDetails.icms_exemption] || 'Nenhuma'}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground">Tarifa Base (TE + TUSD)</span>
+                <span className="font-medium">
+                  {BRL.format(projection.baseRate)}{' '}
+                  <span className="text-xs text-muted-foreground">/kWh</span>
+                </span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground flex items-center gap-1">
+                  <Percent className="w-3 h-3" /> ICMS sobre Consumo
+                </span>
+                <span className="font-medium">{BRL.format(projection.icmsAmount)}</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground">Tarifa Efetiva (com ICMS)</span>
+                <span className="font-medium">
+                  {BRL.format(projection.effectiveRate)}{' '}
+                  <span className="text-xs text-muted-foreground">/kWh</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="border-t pt-3 space-y-2 text-sm">
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground flex items-center gap-1">
+                  <Zap className="w-3 h-3" /> Energia da Rede (sem solar)
+                </span>
+                <span className="font-medium">{avgConsumption} kWh</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground">Custo de Energia (sem solar)</span>
+                <span className="font-medium">
+                  {BRL.format(avgConsumption * projection.effectiveRate)}
+                </span>
+              </div>
+              {projection.publicLightingFee > 0 && (
+                <div className="flex justify-between py-1">
+                  <span className="text-muted-foreground flex items-center gap-1">
+                    <Lightbulb className="w-3 h-3" /> Iluminação Pública
+                  </span>
+                  <span className="font-medium">{BRL.format(projection.publicLightingFee)}</span>
+                </div>
+              )}
+              <div className="flex justify-between py-1 font-semibold border-t pt-2">
+                <span>Conta Atual Total</span>
+                <span>{BRL.format(projection.currentMonthlyCost)}</span>
+              </div>
+            </div>
+
+            <div className="border-t pt-3 space-y-2 text-sm">
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground">Autoconsumo</span>
+                <span className="font-medium">{Math.round(projection.selfConsumed)} kWh</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground">Energia Injetada (Compensada)</span>
+                <span className="font-medium">{Math.round(projection.exportedToGrid)} kWh</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground">Energia da Rede (com solar)</span>
+                <span className="font-medium">{Math.round(projection.energyFromGrid)} kWh</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground">Custo de Energia da Rede</span>
+                <span className="font-medium">{BRL.format(projection.gridEnergyCost)}</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground flex items-center gap-1">
+                  <Zap className="w-3 h-3" /> Fio B ({BRL.format(FIO_B_RATE)}/kWh ×{' '}
+                  {Math.round(projection.exportedToGrid)} kWh)
+                </span>
+                <span className="font-medium">{BRL.format(projection.fioBCost)}</span>
+              </div>
+              {projection.publicLightingFee > 0 && (
+                <div className="flex justify-between py-1">
+                  <span className="text-muted-foreground flex items-center gap-1">
+                    <Lightbulb className="w-3 h-3" /> Iluminação Pública
+                  </span>
+                  <span className="font-medium">{BRL.format(projection.publicLightingFee)}</span>
+                </div>
+              )}
+              <div className="flex justify-between py-1 font-semibold border-t pt-2">
+                <span>Conta Futura Total</span>
+                <span>{BRL.format(projection.futureMonthlyBill)}</span>
+              </div>
+            </div>
           </div>
         </div>
       </CardContent>
