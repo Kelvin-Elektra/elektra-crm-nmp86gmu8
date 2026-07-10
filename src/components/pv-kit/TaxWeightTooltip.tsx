@@ -9,6 +9,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { VisuallyHidden } from '@/components/ui/visually-hidden'
+import { Button } from '@/components/ui/button'
 
 export function TaxWeightTooltip() {
   const [open, setOpen] = useState(false)
@@ -44,14 +45,11 @@ export function TaxWeightTooltip() {
           </DialogHeader>
           <div className="space-y-4 text-sm text-muted-foreground">
             <p>
-              <strong className="text-foreground">Peso Tributário</strong> — O Peso define a
-              porcentagem da base total (Produto ou Serviço) sobre a qual a alíquota do imposto será
-              aplicada.
+              <strong className="text-foreground">Introdução:</strong> O Peso define a porcentagem
+              da base total (Produto ou Serviço) sobre a qual a alíquota do imposto será aplicada.
             </p>
             <div className="space-y-2">
-              <p className="font-semibold text-foreground">
-                Cenário 1 — Minha empresa fatura o kit cheio:
-              </p>
+              <p className="font-semibold text-foreground">1. 'Minha empresa fatura o kit cheio'</p>
               <p>
                 Em uma venda de <strong className="text-foreground">R$ 100.000,00</strong>, se você
                 definir um peso de <strong className="text-foreground">60%</strong> para produto e{' '}
@@ -63,7 +61,7 @@ export function TaxWeightTooltip() {
             </div>
             <div className="space-y-2">
               <p className="font-semibold text-foreground">
-                Cenário 2 — Distribuidor fatura o kit e minha empresa fatura a diferença:
+                2. 'Distribuidor fatura o kit e minha empresa fatura a diferença'
               </p>
               <p>
                 Em uma venda de <strong className="text-foreground">R$ 100.000,00</strong> onde o
@@ -81,6 +79,11 @@ export function TaxWeightTooltip() {
                 <strong>100%</strong>.
               </p>
             </div>
+          </div>
+          <div className="flex justify-end pt-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Fechar
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

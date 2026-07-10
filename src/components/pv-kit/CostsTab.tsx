@@ -10,7 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Trash2, Settings2, Pencil, Wand2, Info } from 'lucide-react'
+import { Plus, Trash2, Settings2, Pencil, Wand2 } from 'lucide-react'
+import { TaxWeightTooltip } from '@/components/pv-kit/TaxWeightTooltip'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
@@ -516,56 +517,7 @@ export function CostsTab() {
               <div className="space-y-2 md:col-span-6">
                 <div className="flex items-center gap-2">
                   <Label className="font-semibold">Peso do Imposto (%)</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <button type="button" className="inline-flex">
-                        <Info className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-96" align="start">
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <Info className="h-4 w-4 text-primary" />
-                          <h4 className="font-semibold text-sm">Peso Tributário</h4>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          O <strong>Peso</strong> define a porcentagem da base total (Produto ou
-                          Serviço) sobre a qual a alíquota do imposto será aplicada.
-                        </p>
-                        <div className="bg-muted/50 p-3 rounded-md">
-                          <p className="text-sm font-medium mb-1">Exemplo Prático:</p>
-                          <p className="text-xs text-muted-foreground">
-                            {billingModel === 'intermediated' ? (
-                              <>
-                                Em uma venda de <strong>R$ 100.000,00</strong> onde o distribuidor
-                                fatura o kit, se você define um peso de <strong>60%</strong> para o
-                                "Imposto sobre Serviço", a alíquota será aplicada apenas sobre a
-                                parcela de serviço/margem (R$ 60.000,00), e não sobre o valor do kit
-                                faturado pelo distribuidor.
-                              </>
-                            ) : (
-                              <>
-                                Em uma venda de <strong>R$ 100.000,00</strong>, se você define um
-                                peso de <strong>60%</strong> para um "Imposto sobre Produto", a
-                                alíquota do imposto será aplicada apenas sobre{' '}
-                                <strong>R$ 60.000,00</strong> (60% do total). Os 40% restantes ficam
-                                sujeitos a outros impostos com seus respectivos pesos.
-                              </>
-                            )}
-                          </p>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {billingModel === 'intermediated'
-                            ? 'No modelo "Distribuidor fatura o kit", o peso separa a incidência entre a parcela faturada pelo distribuidor (produto) e a parcela faturada pela sua empresa (serviço/margem).'
-                            : 'No modelo "Empresa fatura a venda cheia", o peso divide o valor total do contrato entre diferentes incidências tributárias (ex: Produto vs Serviço).'}
-                        </p>
-                        <p className="text-xs text-muted-foreground italic">
-                          A soma dos pesos de todos os impostos deve totalizar 100% para o cálculo
-                          correto.
-                        </p>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                  <TaxWeightTooltip />
                 </div>
                 <Input
                   type="text"
