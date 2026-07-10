@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { Percent } from 'lucide-react'
+import { TaxWeightTooltip } from '@/components/pv-kit/TaxWeightTooltip'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
@@ -76,6 +77,9 @@ export function TaxConfigCard() {
         <CardTitle className="text-lg flex items-center">
           <Percent className="w-5 h-5 mr-2 text-primary" />
           Configuração de Incidência de Impostos
+          <span className="ml-2">
+            <TaxWeightTooltip />
+          </span>
         </CardTitle>
         <CardDescription>
           Defina os pesos de incidência entre Produto e Serviço para o cálculo de impostos.

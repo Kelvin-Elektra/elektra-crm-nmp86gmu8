@@ -17,6 +17,11 @@ import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { useAuth } from '@/contexts/AuthContext'
 import { extractSizingMetrics, getBaseValue } from '@/lib/sizing-utils'
+import {
+  calculateFinancialProjection,
+  fetchTariffRate,
+  DEFAULT_SIMULTANEITY_FACTORS,
+} from '@/lib/financial-analysis'
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -288,7 +293,14 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
     if (isPercent) {
       const kitPriceForCalc =
         pricingMode === 'manual' ? manualKitValue : rawPricingData?.autoKitPrice || 0
-      const calcBase = cost.method === 'kit_percent' ? kitPriceForCalc : totalValue
+      let calcBase = totalValue
+      if (cost.method === 'kit_percent') {
+        calcBase = kitPriceForCalc
+      } else if (cost.method === 'tax') {
+        const billingModel = rawPricingData?.settings?.billing_model || 'direct'
+        calcBase =
+          billingModel === 'intermediated' ? Math.max(0, totalValue - kitPriceForCalc) : totalValue
+      }
       const weight = cost.method === 'tax' ? (Number(cost.taxWeight) || 100) / 100 : 1
       const effectiveRate = ((Number(cost.value) || 0) / 100) * weight
       const calcAmount = calcBase * effectiveRate
@@ -314,9 +326,33 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
     try {
       const finalPrice = totalValue * (1 - discount / 100)
 
+      const consumerCategory = neg.sizing?.consumer_category || ''
+      const simultaneityFactor =
+        neg.sizing?.simultaneity_factor ?? DEFAULT_SIMULTANEITY_FACTORS[consumerCategory] ?? 30
+      const estMonthlyGenRough =
+        (Number(neg.sizing?.kit_power_kwp) || 0) *
+        4.94 *
+        30 *
+        (1 - (Number(neg.sizing?.losses) || 23) / 100)
+      const tariffRate = await fetchTariffRate(neg.utility_id, consumerCategory)
+      const financialProjection = calculateFinancialProjection({
+        avgConsumption: neg.avg_consumption || 0,
+        estMonthlyGen: estMonthlyGenRough,
+        simultaneityFactor,
+        tariffRate,
+        systemPrice: finalPrice,
+      })
+
       const snapshotData = {
         sizing: neg.sizing || {},
         pricing: pricingDetails,
+        financialProjection: {
+          consumerCategory,
+          simultaneityFactor,
+          tariffRate,
+          estMonthlyGen: estMonthlyGenRough,
+          ...financialProjection,
+        },
         template:
           pricingDetails?.settings?.active_template_id ||
           pricingDetails?.settings?.template ||

@@ -41,6 +41,7 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
   const [kitItems, setKitItems] = useState<KitItem[]>([])
   const [snapshot, setSnapshot] = useState<any>(null)
   const [expandedKit, setExpandedKit] = useState(true)
+  const [marginSum, setMarginSum] = useState(0)
 
   const isAdmin =
     user?.role === 'User_elektra' || user?.role_company === 'admin' || user?.role === 'User_owner'
@@ -61,8 +62,10 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
       const pricing = snap.pricing || {}
       const appliedCosts = pricing.appliedCosts || []
       const kitPrice = pricing.kitPrice || 0
-      const marginSum = pricing.marginSum || 0
+      const marginSumVal = pricing.marginSum || 0
       const salePrice = pricing.salePrice || 0
+      const kitComposition = pricing.kitComposition || []
+      setMarginSum(marginSumVal)
 
       let costItems: CostItem[] = []
 
@@ -83,7 +86,11 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
           if (c.method === 'tax') {
             const rate = (Number(c.value) || 0) / 100
             const weight = (Number(c.taxWeight) || 100) / 100
-            displayValue = salePrice * rate * weight
+            const billingModel =
+              pricing.settings?.billing_model || snap.settings?.billing_model || 'direct'
+            const totalBase =
+              billingModel === 'intermediated' ? Math.max(0, salePrice - kitPrice) : salePrice
+            displayValue = totalBase * rate * weight
           }
           costItems.push({
             name: c.name,

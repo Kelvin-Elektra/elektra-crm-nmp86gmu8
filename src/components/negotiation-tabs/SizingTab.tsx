@@ -9,6 +9,7 @@ import { getOrFetchHsp } from '@/services/hsp'
 import { SizingGenerationModal } from './SizingGenerationModal'
 import { SizingEquipmentModal } from './SizingEquipmentModal'
 import { SizingOrientationModal } from './SizingOrientationModal'
+import { FinancialAnalysisCard } from './FinancialAnalysisCard'
 
 const MONTH_LABELS = [
   'Jan',
@@ -303,6 +304,8 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
           </div>
         </CardContent>
       </Card>
+
+      <FinancialAnalysisCard neg={neg} estMonthlyGen={estMonthlyGen} reload={reload} />
 
       <SizingEquipmentModal
         open={equipModalOpen}

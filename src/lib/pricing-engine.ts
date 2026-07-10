@@ -33,6 +33,14 @@ export function calculateSalePrice(input: PricingInput): number {
   return numerator / denominator
 }
 
+export function getTaxBase(
+  billingModel: 'direct' | 'intermediated',
+  salePrice: number,
+  kitCost: number,
+): number {
+  return billingModel === 'intermediated' ? Math.max(0, salePrice - kitCost) : salePrice
+}
+
 export function buildTaxEntries(
   taxCosts: Array<{ value: number; tax_weight?: number }>,
   tax1Weight?: number,
