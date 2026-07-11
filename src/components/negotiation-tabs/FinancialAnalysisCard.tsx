@@ -17,9 +17,10 @@ import {
   calculateFinancialProjection,
   fetchTariffDetails,
   fetchLatestProposalPrice,
+  getFioBScalingFactor,
   DEFAULT_SIMULTANEITY_FACTORS,
   CONSUMER_CATEGORIES,
-  FIO_B_RATE,
+  FIO_B_DEFAULT_RATE,
   type TariffDetails,
 } from '@/lib/financial-analysis'
 
@@ -62,6 +63,7 @@ export function FinancialAnalysisCard({
     tusd: 0,
     icms_rate: 0,
     icms_exemption: 'none',
+    fio_b_value: 0,
   })
   const [systemPrice, setSystemPrice] = useState(0)
   const [defaultFactors, setDefaultFactors] = useState<Record<string, number>>(
@@ -69,19 +71,18 @@ export function FinancialAnalysisCard({
   )
 
   useEffect(() => {
-    if (!neg.company_id)
-      return pb
-        .collection('proposal_settings')
-        .getFirstListItem(`company_id='${neg.company_id}'`)
-        .then((record) => {
-          if (record.pricing?.simultaneity_factors) {
-            setDefaultFactors({
-              ...DEFAULT_SIMULTANEITY_FACTORS,
-              ...record.pricing.simultaneity_factors,
-            })
-          }
-        })
-        .catch(() => {})
+    if (!neg.company_id) return
+    pb.collection('proposal_settings')
+      .getFirstListItem(`company_id='${neg.company_id}'`)
+      .then((record) => {
+        if (record.pricing?.simultaneity_factors) {
+          setDefaultFactors({
+            ...DEFAULT_SIMULTANEITY_FACTORS,
+            ...record.pricing.simultaneity_factors,
+          })
+        }
+      })
+      .catch(() => {})
   }, [neg.company_id])
 
   useEffect(() => {
@@ -158,6 +159,9 @@ export function FinancialAnalysisCard({
     publicLightingFee,
   })
 
+  const fioBBaseValue = tariffDetails.fio_b_value || FIO_B_DEFAULT_RATE
+  const currentScalingFactor = getFioBScalingFactor()
+
   const roiLabel =
     projection.roiMonths > 0
       ? [
@@ -230,7 +234,7 @@ export function FinancialAnalysisCard({
           <div className="bg-green-50 rounded-lg p-4 border border-green-200">
             <div className="flex items-center gap-2 mb-2">
               <PiggyBank className="w-4 h-4 text-green-600" />
-              <span className="text-sm font-medium text-green-700">Conta Futura</span>
+              <span className="text-sm font-medium text-green-700">Conta após Solar</span>
             </div>
             <p className="text-2xl font-bold text-green-600">
               {BRL.format(projection.futureMonthlyBill)}
@@ -365,28 +369,56 @@ export function FinancialAnalysisCard({
 
             <div className="border-t pt-3 space-y-2 text-sm">
               <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">Autoconsumo</span>
-                <span className="font-medium">{Math.round(projection.selfConsumed)} kWh</span>
+                <span className="text-muted-foreground">Consumo Instantâneo (Autoconsumo)</span>
+                <span className="font-medium">
+                  {Math.round(projection.instantConsumption)} kWh{' '}
+                  <span className="text-xs text-green-600">(sem custo)</span>
+                </span>
               </div>
               <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">Energia Injetada (Compensada)</span>
-                <span className="font-medium">{Math.round(projection.exportedToGrid)} kWh</span>
+                <span className="text-muted-foreground">Consumo Compensado</span>
+                <span className="font-medium">
+                  {Math.round(projection.compensatedConsumption)} kWh
+                </span>
               </div>
               <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">Energia da Rede (com solar)</span>
-                <span className="font-medium">{Math.round(projection.energyFromGrid)} kWh</span>
+                <span className="text-muted-foreground">Componente TE (compensado)</span>
+                <span className="font-medium">
+                  {BRL.format(projection.teComponent)}{' '}
+                  <span className="text-xs text-muted-foreground">/kWh</span>
+                </span>
               </div>
               <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">Custo de Energia da Rede</span>
-                <span className="font-medium">{BRL.format(projection.gridEnergyCost)}</span>
+                <span className="text-muted-foreground">Componente TUSD (compensado)</span>
+                <span className="font-medium">
+                  {BRL.format(projection.tusdComponent)}{' '}
+                  <span className="text-xs text-muted-foreground">/kWh</span>
+                </span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground">Custo Energia Compensada</span>
+                <span className="font-medium">{BRL.format(projection.compensatedEnergyCost)}</span>
               </div>
               <div className="flex justify-between py-1">
                 <span className="text-muted-foreground flex items-center gap-1">
-                  <Zap className="w-3 h-3" /> Fio B ({BRL.format(FIO_B_RATE)}/kWh ×{' '}
-                  {Math.round(projection.exportedToGrid)} kWh)
+                  <Zap className="w-3 h-3" /> Fio B ({BRL.format(fioBBaseValue)}/kWh ×{' '}
+                  {Math.round(projection.compensatedConsumption)} kWh ×{' '}
+                  {(currentScalingFactor * 100).toFixed(0)}%)
                 </span>
                 <span className="font-medium">{BRL.format(projection.fioBCost)}</span>
               </div>
+              {projection.energyFromGrid > 0 && (
+                <>
+                  <div className="flex justify-between py-1">
+                    <span className="text-muted-foreground">Energia da Rede (não compensada)</span>
+                    <span className="font-medium">{Math.round(projection.energyFromGrid)} kWh</span>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-muted-foreground">Custo Energia da Rede</span>
+                    <span className="font-medium">{BRL.format(projection.gridEnergyCost)}</span>
+                  </div>
+                </>
+              )}
               {projection.publicLightingFee > 0 && (
                 <div className="flex justify-between py-1">
                   <span className="text-muted-foreground flex items-center gap-1">
@@ -396,7 +428,7 @@ export function FinancialAnalysisCard({
                 </div>
               )}
               <div className="flex justify-between py-1 font-semibold border-t pt-2">
-                <span>Conta Futura Total</span>
+                <span>Conta após Solar Total</span>
                 <span>{BRL.format(projection.futureMonthlyBill)}</span>
               </div>
             </div>

@@ -39,7 +39,7 @@ export function UtilityCard({ neg, reload }: { neg: any; reload?: () => void }) 
     utility_id: neg.utility_id || initialSizing.utility_id || '',
     uc: neg.uc || '',
     network_type: initialSizing.network_type || '',
-    consumer_class: initialSizing.consumer_class || '',
+    consumer_class: neg.consumer_category || initialSizing.consumer_class || '',
     tension: initialSizing.tension || '',
   })
 
@@ -104,6 +104,7 @@ export function UtilityCard({ neg, reload }: { neg: any; reload?: () => void }) 
         concessionaire: selectedUtilName,
         uc: formData.uc,
         sizing: newSizing,
+        consumer_category: formData.consumer_class,
       })
       toast({ description: 'Dados salvos com sucesso' })
       setOpen(false)
@@ -169,7 +170,8 @@ export function UtilityCard({ neg, reload }: { neg: any; reload?: () => void }) 
         <div>
           <p className="text-sm text-muted-foreground">Classe / Tensão</p>
           <p className="font-medium">
-            {initialSizing.consumer_class || '-'} / {initialSizing.tension || '-'}
+            {neg.consumer_category || initialSizing.consumer_class || '-'} /{' '}
+            {initialSizing.tension || '-'}
           </p>
         </div>
       </CardContent>

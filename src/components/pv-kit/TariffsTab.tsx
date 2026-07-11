@@ -102,6 +102,7 @@ export function TariffsTab() {
     tusd: '',
     icms_exemption: 'none',
     icms_rate: '',
+    fio_b_value: '',
   })
 
   // Edit/Delete modals
@@ -225,6 +226,7 @@ export function TariffsTab() {
           tusd: parseNumber(ruleForm.tusd),
           icms_exemption: ruleForm.icms_exemption,
           icms_rate: parseNumber(ruleForm.icms_rate),
+          fio_b_value: parseNumber(ruleForm.fio_b_value),
           network_type: '',
           voltage: '',
         })
@@ -236,11 +238,12 @@ export function TariffsTab() {
           tusd: parseNumber(ruleForm.tusd),
           icms_exemption: ruleForm.icms_exemption,
           icms_rate: parseNumber(ruleForm.icms_rate),
+          fio_b_value: parseNumber(ruleForm.fio_b_value),
         })
       }
 
       toast({ title: 'Sucesso', description: 'Regras tarifárias salvas com sucesso.' })
-      setRuleForm({ ...ruleForm, classes: [], te: '', tusd: '', icms_rate: '' })
+      setRuleForm({ ...ruleForm, classes: [], te: '', tusd: '', icms_rate: '', fio_b_value: '' })
       setDuplicateRulesDialog({ open: false, existing: [], newClasses: [] })
       loadData()
     } catch (e: any) {
@@ -279,6 +282,7 @@ export function TariffsTab() {
         tusd: parseNumber(editTariffRule.tusd),
         icms_exemption: editTariffRule.icms_exemption,
         icms_rate: parseNumber(editTariffRule.icms_rate || '0'),
+        fio_b_value: parseNumber(editTariffRule.fio_b_value || '0'),
       })
       toast({ title: 'Sucesso', description: 'Tarifa atualizada.' })
       setEditTariffRule(null)
@@ -614,6 +618,40 @@ export function TariffsTab() {
                   </div>
                 </div>
 
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label>Fio B (R$/kWh)</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger type="button">
+                          <HelpCircle className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>
+                            Informe o valor cheio do Fio B. O sistema aplicará automaticamente o
+                            escalonamento anual: 2026 (60%), 2027 (75%), 2028 (90%), 2029+ (100%).
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <div className="relative max-w-[200px]">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">
+                      R$
+                    </span>
+                    <Input
+                      placeholder="0,08"
+                      className="pl-9 bg-background"
+                      value={ruleForm.fio_b_value}
+                      onChange={(e) =>
+                        handleNumberChange(e.target.value, (v) =>
+                          setRuleForm({ ...ruleForm, fio_b_value: v }),
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+
                 <div className="md:col-span-2 flex justify-end">
                   <Button onClick={handleCreateRule}>Salvar Tarifas</Button>
                 </div>
@@ -636,6 +674,7 @@ export function TariffsTab() {
                       <TableHead>TUSD</TableHead>
                       <TableHead>Isenção</TableHead>
                       <TableHead>ICMS %</TableHead>
+                      <TableHead>Fio B</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -648,7 +687,11 @@ export function TariffsTab() {
                         <TableCell>R$ {formatNumber(r.tusd)}</TableCell>
                         <TableCell className="capitalize">{r.icms_exemption}</TableCell>
                         <TableCell>{r.icms_rate ? `${formatNumber(r.icms_rate)}%` : '-'}</TableCell>
+                        <TableCell>
+                          {r.fio_b_value ? `R$ ${formatNumber(r.fio_b_value)}` : '-'}
+                        </TableCell>
                         <TableCell className="text-right">
+                          {' '}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -658,6 +701,7 @@ export function TariffsTab() {
                                 te: formatNumber(r.te),
                                 tusd: formatNumber(r.tusd),
                                 icms_rate: formatNumber(r.icms_rate),
+                                fio_b_value: formatNumber(r.fio_b_value),
                               })
                             }
                           >
@@ -671,7 +715,7 @@ export function TariffsTab() {
                     ))}
                     {rules.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
+                        <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
                           Nenhuma regra tarifária encontrada.
                         </TableCell>
                       </TableRow>
@@ -869,6 +913,39 @@ export function TariffsTab() {
                   )
                 }
               />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Label>Fio B (R$/kWh)</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger type="button">
+                      <HelpCircle className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>
+                        Informe o valor cheio do Fio B. O sistema aplicará automaticamente o
+                        escalonamento anual: 2026 (60%), 2027 (75%), 2028 (90%), 2029+ (100%).
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">
+                  R$
+                </span>
+                <Input
+                  placeholder="0,08"
+                  value={editTariffRule?.fio_b_value || ''}
+                  onChange={(e) =>
+                    handleNumberChange(e.target.value, (v) =>
+                      setEditTariffRule({ ...editTariffRule, fio_b_value: v }),
+                    )
+                  }
+                  className="pl-9"
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>

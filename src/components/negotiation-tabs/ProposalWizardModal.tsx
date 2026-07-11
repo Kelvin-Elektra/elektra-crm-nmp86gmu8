@@ -19,7 +19,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { extractSizingMetrics, getBaseValue } from '@/lib/sizing-utils'
 import {
   calculateFinancialProjection,
-  fetchTariffRate,
+  fetchTariffDetails,
   DEFAULT_SIMULTANEITY_FACTORS,
 } from '@/lib/financial-analysis'
 
@@ -334,13 +334,14 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         4.94 *
         30 *
         (1 - (Number(neg.sizing?.losses) || 23) / 100)
-      const tariffRate = await fetchTariffRate(neg.utility_id, consumerCategory)
+      const tariffDetails = await fetchTariffDetails(neg.utility_id, consumerCategory)
       const financialProjection = calculateFinancialProjection({
         avgConsumption: neg.avg_consumption || 0,
         estMonthlyGen: estMonthlyGenRough,
         simultaneityFactor,
-        tariffRate,
+        tariffDetails,
         systemPrice: finalPrice,
+        publicLightingFee: neg.public_lighting_fee || 0,
       })
 
       const snapshotData = {
@@ -349,7 +350,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         financialProjection: {
           consumerCategory,
           simultaneityFactor,
-          tariffRate,
+          tariffDetails,
           estMonthlyGen: estMonthlyGenRough,
           ...financialProjection,
         },

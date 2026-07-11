@@ -1,8 +1,21 @@
 import pb from '@/lib/pocketbase/client'
 
-export const FIO_B_RATE = 0.08
+export const FIO_B_DEFAULT_RATE = 0.08
 export const DEFAULT_TARIFF_RATE = 0.9
-export const COMPENSATION_RATE = 0.85
+
+export const FIO_B_SCALING_FACTORS: Record<number, number> = {
+  2026: 0.6,
+  2027: 0.75,
+  2028: 0.9,
+}
+
+export function getFioBScalingFactor(year?: number): number {
+  const y = year || new Date().getFullYear()
+  if (y <= 2026) return 0.6
+  if (y === 2027) return 0.75
+  if (y === 2028) return 0.9
+  return 1.0
+}
 
 export const DEFAULT_SIMULTANEITY_FACTORS: Record<string, number> = {
   Residencial: 30,
@@ -19,6 +32,7 @@ export interface TariffDetails {
   tusd: number
   icms_rate: number
   icms_exemption: string
+  fio_b_value: number
 }
 
 export interface FinancialProjection {
@@ -28,16 +42,21 @@ export interface FinancialProjection {
   roiMonths: number
   roiYears: number
   roiRemainingMonths: number
-  selfConsumed: number
-  exportedToGrid: number
+  instantConsumption: number
+  compensatedConsumption: number
   energyFromGrid: number
   annualSavings: number
   effectiveRate: number
   baseRate: number
   icmsAmount: number
   fioBCost: number
+  fioBScalingFactor: number
+  fioBEffectiveRate: number
   publicLightingFee: number
   gridEnergyCost: number
+  teComponent: number
+  tusdComponent: number
+  compensatedEnergyCost: number
 }
 
 export function calculateEffectiveRate(
@@ -66,7 +85,6 @@ export function calculateFinancialProjection(params: {
   tariffDetails: TariffDetails
   systemPrice: number
   publicLightingFee: number
-  fioBRate?: number
 }): FinancialProjection {
   const {
     avgConsumption,
@@ -75,23 +93,35 @@ export function calculateFinancialProjection(params: {
     tariffDetails,
     systemPrice,
     publicLightingFee,
-    fioBRate = FIO_B_RATE,
   } = params
 
-  const { te, tusd, icms_rate, icms_exemption } = tariffDetails
+  const { te, tusd, icms_rate, icms_exemption, fio_b_value } = tariffDetails
+  const icmsFactor = icms_rate / 100
+  const isTEExempt = icms_exemption === 'te' || icms_exemption === 'both'
+  const isTUSDExempt = icms_exemption === 'tusd' || icms_exemption === 'both'
+
   const baseRate = te + tusd
   const effectiveRate = calculateEffectiveRate(te, tusd, icms_rate, icms_exemption)
-
   const currentMonthlyCost = avgConsumption * effectiveRate + publicLightingFee
   const icmsAmount = Math.max(0, avgConsumption * (effectiveRate - baseRate))
 
-  const selfConsumed = estMonthlyGen * (simultaneityFactor / 100)
-  const exportedToGrid = estMonthlyGen * (1 - simultaneityFactor / 100)
-  const energyFromGrid = Math.max(0, avgConsumption - selfConsumed)
+  const instantConsumption = avgConsumption * (simultaneityFactor / 100)
+  const remainingConsumption = avgConsumption - instantConsumption
+  const compensatedConsumption = Math.min(remainingConsumption, estMonthlyGen)
+  const energyFromGrid = Math.max(0, remainingConsumption - compensatedConsumption)
+
+  const teComponent = te * (isTEExempt ? 0 : 1)
+  const tusdComponent = tusd * (isTUSDExempt ? 0 : 1) * (1 - icmsFactor)
+  const compensatedEnergyCost = compensatedConsumption * (teComponent + tusdComponent)
+
+  const fioBScalingFactor = getFioBScalingFactor()
+  const fioBBaseValue = fio_b_value || FIO_B_DEFAULT_RATE
+  const fioBEffectiveRate = fioBBaseValue * fioBScalingFactor
+  const fioBCost = compensatedConsumption * fioBEffectiveRate
 
   const gridEnergyCost = energyFromGrid * effectiveRate
-  const fioBCost = exportedToGrid * fioBRate
-  const futureMonthlyBill = gridEnergyCost + fioBCost + publicLightingFee
+
+  const futureMonthlyBill = compensatedEnergyCost + fioBCost + gridEnergyCost + publicLightingFee
 
   const monthlySavings = Math.max(0, currentMonthlyCost - futureMonthlyBill)
   const roiMonths = monthlySavings > 0 ? systemPrice / monthlySavings : 0
@@ -106,16 +136,21 @@ export function calculateFinancialProjection(params: {
     roiMonths,
     roiYears,
     roiRemainingMonths,
-    selfConsumed,
-    exportedToGrid,
+    instantConsumption,
+    compensatedConsumption,
     energyFromGrid,
     annualSavings,
     effectiveRate,
     baseRate,
     icmsAmount,
     fioBCost,
+    fioBScalingFactor,
+    fioBEffectiveRate,
     publicLightingFee,
     gridEnergyCost,
+    teComponent,
+    tusdComponent,
+    compensatedEnergyCost,
   }
 }
 
@@ -123,12 +158,13 @@ export async function fetchTariffDetails(
   utilityId: string,
   consumerCategory?: string,
 ): Promise<TariffDetails> {
-  if (!utilityId) return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none' }
+  if (!utilityId) return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0 }
   try {
     const rules = await pb
       .collection('pv_tariff_rules')
       .getFullList({ filter: `utility_id='${utilityId}'` })
-    if (rules.length === 0) return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none' }
+    if (rules.length === 0)
+      return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0 }
 
     let rule = rules[0]
     if (consumerCategory) {
@@ -145,9 +181,10 @@ export async function fetchTariffDetails(
       tusd: Number(rule.tusd) || 0,
       icms_rate: Number(rule.icms_rate) || 0,
       icms_exemption: rule.icms_exemption || 'none',
+      fio_b_value: Number(rule.fio_b_value) || 0,
     }
   } catch {
-    return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none' }
+    return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0 }
   }
 }
 
