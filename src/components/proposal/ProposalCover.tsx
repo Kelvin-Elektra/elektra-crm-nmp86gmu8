@@ -10,7 +10,7 @@ export function ProposalCover({ data }: { data: ProposalPageData }) {
 
   return (
     <div
-      className="proposal-no-break relative min-h-[100vh] flex flex-col items-center justify-center text-white overflow-hidden break-inside-avoid p-8"
+      className="proposal-no-break relative min-h-[297mm] flex flex-col items-center justify-center text-white overflow-hidden break-inside-avoid p-[10mm]"
       style={{
         background: `linear-gradient(135deg, ${branding.primaryColor}, ${branding.gradientColor || branding.secondaryColor})`,
         WebkitPrintColorAdjust: 'exact',
@@ -25,7 +25,7 @@ export function ProposalCover({ data }: { data: ProposalPageData }) {
           printColorAdjust: 'exact',
         }}
       />{' '}
-      <div className="relative z-10 w-full max-w-2xl bg-black/40 p-10 md:p-12 rounded-3xl backdrop-blur-sm border border-white/20 shadow-2xl">
+      <div className="relative z-10 w-full max-w-2xl bg-black/40 p-[12mm] rounded-3xl backdrop-blur-sm border border-white/20 shadow-2xl">
         <img
           src={logoUrl}
           alt="Logo"

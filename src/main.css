@@ -125,6 +125,16 @@
     @apply transition-transform duration-200 hover:-translate-y-1 hover:shadow-lg;
   }
 
+  .proposal-a4-page {
+    width: 210mm;
+    min-height: 297mm;
+    background: white;
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.1);
+    margin: 0 auto 6mm;
+    position: relative;
+    overflow: hidden;
+  }
+
   @media print {
     body {
       -webkit-print-color-adjust: exact !important;
@@ -133,7 +143,7 @@
     }
     @page {
       size: A4;
-      margin: 15mm;
+      margin: 0;
     }
     body > *:not([role='dialog']) {
       display: none !important;
@@ -159,12 +169,25 @@
       display: none !important;
     }
     .proposal-print-container {
-      width: 180mm !important;
-      max-width: 180mm !important;
-      min-width: 180mm !important;
+      width: 210mm !important;
+      max-width: 210mm !important;
+      min-width: 210mm !important;
       box-shadow: none !important;
       border: none !important;
       background: white !important;
+    }
+    .proposal-a4-page {
+      width: 210mm !important;
+      min-height: 297mm !important;
+      margin: 0 !important;
+      box-shadow: none !important;
+      overflow: visible !important;
+      page-break-after: always;
+      break-after: page;
+    }
+    .proposal-a4-page:last-child {
+      page-break-after: auto;
+      break-after: auto;
     }
     .proposal-page {
       width: 180mm !important;

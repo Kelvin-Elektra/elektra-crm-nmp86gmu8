@@ -38,7 +38,7 @@ export function ProposalInvestment({ data }: { data: ProposalPageData }) {
   ]
 
   return (
-    <div className="p-8 md:p-16 space-y-8">
+    <div className="p-[15mm] space-y-8">
       <div
         className="proposal-section-title border-b-2 pb-4"
         style={{ borderColor: branding.primaryColor }}

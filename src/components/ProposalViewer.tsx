@@ -3,26 +3,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Loader2, AlertCircle } from 'lucide-react'
 import { useProposalData } from '@/hooks/use-proposal-data'
-import {
-  getTemplateClasses,
-  ELEMENT_TO_SECTION,
-  type ProposalPageData,
-} from '@/components/proposal/proposal-utils'
-import { ProposalCover } from '@/components/proposal/ProposalCover'
-import { ProposalSummary } from '@/components/proposal/ProposalSummary'
-import { ProposalComponents } from '@/components/proposal/ProposalComponents'
-import { ProposalFinancial } from '@/components/proposal/ProposalFinancial'
-import { ProposalExecution } from '@/components/proposal/ProposalExecution'
-import { ProposalInvestment } from '@/components/proposal/ProposalInvestment'
-
-const SECTION_COMPONENTS: Record<string, React.FC<{ data: ProposalPageData }>> = {
-  cover: ProposalCover,
-  summary: ProposalSummary,
-  components: ProposalComponents,
-  financial: ProposalFinancial,
-  execution: ProposalExecution,
-  investment: ProposalInvestment,
-}
+import { ProposalDocument } from '@/components/proposal/ProposalDocument'
 
 export function ProposalViewer({ open, onOpenChange, proposal, negotiation }: any) {
   const { data, pagesLayout, loading, snapshotReady } = useProposalData(proposal, negotiation, open)
@@ -40,39 +21,14 @@ export function ProposalViewer({ open, onOpenChange, proposal, negotiation }: an
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl h-[95vh] overflow-y-auto p-0 border-none bg-zinc-100/50 print:h-auto print:overflow-visible print:p-0 flex flex-col">
+      <DialogContent className="max-w-5xl h-[95vh] overflow-auto p-0 border-none bg-zinc-100/50 print:h-auto print:overflow-visible print:p-0 flex flex-col">
         {loading ? (
           <div className="flex items-center justify-center h-full min-h-[400px]">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
-          <div
-            className={`proposal-print-container bg-white mx-auto max-w-4xl shadow-2xl flex-1 w-full print:shadow-none print:block flex flex-col ${getTemplateClasses(data.template)}`}
-          >
-            {pagesLayout.map((page: any) => {
-              const seen = new Set<string>()
-              const sections = page.elements
-                .map((elId: string) => ELEMENT_TO_SECTION[elId] || elId)
-                .filter((s: string) => {
-                  if (seen.has(s)) return false
-                  seen.add(s)
-                  return true
-                })
-
-              const isCover = sections.includes('cover')
-
-              return (
-                <div
-                  key={page.id}
-                  className={`proposal-page ${isCover ? 'proposal-cover-print' : ''} min-h-[100vh] break-inside-avoid print:mb-0 border-b last:border-b-0 border-dashed border-slate-200 print:border-none`}
-                >
-                  {sections.map((sId: string) => {
-                    const Cmp = SECTION_COMPONENTS[sId]
-                    return Cmp ? <Cmp key={sId} data={data} /> : null
-                  })}
-                </div>
-              )
-            })}
+          <div className="proposal-print-container bg-white mx-auto flex-1 w-full print:shadow-none print:block flex flex-col overflow-x-auto">
+            <ProposalDocument data={data} pagesLayout={pagesLayout} />
 
             <div className="mt-auto p-8 border-t text-center print:hidden flex flex-col items-center justify-center bg-muted/20">
               {printWarning && (

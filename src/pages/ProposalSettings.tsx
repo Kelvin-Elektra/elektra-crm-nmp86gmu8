@@ -65,39 +65,82 @@ export default function ProposalSettings() {
     Outros: '35',
   })
 
+  const defaultPreviewLayout = [
+    { id: 'p1', elements: ['cover'] },
+    { id: 'p2', elements: ['summary'] },
+    { id: 'p3', elements: ['components'] },
+    { id: 'p4', elements: ['financial'] },
+    { id: 'p5', elements: ['execution'] },
+    { id: 'p6', elements: ['investment'] },
+  ]
+
   const dummyNegotiation = {
     company_id: user?.company_id,
-    avg_consumption: 500,
-    address: 'Rua Exemplo, 123, Centro',
+    avg_consumption: 550,
+    address: 'Rua das Palmeiras, 123 - Centro',
+    city: 'São Paulo',
+    state: 'SP',
+    cep: '01000-000',
+    concessionaire: 'Enel Distribuição São Paulo',
+    uc: '123456789',
+    consumer_category: 'Residencial',
     expand: {
       lead_id: {
-        name: 'Cliente Exemplo',
-        document: '000.000.000-00',
+        name: 'João Silva Santos',
+        document: '123.456.789-00',
+        email: 'joao.silva@email.com',
+        phone: '(11) 98765-4321',
       },
     },
     sizing: {
-      jan: 500,
-      feb: 500,
-      mar: 500,
-      apr: 500,
-      may: 500,
-      jun: 500,
-      module_qty: 12,
-      kit_power_kwp: 6.6,
+      kit_power_kwp: 7.2,
+      module_qty: 14,
+      installation_type: 'Telhado Cerâmico',
+      tilt: 25,
+      inverters: [],
     },
   }
 
   const dummyProposal = {
-    id: 'TPL-001',
+    id: 'TPL-PREVIEW',
     created: new Date().toISOString(),
-    total_value: 25000,
+    total_value: 38500,
     validity_date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
     payment_terms: '50% na assinatura, 50% na instalação.',
-    kit_details: {
-      settings: {
-        branding: branding,
-        template: previewOpen,
-        pages_layout: previewOpen === 'custom' ? pagesLayout : [],
+    snapshot_data: {
+      template: previewOpen || activeTemplate,
+      branding,
+      pages_layout: pagesLayout.length > 0 ? pagesLayout : defaultPreviewLayout,
+      sizing: dummyNegotiation.sizing,
+      rawModule: { brand: 'Canadian Solar', name: 'CS655-550W', power: 550 },
+      rawInverters: [
+        { brand: 'Hoymiles', name: 'HMT-2250-6T', power: 7.5, qty: 1, warranty: '10 anos' },
+      ],
+      financialProjection: {
+        currentMonthlyCost: 495,
+        futureMonthlyBill: 49.5,
+        monthlySavings: 445.5,
+        annualSavings: 5346,
+        roiMonths: 73,
+        roiYears: 6,
+        roiRemainingMonths: 1,
+        estMonthlyGen: 850,
+        baseRate: 0.9,
+        instantConsumption: 165,
+        compensatedConsumption: 385,
+        teComponent: 0.35,
+        tusdComponent: 0.55,
+        fioBCost: 38.5,
+        energyFromGrid: 0,
+        consumerCategory: 'Residencial',
+        simultaneityFactor: 30,
+        tariffDetails: {
+          found: true,
+          tusd: 0.55,
+          te: 0.35,
+          icms_exemption: 'both',
+          fio_b_value: 0.22,
+        },
       },
     },
   }
