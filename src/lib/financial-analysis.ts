@@ -33,6 +33,7 @@ export interface TariffDetails {
   icms_rate: number
   icms_exemption: string
   fio_b_value: number
+  found?: boolean
 }
 
 export interface FinancialProjection {
@@ -110,9 +111,10 @@ export function calculateFinancialProjection(params: {
   const compensatedConsumption = Math.min(remainingConsumption, estMonthlyGen)
   const energyFromGrid = Math.max(0, remainingConsumption - compensatedConsumption)
 
-  const teComponent = isTEExempt ? te : te * (1 - icmsFactor)
-  const tusdComponent = isTUSDExempt ? tusd : tusd * (1 - icmsFactor)
-  const compensatedEnergyCost = compensatedConsumption * (teComponent + tusdComponent)
+  const teComponent = isTEExempt ? 0 : te * icmsFactor
+  const tusdComponent = isTUSDExempt ? 0 : tusd * icmsFactor
+  const chargeableRate = teComponent + tusdComponent
+  const compensatedEnergyCost = compensatedConsumption * chargeableRate
 
   const fioBScalingFactor = getFioBScalingFactor()
   const fioBBaseValue = fio_b_value || FIO_B_DEFAULT_RATE
@@ -158,22 +160,23 @@ export async function fetchTariffDetails(
   utilityId: string,
   consumerCategory?: string,
 ): Promise<TariffDetails> {
-  if (!utilityId) return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0 }
+  if (!utilityId)
+    return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0, found: true }
   try {
     const rules = await pb
       .collection('pv_tariff_rules')
       .getFullList({ filter: `utility_id='${utilityId}'` })
     if (rules.length === 0)
-      return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0 }
+      return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0, found: false }
 
     if (!consumerCategory) {
-      return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0 }
+      return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0, found: true }
     }
 
     const matched = rules.find((r) => r.class?.toLowerCase() === consumerCategory.toLowerCase())
 
     if (!matched) {
-      return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0 }
+      return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0, found: false }
     }
 
     return {
@@ -182,9 +185,10 @@ export async function fetchTariffDetails(
       icms_rate: Number(matched.icms_rate) || 0,
       icms_exemption: matched.icms_exemption || 'none',
       fio_b_value: Number(matched.fio_b_value) || 0,
+      found: true,
     }
   } catch {
-    return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0 }
+    return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0, found: false }
   }
 }
 

@@ -8,8 +8,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { TrendingUp, PiggyBank, Receipt, Calculator, Zap, Lightbulb } from 'lucide-react'
+import {
+  TrendingUp,
+  PiggyBank,
+  Receipt,
+  Calculator,
+  Zap,
+  Lightbulb,
+  AlertTriangle,
+} from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { updateNegotiation } from '@/services/db'
 import pb from '@/lib/pocketbase/client'
 import { NumericInput } from '@/components/ui/numeric-input'
@@ -66,6 +75,7 @@ export function FinancialAnalysisCard({
     fio_b_value: 0,
   })
   const [systemPrice, setSystemPrice] = useState(0)
+  const [tariffFound, setTariffFound] = useState(true)
   const [defaultFactors, setDefaultFactors] = useState<Record<string, number>>(
     DEFAULT_SIMULTANEITY_FACTORS,
   )
@@ -90,6 +100,7 @@ export function FinancialAnalysisCard({
       const cat = neg.consumer_category || neg.sizing?.consumer_category || ''
       const details = await fetchTariffDetails(neg.utility_id, cat)
       setTariffDetails(details)
+      setTariffFound(details.found !== false)
       const price = await fetchLatestProposalPrice(neg.id)
       setSystemPrice(price || (Number(neg.sizing?.kit_power_kwp) || 0) * 4000)
     }
@@ -115,7 +126,10 @@ export function FinancialAnalysisCard({
     const defaultFactor = defaultFactors[category] || 30
     setSimultaneityFactor(defaultFactor)
     saveFinancialData(category, defaultFactor, publicLightingFee)
-    fetchTariffDetails(neg.utility_id, category).then(setTariffDetails)
+    fetchTariffDetails(neg.utility_id, category).then((details) => {
+      setTariffDetails(details)
+      setTariffFound(details.found !== false)
+    })
   }
 
   const handleFactorChange = (val: number) => {
@@ -217,6 +231,16 @@ export function FinancialAnalysisCard({
             <p className="text-xs text-muted-foreground">Outras taxas mensais fixas</p>
           </div>
         </div>
+
+        {tariffFound === false && consumerCategory && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              Atenção: Não há tarifas cadastradas para a classe {consumerCategory} nesta
+              concessionária.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-muted/30 rounded-lg p-4 border">
@@ -365,25 +389,14 @@ export function FinancialAnalysisCard({
                 </span>
               </div>
               <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">
-                  Componente TE{' '}
-                  {tariffDetails.icms_exemption === 'te' || tariffDetails.icms_exemption === 'both'
-                    ? '(isento)'
-                    : '(com ICMS)'}
-                </span>
+                <span className="text-muted-foreground">Compensação de Energia TE</span>
                 <span className="font-medium">
                   {BRL.format(projection.teComponent)}{' '}
                   <span className="text-xs text-muted-foreground">/kWh</span>
                 </span>
               </div>
               <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">
-                  Componente TUSD{' '}
-                  {tariffDetails.icms_exemption === 'tusd' ||
-                  tariffDetails.icms_exemption === 'both'
-                    ? '(isento)'
-                    : '(com ICMS)'}
-                </span>
+                <span className="text-muted-foreground">Encargo de ICMS TUSD</span>
                 <span className="font-medium">
                   {BRL.format(projection.tusdComponent)}{' '}
                   <span className="text-xs text-muted-foreground">/kWh</span>
@@ -424,6 +437,17 @@ export function FinancialAnalysisCard({
               <div className="flex justify-between py-1 font-semibold border-t pt-2">
                 <span>Conta após Solar Total</span>
                 <span>{BRL.format(projection.futureMonthlyBill)}</span>
+              </div>
+            </div>
+
+            <div className="border-t pt-3 space-y-2 text-sm">
+              <div className="flex justify-between py-1 font-semibold text-green-600">
+                <span>Economia Total</span>
+                <span>{BRL.format(projection.monthlySavings)}/mês</span>
+              </div>
+              <div className="flex justify-between py-1 text-muted-foreground">
+                <span>Economia Anual</span>
+                <span>{BRL.format(projection.annualSavings)}</span>
               </div>
             </div>
           </div>

@@ -10,7 +10,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
 import { updateNegotiation } from '@/services/db'
@@ -24,21 +24,21 @@ export function ConsumptionCard({ neg, reload }: { neg: any; reload?: () => void
   const { toast } = useToast()
 
   const [isMonthly, setIsMonthly] = useState(initialSizing.type === 'monthly')
-  const [avgConsumption, setAvgConsumption] = useState(neg.avg_consumption || '')
+  const [avgConsumption, setAvgConsumption] = useState(Number(neg.avg_consumption) || 0)
 
-  const [monthlyData, setMonthlyData] = useState({
-    jan: initialSizing.jan || '',
-    feb: initialSizing.feb || '',
-    mar: initialSizing.mar || '',
-    apr: initialSizing.apr || '',
-    may: initialSizing.may || '',
-    jun: initialSizing.jun || '',
-    jul: initialSizing.jul || '',
-    aug: initialSizing.aug || '',
-    sep: initialSizing.sep || '',
-    oct: initialSizing.oct || '',
-    nov: initialSizing.nov || '',
-    dec: initialSizing.dec || '',
+  const [monthlyData, setMonthlyData] = useState<Record<string, number>>({
+    jan: Number(initialSizing.jan) || 0,
+    feb: Number(initialSizing.feb) || 0,
+    mar: Number(initialSizing.mar) || 0,
+    apr: Number(initialSizing.apr) || 0,
+    may: Number(initialSizing.may) || 0,
+    jun: Number(initialSizing.jun) || 0,
+    jul: Number(initialSizing.jul) || 0,
+    aug: Number(initialSizing.aug) || 0,
+    sep: Number(initialSizing.sep) || 0,
+    oct: Number(initialSizing.oct) || 0,
+    nov: Number(initialSizing.nov) || 0,
+    dec: Number(initialSizing.dec) || 0,
   })
 
   const months = [
@@ -58,7 +58,7 @@ export function ConsumptionCard({ neg, reload }: { neg: any; reload?: () => void
 
   const chartData = months.map((m) => ({
     name: m.l,
-    consumo: isMonthly ? Number((monthlyData as any)[m.k]) || 0 : Number(avgConsumption) || 0,
+    consumo: isMonthly ? (monthlyData as any)[m.k] || 0 : avgConsumption || 0,
   }))
 
   const handleSave = async () => {
@@ -68,11 +68,11 @@ export function ConsumptionCard({ neg, reload }: { neg: any; reload?: () => void
       let sizingPayload: any = { type: isMonthly ? 'monthly' : 'average' }
 
       if (isMonthly) {
-        const vals = Object.values(monthlyData).map((v) => Number(v) || 0)
+        const vals = Object.values(monthlyData)
         computedAvg = Math.round(vals.reduce((a, b) => a + b, 0) / 12)
         sizingPayload = { ...sizingPayload, ...monthlyData }
       } else {
-        computedAvg = Number(avgConsumption) || 0
+        computedAvg = avgConsumption
       }
 
       await updateNegotiation(neg.id, {
@@ -153,10 +153,10 @@ export function ConsumptionCard({ neg, reload }: { neg: any; reload?: () => void
             {!isMonthly ? (
               <div className="space-y-2">
                 <Label>Consumo Médio (kWh/mês)</Label>
-                <Input
-                  type="number"
+                <NumericInput
                   value={avgConsumption}
-                  onChange={(e) => setAvgConsumption(e.target.value)}
+                  onValueChange={(v) => setAvgConsumption(v)}
+                  placeholder="0"
                 />
               </div>
             ) : (
@@ -164,11 +164,11 @@ export function ConsumptionCard({ neg, reload }: { neg: any; reload?: () => void
                 {months.map((m) => (
                   <div key={m.k} className="space-y-1">
                     <Label className="text-xs">{m.l}</Label>
-                    <Input
-                      type="number"
+                    <NumericInput
                       className="h-8 text-sm"
                       value={(monthlyData as any)[m.k]}
-                      onChange={(e) => setMonthlyData((p) => ({ ...p, [m.k]: e.target.value }))}
+                      onValueChange={(v) => setMonthlyData((p) => ({ ...p, [m.k]: v }))}
+                      placeholder="0"
                     />
                   </div>
                 ))}
