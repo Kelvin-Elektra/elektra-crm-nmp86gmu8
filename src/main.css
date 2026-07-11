@@ -179,9 +179,15 @@
       min-height: 0 !important;
       margin: 0 !important;
       padding: 0 !important;
+      border: none !important;
+      box-shadow: none !important;
+      gap: 0 !important;
     }
     [data-sonner-toaster],
     [data-radix-toast-viewport] {
+      display: none !important;
+    }
+    [role='dialog'] button.absolute {
       display: none !important;
     }
     [role='dialog'] {
@@ -217,14 +223,21 @@
     [data-radix-dialog-overlay] {
       display: none !important;
     }
+    [role='dialog'] > button[class*='absolute'] {
+      display: none !important;
+    }
     .proposal-preview-wrapper {
       padding: 0 !important;
       background: transparent !important;
       overflow: visible !important;
       display: block !important;
+      height: auto !important;
+      min-height: 0 !important;
+      max-height: none !important;
+      flex: none !important;
     }
     .proposal-a4-cover {
-      overflow: hidden !important;
+      overflow: visible !important;
       page-break-after: auto !important;
       break-after: auto !important;
     }
@@ -237,6 +250,9 @@
       box-shadow: none !important;
       border: none !important;
       background: white !important;
+      height: auto !important;
+      min-height: 0 !important;
+      max-height: none !important;
     }
     .proposal-document {
       margin: 0 !important;
@@ -244,17 +260,15 @@
     }
     .proposal-a4-page {
       width: 210mm !important;
-      height: 297mm !important;
-      min-height: 297mm !important;
-      max-height: 297mm !important;
+      height: auto !important;
+      min-height: auto !important;
+      max-height: none !important;
       margin: 0 !important;
       padding: 0 !important;
       box-shadow: none !important;
-      overflow: hidden !important;
+      overflow: visible !important;
       page-break-after: auto;
       break-after: auto;
-      page-break-inside: avoid;
-      break-inside: avoid;
     }
     .proposal-a4-page + .proposal-a4-page {
       page-break-before: always;
@@ -309,6 +323,9 @@
     }
     .proposal-table {
       break-inside: auto;
+      overflow: visible !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
     }
     .proposal-table thead {
       display: table-header-group;
@@ -330,12 +347,15 @@
       page-break-inside: avoid;
     }
     .proposal-a4-page [class*='md:grid-cols-2'] {
+      display: grid !important;
       grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     }
     .proposal-a4-page [class*='md:grid-cols-3'] {
+      display: grid !important;
       grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     }
     .proposal-a4-page [class*='md:grid-cols-4'] {
+      display: grid !important;
       grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
     }
     .proposal-financial-highlight {

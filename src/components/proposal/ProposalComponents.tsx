@@ -78,10 +78,7 @@ export function ProposalComponents({ data }: { data: ProposalPageData }) {
           </div>
         ))}
       </div>
-      <div
-        className="proposal-table proposal-no-break overflow-hidden rounded-2xl border border-slate-200 shadow-sm"
-        style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
-      >
+      <div className="proposal-table overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
         <table className="w-full text-sm">
           <thead
             style={{

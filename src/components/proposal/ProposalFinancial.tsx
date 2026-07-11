@@ -195,7 +195,7 @@ export function ProposalFinancial({ data }: { data: ProposalPageData }) {
           </CollapsibleContent>
         </Collapsible>
       )}
-      <div className="proposal-table proposal-no-break overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+      <div className="proposal-table overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
         <table className="w-full text-sm">
           <thead
             style={{
