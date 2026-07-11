@@ -129,10 +129,11 @@
     body {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
+      color-adjust: exact !important;
     }
     @page {
-      margin: 0;
       size: A4;
+      margin: 15mm;
     }
     body > *:not([role='dialog']) {
       display: none !important;
@@ -148,8 +149,100 @@
       overflow: visible !important;
       background: transparent !important;
     }
+    [role='dialog'] > *:first-child {
+      max-width: 100% !important;
+      width: 100% !important;
+      box-shadow: none !important;
+      border: none !important;
+    }
     div[data-state='open'][class*='fixed inset-0'] {
       display: none !important;
+    }
+    .proposal-print-container {
+      width: 180mm !important;
+      max-width: 180mm !important;
+      min-width: 180mm !important;
+      box-shadow: none !important;
+      border: none !important;
+      background: white !important;
+    }
+    .proposal-page {
+      width: 180mm !important;
+      min-height: 257mm !important;
+      max-height: 257mm !important;
+      overflow: hidden !important;
+      page-break-after: always;
+      break-after: page;
+      border: none !important;
+    }
+    .proposal-page:last-child {
+      page-break-after: auto;
+      break-after: auto;
+    }
+    .proposal-cover-print {
+      width: 180mm !important;
+      min-height: 257mm !important;
+      max-height: 257mm !important;
+      overflow: hidden !important;
+      page-break-after: always;
+      break-after: page;
+    }
+    .proposal-no-break {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .proposal-break-before {
+      break-before: page;
+      page-break-before: always;
+    }
+    .print-hidden,
+    .print\:hidden {
+      display: none !important;
+    }
+    .proposal-section-title {
+      font-size: 16pt !important;
+      padding-bottom: 3mm !important;
+      margin-bottom: 6mm !important;
+    }
+    .proposal-card {
+      padding: 6mm !important;
+      margin-bottom: 4mm !important;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .proposal-table {
+      break-inside: auto;
+    }
+    .proposal-table thead {
+      display: table-header-group;
+    }
+    .proposal-table tr {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .proposal-timeline-item {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .proposal-warranty-card {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .proposal-investment-card {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .proposal-financial-highlight {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .proposal-quadrant {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .proposal-roi-badge {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
     .page-break-after {
       page-break-after: always;

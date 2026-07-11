@@ -10,17 +10,21 @@ export function ProposalCover({ data }: { data: ProposalPageData }) {
 
   return (
     <div
-      className="relative min-h-[100vh] flex flex-col items-center justify-center text-white overflow-hidden break-inside-avoid p-8"
+      className="proposal-no-break relative min-h-[100vh] flex flex-col items-center justify-center text-white overflow-hidden break-inside-avoid p-8"
       style={{
         background: `linear-gradient(135deg, ${branding.primaryColor}, ${branding.gradientColor || branding.secondaryColor})`,
+        WebkitPrintColorAdjust: 'exact',
+        printColorAdjust: 'exact',
       }}
     >
       <div
-        className="absolute inset-0 opacity-20 bg-cover bg-center mix-blend-overlay"
+        className="absolute inset-0 opacity-20 bg-cover bg-center mix-blend-overlay print:opacity-10"
         style={{
           backgroundImage: `url('https://img.usecurling.com/p/1200/800?q=solar%20panels%20roof%20installation&color=black')`,
+          WebkitPrintColorAdjust: 'exact',
+          printColorAdjust: 'exact',
         }}
-      />
+      />{' '}
       <div className="relative z-10 w-full max-w-2xl bg-black/40 p-10 md:p-12 rounded-3xl backdrop-blur-sm border border-white/20 shadow-2xl">
         <img
           src={logoUrl}

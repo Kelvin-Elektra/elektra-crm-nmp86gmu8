@@ -13,6 +13,7 @@ export function useProposalData(proposal: any, negotiation: any, open: boolean) 
   const [moduleRec, setModuleRec] = useState<any>(null)
   const [inverterRecs, setInverterRecs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [snapshotReady, setSnapshotReady] = useState(false)
 
   const snapshot = parseSnapshot(proposal)
   const branding = getBranding(snapshot)
@@ -26,12 +27,19 @@ export function useProposalData(proposal: any, negotiation: any, open: boolean) 
   useEffect(() => {
     if (!open || !negotiation) {
       setLoading(false)
+      setSnapshotReady(false)
       return
     }
     let cancelled = false
     const loadData = async () => {
       setLoading(true)
+      setSnapshotReady(false)
       try {
+        const hasSnapshot =
+          proposal?.snapshot_data &&
+          typeof proposal.snapshot_data === 'object' &&
+          Object.keys(proposal.snapshot_data).length > 0
+
         if (negotiation.company_id) {
           const comp = await pb
             .collection('companies')
@@ -62,6 +70,7 @@ export function useProposalData(proposal: any, negotiation: any, open: boolean) 
           )
           if (!cancelled) setInverterRecs(invs.filter(Boolean))
         }
+        if (!cancelled) setSnapshotReady(hasSnapshot)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -86,5 +95,5 @@ export function useProposalData(proposal: any, negotiation: any, open: boolean) 
     tariffDetails,
   }
 
-  return { data, pagesLayout, loading }
+  return { data, pagesLayout, loading, snapshotReady }
 }

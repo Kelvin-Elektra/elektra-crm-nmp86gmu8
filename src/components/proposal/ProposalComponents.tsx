@@ -41,18 +41,25 @@ export function ProposalComponents({ data }: { data: ProposalPageData }) {
 
   return (
     <div className="p-8 md:p-16 space-y-8">
-      <div className="border-b-2 pb-4" style={{ borderColor: branding.primaryColor }}>
+      <div
+        className="proposal-section-title border-b-2 pb-4"
+        style={{ borderColor: branding.primaryColor }}
+      >
         <h2 className="text-3xl font-bold text-slate-800">Componentes do Sistema</h2>
       </div>
       <div className="space-y-4">
         {cards.map((card) => (
           <div
             key={card.title}
-            className="bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm flex gap-6 items-start"
+            className="proposal-no-break bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm flex gap-6 items-start"
           >
             <div
               className="w-14 h-14 rounded-xl flex items-center justify-center text-white shrink-0"
-              style={{ backgroundColor: branding.primaryColor }}
+              style={{
+                backgroundColor: branding.primaryColor,
+                WebkitPrintColorAdjust: 'exact',
+                printColorAdjust: 'exact',
+              }}
             >
               <card.icon className="w-7 h-7" />
             </div>
@@ -70,9 +77,15 @@ export function ProposalComponents({ data }: { data: ProposalPageData }) {
           </div>
         ))}
       </div>
-      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+      <div className="proposal-table overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
         <table className="w-full text-sm">
-          <thead style={{ backgroundColor: branding.primaryColor }}>
+          <thead
+            style={{
+              backgroundColor: branding.primaryColor,
+              WebkitPrintColorAdjust: 'exact',
+              printColorAdjust: 'exact',
+            }}
+          >
             <tr className="text-white">
               <th className="px-6 py-3 text-left font-semibold">Equipamento</th>
               <th className="px-6 py-3 text-left font-semibold">Marca</th>

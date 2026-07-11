@@ -62,7 +62,10 @@ export function ProposalExecution({ data }: { data: ProposalPageData }) {
   return (
     <div className="p-8 md:p-16 space-y-12">
       <div className="space-y-8">
-        <div className="border-b-2 pb-4" style={{ borderColor: branding.primaryColor }}>
+        <div
+          className="proposal-section-title border-b-2 pb-4"
+          style={{ borderColor: branding.primaryColor }}
+        >
           <h2 className="text-3xl font-bold text-slate-800">Cronograma de Execução</h2>
         </div>
         <div className="relative pl-8">
@@ -71,10 +74,14 @@ export function ProposalExecution({ data }: { data: ProposalPageData }) {
             style={{ backgroundColor: branding.primaryColor + '40' }}
           />
           {steps.map((step, i) => (
-            <div key={i} className="relative pb-8 last:pb-0">
+            <div key={i} className="proposal-timeline-item relative pb-8 last:pb-0">
               <div
                 className="absolute -left-[22px] top-1 w-8 h-8 rounded-full flex items-center justify-center text-white shadow-md z-10"
-                style={{ backgroundColor: branding.primaryColor }}
+                style={{
+                  backgroundColor: branding.primaryColor,
+                  WebkitPrintColorAdjust: 'exact',
+                  printColorAdjust: 'exact',
+                }}
               >
                 <step.icon className="w-4 h-4" />
               </div>
@@ -82,7 +89,11 @@ export function ProposalExecution({ data }: { data: ProposalPageData }) {
                 <div className="flex items-center gap-2">
                   <span
                     className="text-xs font-bold px-2 py-0.5 rounded-full text-white"
-                    style={{ backgroundColor: branding.secondaryColor }}
+                    style={{
+                      backgroundColor: branding.secondaryColor,
+                      WebkitPrintColorAdjust: 'exact',
+                      printColorAdjust: 'exact',
+                    }}
                   >
                     Etapa {i + 1}
                   </span>
@@ -95,18 +106,25 @@ export function ProposalExecution({ data }: { data: ProposalPageData }) {
         </div>
       </div>
       <div className="space-y-6">
-        <div className="border-b-2 pb-4" style={{ borderColor: branding.primaryColor }}>
+        <div
+          className="proposal-section-title border-b-2 pb-4"
+          style={{ borderColor: branding.primaryColor }}
+        >
           <h2 className="text-3xl font-bold text-slate-800">Garantias</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {warranties.map((w) => (
             <div
               key={w.title}
-              className="bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm flex items-start gap-4"
+              className="proposal-warranty-card bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm flex items-start gap-4"
             >
               <div
                 className="w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0"
-                style={{ backgroundColor: branding.primaryColor }}
+                style={{
+                  backgroundColor: branding.primaryColor,
+                  WebkitPrintColorAdjust: 'exact',
+                  printColorAdjust: 'exact',
+                }}
               >
                 <w.icon className="w-6 h-6" />
               </div>

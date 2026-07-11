@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Loader2 } from 'lucide-react'
+import { Loader2, AlertCircle } from 'lucide-react'
 import { useProposalData } from '@/hooks/use-proposal-data'
 import {
   getTemplateClasses,
@@ -24,18 +25,29 @@ const SECTION_COMPONENTS: Record<string, React.FC<{ data: ProposalPageData }>> =
 }
 
 export function ProposalViewer({ open, onOpenChange, proposal, negotiation }: any) {
-  const { data, pagesLayout, loading } = useProposalData(proposal, negotiation, open)
+  const { data, pagesLayout, loading, snapshotReady } = useProposalData(proposal, negotiation, open)
+  const [printWarning, setPrintWarning] = useState(false)
+
+  const handlePrint = () => {
+    if (!snapshotReady || loading) {
+      setPrintWarning(true)
+      setTimeout(() => setPrintWarning(false), 4000)
+      return
+    }
+    setPrintWarning(false)
+    window.print()
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl h-[95vh] overflow-y-auto p-0 border-none bg-zinc-100/50 print:h-auto print:overflow-visible flex flex-col">
+      <DialogContent className="max-w-5xl h-[95vh] overflow-y-auto p-0 border-none bg-zinc-100/50 print:h-auto print:overflow-visible print:p-0 flex flex-col">
         {loading ? (
           <div className="flex items-center justify-center h-full min-h-[400px]">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
           <div
-            className={`bg-white mx-auto max-w-4xl shadow-2xl flex-1 w-full print:shadow-none print:w-full print:max-w-full print:bg-white print:m-0 print:block flex flex-col ${getTemplateClasses(data.template)}`}
+            className={`proposal-print-container bg-white mx-auto max-w-4xl shadow-2xl flex-1 w-full print:shadow-none print:block flex flex-col ${getTemplateClasses(data.template)}`}
           >
             {pagesLayout.map((page: any) => {
               const seen = new Set<string>()
@@ -47,10 +59,12 @@ export function ProposalViewer({ open, onOpenChange, proposal, negotiation }: an
                   return true
                 })
 
+              const isCover = sections.includes('cover')
+
               return (
                 <div
                   key={page.id}
-                  className="min-h-[100vh] break-inside-avoid print:mb-0 border-b last:border-b-0 border-dashed border-slate-200 print:border-none"
+                  className={`proposal-page ${isCover ? 'proposal-cover-print' : ''} min-h-[100vh] break-inside-avoid print:mb-0 border-b last:border-b-0 border-dashed border-slate-200 print:border-none`}
                 >
                   {sections.map((sId: string) => {
                     const Cmp = SECTION_COMPONENTS[sId]
@@ -61,10 +75,18 @@ export function ProposalViewer({ open, onOpenChange, proposal, negotiation }: an
             })}
 
             <div className="mt-auto p-8 border-t text-center print:hidden flex flex-col items-center justify-center bg-muted/20">
+              {printWarning && (
+                <div className="mb-4 flex items-center gap-2 text-destructive bg-destructive/10 px-4 py-2 rounded-lg">
+                  <AlertCircle className="h-4 w-4" />
+                  <span className="text-sm font-medium">
+                    Aguarde o carregamento completo dos dados da proposta antes de imprimir.
+                  </span>
+                </div>
+              )}
               <p className="text-slate-500 mb-6">Pronto para imprimir?</p>
               <div className="flex gap-4">
                 <Button
-                  onClick={() => window.print()}
+                  onClick={handlePrint}
                   className="px-8 shadow-lg"
                   style={{ backgroundColor: data.branding.primaryColor }}
                 >

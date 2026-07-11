@@ -39,14 +39,17 @@ export function ProposalInvestment({ data }: { data: ProposalPageData }) {
 
   return (
     <div className="p-8 md:p-16 space-y-8">
-      <div className="border-b-2 pb-4" style={{ borderColor: branding.primaryColor }}>
+      <div
+        className="proposal-section-title border-b-2 pb-4"
+        style={{ borderColor: branding.primaryColor }}
+      >
         <h2 className="text-3xl font-bold text-slate-800">Investimento & Condições</h2>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {options.map((opt) => (
           <div
             key={opt.title}
-            className={`relative bg-white p-6 rounded-2xl border-2 shadow-sm flex flex-col ${opt.badge ? 'border-green-300' : 'border-slate-200'}`}
+            className={`proposal-investment-card relative bg-white p-6 rounded-2xl border-2 shadow-sm flex flex-col ${opt.badge ? 'border-green-300' : 'border-slate-200'}`}
           >
             {opt.badge && (
               <span
@@ -57,7 +60,11 @@ export function ProposalInvestment({ data }: { data: ProposalPageData }) {
             )}
             <div
               className="w-12 h-12 rounded-xl flex items-center justify-center text-white mb-4"
-              style={{ backgroundColor: branding.primaryColor }}
+              style={{
+                backgroundColor: branding.primaryColor,
+                WebkitPrintColorAdjust: 'exact',
+                printColorAdjust: 'exact',
+              }}
             >
               <opt.icon className="w-6 h-6" />
             </div>
@@ -77,7 +84,7 @@ export function ProposalInvestment({ data }: { data: ProposalPageData }) {
         </div>
       )}
       <div className="bg-slate-50 p-8 rounded-2xl border border-slate-200 space-y-4">
-        <div className="flex items-center gap-2">
+        <div className="proposal-no-break flex items-center gap-2">
           <FileText className="w-5 h-5" style={{ color: branding.primaryColor }} />
           <h3 className="font-bold text-lg text-slate-800">Termos e Condições</h3>
         </div>
