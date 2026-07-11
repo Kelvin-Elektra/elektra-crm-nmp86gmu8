@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -9,10 +8,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { TrendingUp, PiggyBank, Receipt, Calculator, Zap, Percent, Lightbulb } from 'lucide-react'
+import { TrendingUp, PiggyBank, Receipt, Calculator, Zap, Lightbulb } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { updateNegotiation } from '@/services/db'
 import pb from '@/lib/pocketbase/client'
+import { NumericInput } from '@/components/ui/numeric-input'
 import {
   calculateFinancialProjection,
   fetchTariffDetails,
@@ -118,16 +118,16 @@ export function FinancialAnalysisCard({
     fetchTariffDetails(neg.utility_id, category).then(setTariffDetails)
   }
 
-  const handleFactorChange = (val: string) => {
-    setSimultaneityFactor(Math.min(100, Math.max(0, Number(val) || 0)))
+  const handleFactorChange = (val: number) => {
+    setSimultaneityFactor(Math.min(100, Math.max(0, val || 0)))
   }
 
   const handleFactorBlur = () => {
     saveFinancialData(consumerCategory, simultaneityFactor, publicLightingFee)
   }
 
-  const handleLightingFeeChange = (val: string) => {
-    setPublicLightingFee(Number(val) || 0)
+  const handleLightingFeeChange = (val: number) => {
+    setPublicLightingFee(val || 0)
   }
 
   const handleLightingFeeBlur = () => {
@@ -198,25 +198,21 @@ export function FinancialAnalysisCard({
           </div>
           <div className="space-y-2">
             <Label>Fator de Simultaneidade (%)</Label>
-            <Input
-              type="number"
-              min="0"
-              max="100"
+            <NumericInput
               value={simultaneityFactor}
-              onChange={(e) => handleFactorChange(e.target.value)}
+              onValueChange={handleFactorChange}
               onBlur={handleFactorBlur}
+              placeholder="0"
             />
             <p className="text-xs text-muted-foreground">Autoconsumo (% da geração)</p>
           </div>
           <div className="space-y-2">
             <Label>Taxa de Iluminação Pública (R$)</Label>
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
+            <NumericInput
               value={publicLightingFee}
-              onChange={(e) => handleLightingFeeChange(e.target.value)}
+              onValueChange={handleLightingFeeChange}
               onBlur={handleLightingFeeBlur}
+              placeholder="0.00"
             />
             <p className="text-xs text-muted-foreground">Outras taxas mensais fixas</p>
           </div>
@@ -325,19 +321,6 @@ export function FinancialAnalysisCard({
                   <span className="text-xs text-muted-foreground">/kWh</span>
                 </span>
               </div>
-              <div className="flex justify-between py-1">
-                <span className="text-muted-foreground flex items-center gap-1">
-                  <Percent className="w-3 h-3" /> ICMS sobre Consumo
-                </span>
-                <span className="font-medium">{BRL.format(projection.icmsAmount)}</span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">Tarifa Efetiva (com ICMS)</span>
-                <span className="font-medium">
-                  {BRL.format(projection.effectiveRate)}{' '}
-                  <span className="text-xs text-muted-foreground">/kWh</span>
-                </span>
-              </div>
             </div>
 
             <div className="border-t pt-3 space-y-2 text-sm">
@@ -350,7 +333,7 @@ export function FinancialAnalysisCard({
               <div className="flex justify-between py-1">
                 <span className="text-muted-foreground">Custo de Energia (sem solar)</span>
                 <span className="font-medium">
-                  {BRL.format(avgConsumption * projection.effectiveRate)}
+                  {BRL.format(avgConsumption * projection.baseRate)}
                 </span>
               </div>
               {projection.publicLightingFee > 0 && (
@@ -382,14 +365,25 @@ export function FinancialAnalysisCard({
                 </span>
               </div>
               <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">Componente TE (compensado)</span>
+                <span className="text-muted-foreground">
+                  Componente TE{' '}
+                  {tariffDetails.icms_exemption === 'te' || tariffDetails.icms_exemption === 'both'
+                    ? '(isento)'
+                    : '(com ICMS)'}
+                </span>
                 <span className="font-medium">
                   {BRL.format(projection.teComponent)}{' '}
                   <span className="text-xs text-muted-foreground">/kWh</span>
                 </span>
               </div>
               <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">Componente TUSD (compensado)</span>
+                <span className="text-muted-foreground">
+                  Componente TUSD{' '}
+                  {tariffDetails.icms_exemption === 'tusd' ||
+                  tariffDetails.icms_exemption === 'both'
+                    ? '(isento)'
+                    : '(com ICMS)'}
+                </span>
                 <span className="font-medium">
                   {BRL.format(projection.tusdComponent)}{' '}
                   <span className="text-xs text-muted-foreground">/kWh</span>

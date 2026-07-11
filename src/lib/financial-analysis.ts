@@ -1,6 +1,6 @@
 import pb from '@/lib/pocketbase/client'
 
-export const FIO_B_DEFAULT_RATE = 0.08
+export const FIO_B_DEFAULT_RATE = 0.22
 export const DEFAULT_TARIFF_RATE = 0.9
 
 export const FIO_B_SCALING_FACTORS: Record<number, number> = {
@@ -102,16 +102,16 @@ export function calculateFinancialProjection(params: {
 
   const baseRate = te + tusd
   const effectiveRate = calculateEffectiveRate(te, tusd, icms_rate, icms_exemption)
-  const currentMonthlyCost = avgConsumption * effectiveRate + publicLightingFee
-  const icmsAmount = Math.max(0, avgConsumption * (effectiveRate - baseRate))
+  const currentMonthlyCost = avgConsumption * baseRate + publicLightingFee
+  const icmsAmount = 0
 
   const instantConsumption = avgConsumption * (simultaneityFactor / 100)
   const remainingConsumption = avgConsumption - instantConsumption
   const compensatedConsumption = Math.min(remainingConsumption, estMonthlyGen)
   const energyFromGrid = Math.max(0, remainingConsumption - compensatedConsumption)
 
-  const teComponent = te * (isTEExempt ? 0 : 1)
-  const tusdComponent = tusd * (isTUSDExempt ? 0 : 1) * (1 - icmsFactor)
+  const teComponent = isTEExempt ? te : te * (1 - icmsFactor)
+  const tusdComponent = isTUSDExempt ? tusd : tusd * (1 - icmsFactor)
   const compensatedEnergyCost = compensatedConsumption * (teComponent + tusdComponent)
 
   const fioBScalingFactor = getFioBScalingFactor()
@@ -119,7 +119,7 @@ export function calculateFinancialProjection(params: {
   const fioBEffectiveRate = fioBBaseValue * fioBScalingFactor
   const fioBCost = compensatedConsumption * fioBEffectiveRate
 
-  const gridEnergyCost = energyFromGrid * effectiveRate
+  const gridEnergyCost = energyFromGrid * baseRate
 
   const futureMonthlyBill = compensatedEnergyCost + fioBCost + gridEnergyCost + publicLightingFee
 
@@ -166,22 +166,22 @@ export async function fetchTariffDetails(
     if (rules.length === 0)
       return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0 }
 
-    let rule = rules[0]
-    if (consumerCategory) {
-      const matched = rules.find(
-        (r) =>
-          r.class?.toLowerCase().includes(consumerCategory.toLowerCase()) ||
-          consumerCategory.toLowerCase().includes(r.class?.toLowerCase() || ''),
-      )
-      if (matched) rule = matched
+    if (!consumerCategory) {
+      return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0 }
+    }
+
+    const matched = rules.find((r) => r.class?.toLowerCase() === consumerCategory.toLowerCase())
+
+    if (!matched) {
+      return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0 }
     }
 
     return {
-      te: Number(rule.te) || 0,
-      tusd: Number(rule.tusd) || 0,
-      icms_rate: Number(rule.icms_rate) || 0,
-      icms_exemption: rule.icms_exemption || 'none',
-      fio_b_value: Number(rule.fio_b_value) || 0,
+      te: Number(matched.te) || 0,
+      tusd: Number(matched.tusd) || 0,
+      icms_rate: Number(matched.icms_rate) || 0,
+      icms_exemption: matched.icms_exemption || 'none',
+      fio_b_value: Number(matched.fio_b_value) || 0,
     }
   } catch {
     return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0 }
