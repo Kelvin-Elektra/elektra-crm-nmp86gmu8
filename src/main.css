@@ -135,6 +135,23 @@
     overflow: hidden;
   }
 
+  .proposal-a4-cover {
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .proposal-preview-wrapper {
+    display: flex;
+    justify-content: safe center;
+    overflow: auto;
+    padding: 1.5rem;
+    background: #f1f5f9;
+  }
+
+  .proposal-document {
+    width: 210mm;
+  }
+
   @media print {
     body {
       -webkit-print-color-adjust: exact !important;
@@ -145,28 +162,58 @@
       size: A4;
       margin: 0;
     }
-    body > *:not([role='dialog']) {
+    #root {
+      display: none !important;
+    }
+    body > div:not(#root) {
+      position: static !important;
+      display: block !important;
+      background: transparent !important;
+      pointer-events: none !important;
+    }
+    [data-sonner-toaster],
+    [data-radix-toast-viewport] {
       display: none !important;
     }
     [role='dialog'] {
-      position: relative !important;
+      position: static !important;
       inset: auto !important;
       transform: none !important;
-      max-width: 100% !important;
-      width: 100% !important;
+      max-width: none !important;
+      width: 210mm !important;
+      height: auto !important;
+      max-height: none !important;
       margin: 0 !important;
       padding: 0 !important;
       overflow: visible !important;
       background: transparent !important;
+      border: none !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
     }
     [role='dialog'] > *:first-child {
-      max-width: 100% !important;
-      width: 100% !important;
+      max-width: 210mm !important;
+      width: 210mm !important;
+      height: auto !important;
+      max-height: none !important;
       box-shadow: none !important;
       border: none !important;
+      border-radius: 0 !important;
     }
-    div[data-state='open'][class*='fixed inset-0'] {
+    div[data-state='open'][class*='fixed inset-0'],
+    [data-radix-dialog-overlay] {
       display: none !important;
+    }
+    .proposal-preview-wrapper {
+      padding: 0 !important;
+      background: transparent !important;
+      overflow: visible !important;
+      display: block !important;
+    }
+    .proposal-a4-cover {
+      overflow: hidden !important;
+      page-break-after: always !important;
+      break-after: page !important;
     }
     .proposal-print-container {
       width: 210mm !important;

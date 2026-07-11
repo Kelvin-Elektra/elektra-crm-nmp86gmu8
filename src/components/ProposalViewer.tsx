@@ -21,26 +21,30 @@ export function ProposalViewer({ open, onOpenChange, proposal, negotiation }: an
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl h-[95vh] overflow-auto p-0 border-none bg-zinc-100/50 print:h-auto print:overflow-visible print:p-0 flex flex-col">
+      <DialogContent className="max-w-[1200px] w-[90vw] h-[95vh] overflow-hidden p-0 border-none bg-slate-100 flex flex-col">
         {loading ? (
           <div className="flex items-center justify-center h-full min-h-[400px]">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
-          <div className="proposal-print-container bg-white mx-auto flex-1 w-full print:shadow-none print:block flex flex-col overflow-x-auto">
-            <ProposalDocument data={data} pagesLayout={pagesLayout} />
+          <>
+            <div className="proposal-preview-wrapper flex-1 overflow-auto">
+              <div className="proposal-print-container bg-white mx-auto">
+                <ProposalDocument data={data} pagesLayout={pagesLayout} />
+              </div>
+            </div>
 
-            <div className="mt-auto p-8 border-t text-center print:hidden flex flex-col items-center justify-center bg-muted/20">
+            <div className="print:hidden p-6 border-t text-center bg-muted/20 shrink-0">
               {printWarning && (
-                <div className="mb-4 flex items-center gap-2 text-destructive bg-destructive/10 px-4 py-2 rounded-lg">
+                <div className="mb-4 flex items-center justify-center gap-2 text-destructive bg-destructive/10 px-4 py-2 rounded-lg">
                   <AlertCircle className="h-4 w-4" />
                   <span className="text-sm font-medium">
                     Aguarde o carregamento completo dos dados da proposta antes de imprimir.
                   </span>
                 </div>
               )}
-              <p className="text-slate-500 mb-6">Pronto para imprimir?</p>
-              <div className="flex gap-4">
+              <p className="text-slate-500 mb-4">Pronto para imprimir?</p>
+              <div className="flex gap-4 justify-center">
                 <Button
                   onClick={handlePrint}
                   className="px-8 shadow-lg"
@@ -53,7 +57,7 @@ export function ProposalViewer({ open, onOpenChange, proposal, negotiation }: an
                 </Button>
               </div>
             </div>
-          </div>
+          </>
         )}
       </DialogContent>
     </Dialog>
