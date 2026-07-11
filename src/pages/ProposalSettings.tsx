@@ -20,6 +20,7 @@ import {
   Settings2,
   Percent,
   Wand2,
+  Building2,
 } from 'lucide-react'
 import {
   Dialog,
@@ -31,6 +32,7 @@ import {
 } from '@/components/ui/dialog'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { ProposalViewer } from '@/components/ProposalViewer'
+import { maskCPF, unmask } from '@/lib/masks'
 
 const ELEMENTS = [
   { id: 'cover', label: 'Capa' },
@@ -146,12 +148,21 @@ export default function ProposalSettings() {
   }
   const [brandingModalOpen, setBrandingModalOpen] = useState(false)
   const [livePreviewOpen, setLivePreviewOpen] = useState<number | null>(null)
+  const [companyData, setCompanyData] = useState<any>(null)
+  const [cnpj, setCnpj] = useState('')
 
   const isAdmin =
     user?.role === 'User_elektra' || user?.role_company === 'admin' || user?.role === 'User_owner'
 
   useEffect(() => {
     if (!user?.company_id) return
+    pb.collection('companies')
+      .getOne(user.company_id)
+      .then((comp) => {
+        setCompanyData(comp)
+        setCnpj(maskCPF(comp.cnpj || ''))
+      })
+      .catch(() => {})
     pb.collection('proposal_settings')
       .getFirstListItem(`company_id = '${user.company_id}'`)
       .then((record) => {
@@ -237,6 +248,23 @@ export default function ProposalSettings() {
       toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível salvar.' })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSaveCnpj = async () => {
+    if (!user?.company_id) return
+    try {
+      const updated = await pb.collection('companies').update(user.company_id, {
+        cnpj: unmask(cnpj),
+      })
+      setCompanyData(updated)
+      toast({ title: 'Sucesso', description: 'CNPJ salvo com sucesso.' })
+    } catch {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Não foi possível salvar o CNPJ.',
+      })
     }
   }
 
@@ -337,6 +365,9 @@ export default function ProposalSettings() {
           </TabsTrigger>
           <TabsTrigger value="simultaneidade" className="py-2.5 rounded-lg flex-1 sm:flex-none">
             <Percent className="mr-2 h-4 w-4" /> Simultaneidade
+          </TabsTrigger>
+          <TabsTrigger value="empresa" className="py-2.5 rounded-lg flex-1 sm:flex-none">
+            <Building2 className="mr-2 h-4 w-4" /> Dados da Empresa
           </TabsTrigger>
         </TabsList>
 
@@ -568,6 +599,47 @@ export default function ProposalSettings() {
               ))}
               <Button onClick={handleSave} disabled={loading} className="w-full">
                 <Save className="mr-2 h-4 w-4" /> Salvar Fatores
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="empresa" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Dados da Empresa</CardTitle>
+              <CardDescription>
+                Informações da empresa exibidas nas propostas comerciais.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 max-w-md">
+              {companyData?.logo ? (
+                <div className="flex flex-col items-center gap-2">
+                  <img
+                    src={pb.files.getURL(companyData, companyData.logo)}
+                    alt="Logo da Empresa"
+                    className="h-24 object-contain border rounded-lg p-2 bg-white"
+                  />
+                  <span className="text-xs text-muted-foreground">Logo atual da empresa</span>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-2 p-6 border-2 border-dashed rounded-lg text-muted-foreground">
+                  <Building2 className="h-8 w-8" />
+                  <span className="text-sm">Nenhum logo cadastrado</span>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label>CNPJ</Label>
+                <Input
+                  value={cnpj}
+                  onChange={(e) => setCnpj(maskCPF(e.target.value))}
+                  placeholder="00.000.000/0000-00"
+                  maxLength={18}
+                />
+                <p className="text-xs text-muted-foreground">Formato: 00.000.000/0000-00</p>
+              </div>
+              <Button onClick={handleSaveCnpj} className="w-full">
+                <Save className="mr-2 h-4 w-4" /> Salvar CNPJ
               </Button>
             </CardContent>
           </Card>

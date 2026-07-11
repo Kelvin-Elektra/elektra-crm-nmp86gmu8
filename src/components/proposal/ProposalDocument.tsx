@@ -40,7 +40,10 @@ export function ProposalDocument({
           <div
             key={page.id}
             className={`proposal-a4-page ${isCover ? 'proposal-a4-cover' : ''}`}
-            style={index > 0 ? { breakBefore: 'page', pageBreakBefore: 'always' } : undefined}
+            style={{
+              ...(index > 0 ? { breakBefore: 'page', pageBreakBefore: 'always' } : {}),
+              overflow: 'hidden',
+            }}
           >
             {sections.map((sId) => {
               const Cmp = SECTION_COMPONENTS[sId]

@@ -72,7 +72,7 @@ export function useProposalData(proposal: any, negotiation: any, open: boolean) 
             .collection('pv_installations')
             .getOne(instId)
             .catch(() => null)
-          if (!cancelled) setInstallationName(inst?.name || null)
+          if (!cancelled) setInstallationName(inst?.name || instId || null)
         }
 
         if (snapshot?.rawModule) {

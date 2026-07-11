@@ -43,7 +43,11 @@ export function ProposalComponents({ data }: { data: ProposalPageData }) {
     <div className="p-[15mm] space-y-8">
       <div
         className="proposal-section-title border-b-2 pb-4"
-        style={{ borderColor: branding.primaryColor }}
+        style={{
+          borderColor: branding.primaryColor,
+          breakAfter: 'avoid',
+          pageBreakAfter: 'avoid',
+        }}
       >
         <h2 className="text-3xl font-bold text-slate-800">Componentes do Sistema</h2>
       </div>

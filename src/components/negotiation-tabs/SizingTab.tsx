@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from 'recharts'
@@ -6,6 +6,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/
 import { Settings2, Sun, Battery, BarChart3, Edit, Compass } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { getOrFetchHsp } from '@/services/hsp'
+import { updateNegotiation } from '@/services/db'
 import { SizingGenerationModal } from './SizingGenerationModal'
 import { SizingEquipmentModal } from './SizingEquipmentModal'
 import { SizingOrientationModal } from './SizingOrientationModal'
@@ -130,6 +131,19 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
   ])
 
   const estMonthlyGen = monthlyGeneration.reduce((acc, curr) => acc + curr.geracao, 0) / 12 || 0
+
+  const lastSavedGenRef = useRef<number>(Number(sizing?.estimated_monthly_generation) || 0)
+
+  useEffect(() => {
+    const rounded = Math.round(estMonthlyGen)
+    if (rounded > 0 && neg?.id && rounded !== lastSavedGenRef.current) {
+      lastSavedGenRef.current = rounded
+      updateNegotiation(neg.id, {
+        sizing: { ...sizing, estimated_monthly_generation: rounded },
+      }).catch(() => {})
+    }
+  }, [estMonthlyGen, neg?.id])
+
   const isInsufficient = estMonthlyGen > 0 && estMonthlyGen < avgConsumption
   const selectedMod = modules.find((m) => m.id === sizing.selected_module_id)
 

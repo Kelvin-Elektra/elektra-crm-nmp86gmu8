@@ -5,7 +5,7 @@ export function ProposalSummary({ data }: { data: ProposalPageData }) {
   const { lead, negotiation, sizing, branding, hspData } = data
   const cons = Number(negotiation?.avg_consumption || 0)
   const hsp = hspData?.annual_avg || 4.94
-  const estGen = Math.round((Number(sizing?.kit_power_kwp) || 0) * hsp * 30)
+  const estGen = Number(sizing?.estimated_monthly_generation) || 0
 
   const quadrants = [
     {
