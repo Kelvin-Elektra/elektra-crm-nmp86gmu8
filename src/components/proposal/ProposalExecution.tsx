@@ -5,7 +5,7 @@ import {
   Plug,
   Activity,
   ShieldCheck,
-  Panels,
+  LayoutGrid,
   Wrench,
 } from 'lucide-react'
 import type { ProposalPageData } from './proposal-utils'
@@ -39,7 +39,7 @@ export function ProposalExecution({ data }: { data: ProposalPageData }) {
 
   const warranties = [
     {
-      icon: Panels,
+      icon: LayoutGrid,
       title: 'Módulos',
       years: '12 anos',
       desc: 'Garantia contra defeitos de fabricação',

@@ -1,4 +1,4 @@
-import { Panels, Zap as ZapIcon, Wrench } from 'lucide-react'
+import { LayoutGrid, Zap as ZapIcon, Wrench } from 'lucide-react'
 import type { ProposalPageData } from './proposal-utils'
 
 export function ProposalComponents({ data }: { data: ProposalPageData }) {
@@ -6,7 +6,7 @@ export function ProposalComponents({ data }: { data: ProposalPageData }) {
 
   const cards = [
     {
-      icon: Panels,
+      icon: LayoutGrid,
       title: 'Módulos Fotovoltaicos',
       details: [
         { label: 'Marca', value: moduleRec?.brand || 'N/A' },
