@@ -16,6 +16,8 @@ export interface ProposalPageData {
   inverterRecs: any[]
   financialProjection: any | null
   tariffDetails: any | null
+  hspData: any | null
+  installationName: string | null
 }
 
 export const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })

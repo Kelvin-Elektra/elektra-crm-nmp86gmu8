@@ -2,9 +2,10 @@ import { MapPin, User, Zap, Sun } from 'lucide-react'
 import type { ProposalPageData } from './proposal-utils'
 
 export function ProposalSummary({ data }: { data: ProposalPageData }) {
-  const { lead, negotiation, sizing, branding } = data
+  const { lead, negotiation, sizing, branding, hspData } = data
   const cons = Number(negotiation?.avg_consumption || 0)
-  const estGen = Math.round((Number(sizing?.kit_power_kwp) || 0) * 4.94 * 30)
+  const hsp = hspData?.annual_avg || 4.94
+  const estGen = Math.round((Number(sizing?.kit_power_kwp) || 0) * hsp * 30)
 
   const quadrants = [
     {
@@ -44,6 +45,7 @@ export function ProposalSummary({ data }: { data: ProposalPageData }) {
         { label: 'Potência', value: `${(Number(sizing?.kit_power_kwp) || 0).toFixed(2)} kWp` },
         { label: 'Módulos', value: `${sizing?.module_qty || 0} unidades` },
         { label: 'Geração Estimada', value: `${estGen} kWh/mês` },
+        { label: 'Irradiação (HSP)', value: `${hsp.toFixed(2)} kWh/kWp/dia` },
         { label: 'Inversores', value: `${sizing?.inverters?.length || 0} unidade(s)` },
       ],
     },

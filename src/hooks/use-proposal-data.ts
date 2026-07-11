@@ -12,6 +12,8 @@ export function useProposalData(proposal: any, negotiation: any, open: boolean) 
   const [company, setCompany] = useState<any>(null)
   const [moduleRec, setModuleRec] = useState<any>(null)
   const [inverterRecs, setInverterRecs] = useState<any[]>([])
+  const [hspData, setHspData] = useState<any>(null)
+  const [installationName, setInstallationName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [snapshotReady, setSnapshotReady] = useState(false)
 
@@ -34,6 +36,8 @@ export function useProposalData(proposal: any, negotiation: any, open: boolean) 
     const loadData = async () => {
       setLoading(true)
       setSnapshotReady(false)
+      setHspData(null)
+      setInstallationName(null)
       try {
         const hasSnapshot =
           proposal?.snapshot_data &&
@@ -47,6 +51,30 @@ export function useProposalData(proposal: any, negotiation: any, open: boolean) 
             .catch(() => null)
           if (!cancelled) setCompany(comp)
         }
+
+        if (negotiation.city_id) {
+          const hsp = await pb
+            .collection('pv_hsp_data')
+            .getOne(negotiation.city_id)
+            .catch(() => null)
+          if (!cancelled) setHspData(hsp)
+        } else if (negotiation.city && negotiation.state) {
+          const hsp = await pb
+            .collection('pv_hsp_data')
+            .getFirstListItem(`state='${negotiation.state}' && city~'${negotiation.city}'`)
+            .catch(() => null)
+          if (!cancelled) setHspData(hsp)
+        }
+
+        const instId = sizing?.installation_id || sizing?.installation_type
+        if (instId) {
+          const inst = await pb
+            .collection('pv_installations')
+            .getOne(instId)
+            .catch(() => null)
+          if (!cancelled) setInstallationName(inst?.name || null)
+        }
+
         if (snapshot?.rawModule) {
           if (!cancelled) setModuleRec(snapshot.rawModule)
         } else if (sizing.selected_module_id) {
@@ -93,6 +121,8 @@ export function useProposalData(proposal: any, negotiation: any, open: boolean) 
     inverterRecs,
     financialProjection,
     tariffDetails,
+    hspData,
+    installationName,
   }
 
   return { data, pagesLayout, loading, snapshotReady }

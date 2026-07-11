@@ -1,26 +1,22 @@
-import { useState } from 'react'
-import { Receipt, TrendingUp, ChevronDown, Leaf, Calendar, AlertTriangle } from 'lucide-react'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Button } from '@/components/ui/button'
+import { Receipt, TrendingUp, Leaf, Calendar, AlertTriangle } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { cn } from '@/lib/utils'
-import { getFioBScalingFactor } from '@/lib/financial-analysis'
 import { BRL, type ProposalPageData } from './proposal-utils'
 
 export function ProposalFinancial({ data }: { data: ProposalPageData }) {
-  const [open, setOpen] = useState(false)
-  const { fp, td, branding, sizing, negotiation, proposal } = {
+  const { fp, td, branding, sizing, negotiation, proposal, hspData } = {
     fp: data.financialProjection,
     td: data.tariffDetails,
     branding: data.branding,
     sizing: data.sizing,
     negotiation: data.negotiation,
     proposal: data.proposal,
+    hspData: data.hspData,
   }
 
   const cons = Number(negotiation?.avg_consumption || 0)
   const kwp = Number(sizing?.kit_power_kwp || 0)
-  const estMonthlyGen = fp?.estMonthlyGen || kwp * 4.94 * 30 * 0.77
+  const hsp = hspData?.annual_avg || 4.94
+  const estMonthlyGen = fp?.estMonthlyGen || kwp * hsp * 30 * 0.77
   const totalInv = proposal?.total_value || proposal?.price || kwp * 3500
   const currentBill = fp?.currentMonthlyCost ?? cons * 0.9
   const futureBill = fp?.futureMonthlyBill ?? cons * 0.1
@@ -30,8 +26,6 @@ export function ProposalFinancial({ data }: { data: ProposalPageData }) {
   const roiYears = fp?.roiYears ?? Math.floor(roiMonths / 12)
   const roiRemMonths = fp?.roiRemainingMonths ?? Math.ceil(roiMonths % 12)
   const co2Tons = Math.round((estMonthlyGen * 12 * 0.085) / 1000)
-  const fioBScale = getFioBScalingFactor()
-  const fioBBase = td?.fio_b_value || 0.22
   const projectionYears = [1, 2, 3, 5, 10, 25]
 
   const roiLabel =
@@ -141,60 +135,6 @@ export function ProposalFinancial({ data }: { data: ProposalPageData }) {
           <p className="text-sm text-slate-500">Economia Anual</p>
         </div>
       </div>
-      {fp && (
-        <Collapsible open={open} onOpenChange={setOpen}>
-          <div className="flex items-center justify-between border rounded-lg px-4 py-3 bg-muted/50">
-            <h4 className="font-semibold text-sm flex items-center gap-2">
-              <Receipt className="w-4 h-4 text-muted-foreground" /> Detalhamento do Cálculo
-            </h4>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="p-1 h-auto">
-                <ChevronDown className={cn('h-5 w-5 transition-transform', open && 'rotate-180')} />
-              </Button>
-            </CollapsibleTrigger>
-          </div>
-          <CollapsibleContent>
-            <div className="border border-t-0 rounded-b-lg p-4 space-y-2 text-sm">
-              <div className="flex justify-between py-1 border-b">
-                <span className="text-muted-foreground">Tarifa Base (TE + TUSD)</span>
-                <span className="font-medium">{BRL.format(fp.baseRate)} /kWh</span>
-              </div>
-              <div className="flex justify-between py-1 border-b">
-                <span className="text-muted-foreground">Consumo Instantâneo (Autoconsumo)</span>
-                <span className="font-medium">{Math.round(fp.instantConsumption)} kWh</span>
-              </div>
-              <div className="flex justify-between py-1 border-b">
-                <span className="text-muted-foreground">Consumo Compensado</span>
-                <span className="font-medium">{Math.round(fp.compensatedConsumption)} kWh</span>
-              </div>
-              <div className="flex justify-between py-1 border-b">
-                <span className="text-muted-foreground">Encargo de ICMS TE</span>
-                <span className="font-medium">{BRL.format(fp.teComponent)} /kWh</span>
-              </div>
-              <div className="flex justify-between py-1 border-b">
-                <span className="text-muted-foreground">Encargo de ICMS TUSD</span>
-                <span className="font-medium">{BRL.format(fp.tusdComponent)} /kWh</span>
-              </div>
-              <div className="flex justify-between py-1 border-b">
-                <span className="text-muted-foreground">
-                  Fio B ({BRL.format(fioBBase)}/kWh × {Math.round(fioBScale * 100)}%)
-                </span>
-                <span className="font-medium">{BRL.format(fp.fioBCost)}</span>
-              </div>
-              {fp.energyFromGrid > 0 && (
-                <div className="flex justify-between py-1 border-b">
-                  <span className="text-muted-foreground">Energia da Rede (não compensada)</span>
-                  <span className="font-medium">{Math.round(fp.energyFromGrid)} kWh</span>
-                </div>
-              )}
-              <div className="flex justify-between py-1 font-semibold border-t pt-2">
-                <span>Conta Após Solar Total</span>
-                <span>{BRL.format(fp.futureMonthlyBill)}</span>
-              </div>
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
       <div className="proposal-table overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
         <table className="w-full text-sm">
           <thead

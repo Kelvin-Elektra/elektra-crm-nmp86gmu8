@@ -24,7 +24,7 @@ export function ProposalDocument({
 }) {
   return (
     <div className={`proposal-document ${getTemplateClasses(data.template)}`}>
-      {pagesLayout.map((page) => {
+      {pagesLayout.map((page, index) => {
         const seen = new Set<string>()
         const sections = page.elements
           .map((elId) => ELEMENT_TO_SECTION[elId] || elId)
@@ -37,7 +37,11 @@ export function ProposalDocument({
         const isCover = sections.includes('cover')
 
         return (
-          <div key={page.id} className={`proposal-a4-page ${isCover ? 'proposal-a4-cover' : ''}`}>
+          <div
+            key={page.id}
+            className={`proposal-a4-page ${isCover ? 'proposal-a4-cover' : ''}`}
+            style={index > 0 ? { breakBefore: 'page', pageBreakBefore: 'always' } : undefined}
+          >
             {sections.map((sId) => {
               const Cmp = SECTION_COMPONENTS[sId]
               return Cmp ? <Cmp key={sId} data={data} /> : null

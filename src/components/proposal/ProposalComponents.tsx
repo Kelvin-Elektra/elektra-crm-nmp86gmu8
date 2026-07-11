@@ -2,7 +2,7 @@ import { LayoutGrid, Zap as ZapIcon, Wrench } from 'lucide-react'
 import type { ProposalPageData } from './proposal-utils'
 
 export function ProposalComponents({ data }: { data: ProposalPageData }) {
-  const { moduleRec, inverterRecs, sizing, branding } = data
+  const { moduleRec, inverterRecs, sizing, branding, installationName } = data
 
   const cards = [
     {
@@ -33,7 +33,7 @@ export function ProposalComponents({ data }: { data: ProposalPageData }) {
       icon: Wrench,
       title: 'Estrutura de Fixação',
       details: [
-        { label: 'Tipo', value: sizing?.installation_type || sizing?.roof_type || 'N/A' },
+        { label: 'Tipo', value: installationName || sizing?.roof_type || 'N/A' },
         { label: 'Inclinação', value: sizing?.tilt ? `${sizing.tilt}°` : 'N/A' },
       ],
     },
