@@ -283,13 +283,13 @@ export default function ProposalSettings() {
   const templates = [
     {
       id: 'modern',
-      name: 'Modern',
-      img: 'https://img.usecurling.com/p/300/400?q=modern%20document&color=blue',
+      name: 'Modern (Capa Clara)',
+      img: 'https://img.usecurling.com/p/300/400?q=modern%20solar%20panel&color=green',
     },
     {
       id: 'elegant',
-      name: 'Elegant',
-      img: 'https://img.usecurling.com/p/300/400?q=elegant%20paper&color=gray',
+      name: 'Elegant (Capa Escura)',
+      img: 'https://img.usecurling.com/p/300/400?q=dark%20gradient&color=blue',
     },
     {
       id: 'compact',

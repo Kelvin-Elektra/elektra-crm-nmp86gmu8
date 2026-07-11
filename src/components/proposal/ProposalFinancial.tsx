@@ -61,7 +61,7 @@ export function ProposalFinancial({ data }: { data: ProposalPageData }) {
         </Alert>
       )}
       <div
-        className="proposal-financial-highlight border-2 rounded-xl p-6 bg-muted/20"
+        className="proposal-financial-highlight proposal-no-break border-2 rounded-xl p-6 bg-muted/20"
         style={{ borderColor: branding.primaryColor + '40' }}
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -98,9 +98,9 @@ export function ProposalFinancial({ data }: { data: ProposalPageData }) {
           </span>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="proposal-no-break grid grid-cols-1 md:grid-cols-3 gap-4">
         <div
-          className="proposal-roi-badge proposal-financial-highlight bg-white border-2 rounded-2xl p-6 text-center"
+          className="proposal-roi-badge proposal-financial-highlight proposal-no-break bg-white border-2 rounded-2xl p-6 text-center"
           style={{
             borderColor: branding.primaryColor,
             WebkitPrintColorAdjust: 'exact',
@@ -195,7 +195,7 @@ export function ProposalFinancial({ data }: { data: ProposalPageData }) {
           </CollapsibleContent>
         </Collapsible>
       )}
-      <div className="proposal-table overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+      <div className="proposal-table proposal-no-break overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
         <table className="w-full text-sm">
           <thead
             style={{

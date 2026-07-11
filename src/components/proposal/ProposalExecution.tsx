@@ -68,7 +68,7 @@ export function ProposalExecution({ data }: { data: ProposalPageData }) {
         >
           <h2 className="text-3xl font-bold text-slate-800">Cronograma de Execução</h2>
         </div>
-        <div className="relative pl-8">
+        <div className="proposal-no-break relative pl-8">
           <div
             className="absolute left-3 top-2 bottom-2 w-0.5"
             style={{ backgroundColor: branding.primaryColor + '40' }}

@@ -61,7 +61,13 @@ export function getBranding(snapshot: any): BrandingConfig {
 }
 
 export function getTemplate(snapshot: any): string {
-  return snapshot?.template || snapshot?.settings?.template || 'modern'
+  return (
+    snapshot?.template ||
+    snapshot?.active_template_id ||
+    snapshot?.settings?.active_template_id ||
+    snapshot?.settings?.template ||
+    'modern'
+  )
 }
 
 export function getPagesLayout(snapshot: any): Array<{ id: string; elements: string[] }> {
