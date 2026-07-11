@@ -29,7 +29,10 @@ export function ProposalViewer({ open, onOpenChange, proposal, negotiation }: an
         ) : (
           <>
             <div className="proposal-preview-wrapper flex-1 overflow-auto">
-              <div className="proposal-print-container bg-white mx-auto">
+              <div
+                className="proposal-print-container bg-white mx-auto"
+                style={{ margin: 0, padding: 0 }}
+              >
                 <ProposalDocument data={data} pagesLayout={pagesLayout} />
               </div>
             </div>

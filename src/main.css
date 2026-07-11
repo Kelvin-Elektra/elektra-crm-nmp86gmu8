@@ -153,7 +153,11 @@
   }
 
   @media print {
+    html,
     body {
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 210mm !important;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
       color-adjust: exact !important;
@@ -170,6 +174,11 @@
       display: block !important;
       background: transparent !important;
       pointer-events: none !important;
+      height: auto !important;
+      max-height: none !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
     }
     [data-sonner-toaster],
     [data-radix-toast-viewport] {
@@ -179,6 +188,7 @@
       position: static !important;
       inset: auto !important;
       transform: none !important;
+      display: block !important;
       max-width: none !important;
       width: 210mm !important;
       height: auto !important;
@@ -196,6 +206,9 @@
       width: 210mm !important;
       height: auto !important;
       max-height: none !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
       box-shadow: none !important;
       border: none !important;
       border-radius: 0 !important;
@@ -212,29 +225,43 @@
     }
     .proposal-a4-cover {
       overflow: hidden !important;
-      page-break-after: always !important;
-      break-after: page !important;
+      page-break-after: auto !important;
+      break-after: auto !important;
     }
     .proposal-print-container {
       width: 210mm !important;
       max-width: 210mm !important;
       min-width: 210mm !important;
+      margin: 0 !important;
+      padding: 0 !important;
       box-shadow: none !important;
       border: none !important;
       background: white !important;
     }
+    .proposal-document {
+      margin: 0 !important;
+      padding: 0 !important;
+    }
     .proposal-a4-page {
       width: 210mm !important;
+      height: 297mm !important;
       min-height: 297mm !important;
+      max-height: 297mm !important;
       margin: 0 !important;
+      padding: 0 !important;
       box-shadow: none !important;
-      overflow: visible !important;
-      page-break-after: always;
-      break-after: page;
-    }
-    .proposal-a4-page:last-child {
+      overflow: hidden !important;
       page-break-after: auto;
       break-after: auto;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .proposal-a4-page + .proposal-a4-page {
+      page-break-before: always;
+      break-before: page;
+    }
+    .proposal-a4-page:empty {
+      display: none !important;
     }
     .proposal-page {
       width: 180mm !important;
@@ -254,8 +281,8 @@
       min-height: 257mm !important;
       max-height: 257mm !important;
       overflow: hidden !important;
-      page-break-after: always;
-      break-after: page;
+      page-break-after: auto;
+      break-after: auto;
     }
     .proposal-no-break {
       break-inside: avoid;
@@ -301,6 +328,15 @@
     .proposal-investment-card {
       break-inside: avoid;
       page-break-inside: avoid;
+    }
+    .proposal-a4-page [class*='md:grid-cols-2'] {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+    .proposal-a4-page [class*='md:grid-cols-3'] {
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+    .proposal-a4-page [class*='md:grid-cols-4'] {
+      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
     }
     .proposal-financial-highlight {
       break-inside: avoid;

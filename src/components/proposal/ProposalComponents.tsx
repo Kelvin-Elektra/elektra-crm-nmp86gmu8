@@ -52,6 +52,7 @@ export function ProposalComponents({ data }: { data: ProposalPageData }) {
           <div
             key={card.title}
             className="proposal-no-break bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm flex gap-6 items-start"
+            style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
           >
             <div
               className="w-14 h-14 rounded-xl flex items-center justify-center text-white shrink-0"
@@ -77,7 +78,10 @@ export function ProposalComponents({ data }: { data: ProposalPageData }) {
           </div>
         ))}
       </div>
-      <div className="proposal-table proposal-no-break overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+      <div
+        className="proposal-table proposal-no-break overflow-hidden rounded-2xl border border-slate-200 shadow-sm"
+        style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
+      >
         <table className="w-full text-sm">
           <thead
             style={{
