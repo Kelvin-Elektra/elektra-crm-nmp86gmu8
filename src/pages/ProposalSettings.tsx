@@ -30,17 +30,15 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { ProposalViewer } from '@/components/ProposalViewer'
 
 const ELEMENTS = [
   { id: 'cover', label: 'Capa' },
-  { id: 'facade', label: 'Foto da Fachada' },
-  { id: 'technical', label: 'Dados Técnicos' },
-  { id: 'charts', label: 'Gráficos de Geração' },
-  { id: 'system', label: 'Sistema Proposto' },
+  { id: 'summary', label: 'Resumo & Consumo' },
+  { id: 'components', label: 'Componentes do Sistema' },
   { id: 'financial', label: 'Análise Financeira' },
-  { id: 'warranty', label: 'Garantias' },
-  { id: 'schedule', label: 'Cronograma' },
-  { id: 'terms', label: 'Termos e Condições' },
+  { id: 'execution', label: 'Execução & Garantias' },
+  { id: 'investment', label: 'Investimento & Termos' },
 ]
 
 export default function ProposalSettings() {
@@ -139,18 +137,22 @@ export default function ProposalSettings() {
         } else {
           setPagesLayout([
             { id: 'p1', elements: ['cover'] },
-            { id: 'p2', elements: ['technical', 'system'] },
-            { id: 'p3', elements: ['financial', 'charts'] },
-            { id: 'p4', elements: ['terms'] },
+            { id: 'p2', elements: ['summary'] },
+            { id: 'p3', elements: ['components'] },
+            { id: 'p4', elements: ['financial'] },
+            { id: 'p5', elements: ['execution'] },
+            { id: 'p6', elements: ['investment'] },
           ])
         }
       })
       .catch(() => {
         setPagesLayout([
           { id: 'p1', elements: ['cover'] },
-          { id: 'p2', elements: ['technical', 'system'] },
-          { id: 'p3', elements: ['financial', 'charts'] },
-          { id: 'p4', elements: ['terms'] },
+          { id: 'p2', elements: ['summary'] },
+          { id: 'p3', elements: ['components'] },
+          { id: 'p4', elements: ['financial'] },
+          { id: 'p5', elements: ['execution'] },
+          { id: 'p6', elements: ['investment'] },
         ])
       })
   }, [user])
