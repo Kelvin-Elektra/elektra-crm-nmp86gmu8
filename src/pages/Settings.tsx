@@ -143,8 +143,6 @@ export default function Settings() {
       await pb.collection('companies').update(company.id, {
         name: company.name,
         cnpj: company.cnpj || '',
-        installation_lead_time: company.installation_lead_time || '',
-        accepted_payment_methods: company.accepted_payment_methods || '',
       })
       toast({ title: 'Dados da empresa atualizados!' })
     } catch (err: any) {
@@ -396,32 +394,6 @@ export default function Settings() {
                       disabled={!isOwner}
                       placeholder="00.000.000/0000-00"
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Prazo de Instalação</Label>
-                    <Input
-                      value={company?.installation_lead_time || ''}
-                      onChange={(e) =>
-                        setCompany({ ...company, installation_lead_time: e.target.value })
-                      }
-                      disabled={!isOwner}
-                      placeholder="Ex: Até 30 dias após aprovação do projeto"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Formas de Pagamento Aceitas</Label>
-                    <Textarea
-                      value={company?.accepted_payment_methods || ''}
-                      onChange={(e) =>
-                        setCompany({ ...company, accepted_payment_methods: e.target.value })
-                      }
-                      disabled={!isOwner}
-                      placeholder="Ex: Entrada de 30% + 12x sem juros no cartão. PIX com 5% desconto."
-                      rows={3}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Este texto será usado como sugestão padrão ao gerar propostas.
-                    </p>
                   </div>
                   {isOwner && (
                     <Button onClick={handleUpdateCompany}>Salvar Dados da Empresa</Button>

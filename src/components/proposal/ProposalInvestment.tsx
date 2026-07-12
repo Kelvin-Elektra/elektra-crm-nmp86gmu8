@@ -1,10 +1,37 @@
+import { useEffect } from 'react'
 import { format } from 'date-fns'
 import { Calendar, Clock, CreditCard, Wallet } from 'lucide-react'
 import { BRL, parseSnapshot, type ProposalPageData } from './proposal-utils'
 
+function parsePaymentMethods(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw.filter((m: any) => typeof m === 'string' && m.trim() !== '')
+  if (typeof raw === 'string' && raw.trim()) {
+    return raw
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean)
+  }
+  return []
+}
+
 export function ProposalInvestment({ data }: { data: ProposalPageData }) {
-  const { proposal, branding, company, sizing } = data
+  const { proposal, branding, company, sizing, negotiation, lead } = data
   const snapshot = parseSnapshot(proposal)
+
+  useEffect(() => {
+    const beforePrint = () => {
+      document.title = `Proposta Fotovoltaica - ${lead?.name || 'Cliente'}`
+    }
+    const afterPrint = () => {
+      document.title = 'Elektra CRM'
+    }
+    window.addEventListener('beforeprint', beforePrint)
+    window.addEventListener('afterprint', afterPrint)
+    return () => {
+      window.removeEventListener('beforeprint', beforePrint)
+      window.removeEventListener('afterprint', afterPrint)
+    }
+  }, [lead?.name])
 
   const totalValue = proposal?.total_value || proposal?.price || 0
   const discount = proposal?.discount_amount || 0
@@ -17,15 +44,13 @@ export function ProposalInvestment({ data }: { data: ProposalPageData }) {
 
   const paymentTerms = proposal?.payment_terms || ''
   const definedPaymentMethod = snapshot?.defined_payment_method || ''
-  const installationLeadTime =
-    snapshot?.installation_lead_time || company?.installation_lead_time || ''
-  const acceptedPaymentMethods =
-    snapshot?.accepted_payment_methods || company?.accepted_payment_methods || ''
+  const installationLeadTime = snapshot?.installation_lead_time || ''
+  const acceptedPaymentMethodsList = parsePaymentMethods(snapshot?.accepted_payment_methods)
 
-  const estMonthlyGen = sizing?.estimated_monthly_generation || 0
-  const kwp = Number(sizing?.kit_power_kwp) || 0
-
-  const hasPaymentInfo = paymentTerms.trim() !== '' || definedPaymentMethod.trim() !== ''
+  const liveSizing = negotiation?.sizing || sizing || {}
+  const estMonthlyGen =
+    liveSizing?.estimated_monthly_generation || sizing?.estimated_monthly_generation || 0
+  const kwp = Number(liveSizing?.kit_power_kwp || sizing?.kit_power_kwp) || 0
 
   return (
     <div className="p-[15mm] space-y-8">
@@ -92,39 +117,46 @@ export function ProposalInvestment({ data }: { data: ProposalPageData }) {
             Pagamento
           </h3>
         </div>
-        <div className="p-6">
-          {hasPaymentInfo ? (
-            <div className="space-y-3">
-              {definedPaymentMethod.trim() !== '' && (
-                <div>
-                  <span className="text-sm text-slate-500 block mb-1">
-                    Forma de Pagamento Definida:
-                  </span>
-                  <p className="font-medium text-slate-800">{definedPaymentMethod}</p>
-                </div>
-              )}
-              {paymentTerms.trim() !== '' && (
-                <div>
-                  <span className="text-sm text-slate-500 block mb-1">Condições:</span>
-                  <p className="text-slate-700 whitespace-pre-wrap">{paymentTerms}</p>
-                </div>
-              )}
-              {acceptedPaymentMethods.trim() !== '' && (
-                <div
-                  className="pt-2 border-t"
-                  style={{ borderColor: branding.primaryColor + '10' }}
-                >
-                  <span className="text-sm text-slate-500 block mb-1">
-                    Formas de Pagamento Aceitas:
-                  </span>
-                  <p className="text-sm text-slate-600 whitespace-pre-wrap">
-                    {acceptedPaymentMethods}
-                  </p>
-                </div>
-              )}
+        <div className="p-6 space-y-3">
+          {definedPaymentMethod.trim() !== '' && (
+            <div>
+              <span className="text-sm text-slate-500 block mb-1">
+                Forma de Pagamento Definida:
+              </span>
+              <p className="font-medium text-slate-800">{definedPaymentMethod}</p>
             </div>
-          ) : (
-            <div className="min-h-[60px] border border-dashed border-slate-300 rounded-lg" />
+          )}
+
+          {definedPaymentMethod.trim() === '' && (
+            <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 min-h-[80px]">
+              <p className="text-xs text-slate-400 mb-3">
+                Forma de Pagamento (preencher manualmente):
+              </p>
+              <div className="space-y-4">
+                <div className="border-b border-slate-300" style={{ minHeight: '1.5rem' }} />
+                <div className="border-b border-slate-300" style={{ minHeight: '1.5rem' }} />
+              </div>
+            </div>
+          )}
+
+          {paymentTerms.trim() !== '' && (
+            <div>
+              <span className="text-sm text-slate-500 block mb-1">Condições:</span>
+              <p className="text-slate-700 whitespace-pre-wrap">{paymentTerms}</p>
+            </div>
+          )}
+
+          {acceptedPaymentMethodsList.length > 0 && (
+            <div className="pt-2 border-t" style={{ borderColor: branding.primaryColor + '10' }}>
+              <span className="text-sm text-slate-500 block mb-1">
+                Formas de Pagamento Aceitas:
+              </span>
+              <ul className="text-sm text-slate-600 space-y-1">
+                {acceptedPaymentMethodsList.map((m, i) => (
+                  <li key={i}>• {m}</li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       </div>

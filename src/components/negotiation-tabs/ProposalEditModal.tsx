@@ -15,13 +15,27 @@ import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
+import { createProposalHistory } from '@/services/proposal-history'
+import { Plus, Trash2 } from 'lucide-react'
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+
+function parsePaymentMethods(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw.filter((m: any) => typeof m === 'string' && m.trim() !== '')
+  if (typeof raw === 'string' && raw.trim()) {
+    return raw
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean)
+  }
+  return []
+}
 
 export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any) {
   const { toast } = useToast()
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
+  const [newMethod, setNewMethod] = useState('')
 
   const isAdmin =
     user?.role === 'User_elektra' || user?.role_company === 'admin' || user?.role === 'User_owner'
@@ -37,7 +51,6 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
   }, [proposal])
 
   const marginSum = snapshot?.pricing?.marginSum || 0
-
   const storedDiscount = proposal?.discount_amount || 0
   const storedTotal = proposal?.total_value || proposal?.price || 0
   const subtotal = storedDiscount > 0 ? storedTotal / (1 - storedDiscount / 100) : storedTotal
@@ -51,8 +64,8 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
   const [installationLeadTime, setInstallationLeadTime] = useState(
     snapshot?.installation_lead_time || '',
   )
-  const [acceptedPaymentMethods, setAcceptedPaymentMethods] = useState(
-    snapshot?.accepted_payment_methods || '',
+  const [paymentMethods, setPaymentMethods] = useState<string[]>(
+    parsePaymentMethods(snapshot?.accepted_payment_methods),
   )
   const [definedPaymentMethod, setDefinedPaymentMethod] = useState(
     snapshot?.defined_payment_method || '',
@@ -60,24 +73,31 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
 
   const discountValue = subtotal * (discountPercent / 100)
   const finalTotal = subtotal - discountValue
-
   const originalMarginAmount = subtotal * marginSum
   const adjustedMarginAmount = originalMarginAmount - discountValue
   const adjustedMarginPct = Math.max(0, marginSum * 100 - discountPercent)
   const maxDiscount = (user as any)?.max_discount || 0
   const discountExceeded = discountPercent > maxDiscount
 
-  const handleSave = async () => {
-    if (discountExceeded) {
-      return
-    }
+  const addPaymentMethod = () => {
+    const val = newMethod.trim()
+    if (!val) return
+    setPaymentMethods([...paymentMethods, val])
+    setNewMethod('')
+  }
 
+  const removePaymentMethod = (idx: number) => {
+    setPaymentMethods(paymentMethods.filter((_, i) => i !== idx))
+  }
+
+  const handleSave = async () => {
+    if (discountExceeded) return
     setLoading(true)
     try {
       const updatedSnapshot = {
         ...snapshot,
         installation_lead_time: installationLeadTime,
-        accepted_payment_methods: acceptedPaymentMethods,
+        accepted_payment_methods: paymentMethods.filter((m) => m.trim() !== ''),
         defined_payment_method: definedPaymentMethod,
       }
       await pb.collection('proposals').update(proposal.id, {
@@ -89,6 +109,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
         validity_date: validityDate ? new Date(validityDate).toISOString() : null,
         snapshot_data: updatedSnapshot,
       })
+      await createProposalHistory(proposal.id, updatedSnapshot)
       toast({ title: 'Proposta atualizada' })
       reload()
       onOpenChange(false)
@@ -101,7 +122,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Editar Proposta</DialogTitle>
           <VisuallyHidden>
@@ -188,20 +209,55 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           <div className="space-y-2">
             <Label>Prazo de Instalação</Label>
             <Input
-              placeholder="Ex: Até 30 dias após aprovação do projeto"
+              placeholder="Ex: 30 dias"
               value={installationLeadTime}
               onChange={(e) => setInstallationLeadTime(e.target.value)}
             />
           </div>
+
           <div className="space-y-2">
             <Label>Formas de Pagamento Aceitas</Label>
-            <Textarea
-              rows={2}
-              placeholder="Ex: Entrada de 30% + 12x sem juros no cartão. PIX com 5% desconto."
-              value={acceptedPaymentMethods}
-              onChange={(e) => setAcceptedPaymentMethods(e.target.value)}
-            />
+            <div className="space-y-2">
+              {paymentMethods.map((method, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <Input
+                    value={method}
+                    onChange={(e) => {
+                      const newList = [...paymentMethods]
+                      newList[idx] = e.target.value
+                      setPaymentMethods(newList)
+                    }}
+                    placeholder="Ex: PIX com 5% desconto"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    type="button"
+                    onClick={() => removePaymentMethod(idx)}
+                  >
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
+              ))}
+              <div className="flex gap-2">
+                <Input
+                  value={newMethod}
+                  onChange={(e) => setNewMethod(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      addPaymentMethod()
+                    }
+                  }}
+                  placeholder="Adicionar forma de pagamento..."
+                />
+                <Button variant="outline" size="icon" type="button" onClick={addPaymentMethod}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </div>
+
           <div className="space-y-2">
             <Label>Observações</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
