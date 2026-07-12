@@ -16,7 +16,7 @@ export function ProposalFinancial({ data }: { data: ProposalPageData }) {
   const cons = Number(negotiation?.avg_consumption || 0)
   const kwp = Number(sizing?.kit_power_kwp || 0)
   const hsp = hspData?.annual_avg || 4.94
-  const estMonthlyGen = fp?.estMonthlyGen || kwp * hsp * 30 * 0.77
+  const estMonthlyGen = sizing?.estimated_monthly_generation || fp?.estMonthlyGen || 0
   const totalInv = proposal?.total_value || proposal?.price || kwp * 3500
   const currentBill = fp?.currentMonthlyCost ?? cons * 0.9
   const futureBill = fp?.futureMonthlyBill ?? cons * 0.1

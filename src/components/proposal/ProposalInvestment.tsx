@@ -49,7 +49,7 @@ export function ProposalInvestment({ data }: { data: ProposalPageData }) {
         ) : null}
       </div>
 
-      {proposal?.payment_terms && (
+      {proposal?.payment_terms && proposal.payment_terms.trim() !== '' && (
         <div className="proposal-no-break bg-slate-50 p-6 rounded-2xl border border-slate-200">
           <h3 className="font-bold text-lg mb-3 text-slate-800">Condições de Pagamento</h3>
           <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
@@ -79,12 +79,17 @@ export function ProposalInvestment({ data }: { data: ProposalPageData }) {
           </div>
           <div className="proposal-no-break">
             <h4 className="font-semibold text-slate-700 mb-1">Prazo de Instalação</h4>
-            <p>Até 30 dias após a aprovação do projeto e disponibilidade dos materiais.</p>
+            <p>
+              {company?.installation_lead_time ||
+                'Até 30 dias após a aprovação do projeto e disponibilidade dos materiais.'}
+            </p>
           </div>
-          <div className="proposal-no-break">
-            <h4 className="font-semibold text-slate-700 mb-1">Pagamento</h4>
-            <p>{proposal?.payment_terms || 'Conforme condição acima.'}</p>
-          </div>
+          {proposal?.payment_terms && (
+            <div className="proposal-no-break">
+              <h4 className="font-semibold text-slate-700 mb-1">Pagamento</h4>
+              <p>{proposal.payment_terms}</p>
+            </div>
+          )}
         </div>
         <div className="pt-4 border-t text-center">
           <p className="text-xs text-slate-400">

@@ -19,6 +19,7 @@ export const Collections = {
   SYSTEM_SETTINGS: 'system_settings',
   PV_EFFICIENCY_RULES: 'pv_efficiency_rules',
   CEP_CACHE: 'cep_cache',
+  PROPOSAL_HISTORY: 'proposal_history',
 } as const
 
 export type CollectionName = (typeof Collections)[keyof typeof Collections]

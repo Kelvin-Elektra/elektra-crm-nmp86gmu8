@@ -46,6 +46,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
 
   const [pricingMode, setPricingMode] = useState<'automatic' | 'manual'>('automatic')
   const [manualKitValue, setManualKitValue] = useState<number>(0)
+  const [companyPaymentMethods, setCompanyPaymentMethods] = useState('')
 
   useEffect(() => {
     if (open && step === 1) {
@@ -158,6 +159,13 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         .collection('proposal_settings')
         .getFirstListItem(`company_id='${companyId}'`)
         .catch(() => ({}))
+      const companyRec = await pb
+        .collection('companies')
+        .getOne(companyId)
+        .catch(() => null)
+      if (companyRec) {
+        setCompanyPaymentMethods(companyRec.accepted_payment_methods || '')
+      }
       const allCosts = await pb
         .collection('pv_costs')
         .getFullList({ filter: `company_id='${companyId}'` })
@@ -329,11 +337,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
       const consumerCategory = neg.sizing?.consumer_category || ''
       const simultaneityFactor =
         neg.sizing?.simultaneity_factor ?? DEFAULT_SIMULTANEITY_FACTORS[consumerCategory] ?? 30
-      const estMonthlyGenRough =
-        (Number(neg.sizing?.kit_power_kwp) || 0) *
-        4.94 *
-        30 *
-        (1 - (Number(neg.sizing?.losses) || 23) / 100)
+      const estMonthlyGenRough = Number(neg.sizing?.estimated_monthly_generation) || 0
       const tariffDetails = await fetchTariffDetails(neg.utility_id, consumerCategory)
       const financialProjection = calculateFinancialProjection({
         avgConsumption: neg.avg_consumption || 0,
@@ -613,7 +617,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
             <div className="space-y-2">
               <Label>Condições de Pagamento</Label>
               <Input
-                placeholder="Ex: Entrada de 30% + 12x sem juros"
+                placeholder={companyPaymentMethods || 'Ex: Entrada de 30% + 12x sem juros'}
                 value={paymentTerms}
                 onChange={(e) => setPaymentTerms(e.target.value)}
               />

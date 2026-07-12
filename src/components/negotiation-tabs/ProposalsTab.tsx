@@ -1,7 +1,17 @@
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, Eye, DollarSign, FileText, Trash2, ThumbsUp, ThumbsDown, Pencil } from 'lucide-react'
+import {
+  Plus,
+  Eye,
+  DollarSign,
+  FileText,
+  Trash2,
+  ThumbsUp,
+  ThumbsDown,
+  Pencil,
+  History,
+} from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -18,6 +28,7 @@ import { ProposalViewer } from '../ProposalViewer'
 import { ProposalCostModal } from './ProposalCostModal'
 import { ProposalWizardModal } from './ProposalWizardModal'
 import { ProposalEditModal } from './ProposalEditModal'
+import { ProposalHistoryDialog } from './ProposalHistoryDialog'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -31,6 +42,7 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
   const [wizardOpen, setWizardOpen] = useState(false)
   const [closeSaleModal, setCloseSaleModal] = useState<any>(null)
   const [editModalOpen, setEditModalOpen] = useState<any>(null)
+  const [historyOpen, setHistoryOpen] = useState<any>(null)
   const [closingDate, setClosingDate] = useState(format(new Date(), 'yyyy-MM-dd'))
 
   const handleConfirmSale = async () => {
@@ -187,6 +199,14 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
                   <Button
                     variant="ghost"
                     size="sm"
+                    onClick={() => setHistoryOpen(p)}
+                    title="Histórico de Alterações"
+                  >
+                    <History className="h-4 w-4 mr-2 text-muted-foreground" /> Histórico
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleDelete(p.id)}
                     className="text-destructive hover:bg-destructive/10"
                   >
@@ -234,6 +254,14 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
           onOpenChange={(v: boolean) => !v && setEditModalOpen(null)}
           proposal={editModalOpen}
           reload={reload}
+        />
+      )}
+
+      {historyOpen && (
+        <ProposalHistoryDialog
+          open={!!historyOpen}
+          onOpenChange={(v: boolean) => !v && setHistoryOpen(null)}
+          proposalId={historyOpen.id}
         />
       )}
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Loader2, AlertCircle } from 'lucide-react'
@@ -9,6 +9,16 @@ export function ProposalViewer({ open, onOpenChange, proposal, negotiation }: an
   const { data, pagesLayout, loading, snapshotReady } = useProposalData(proposal, negotiation, open)
   const [printWarning, setPrintWarning] = useState(false)
 
+  useEffect(() => {
+    if (open && data.lead?.name) {
+      const originalTitle = document.title
+      document.title = `Proposta Fotovoltaica - ${data.lead.name}`
+      return () => {
+        document.title = originalTitle
+      }
+    }
+  }, [open, data.lead?.name])
+
   const handlePrint = () => {
     if (!snapshotReady || loading) {
       setPrintWarning(true)
@@ -16,6 +26,8 @@ export function ProposalViewer({ open, onOpenChange, proposal, negotiation }: an
       return
     }
     setPrintWarning(false)
+    const leadName = data.lead?.name || 'Cliente'
+    document.title = `Proposta Fotovoltaica - ${leadName}`
     window.print()
   }
 
