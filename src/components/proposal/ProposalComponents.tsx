@@ -32,10 +32,7 @@ export function ProposalComponents({ data }: { data: ProposalPageData }) {
     {
       icon: Wrench,
       title: 'Estrutura de Fixação',
-      details: [
-        { label: 'Tipo', value: installationName || sizing?.roof_type || 'N/A' },
-        { label: 'Inclinação', value: sizing?.tilt ? `${sizing.tilt}°` : 'N/A' },
-      ],
+      details: [{ label: 'Tipo', value: installationName || sizing?.roof_type || 'N/A' }],
     },
   ]
 

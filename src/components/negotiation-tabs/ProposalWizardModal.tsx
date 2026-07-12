@@ -47,6 +47,10 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
   const [pricingMode, setPricingMode] = useState<'automatic' | 'manual'>('automatic')
   const [manualKitValue, setManualKitValue] = useState<number>(0)
   const [companyPaymentMethods, setCompanyPaymentMethods] = useState('')
+  const [companyLeadTime, setCompanyLeadTime] = useState('')
+  const [installationLeadTime, setInstallationLeadTime] = useState('')
+  const [acceptedPaymentMethods, setAcceptedPaymentMethods] = useState('')
+  const [definedPaymentMethod, setDefinedPaymentMethod] = useState('')
 
   useEffect(() => {
     if (open && step === 1) {
@@ -165,6 +169,9 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         .catch(() => null)
       if (companyRec) {
         setCompanyPaymentMethods(companyRec.accepted_payment_methods || '')
+        setAcceptedPaymentMethods(companyRec.accepted_payment_methods || '')
+        setCompanyLeadTime(companyRec.installation_lead_time || '')
+        setInstallationLeadTime(companyRec.installation_lead_time || '')
       }
       const allCosts = await pb
         .collection('pv_costs')
@@ -351,6 +358,9 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
       const snapshotData = {
         sizing: neg.sizing || {},
         pricing: pricingDetails,
+        installation_lead_time: installationLeadTime,
+        accepted_payment_methods: acceptedPaymentMethods,
+        defined_payment_method: definedPaymentMethod,
         financialProjection: {
           consumerCategory,
           simultaneityFactor,
@@ -620,6 +630,31 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
                 placeholder={companyPaymentMethods || 'Ex: Entrada de 30% + 12x sem juros'}
                 value={paymentTerms}
                 onChange={(e) => setPaymentTerms(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Forma de Pagamento Definida</Label>
+              <Input
+                placeholder="Ex: PIX, Boleto, Cartão de Crédito"
+                value={definedPaymentMethod}
+                onChange={(e) => setDefinedPaymentMethod(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Prazo de Instalação</Label>
+              <Input
+                placeholder="Ex: Até 30 dias após aprovação do projeto"
+                value={installationLeadTime}
+                onChange={(e) => setInstallationLeadTime(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Formas de Pagamento Aceitas</Label>
+              <Textarea
+                rows={2}
+                placeholder="Ex: Entrada de 30% + 12x sem juros no cartão. PIX com 5% desconto."
+                value={acceptedPaymentMethods}
+                onChange={(e) => setAcceptedPaymentMethods(e.target.value)}
               />
             </div>
             <div className="space-y-2">

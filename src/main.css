@@ -314,6 +314,13 @@
       font-size: 16pt !important;
       padding-bottom: 3mm !important;
       margin-bottom: 6mm !important;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+    .proposal-a4-page .proposal-section-title + div,
+    .proposal-a4-page .proposal-section-title + .proposal-no-break {
+      break-before: avoid;
+      page-break-before: avoid;
     }
     .proposal-card {
       padding: 6mm !important;

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
@@ -98,7 +99,6 @@ export default function ProposalSettings() {
       kit_power_kwp: 7.2,
       module_qty: 14,
       installation_type: 'Telhado Cerâmico',
-      tilt: 25,
       inverters: [],
     },
   }
@@ -150,6 +150,8 @@ export default function ProposalSettings() {
   const [livePreviewOpen, setLivePreviewOpen] = useState<number | null>(null)
   const [companyData, setCompanyData] = useState<any>(null)
   const [cnpj, setCnpj] = useState('')
+  const [leadTime, setLeadTime] = useState('')
+  const [paymentMethods, setPaymentMethods] = useState('')
 
   const isAdmin =
     user?.role === 'User_elektra' || user?.role_company === 'admin' || user?.role === 'User_owner'
@@ -161,6 +163,8 @@ export default function ProposalSettings() {
       .then((comp) => {
         setCompanyData(comp)
         setCnpj(maskCPF(comp.cnpj || ''))
+        setLeadTime(comp.installation_lead_time || '')
+        setPaymentMethods(comp.accepted_payment_methods || '')
       })
       .catch(() => {})
     pb.collection('proposal_settings')
@@ -264,6 +268,24 @@ export default function ProposalSettings() {
         variant: 'destructive',
         title: 'Erro',
         description: 'Não foi possível salvar o CNPJ.',
+      })
+    }
+  }
+
+  const handleSaveCompanyInfo = async () => {
+    if (!user?.company_id) return
+    try {
+      const updated = await pb.collection('companies').update(user.company_id, {
+        installation_lead_time: leadTime,
+        accepted_payment_methods: paymentMethods,
+      })
+      setCompanyData(updated)
+      toast({ title: 'Sucesso', description: 'Dados da empresa salvos.' })
+    } catch {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Não foi possível salvar os dados.',
       })
     }
   }
@@ -641,6 +663,31 @@ export default function ProposalSettings() {
               <Button onClick={handleSaveCnpj} className="w-full">
                 <Save className="mr-2 h-4 w-4" /> Salvar CNPJ
               </Button>
+              <div className="pt-4 border-t space-y-4">
+                <div className="space-y-2">
+                  <Label>Prazo de Instalação</Label>
+                  <Input
+                    value={leadTime}
+                    onChange={(e) => setLeadTime(e.target.value)}
+                    placeholder="Ex: Até 30 dias após aprovação do projeto"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Formas de Pagamento Aceitas</Label>
+                  <Textarea
+                    rows={3}
+                    value={paymentMethods}
+                    onChange={(e) => setPaymentMethods(e.target.value)}
+                    placeholder="Ex: Entrada de 30% + 12x sem juros no cartão. PIX com 5% desconto."
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Estes dados serão usados como sugestão padrão ao gerar propostas.
+                  </p>
+                </div>
+                <Button onClick={handleSaveCompanyInfo} className="w-full">
+                  <Save className="mr-2 h-4 w-4" /> Salvar Dados da Empresa
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

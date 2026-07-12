@@ -48,6 +48,15 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
   const [validityDate, setValidityDate] = useState(
     proposal?.validity_date ? new Date(proposal.validity_date).toISOString().split('T')[0] : '',
   )
+  const [installationLeadTime, setInstallationLeadTime] = useState(
+    snapshot?.installation_lead_time || '',
+  )
+  const [acceptedPaymentMethods, setAcceptedPaymentMethods] = useState(
+    snapshot?.accepted_payment_methods || '',
+  )
+  const [definedPaymentMethod, setDefinedPaymentMethod] = useState(
+    snapshot?.defined_payment_method || '',
+  )
 
   const discountValue = subtotal * (discountPercent / 100)
   const finalTotal = subtotal - discountValue
@@ -65,6 +74,12 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
 
     setLoading(true)
     try {
+      const updatedSnapshot = {
+        ...snapshot,
+        installation_lead_time: installationLeadTime,
+        accepted_payment_methods: acceptedPaymentMethods,
+        defined_payment_method: definedPaymentMethod,
+      }
       await pb.collection('proposals').update(proposal.id, {
         discount_amount: discountPercent,
         total_value: finalTotal,
@@ -72,6 +87,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
         payment_terms: paymentTerms,
         notes: notes,
         validity_date: validityDate ? new Date(validityDate).toISOString() : null,
+        snapshot_data: updatedSnapshot,
       })
       toast({ title: 'Proposta atualizada' })
       reload()
@@ -160,6 +176,31 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           <div className="space-y-2">
             <Label>Condições de Pagamento</Label>
             <Textarea value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>Forma de Pagamento Definida</Label>
+            <Input
+              placeholder="Ex: PIX, Boleto, Cartão de Crédito"
+              value={definedPaymentMethod}
+              onChange={(e) => setDefinedPaymentMethod(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Prazo de Instalação</Label>
+            <Input
+              placeholder="Ex: Até 30 dias após aprovação do projeto"
+              value={installationLeadTime}
+              onChange={(e) => setInstallationLeadTime(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Formas de Pagamento Aceitas</Label>
+            <Textarea
+              rows={2}
+              placeholder="Ex: Entrada de 30% + 12x sem juros no cartão. PIX com 5% desconto."
+              value={acceptedPaymentMethods}
+              onChange={(e) => setAcceptedPaymentMethods(e.target.value)}
+            />
           </div>
           <div className="space-y-2">
             <Label>Observações</Label>
