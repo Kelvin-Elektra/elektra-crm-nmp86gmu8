@@ -163,16 +163,21 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         .collection('proposal_settings')
         .getFirstListItem(`company_id='${companyId}'`)
         .catch(() => ({}))
-      const companyRec = await pb
-        .collection('companies')
-        .getOne(companyId)
-        .catch(() => null)
-      if (companyRec) {
-        setCompanyPaymentMethods(companyRec.accepted_payment_methods || '')
-        setAcceptedPaymentMethods(companyRec.accepted_payment_methods || '')
-        setCompanyLeadTime(companyRec.installation_lead_time || '')
-        setInstallationLeadTime(companyRec.installation_lead_time || '')
+      const paymentMethodsList = Array.isArray(settings.default_payment_methods)
+        ? settings.default_payment_methods
+        : []
+      const paymentMethodsStr = paymentMethodsList.filter((m: string) => m && m.trim()).join('\n')
+      setCompanyPaymentMethods(paymentMethodsStr)
+      setAcceptedPaymentMethods(paymentMethodsStr)
+
+      const leadTimeDays = settings.default_lead_time_days
+      const leadTimeText = settings.default_lead_time_text || ''
+      let leadTimeCombined = leadTimeText
+      if (leadTimeDays && Number(leadTimeDays) > 0) {
+        leadTimeCombined = `${leadTimeDays} dias ${leadTimeText}`.trim()
       }
+      setCompanyLeadTime(leadTimeCombined)
+      setInstallationLeadTime(leadTimeCombined)
       const allCosts = await pb
         .collection('pv_costs')
         .getFullList({ filter: `company_id='${companyId}'` })

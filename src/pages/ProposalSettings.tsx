@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
+
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
@@ -33,7 +33,6 @@ import {
 } from '@/components/ui/dialog'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { ProposalViewer } from '@/components/ProposalViewer'
-import { maskCPF, unmask } from '@/lib/masks'
 
 const ELEMENTS = [
   { id: 'cover', label: 'Capa' },
@@ -148,25 +147,15 @@ export default function ProposalSettings() {
   }
   const [brandingModalOpen, setBrandingModalOpen] = useState(false)
   const [livePreviewOpen, setLivePreviewOpen] = useState<number | null>(null)
-  const [companyData, setCompanyData] = useState<any>(null)
-  const [cnpj, setCnpj] = useState('')
-  const [leadTime, setLeadTime] = useState('')
-  const [paymentMethods, setPaymentMethods] = useState('')
+  const [defaultLeadTimeDays, setDefaultLeadTimeDays] = useState<string>('')
+  const [defaultLeadTimeText, setDefaultLeadTimeText] = useState<string>('')
+  const [defaultPaymentMethods, setDefaultPaymentMethods] = useState<string[]>([])
 
   const isAdmin =
     user?.role === 'User_elektra' || user?.role_company === 'admin' || user?.role === 'User_owner'
 
   useEffect(() => {
     if (!user?.company_id) return
-    pb.collection('companies')
-      .getOne(user.company_id)
-      .then((comp) => {
-        setCompanyData(comp)
-        setCnpj(maskCPF(comp.cnpj || ''))
-        setLeadTime(comp.installation_lead_time || '')
-        setPaymentMethods(comp.accepted_payment_methods || '')
-      })
-      .catch(() => {})
     pb.collection('proposal_settings')
       .getFirstListItem(`company_id = '${user.company_id}'`)
       .then((record) => {
@@ -184,6 +173,16 @@ export default function ProposalSettings() {
             Rural: String(factors.Rural ?? '40'),
             Outros: String(factors.Outros ?? '35'),
           })
+        }
+
+        if (record.default_lead_time_days != null) {
+          setDefaultLeadTimeDays(String(record.default_lead_time_days))
+        }
+        if (record.default_lead_time_text) {
+          setDefaultLeadTimeText(record.default_lead_time_text)
+        }
+        if (Array.isArray(record.default_payment_methods)) {
+          setDefaultPaymentMethods(record.default_payment_methods)
         }
 
         if (
@@ -239,6 +238,9 @@ export default function ProposalSettings() {
         branding,
         pages_layout: pagesLayout,
         pricing,
+        default_lead_time_days: Number(defaultLeadTimeDays) || 0,
+        default_lead_time_text: defaultLeadTimeText,
+        default_payment_methods: defaultPaymentMethods.filter((m) => m.trim() !== ''),
       }
       if (settingsId) {
         await pb.collection('proposal_settings').update(settingsId, data)
@@ -252,41 +254,6 @@ export default function ProposalSettings() {
       toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível salvar.' })
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleSaveCnpj = async () => {
-    if (!user?.company_id) return
-    try {
-      const updated = await pb.collection('companies').update(user.company_id, {
-        cnpj: unmask(cnpj),
-      })
-      setCompanyData(updated)
-      toast({ title: 'Sucesso', description: 'CNPJ salvo com sucesso.' })
-    } catch {
-      toast({
-        variant: 'destructive',
-        title: 'Erro',
-        description: 'Não foi possível salvar o CNPJ.',
-      })
-    }
-  }
-
-  const handleSaveCompanyInfo = async () => {
-    if (!user?.company_id) return
-    try {
-      const updated = await pb.collection('companies').update(user.company_id, {
-        installation_lead_time: leadTime,
-        accepted_payment_methods: paymentMethods,
-      })
-      setCompanyData(updated)
-      toast({ title: 'Sucesso', description: 'Dados da empresa salvos.' })
-    } catch {
-      toast({
-        variant: 'destructive',
-        title: 'Erro',
-        description: 'Não foi possível salvar os dados.',
-      })
     }
   }
 
@@ -629,64 +596,91 @@ export default function ProposalSettings() {
         <TabsContent value="empresa" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Dados da Empresa</CardTitle>
+              <CardTitle>Padrões de Proposta</CardTitle>
               <CardDescription>
-                Informações da empresa exibidas nas propostas comerciais.
+                Defina os valores padrão que serão utilizados ao gerar novas propostas comerciais.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6 max-w-md">
-              {companyData?.logo ? (
-                <div className="flex flex-col items-center gap-2">
-                  <img
-                    src={pb.files.getURL(companyData, companyData.logo)}
-                    alt="Logo da Empresa"
-                    className="h-24 object-contain border rounded-lg p-2 bg-white"
-                  />
-                  <span className="text-xs text-muted-foreground">Logo atual da empresa</span>
+            <CardContent className="space-y-6 max-w-lg">
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-semibold text-sm mb-3">Prazo de Instalação Padrão</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-2">
+                      <Label>Prazo (dias)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={defaultLeadTimeDays}
+                        onChange={(e) => setDefaultLeadTimeDays(e.target.value)}
+                        placeholder="30"
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label>Descrição do prazo</Label>
+                      <Input
+                        value={defaultLeadTimeText}
+                        onChange={(e) => setDefaultLeadTimeText(e.target.value)}
+                        placeholder="Ex: após assinatura do contrato"
+                      />
+                    </div>
+                  </div>
                 </div>
-              ) : (
-                <div className="flex flex-col items-center gap-2 p-6 border-2 border-dashed rounded-lg text-muted-foreground">
-                  <Building2 className="h-8 w-8" />
-                  <span className="text-sm">Nenhum logo cadastrado</span>
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label>CNPJ</Label>
-                <Input
-                  value={cnpj}
-                  onChange={(e) => setCnpj(maskCPF(e.target.value))}
-                  placeholder="00.000.000/0000-00"
-                  maxLength={18}
-                />
-                <p className="text-xs text-muted-foreground">Formato: 00.000.000/0000-00</p>
               </div>
-              <Button onClick={handleSaveCnpj} className="w-full">
-                <Save className="mr-2 h-4 w-4" /> Salvar CNPJ
-              </Button>
+
               <div className="pt-4 border-t space-y-4">
-                <div className="space-y-2">
-                  <Label>Prazo de Instalação</Label>
-                  <Input
-                    value={leadTime}
-                    onChange={(e) => setLeadTime(e.target.value)}
-                    placeholder="Ex: Até 30 dias após aprovação do projeto"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Formas de Pagamento Aceitas</Label>
-                  <Textarea
-                    rows={3}
-                    value={paymentMethods}
-                    onChange={(e) => setPaymentMethods(e.target.value)}
-                    placeholder="Ex: Entrada de 30% + 12x sem juros no cartão. PIX com 5% desconto."
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Estes dados serão usados como sugestão padrão ao gerar propostas.
+                <div>
+                  <h4 className="font-semibold text-sm mb-1">Formas de Pagamento Aceitas</h4>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Estas formas aparecerão como sugestão padrão ao gerar propostas.
                   </p>
                 </div>
-                <Button onClick={handleSaveCompanyInfo} className="w-full">
-                  <Save className="mr-2 h-4 w-4" /> Salvar Dados da Empresa
-                </Button>
+                <div className="space-y-2">
+                  {defaultPaymentMethods.length === 0 && (
+                    <p className="text-sm text-muted-foreground italic py-2">
+                      Nenhuma forma de pagamento cadastrada.
+                    </p>
+                  )}
+                  {defaultPaymentMethods.map((method, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Input
+                        value={method}
+                        onChange={(e) => {
+                          const updated = [...defaultPaymentMethods]
+                          updated[idx] = e.target.value
+                          setDefaultPaymentMethods(updated)
+                        }}
+                        placeholder={`Forma ${idx + 1}`}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:bg-destructive/10 shrink-0"
+                        onClick={() => {
+                          setDefaultPaymentMethods(
+                            defaultPaymentMethods.filter((_, i) => i !== idx),
+                          )
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    variant="outline"
+                    className="w-full border-dashed"
+                    onClick={() => setDefaultPaymentMethods([...defaultPaymentMethods, ''])}
+                  >
+                    <Plus className="mr-2 h-4 w-4" /> Adicionar Forma de Pagamento
+                  </Button>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t">
+                <p className="text-xs text-muted-foreground">
+                  Use o botão "Salvar Alterações" no topo da página para persistir estas
+                  configurações.
+                </p>
               </div>
             </CardContent>
           </Card>

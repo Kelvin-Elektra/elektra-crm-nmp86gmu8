@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-12T01:23:05.402Z",
+  "generatedAt": "2026-07-16T02:13:32.147Z",
   "collections": [
     {
       "name": "users",
@@ -836,6 +836,24 @@
         {
           "name": "tax2_weight",
           "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "default_lead_time_days",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "default_lead_time_text",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "default_payment_methods",
+          "type": "json",
           "required": false,
           "system": false
         }
