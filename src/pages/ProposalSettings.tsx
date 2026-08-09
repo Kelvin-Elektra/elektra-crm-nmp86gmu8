@@ -1,28 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Navigate } from 'react-router-dom'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-
-import { useAuth } from '@/contexts/AuthContext'
-import pb from '@/lib/pocketbase/client'
-import { useToast } from '@/hooks/use-toast'
-import {
-  Save,
-  FileImage,
-  BarChart,
-  Layers,
-  GripVertical,
-  Trash2,
-  Plus,
-  Eye,
-  Settings2,
-  Percent,
-  Wand2,
-  Building2,
-} from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Dialog,
   DialogContent,
@@ -31,8 +14,29 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { ProposalViewer } from '@/components/ProposalViewer'
+import { ConfigurableFieldsForm } from '@/components/ConfigurableFieldsForm'
+import { useAuth } from '@/contexts/AuthContext'
+import pb from '@/lib/pocketbase/client'
+import { useToast } from '@/hooks/use-toast'
+import { extractFieldErrors, type FieldErrors } from '@/lib/pocketbase/errors'
+import { getTemplates, previewTemplateUrl, type GeneratorTemplate } from '@/services/templates'
+import {
+  Save,
+  FileImage,
+  BarChart,
+  Layers,
+  GripVertical,
+  Trash2,
+  Plus,
+  Settings2,
+  Percent,
+  Wand2,
+  Building2,
+  Eye,
+  RefreshCw,
+  AlertCircle,
+  Loader2,
+} from 'lucide-react'
 
 const ELEMENTS = [
   { id: 'cover', label: 'Capa' },
@@ -43,22 +47,34 @@ const ELEMENTS = [
   { id: 'investment', label: 'Investimento & Termos' },
 ]
 
+const DEFAULT_LAYOUT = [
+  { id: 'p1', elements: ['cover'] },
+  { id: 'p2', elements: ['summary'] },
+  { id: 'p3', elements: ['components'] },
+  { id: 'p4', elements: ['financial'] },
+  { id: 'p5', elements: ['execution'] },
+  { id: 'p6', elements: ['investment'] },
+]
+
 export default function ProposalSettings() {
   const { user } = useAuth()
   const { toast } = useToast()
   const [settingsId, setSettingsId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [activeTemplate, setActiveTemplate] = useState('modern')
+  const [activeTemplate, setActiveTemplate] = useState('')
+
+  const [templates, setTemplates] = useState<GeneratorTemplate[]>([])
+  const [templatesLoading, setTemplatesLoading] = useState(false)
+  const [templatesError, setTemplatesError] = useState<string | null>(null)
+
+  const [selectedTemplate, setSelectedTemplate] = useState<GeneratorTemplate | null>(null)
+  const [fixedData, setFixedData] = useState<Record<string, any>>({})
+  const [configModalOpen, setConfigModalOpen] = useState(false)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
 
   const [indicators, setIndicators] = useState({ inflation: '5', interest: '1' })
-  const [branding, setBranding] = useState({
-    primaryColor: '#2563eb',
-    secondaryColor: '#1e40af',
-    gradientColor: '#3b82f6',
-  })
   const [pagesLayout, setPagesLayout] = useState<{ id: string; elements: string[] }[]>([])
-
-  const [previewOpen, setPreviewOpen] = useState<string | null>(null)
   const [simultaneityFactors, setSimultaneityFactors] = useState<Record<string, string>>({
     Residencial: '30',
     Industrial: '60',
@@ -66,86 +82,6 @@ export default function ProposalSettings() {
     Rural: '40',
     Outros: '35',
   })
-
-  const defaultPreviewLayout = [
-    { id: 'p1', elements: ['cover'] },
-    { id: 'p2', elements: ['summary'] },
-    { id: 'p3', elements: ['components'] },
-    { id: 'p4', elements: ['financial'] },
-    { id: 'p5', elements: ['execution'] },
-    { id: 'p6', elements: ['investment'] },
-  ]
-
-  const dummyNegotiation = {
-    company_id: user?.company_id,
-    avg_consumption: 550,
-    address: 'Rua das Palmeiras, 123 - Centro',
-    city: 'São Paulo',
-    state: 'SP',
-    cep: '01000-000',
-    concessionaire: 'Enel Distribuição São Paulo',
-    uc: '123456789',
-    consumer_category: 'Residencial',
-    expand: {
-      lead_id: {
-        name: 'João Silva Santos',
-        document: '123.456.789-00',
-        email: 'joao.silva@email.com',
-        phone: '(11) 98765-4321',
-      },
-    },
-    sizing: {
-      kit_power_kwp: 7.2,
-      module_qty: 14,
-      installation_type: 'Telhado Cerâmico',
-      inverters: [],
-    },
-  }
-
-  const dummyProposal = {
-    id: 'TPL-PREVIEW',
-    created: new Date().toISOString(),
-    total_value: 38500,
-    validity_date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
-    payment_terms: '50% na assinatura, 50% na instalação.',
-    snapshot_data: {
-      template: previewOpen || activeTemplate,
-      branding,
-      pages_layout: pagesLayout.length > 0 ? pagesLayout : defaultPreviewLayout,
-      sizing: dummyNegotiation.sizing,
-      rawModule: { brand: 'Canadian Solar', name: 'CS655-550W', power: 550 },
-      rawInverters: [
-        { brand: 'Hoymiles', name: 'HMT-2250-6T', power: 7.5, qty: 1, warranty: '10 anos' },
-      ],
-      financialProjection: {
-        currentMonthlyCost: 495,
-        futureMonthlyBill: 49.5,
-        monthlySavings: 445.5,
-        annualSavings: 5346,
-        roiMonths: 73,
-        roiYears: 6,
-        roiRemainingMonths: 1,
-        estMonthlyGen: 850,
-        baseRate: 0.9,
-        instantConsumption: 165,
-        compensatedConsumption: 385,
-        teComponent: 0.35,
-        tusdComponent: 0.55,
-        fioBCost: 38.5,
-        energyFromGrid: 0,
-        consumerCategory: 'Residencial',
-        simultaneityFactor: 30,
-        tariffDetails: {
-          found: true,
-          tusd: 0.55,
-          te: 0.35,
-          icms_exemption: 'both',
-          fio_b_value: 0.22,
-        },
-      },
-    },
-  }
-  const [brandingModalOpen, setBrandingModalOpen] = useState(false)
   const [livePreviewOpen, setLivePreviewOpen] = useState<number | null>(null)
   const [defaultLeadTimeDays, setDefaultLeadTimeDays] = useState<string>('')
   const [defaultLeadTimeText, setDefaultLeadTimeText] = useState<string>('')
@@ -153,6 +89,23 @@ export default function ProposalSettings() {
 
   const isAdmin =
     user?.role === 'User_elektra' || user?.role_company === 'admin' || user?.role === 'User_owner'
+
+  const fetchTemplates = useCallback(async () => {
+    setTemplatesLoading(true)
+    setTemplatesError(null)
+    try {
+      const data = await getTemplates()
+      setTemplates(Array.isArray(data) ? data : [])
+    } catch (err: any) {
+      setTemplatesError(err?.message || 'Falha ao carregar templates do gerador.')
+    } finally {
+      setTemplatesLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchTemplates()
+  }, [fetchTemplates])
 
   useEffect(() => {
     if (!user?.company_id) return
@@ -163,81 +116,79 @@ export default function ProposalSettings() {
         if (record.active_template_id || record.template)
           setActiveTemplate(record.active_template_id || record.template)
         if (record.indicators) setIndicators(record.indicators as any)
-        if (record.branding) setBranding(record.branding as any)
+        if (record.branding) setFixedData(record.branding as any)
         if (record.pricing?.simultaneity_factors) {
-          const factors = record.pricing.simultaneity_factors
+          const f = record.pricing.simultaneity_factors
           setSimultaneityFactors({
-            Residencial: String(factors.Residencial ?? '30'),
-            Industrial: String(factors.Industrial ?? '60'),
-            Comercial: String(factors.Comercial ?? '50'),
-            Rural: String(factors.Rural ?? '40'),
-            Outros: String(factors.Outros ?? '35'),
+            Residencial: String(f.Residencial ?? '30'),
+            Industrial: String(f.Industrial ?? '60'),
+            Comercial: String(f.Comercial ?? '50'),
+            Rural: String(f.Rural ?? '40'),
+            Outros: String(f.Outros ?? '35'),
           })
         }
-
-        if (record.default_lead_time_days != null) {
+        if (record.default_lead_time_days != null)
           setDefaultLeadTimeDays(String(record.default_lead_time_days))
-        }
-        if (record.default_lead_time_text) {
-          setDefaultLeadTimeText(record.default_lead_time_text)
-        }
-        if (Array.isArray(record.default_payment_methods)) {
+        if (record.default_lead_time_text) setDefaultLeadTimeText(record.default_lead_time_text)
+        if (Array.isArray(record.default_payment_methods))
           setDefaultPaymentMethods(record.default_payment_methods)
-        }
-
         if (
           record.pages_layout &&
           Array.isArray(record.pages_layout) &&
           record.pages_layout.length > 0
-        ) {
+        )
           setPagesLayout(record.pages_layout)
-        } else {
-          setPagesLayout([
-            { id: 'p1', elements: ['cover'] },
-            { id: 'p2', elements: ['summary'] },
-            { id: 'p3', elements: ['components'] },
-            { id: 'p4', elements: ['financial'] },
-            { id: 'p5', elements: ['execution'] },
-            { id: 'p6', elements: ['investment'] },
-          ])
-        }
+        else setPagesLayout(DEFAULT_LAYOUT)
       })
-      .catch(() => {
-        setPagesLayout([
-          { id: 'p1', elements: ['cover'] },
-          { id: 'p2', elements: ['summary'] },
-          { id: 'p3', elements: ['components'] },
-          { id: 'p4', elements: ['financial'] },
-          { id: 'p5', elements: ['execution'] },
-          { id: 'p6', elements: ['investment'] },
-        ])
-      })
+      .catch(() => setPagesLayout(DEFAULT_LAYOUT))
   }, [user])
 
-  if (!isAdmin && user) {
-    return <Navigate to="/dashboard" replace />
+  if (!isAdmin && user) return <Navigate to="/dashboard" replace />
+
+  const getDefaultForType = (type: string) => {
+    switch (type) {
+      case 'color':
+        return '#000000'
+      case 'number':
+        return 0
+      case 'boolean':
+        return false
+      default:
+        return ''
+    }
+  }
+
+  const handleSelectTemplate = (tpl: GeneratorTemplate) => {
+    setActiveTemplate(tpl.id)
+    setSelectedTemplate(tpl)
+    const initial: Record<string, any> = {}
+    for (const field of tpl.configurable_fields || []) {
+      initial[field.key] = fixedData[field.key] ?? field.default ?? getDefaultForType(field.type)
+    }
+    setFixedData(initial)
+    setConfigModalOpen(true)
   }
 
   const handleSave = async () => {
     if (!user?.company_id) return
     setLoading(true)
+    setFieldErrors({})
     try {
-      const pricing = {
-        simultaneity_factors: {
-          Residencial: Number(simultaneityFactors.Residencial) || 30,
-          Industrial: Number(simultaneityFactors.Industrial) || 60,
-          Comercial: Number(simultaneityFactors.Comercial) || 50,
-          Rural: Number(simultaneityFactors.Rural) || 40,
-          Outros: Number(simultaneityFactors.Outros) || 35,
-        },
-      }
       const data = {
         company_id: user.company_id,
         active_template_id: activeTemplate,
         indicators,
-        branding,
+        branding: fixedData,
         pages_layout: pagesLayout,
-        pricing,
+        pricing: {
+          simultaneity_factors: {
+            Residencial: Number(simultaneityFactors.Residencial) || 30,
+            Industrial: Number(simultaneityFactors.Industrial) || 60,
+            Comercial: Number(simultaneityFactors.Comercial) || 50,
+            Rural: Number(simultaneityFactors.Rural) || 40,
+            Outros: Number(simultaneityFactors.Outros) || 35,
+          },
+        },
         default_lead_time_days: Number(defaultLeadTimeDays) || 0,
         default_lead_time_text: defaultLeadTimeText,
         default_payment_methods: defaultPaymentMethods.filter((m) => m.trim() !== ''),
@@ -249,11 +200,67 @@ export default function ProposalSettings() {
         setSettingsId(record.id)
       }
       toast({ title: 'Sucesso', description: 'Configurações salvas.' })
-      setBrandingModalOpen(false)
+      setConfigModalOpen(false)
     } catch (e) {
-      toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível salvar.' })
+      const errors = extractFieldErrors(e)
+      setFieldErrors(errors)
+      const msg =
+        Object.keys(errors).length > 0
+          ? Object.values(errors).join(' ')
+          : 'Não foi possível salvar.'
+      toast({ variant: 'destructive', title: 'Erro', description: msg })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handlePreview = async (tpl: GeneratorTemplate) => {
+    setPreviewLoading(true)
+    try {
+      const res = await fetch(previewTemplateUrl(), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: pb.authStore.token,
+        },
+        body: JSON.stringify({
+          template_id: tpl.id,
+          fixed_data: fixedData,
+          branding: fixedData,
+        }),
+      })
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData?.error || 'Falha ao gerar preview.')
+      }
+      const contentType = res.headers.get('content-type') || ''
+      if (contentType.includes('text/html')) {
+        const html = await res.text()
+        const blob = new Blob([html], { type: 'text/html' })
+        const url = URL.createObjectURL(blob)
+        window.open(url, '_blank')
+        setTimeout(() => URL.revokeObjectURL(url), 10000)
+      } else {
+        const data = await res.json()
+        if (data.html) {
+          const blob = new Blob([data.html], { type: 'text/html' })
+          const url = URL.createObjectURL(blob)
+          window.open(url, '_blank')
+          setTimeout(() => URL.revokeObjectURL(url), 10000)
+        } else if (data.url) {
+          window.open(data.url, '_blank')
+        } else {
+          throw new Error('Resposta de preview inválida.')
+        }
+      }
+    } catch (e: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: e.message || 'Falha ao gerar preview.',
+      })
+    } finally {
+      setPreviewLoading(false)
     }
   }
 
@@ -266,69 +273,25 @@ export default function ProposalSettings() {
     const elId = e.dataTransfer.getData('elId')
     const fromPageIdx = parseInt(e.dataTransfer.getData('fromPageIdx'))
     if (!elId) return
-
     setPagesLayout((prev) => {
-      const newLayout = [...prev]
-      if (!isNaN(fromPageIdx) && fromPageIdx !== -1) {
-        newLayout[fromPageIdx].elements = newLayout[fromPageIdx].elements.filter(
-          (id) => id !== elId,
-        )
-      }
-      if (!newLayout[toPageIdx].elements.includes(elId)) {
-        newLayout[toPageIdx].elements.push(elId)
-      }
-      return newLayout
+      const next = [...prev]
+      if (!isNaN(fromPageIdx) && fromPageIdx !== -1)
+        next[fromPageIdx].elements = next[fromPageIdx].elements.filter((id) => id !== elId)
+      if (!next[toPageIdx].elements.includes(elId)) next[toPageIdx].elements.push(elId)
+      return next
     })
   }
 
   const handleRemoveElement = (pageIdx: number, elId: string) => {
     setPagesLayout((prev) => {
-      const newLayout = [...prev]
-      newLayout[pageIdx].elements = newLayout[pageIdx].elements.filter((id) => id !== elId)
-      return newLayout
+      const next = [...prev]
+      next[pageIdx].elements = next[pageIdx].elements.filter((id) => id !== elId)
+      return next
     })
-  }
-
-  const selectTemplate = (tplId: string) => {
-    setActiveTemplate(tplId)
-    setBrandingModalOpen(true)
   }
 
   const usedElements = new Set(pagesLayout.flatMap((p) => p.elements))
   const availableElements = ELEMENTS.filter((e) => !usedElements.has(e.id))
-
-  const templates = [
-    {
-      id: 'modern',
-      name: 'Modern (Capa Clara)',
-      img: 'https://img.usecurling.com/p/300/400?q=modern%20solar%20panel&color=green',
-    },
-    {
-      id: 'elegant',
-      name: 'Elegant (Capa Escura)',
-      img: 'https://img.usecurling.com/p/300/400?q=dark%20gradient&color=blue',
-    },
-    {
-      id: 'compact',
-      name: 'Compact',
-      img: 'https://img.usecurling.com/p/300/400?q=minimalist%20report&color=white',
-    },
-    {
-      id: 'corporate',
-      name: 'Corporate',
-      img: 'https://img.usecurling.com/p/300/400?q=business%20presentation&color=blue',
-    },
-    {
-      id: 'technical',
-      name: 'Technical',
-      img: 'https://img.usecurling.com/p/300/400?q=blueprint%20data&color=cyan',
-    },
-    {
-      id: 'custom',
-      name: 'Custom',
-      img: 'https://img.usecurling.com/p/300/400?q=blank%20canvas&color=purple',
-    },
-  ]
 
   return (
     <div className="flex flex-col gap-6 max-w-6xl animate-fade-in pb-12">
@@ -362,43 +325,112 @@ export default function ProposalSettings() {
 
         <TabsContent value="templates" className="mt-6 space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle>Templates Visuais</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Templates Visuais</CardTitle>
+                <CardDescription>Templates em produção do Gerador de Propostas</CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={fetchTemplates}
+                disabled={templatesLoading}
+              >
+                <RefreshCw className={`h-4 w-4 mr-1 ${templatesLoading ? 'animate-spin' : ''}`} />
+                Atualizar
+              </Button>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              {templates.map((tpl) => (
-                <div
-                  key={tpl.id}
-                  className={`border-2 rounded-xl p-3 transition-all flex flex-col ${activeTemplate === tpl.id ? 'border-primary bg-primary/5' : 'border-muted hover:border-primary/50'}`}
-                >
-                  <div className="relative group">
-                    <img
-                      src={tpl.img}
-                      alt={tpl.name}
-                      className="w-full aspect-[3/4] object-cover rounded-md mb-3"
-                    />
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-md gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => setPreviewOpen(tpl.id)}>
-                        <Eye className="h-4 w-4 mr-2" /> Preview
-                      </Button>
+            <CardContent>
+              {templatesLoading && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="space-y-3">
+                      <Skeleton className="w-full aspect-[3/4] rounded-md" />
+                      <Skeleton className="h-5 w-2/3 mx-auto" />
+                      <Skeleton className="h-9 w-full" />
                     </div>
-                  </div>
-                  <div className="text-center font-semibold mb-3">{tpl.name}</div>
-                  <Button
-                    variant={activeTemplate === tpl.id ? 'default' : 'outline'}
-                    className="mt-auto"
-                    onClick={() => selectTemplate(tpl.id)}
-                  >
-                    {activeTemplate === tpl.id ? (
-                      <>
-                        <Settings2 className="w-4 h-4 mr-2" /> Configurar
-                      </>
-                    ) : (
-                      'Selecionar'
-                    )}
+                  ))}
+                </div>
+              )}
+
+              {templatesError && !templatesLoading && (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <AlertCircle className="h-8 w-8 text-destructive" />
+                  <p className="text-sm text-muted-foreground text-center max-w-md">
+                    {templatesError}
+                  </p>
+                  <Button variant="outline" size="sm" onClick={fetchTemplates}>
+                    <RefreshCw className="h-4 w-4 mr-2" /> Tentar Novamente
                   </Button>
                 </div>
-              ))}
+              )}
+
+              {!templatesLoading && !templatesError && templates.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 gap-2">
+                  <FileImage className="h-8 w-8 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    Nenhum template em produção disponível no Gerador.
+                  </p>
+                </div>
+              )}
+
+              {!templatesLoading && !templatesError && templates.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                  {templates.map((tpl) => (
+                    <div
+                      key={tpl.id}
+                      className={`border-2 rounded-xl p-3 transition-all flex flex-col ${
+                        activeTemplate === tpl.id
+                          ? 'border-primary bg-primary/5'
+                          : 'border-muted hover:border-primary/50'
+                      }`}
+                    >
+                      <div className="relative group">
+                        {tpl.thumbnail ? (
+                          <img
+                            src={tpl.thumbnail}
+                            alt={tpl.name}
+                            className="w-full aspect-[3/4] object-cover rounded-md mb-3"
+                          />
+                        ) : (
+                          <div className="w-full aspect-[3/4] rounded-md mb-3 bg-muted flex items-center justify-center">
+                            <FileImage className="h-8 w-8 text-muted-foreground" />
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-md gap-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handlePreview(tpl)}
+                            disabled={previewLoading}
+                          >
+                            {previewLoading ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Eye className="h-4 w-4 mr-2" />
+                            )}
+                            Visualizar
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="text-center font-semibold mb-3">{tpl.name}</div>
+                      <Button
+                        variant={activeTemplate === tpl.id ? 'default' : 'outline'}
+                        className="mt-auto"
+                        onClick={() => handleSelectTemplate(tpl)}
+                      >
+                        {activeTemplate === tpl.id ? (
+                          <>
+                            <Settings2 className="w-4 h-4 mr-2" /> Configurar
+                          </>
+                        ) : (
+                          'Selecionar'
+                        )}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -428,7 +460,6 @@ export default function ProposalSettings() {
                   ))}
                 </CardContent>
               </Card>
-
               <div className="w-full md:w-2/3 space-y-6">
                 <div className="flex items-center gap-2 mb-2">
                   <Layers className="h-5 w-5 text-primary" />
@@ -541,8 +572,7 @@ export default function ProposalSettings() {
             <CardHeader>
               <CardTitle>Fatores de Simultaneidade</CardTitle>
               <CardDescription>
-                Defina os percentuais padrão de autoconsumo para cada categoria de consumidor. Estes
-                valores serão aplicados automaticamente ao selecionar a categoria na negociação.
+                Defina os percentuais padrão de autoconsumo para cada categoria de consumidor.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 max-w-md">
@@ -598,7 +628,7 @@ export default function ProposalSettings() {
             <CardHeader>
               <CardTitle>Padrões de Proposta</CardTitle>
               <CardDescription>
-                Defina os valores padrão que serão utilizados ao gerar novas propostas comerciais.
+                Defina os valores padrão que serão utilizados ao gerar novas propostas.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6 max-w-lg">
@@ -627,7 +657,6 @@ export default function ProposalSettings() {
                   </div>
                 </div>
               </div>
-
               <div className="pt-4 border-t space-y-4">
                 <div>
                   <h4 className="font-semibold text-sm mb-1">Formas de Pagamento Aceitas</h4>
@@ -656,11 +685,11 @@ export default function ProposalSettings() {
                         variant="ghost"
                         size="icon"
                         className="text-destructive hover:bg-destructive/10 shrink-0"
-                        onClick={() => {
+                        onClick={() =>
                           setDefaultPaymentMethods(
                             defaultPaymentMethods.filter((_, i) => i !== idx),
                           )
-                        }}
+                        }
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -675,7 +704,6 @@ export default function ProposalSettings() {
                   </Button>
                 </div>
               </div>
-
               <div className="pt-4 border-t">
                 <p className="text-xs text-muted-foreground">
                   Use o botão "Salvar Alterações" no topo da página para persistir estas
@@ -687,58 +715,52 @@ export default function ProposalSettings() {
         </TabsContent>
       </Tabs>
 
-      {/* Modals */}
-      {previewOpen && (
-        <ProposalViewer
-          open={!!previewOpen}
-          onOpenChange={(v: boolean) => !v && setPreviewOpen(null)}
-          proposal={dummyProposal}
-          negotiation={dummyNegotiation}
-        />
-      )}
-
-      <Dialog open={brandingModalOpen} onOpenChange={setBrandingModalOpen}>
-        <DialogContent>
+      <Dialog open={configModalOpen} onOpenChange={setConfigModalOpen}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Personalizar Template</DialogTitle>
+            <DialogTitle>Configurar Template</DialogTitle>
             <DialogDescription>
-              Ajuste as cores da marca para que se apliquem ao template selecionado.
+              {selectedTemplate?.name
+                ? `Ajuste os dados fixos do template "${selectedTemplate.name}".`
+                : 'Ajuste os dados fixos do template selecionado.'}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-6 py-4">
-            <div className="flex items-center justify-between">
-              <Label>Cor Primária</Label>
-              <Input
-                type="color"
-                value={branding.primaryColor}
-                onChange={(e) => setBranding({ ...branding, primaryColor: e.target.value })}
-                className="w-16 h-10 p-1 cursor-pointer"
-              />
+          {selectedTemplate && (
+            <ConfigurableFieldsForm
+              fields={selectedTemplate.configurable_fields || []}
+              values={fixedData}
+              onChange={(key, val) => setFixedData((prev) => ({ ...prev, [key]: val }))}
+            />
+          )}
+          {Object.keys(fieldErrors).length > 0 && (
+            <div className="flex items-start gap-2 text-destructive text-sm bg-destructive/10 p-3 rounded-lg">
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+              <div>
+                {Object.entries(fieldErrors).map(([field, msg]) => (
+                  <p key={field}>{msg}</p>
+                ))}
+              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <Label>Cor Secundária</Label>
-              <Input
-                type="color"
-                value={branding.secondaryColor}
-                onChange={(e) => setBranding({ ...branding, secondaryColor: e.target.value })}
-                className="w-16 h-10 p-1 cursor-pointer"
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label>Cor de Gradiente</Label>
-              <Input
-                type="color"
-                value={branding.gradientColor}
-                onChange={(e) => setBranding({ ...branding, gradientColor: e.target.value })}
-                className="w-16 h-10 p-1 cursor-pointer"
-              />
-            </div>
-          </div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBrandingModalOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => handlePreview(selectedTemplate!)}
+              disabled={previewLoading}
+            >
+              {previewLoading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Eye className="h-4 w-4 mr-2" />
+              )}
+              Visualizar
+            </Button>
+            <Button variant="ghost" onClick={() => setConfigModalOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSave}>Salvar Preferências</Button>
+            <Button onClick={handleSave} disabled={loading}>
+              <Save className="mr-2 h-4 w-4" /> Salvar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

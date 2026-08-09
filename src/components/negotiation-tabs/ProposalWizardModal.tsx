@@ -373,6 +373,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
           estMonthlyGen: estMonthlyGenRough,
           ...financialProjection,
         },
+        generator_template_id: pricingDetails?.settings?.active_template_id || null,
         template:
           pricingDetails?.settings?.active_template_id ||
           pricingDetails?.settings?.template ||
