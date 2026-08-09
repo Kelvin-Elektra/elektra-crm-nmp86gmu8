@@ -19,7 +19,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 import { extractFieldErrors, type FieldErrors } from '@/lib/pocketbase/errors'
-import { getTemplates, previewTemplateUrl, type GeneratorTemplate } from '@/services/templates'
+import { getTemplates, previewTemplate, type GeneratorTemplate } from '@/services/templates'
 import {
   Save,
   FileImage,
@@ -217,47 +217,20 @@ export default function ProposalSettings() {
   const handlePreview = async (tpl: GeneratorTemplate) => {
     setPreviewLoading(true)
     try {
-      const res = await fetch(previewTemplateUrl(), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: pb.authStore.token,
-        },
-        body: JSON.stringify({
-          template_id: tpl.id,
-          fixed_data: fixedData,
-          branding: fixedData,
-        }),
+      const data = await previewTemplate(tpl.id, {
+        fixed_data: fixedData,
+        branding: fixedData,
       })
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}))
-        throw new Error(errData?.error || 'Falha ao gerar preview.')
-      }
-      const contentType = res.headers.get('content-type') || ''
-      if (contentType.includes('text/html')) {
-        const html = await res.text()
-        const blob = new Blob([html], { type: 'text/html' })
-        const url = URL.createObjectURL(blob)
-        window.open(url, '_blank')
-        setTimeout(() => URL.revokeObjectURL(url), 10000)
+      if (data.view_url) {
+        window.open(data.view_url, '_blank')
       } else {
-        const data = await res.json()
-        if (data.html) {
-          const blob = new Blob([data.html], { type: 'text/html' })
-          const url = URL.createObjectURL(blob)
-          window.open(url, '_blank')
-          setTimeout(() => URL.revokeObjectURL(url), 10000)
-        } else if (data.url) {
-          window.open(data.url, '_blank')
-        } else {
-          throw new Error('Resposta de preview inválida.')
-        }
+        throw new Error('Resposta de preview inválida: view_url não encontrada.')
       }
     } catch (e: any) {
       toast({
         variant: 'destructive',
         title: 'Erro',
-        description: e.message || 'Falha ao gerar preview.',
+        description: e?.message || 'Falha ao gerar preview.',
       })
     } finally {
       setPreviewLoading(false)

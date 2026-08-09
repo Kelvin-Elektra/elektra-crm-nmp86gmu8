@@ -1,56 +1,74 @@
 routerAdd(
   'POST',
-  '/backend/v1/templates/preview',
+  '/backend/v1/templates/{templateId}/preview',
   (e) => {
-    const apiSecret = $secrets.get('GENERATOR_API_SECRET')
-    if (!apiSecret) {
-      return e.json(503, { error: 'Secret do Gerador não configurado.' })
+    const templateId = e.request.pathValue('templateId')
+    if (!templateId) {
+      return e.badRequestError('templateId é obrigatório.')
     }
 
     let generatorUrl = ''
     try {
-      const settings = $app.findFirstRecordByFilter('system_settings', '1=1')
-      generatorUrl = settings.getString('generator_url')
+      const record = $app.findFirstRecordByFilter('system_settings', 'id != ""')
+      generatorUrl = record.getString('generator_url')
     } catch (_) {}
 
     if (!generatorUrl) {
-      return e.json(503, { error: 'URL do Gerador não configurada.' })
+      return e.json(500, { message: 'Generator URL não configurada nas configurações do sistema.' })
     }
 
     if (generatorUrl.endsWith('/')) {
       generatorUrl = generatorUrl.slice(0, -1)
     }
 
+    const apiSecret = $secrets.get('API_CRM_GERADOR')
+
     const body = e.requestInfo().body || {}
+    var bodyStr
+    try {
+      bodyStr = JSON.stringify(body)
+    } catch (_) {
+      bodyStr = '{}'
+    }
 
     let res
     try {
       res = $http.send({
-        url: generatorUrl + '/api/proposals/preview',
+        url: generatorUrl + '/backend/v1/templates/' + templateId + '/preview',
         method: 'POST',
         headers: {
+          'x-api-secret': apiSecret,
           'Content-Type': 'application/json',
-          'X-Api-Secret': apiSecret,
         },
-        body: JSON.stringify({
-          template_id: body.template_id || '',
-          fixed_data: body.fixed_data || {},
-          branding: body.branding || {},
-        }),
+        body: bodyStr,
         timeout: 30,
       })
     } catch (err) {
-      $app.logger().error('Generator preview failed', 'error', err.message)
-      return e.json(502, { error: 'Falha ao conectar ao Gerador.' })
+      $app
+        .logger()
+        .error('Falha ao conectar com o Gerador de Propostas (preview)', 'error', String(err))
+      return e.json(502, { message: 'Falha ao conectar com o Gerador de Propostas.' })
     }
 
-    if (res.statusCode !== 200) {
-      return e.json(res.statusCode, { error: 'Erro ao gerar preview no Gerador.' })
-    }
-
-    const contentType = res.headers['Content-Type'] || res.headers['content-type'] || ''
-    if (contentType.indexOf('text/html') !== -1) {
-      return e.html(200, res.body + '')
+    if (res.statusCode >= 400) {
+      var errMsg = 'Erro ao gerar preview no gerador.'
+      try {
+        if (res.json && res.json.message) {
+          errMsg = res.json.message
+        } else if (res.json && res.json.error) {
+          errMsg = res.json.error
+        }
+      } catch (_) {}
+      $app
+        .logger()
+        .error(
+          'Gerador retornou erro no preview',
+          'status',
+          res.statusCode,
+          'templateId',
+          templateId,
+        )
+      return e.json(res.statusCode, { message: errMsg })
     }
 
     return e.json(200, res.json)
