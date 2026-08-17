@@ -30,7 +30,7 @@ export function ConfigurableFieldsForm({ fields, values, onChange }: Props) {
     <div className="space-y-4 py-2 max-h-[50vh] overflow-y-auto pr-1">
       {fields.map((field) => (
         <div key={field.key} className="space-y-2">
-          <Label className="text-sm font-medium">{field.label}</Label>
+          <Label className="text-sm font-medium">{field.label || field.key}</Label>
           {renderField(field, values[field.key], (v) => onChange(field.key, v))}
         </div>
       ))}
@@ -95,6 +95,24 @@ function renderField(field: ConfigurableField, value: any, onChange: (v: any) =>
         <div className="flex items-center gap-2 pt-1">
           <Switch checked={!!value} onCheckedChange={onChange} />
           <span className="text-sm text-muted-foreground">{value ? 'Ativado' : 'Desativado'}</span>
+        </div>
+      )
+    case 'image':
+      return (
+        <div className="space-y-2">
+          {value && (
+            <img
+              src={value}
+              alt="Preview"
+              className="w-full h-32 object-contain rounded-md border bg-muted/20"
+            />
+          )}
+          <Input
+            type="text"
+            value={value || ''}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="URL da imagem"
+          />
         </div>
       )
     default:

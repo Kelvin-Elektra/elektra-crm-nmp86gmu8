@@ -5,12 +5,15 @@ export interface ConfigurableField {
   type: string
   label?: string
   default?: any
+  options?: string[]
 }
 
 export interface GeneratorTemplate {
   id: string
   name: string
+  description?: string
   thumbnail?: string
+  status?: string
   configurable_fields?: ConfigurableField[]
 }
 

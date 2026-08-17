@@ -8,9 +8,11 @@ routerAdd(
     }
 
     let generatorUrl = ''
+    let generatorPublicUrl = ''
     try {
       const record = $app.findFirstRecordByFilter('system_settings', 'id != ""')
       generatorUrl = record.getString('generator_url')
+      generatorPublicUrl = record.getString('generator_public_url')
     } catch (_) {}
 
     if (!generatorUrl) {
@@ -19,6 +21,12 @@ routerAdd(
 
     if (generatorUrl.endsWith('/')) {
       generatorUrl = generatorUrl.slice(0, -1)
+    }
+    if (!generatorPublicUrl) {
+      generatorPublicUrl = generatorUrl
+    }
+    if (generatorPublicUrl.endsWith('/')) {
+      generatorPublicUrl = generatorPublicUrl.slice(0, -1)
     }
 
     const apiSecret = $secrets.get('API_CRM_GERADOR')
@@ -71,7 +79,20 @@ routerAdd(
       return e.json(res.statusCode, { message: errMsg })
     }
 
-    return e.json(200, res.json)
+    var result = res.json
+    if (result && result.view_url) {
+      var viewUrl = result.view_url
+      if (viewUrl.indexOf('http://') !== 0 && viewUrl.indexOf('https://') !== 0) {
+        if (viewUrl.charAt(0) !== '/') {
+          viewUrl = '/' + viewUrl
+        }
+        result.view_url = generatorPublicUrl + viewUrl
+      } else if (generatorPublicUrl !== generatorUrl && viewUrl.indexOf(generatorUrl) === 0) {
+        result.view_url = generatorPublicUrl + viewUrl.substring(generatorUrl.length)
+      }
+    }
+
+    return e.json(200, result)
   },
   $apis.requireAuth(),
 )

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-09T21:53:59.638Z",
+  "generatedAt": "2026-08-09T22:41:29.299Z",
   "collections": [
     {
       "name": "users",
@@ -1782,6 +1782,12 @@
         },
         {
           "name": "generator_url",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "generator_public_url",
           "type": "text",
           "required": false,
           "system": false

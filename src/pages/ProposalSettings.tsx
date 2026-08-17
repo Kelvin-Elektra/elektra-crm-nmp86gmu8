@@ -37,6 +37,7 @@ import {
   AlertCircle,
   Loader2,
 } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 
 const ELEMENTS = [
   { id: 'cover', label: 'Capa' },
@@ -86,6 +87,8 @@ export default function ProposalSettings() {
   const [defaultLeadTimeDays, setDefaultLeadTimeDays] = useState<string>('')
   const [defaultLeadTimeText, setDefaultLeadTimeText] = useState<string>('')
   const [defaultPaymentMethods, setDefaultPaymentMethods] = useState<string[]>([])
+  const [companyData, setCompanyData] = useState<Record<string, any>>({})
+  const [previewingTemplateId, setPreviewingTemplateId] = useState<string | null>(null)
 
   const isAdmin =
     user?.role === 'User_elektra' || user?.role_company === 'admin' || user?.role === 'User_owner'
@@ -106,6 +109,23 @@ export default function ProposalSettings() {
   useEffect(() => {
     fetchTemplates()
   }, [fetchTemplates])
+
+  useEffect(() => {
+    if (!user?.company_id) return
+    pb.collection('companies')
+      .getOne(user.company_id)
+      .then((record) => {
+        const logoUrl = record.logo ? pb.files.getURL(record, record.logo) : ''
+        setCompanyData({
+          company_name: record.name || '',
+          company_logo: logoUrl,
+          cnpj: record.cnpj || '',
+          slogan: '',
+          guarantee_text: '',
+        })
+      })
+      .catch(() => {})
+  }, [user])
 
   useEffect(() => {
     if (!user?.company_id) return
@@ -163,7 +183,11 @@ export default function ProposalSettings() {
     setSelectedTemplate(tpl)
     const initial: Record<string, any> = {}
     for (const field of tpl.configurable_fields || []) {
-      initial[field.key] = fixedData[field.key] ?? field.default ?? getDefaultForType(field.type)
+      initial[field.key] =
+        fixedData[field.key] ??
+        companyData[field.key] ??
+        field.default ??
+        getDefaultForType(field.type)
     }
     setFixedData(initial)
     setConfigModalOpen(true)
@@ -216,6 +240,7 @@ export default function ProposalSettings() {
 
   const handlePreview = async (tpl: GeneratorTemplate) => {
     setPreviewLoading(true)
+    setPreviewingTemplateId(tpl.id)
     try {
       const data = await previewTemplate(tpl.id, {
         fixed_data: fixedData,
@@ -234,6 +259,7 @@ export default function ProposalSettings() {
       })
     } finally {
       setPreviewLoading(false)
+      setPreviewingTemplateId(null)
     }
   }
 
@@ -301,7 +327,9 @@ export default function ProposalSettings() {
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Templates Visuais</CardTitle>
-                <CardDescription>Templates em produção do Gerador de Propostas</CardDescription>
+                <CardDescription>
+                  Selecione e personalize o template da sua proposta
+                </CardDescription>
               </div>
               <Button
                 variant="ghost"
@@ -358,7 +386,7 @@ export default function ProposalSettings() {
                           : 'border-muted hover:border-primary/50'
                       }`}
                     >
-                      <div className="relative group">
+                      <div className="relative">
                         {tpl.thumbnail ? (
                           <img
                             src={tpl.thumbnail}
@@ -370,36 +398,47 @@ export default function ProposalSettings() {
                             <FileImage className="h-8 w-8 text-muted-foreground" />
                           </div>
                         )}
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-md gap-2">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => handlePreview(tpl)}
-                            disabled={previewLoading}
-                          >
-                            {previewLoading ? (
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            ) : (
-                              <Eye className="h-4 w-4 mr-2" />
-                            )}
-                            Visualizar
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="text-center font-semibold mb-3">{tpl.name}</div>
-                      <Button
-                        variant={activeTemplate === tpl.id ? 'default' : 'outline'}
-                        className="mt-auto"
-                        onClick={() => handleSelectTemplate(tpl)}
-                      >
-                        {activeTemplate === tpl.id ? (
-                          <>
-                            <Settings2 className="w-4 h-4 mr-2" /> Configurar
-                          </>
-                        ) : (
-                          'Selecionar'
+                        {activeTemplate === tpl.id && (
+                          <div className="absolute top-2 right-2">
+                            <Badge className="text-xs">Ativo</Badge>
+                          </div>
                         )}
-                      </Button>
+                      </div>
+                      <div className="flex-1 mb-3">
+                        <div className="font-semibold">{tpl.name}</div>
+                        {tpl.description && (
+                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                            {tpl.description}
+                          </p>
+                        )}
+                        {tpl.status && (
+                          <Badge variant="outline" className="mt-2 text-xs">
+                            {tpl.status}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex gap-2 mt-auto">
+                        <Button
+                          variant={activeTemplate === tpl.id ? 'default' : 'outline'}
+                          className="flex-1"
+                          onClick={() => handleSelectTemplate(tpl)}
+                        >
+                          <Settings2 className="w-4 h-4 mr-2" />
+                          Configurar
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handlePreview(tpl)}
+                          disabled={previewLoading && previewingTemplateId === tpl.id}
+                        >
+                          {previewLoading && previewingTemplateId === tpl.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
