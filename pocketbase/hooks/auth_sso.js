@@ -116,7 +116,7 @@ routerAdd('POST', '/backend/v1/auth/sso', (e) => {
   }
 
   // 5. Gera token de autenticação PocketBase para o usuário
-  const token = $tokens.recordAuthToken($app, user)
+  const token = user.newAuthToken()
 
   // 6. Monta o objeto público do usuário
   const userObj = {
