@@ -41,7 +41,10 @@ export function StageManager({ open, onOpenChange }: any) {
   }, [open])
   useRealtime('pipeline_stages', load, open)
 
-  const isAdmin = user?.role === 'admin_company' || user?.role === 'admin_elektra'
+  const isAdmin =
+    user?.role === 'admin_company' ||
+    user?.role === 'admin_elektra' ||
+    user?.role_company === 'admin'
 
   const handleCreate = async () => {
     if (!newName || !user?.company_id) return
