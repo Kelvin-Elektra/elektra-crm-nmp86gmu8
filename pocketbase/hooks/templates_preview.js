@@ -84,14 +84,22 @@ routerAdd(
 
     var result = res.json
     if (result && result.view_url) {
-      var viewUrl = result.view_url
-      if (viewUrl.indexOf('http://') !== 0 && viewUrl.indexOf('https://') !== 0) {
+      var viewUrl = String(result.view_url)
+      // Se já for URL absoluta (http:// ou https://), substitui o origin/domínio pelo generatorPublicUrl
+      // Se for caminho relativo, concatena ao generatorPublicUrl
+      if (viewUrl.indexOf('http://') === 0 || viewUrl.indexOf('https://') === 0) {
+        try {
+          var slashIdx = viewUrl.indexOf('/', 8) // após https:// ou http://
+          var pathAndQuery = slashIdx !== -1 ? viewUrl.substring(slashIdx) : ''
+          result.view_url = generatorPublicUrl + pathAndQuery
+        } catch (_) {
+          result.view_url = viewUrl
+        }
+      } else {
         if (viewUrl.charAt(0) !== '/') {
           viewUrl = '/' + viewUrl
         }
         result.view_url = generatorPublicUrl + viewUrl
-      } else if (generatorPublicUrl !== generatorUrl && viewUrl.indexOf(generatorUrl) === 0) {
-        result.view_url = generatorPublicUrl + viewUrl.substring(generatorUrl.length)
       }
     }
 

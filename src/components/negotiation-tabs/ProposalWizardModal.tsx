@@ -360,6 +360,13 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         publicLightingFee: neg.public_lighting_fee || 0,
       })
 
+      const activeTplId = pricingDetails?.settings?.active_template_id || null
+      const allTemplatesConfig = pricingDetails?.settings?.templates_config || {}
+      const activeTemplateFixedData =
+        activeTplId && allTemplatesConfig[activeTplId]
+          ? allTemplatesConfig[activeTplId]
+          : pricingDetails?.settings?.branding || {}
+
       const snapshotData = {
         sizing: neg.sizing || {},
         pricing: pricingDetails,
@@ -373,12 +380,11 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
           estMonthlyGen: estMonthlyGenRough,
           ...financialProjection,
         },
-        generator_template_id: pricingDetails?.settings?.active_template_id || null,
-        template:
-          pricingDetails?.settings?.active_template_id ||
-          pricingDetails?.settings?.template ||
-          'modern',
-        branding: pricingDetails?.settings?.branding || {},
+        generator_template_id: activeTplId,
+        template: activeTplId || pricingDetails?.settings?.template || 'modern',
+        branding: activeTemplateFixedData,
+        fixed_data: activeTemplateFixedData,
+        templates_config: allTemplatesConfig,
         pages_layout: pricingDetails?.settings?.pages_layout || [],
         rawCosts: pricingDetails?.rawCosts || [],
         rawModule: pricingDetails?.rawModule || null,

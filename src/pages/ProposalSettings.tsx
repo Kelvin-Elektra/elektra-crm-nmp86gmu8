@@ -41,6 +41,7 @@ import {
   RefreshCw,
   AlertCircle,
   Loader2,
+  Check,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
@@ -76,10 +77,12 @@ export default function ProposalSettings() {
   const [selectedTemplate, setSelectedTemplate] = useState<GeneratorTemplate | null>(null)
   const [fixedData, setFixedData] = useState<Record<string, any>>({})
   const [templatesConfig, setTemplatesConfig] = useState<Record<string, Record<string, any>>>({})
+  const [modalLoading, setModalLoading] = useState(false)
   const [configModalOpen, setConfigModalOpen] = useState(false)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [formValidationErrors, setFormValidationErrors] = useState<Record<string, string>>({})
+  const [activatingTemplateId, setActivatingTemplateId] = useState<string | null>(null)
 
   const [indicators, setIndicators] = useState({ inflation: '5', interest: '1' })
   const [pagesLayout, setPagesLayout] = useState<{ id: string; elements: string[] }[]>([])
@@ -107,7 +110,7 @@ export default function ProposalSettings() {
       const data = await getTemplates()
       setTemplates(Array.isArray(data) ? data : [])
     } catch (err: any) {
-      setTemplatesError(err?.message || 'Falha ao carregar templates do gerador.')
+      setTemplatesError(err?.message || 'Falha ao carregar os modelos disponíveis.')
     } finally {
       setTemplatesLoading(false)
     }
@@ -220,7 +223,6 @@ export default function ProposalSettings() {
     for (const field of fields) {
       initial[field.key] =
         saved[field.key] ??
-        fixedData[field.key] ??
         companyData[field.key] ??
         field.default ??
         getDefaultForType(field.type, field.key)
@@ -230,7 +232,6 @@ export default function ProposalSettings() {
     if (fields.length === 0) {
       return {
         ...companyData,
-        ...fixedData,
         ...saved,
       }
     }
@@ -239,7 +240,6 @@ export default function ProposalSettings() {
   }
 
   const handleSelectTemplate = (tpl: GeneratorTemplate) => {
-    setActiveTemplate(tpl.id)
     setSelectedTemplate(tpl)
     setFormValidationErrors({})
     setFieldErrors({})
@@ -247,6 +247,36 @@ export default function ProposalSettings() {
     const initial = buildTemplateData(tpl)
     setFixedData(initial)
     setConfigModalOpen(true)
+  }
+
+  const handleActivateTemplate = async (tpl: GeneratorTemplate) => {
+    if (!user?.company_id) return
+    setActivatingTemplateId(tpl.id)
+    try {
+      const dataToSave = {
+        company_id: user.company_id,
+        active_template_id: tpl.id,
+      }
+      if (settingsId) {
+        await pb.collection('proposal_settings').update(settingsId, dataToSave)
+      } else {
+        const record = await pb.collection('proposal_settings').create(dataToSave)
+        setSettingsId(record.id)
+      }
+      setActiveTemplate(tpl.id)
+      toast({
+        title: 'Template ativado',
+        description: `O modelo "${tpl.name}" agora é o modelo padrão para novas propostas da empresa.`,
+      })
+    } catch (e: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao ativar template',
+        description: e?.message || 'Não foi possível ativar o template.',
+      })
+    } finally {
+      setActivatingTemplateId(null)
+    }
   }
 
   const validateFields = (fields: TemplateSchemaField[], values: Record<string, any>) => {
@@ -262,48 +292,77 @@ export default function ProposalSettings() {
     return errors
   }
 
-  const handleSave = async () => {
-    if (!user?.company_id) return
+  const handleSaveModal = async () => {
+    if (!user?.company_id || !selectedTemplate) return
 
-    // Validar se o modal está aberto com campos obrigatórios
-    if (configModalOpen && selectedTemplate) {
-      const fields = getTemplateFields(selectedTemplate)
-      const valErrors = validateFields(fields, fixedData)
-      if (Object.keys(valErrors).length > 0) {
-        setFormValidationErrors(valErrors)
-        toast({
-          variant: 'destructive',
-          title: 'Campos obrigatórios',
-          description: Object.values(valErrors)[0],
-        })
-        return
-      }
+    const fields = getTemplateFields(selectedTemplate)
+    const valErrors = validateFields(fields, fixedData)
+    if (Object.keys(valErrors).length > 0) {
+      setFormValidationErrors(valErrors)
+      toast({
+        variant: 'destructive',
+        title: 'Campos obrigatórios',
+        description: Object.values(valErrors)[0],
+      })
+      return
     }
 
-    setLoading(true)
+    setModalLoading(true)
     setFieldErrors({})
     setFormValidationErrors({})
 
     try {
       const updatedTemplatesConfig = {
         ...templatesConfig,
-      }
-
-      if (selectedTemplate) {
-        updatedTemplatesConfig[selectedTemplate.id] = fixedData
-      } else if (activeTemplate) {
-        updatedTemplatesConfig[activeTemplate] = {
-          ...(updatedTemplatesConfig[activeTemplate] || {}),
-          ...fixedData,
-        }
+        [selectedTemplate.id]: fixedData,
       }
 
       const data = {
         company_id: user.company_id,
+        templates_config: updatedTemplatesConfig,
+      }
+
+      if (settingsId) {
+        await pb.collection('proposal_settings').update(settingsId, data)
+      } else {
+        const record = await pb.collection('proposal_settings').create({
+          ...data,
+          active_template_id: activeTemplate,
+        })
+        setSettingsId(record.id)
+      }
+
+      setTemplatesConfig(updatedTemplatesConfig)
+      toast({
+        title: 'Configuração salva',
+        description: `Dados do template "${selectedTemplate.name}" salvos com sucesso.`,
+      })
+      setConfigModalOpen(false)
+    } catch (e) {
+      const errors = extractFieldErrors(e)
+      setFieldErrors(errors)
+      const msg =
+        Object.keys(errors).length > 0
+          ? Object.values(errors).join(' ')
+          : 'Não foi possível salvar as configurações do template.'
+      toast({ variant: 'destructive', title: 'Erro', description: msg })
+    } finally {
+      setModalLoading(false)
+    }
+  }
+
+  const handleSave = async () => {
+    if (!user?.company_id) return
+
+    setLoading(true)
+    setFieldErrors({})
+
+    try {
+      const data = {
+        company_id: user.company_id,
         active_template_id: activeTemplate,
         indicators,
-        branding: fixedData,
-        templates_config: updatedTemplatesConfig,
+        templates_config: templatesConfig,
         pages_layout: pagesLayout,
         pricing: {
           simultaneity_factors: {
@@ -326,9 +385,7 @@ export default function ProposalSettings() {
         setSettingsId(record.id)
       }
 
-      setTemplatesConfig(updatedTemplatesConfig)
       toast({ title: 'Sucesso', description: 'Configurações salvas.' })
-      setConfigModalOpen(false)
     } catch (e) {
       const errors = extractFieldErrors(e)
       setFieldErrors(errors)
@@ -347,11 +404,27 @@ export default function ProposalSettings() {
     setPreviewingTemplateId(tpl.id)
     try {
       // Obter ou montar os valores configurados para este template
-      const currentValues = selectedTemplate?.id === tpl.id ? fixedData : buildTemplateData(tpl)
+      const currentValues =
+        configModalOpen && selectedTemplate?.id === tpl.id ? fixedData : buildTemplateData(tpl)
 
       const data = await previewTemplate(tpl.id, currentValues)
       if (data.view_url) {
-        window.open(data.view_url, '_blank')
+        let finalUrl = data.view_url
+        // Garantir que caso a resposta contenha outro host, substitua pelo domínio público
+        const expectedHost = 'geradorproposta.elektrasolucoes.tech'
+        try {
+          if (finalUrl.startsWith('http://') || finalUrl.startsWith('https://')) {
+            const parsed = new URL(finalUrl)
+            if (parsed.host !== expectedHost && !parsed.host.includes('elektrasolucoes.tech')) {
+              parsed.protocol = 'https:'
+              parsed.host = expectedHost
+              finalUrl = parsed.toString()
+            }
+          }
+        } catch {
+          /* intentionally ignored */
+        }
+        window.open(finalUrl, '_blank')
       } else {
         throw new Error('Não foi possível gerar a visualização da proposta.')
       }
@@ -514,25 +587,55 @@ export default function ProposalSettings() {
                           </p>
                         )}
                       </div>
-                      <div className="flex gap-2 mt-auto">
+                      <div className="flex flex-col gap-2 mt-auto">
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => handleSelectTemplate(tpl)}
+                          >
+                            <Settings2 className="w-4 h-4 mr-2" />
+                            Configurar
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handlePreview(tpl)}
+                            disabled={previewLoading && previewingTemplateId === tpl.id}
+                            title="Visualizar modelo"
+                          >
+                            {previewLoading && previewingTemplateId === tpl.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Eye className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
                         <Button
-                          variant={activeTemplate === tpl.id ? 'default' : 'outline'}
-                          className="flex-1"
-                          onClick={() => handleSelectTemplate(tpl)}
+                          variant={activeTemplate === tpl.id ? 'secondary' : 'default'}
+                          disabled={
+                            activeTemplate === tpl.id ||
+                            (activatingTemplateId !== null && activatingTemplateId === tpl.id)
+                          }
+                          onClick={() => handleActivateTemplate(tpl)}
+                          className={
+                            activeTemplate === tpl.id
+                              ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 font-medium cursor-default'
+                              : ''
+                          }
                         >
-                          <Settings2 className="w-4 h-4 mr-2" />
-                          Configurar
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handlePreview(tpl)}
-                          disabled={previewLoading && previewingTemplateId === tpl.id}
-                        >
-                          {previewLoading && previewingTemplateId === tpl.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                          {activatingTemplateId === tpl.id ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Ativando...
+                            </>
+                          ) : activeTemplate === tpl.id ? (
+                            <>
+                              <Check className="w-4 h-4 mr-2 text-emerald-600" />
+                              Template Ativo
+                            </>
                           ) : (
-                            <Eye className="h-4 w-4" />
+                            'Ativar Template'
                           )}
                         </Button>
                       </div>
@@ -877,8 +980,13 @@ export default function ProposalSettings() {
             <Button variant="ghost" onClick={() => setConfigModalOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSave} disabled={loading}>
-              <Save className="mr-2 h-4 w-4" /> Salvar
+            <Button onClick={handleSaveModal} disabled={modalLoading}>
+              {modalLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="mr-2 h-4 w-4" />
+              )}
+              Salvar
             </Button>
           </DialogFooter>
         </DialogContent>
