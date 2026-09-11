@@ -255,7 +255,7 @@ routerAdd(
         }
       }
 
-      safeLogInfo('Disparando chamada de preview para o Gerador', {
+      safeLogInfo('Disparando chamada de preview para o Gerador (tentativa 1)', {
         url: finalUrl,
         method: targetMethod,
         headers: sanitizedHeaders,
@@ -271,11 +271,61 @@ routerAdd(
           timeout: 30,
         })
       } catch (err) {
-        safeLogError('Falha ao conectar com o Gerador de Propostas (preview)', {
-          error: String(err),
-          url: finalUrl,
+        safeLogWarn(
+          'Falha na chamada de preview via URL derivada do contract, tentando fallback com URL fixa',
+          {
+            error: String(err),
+            url: finalUrl,
+          },
+        )
+
+        // Retry com fallback: rota direta e sabidamente acessível generatorUrl + caminho padrão
+        const fallbackUrl = generatorUrl + '/backend/v1/templates/' + templateId + '/preview'
+        const fallbackHeaders = {
+          'Content-Type': 'application/json',
+        }
+        if (apiSecret) {
+          fallbackHeaders['x-api-secret'] = apiSecret
+        }
+
+        const sanitizedFallbackHeaders = {}
+        for (const h of Object.keys(fallbackHeaders)) {
+          const hLower = h.toLowerCase()
+          if (
+            hLower.indexOf('secret') !== -1 ||
+            hLower.indexOf('auth') !== -1 ||
+            hLower.indexOf('token') !== -1 ||
+            hLower.indexOf('key') !== -1
+          ) {
+            sanitizedFallbackHeaders[h] = '[REDACTED]'
+          } else {
+            sanitizedFallbackHeaders[h] = fallbackHeaders[h]
+          }
+        }
+
+        safeLogInfo('Disparando chamada de preview para o Gerador (tentativa 2 - fallback)', {
+          url: fallbackUrl,
+          method: 'POST',
+          headers: sanitizedFallbackHeaders,
         })
-        return e.json(502, { message: 'Falha ao conectar com o Gerador de Propostas.' })
+
+        try {
+          res = $http.send({
+            url: fallbackUrl,
+            method: 'POST',
+            headers: fallbackHeaders,
+            body: bodyStr,
+            timeout: 30,
+          })
+        } catch (fallbackErr) {
+          safeLogError('Falha ao conectar com o Gerador de Propostas (preview) após fallback', {
+            error_tentativa_1: String(err),
+            url_tentativa_1: finalUrl,
+            error_tentativa_2: String(fallbackErr),
+            url_tentativa_2: fallbackUrl,
+          })
+          return e.json(502, { message: 'Falha ao conectar com o Gerador de Propostas.' })
+        }
       }
 
       if (res.statusCode >= 400) {
