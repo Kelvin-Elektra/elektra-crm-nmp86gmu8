@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { createProposalHistory } from '@/services/proposal-history'
+import { createGeneratorProposal } from '@/services/templates'
 import { Plus, Trash2 } from 'lucide-react'
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -100,6 +101,72 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
         accepted_payment_methods: paymentMethods.filter((m) => m.trim() !== ''),
         defined_payment_method: definedPaymentMethod,
       }
+      // Se a proposta foi gerada no Gerador (possui template_id e snapshot configurado),
+      // reenvia com o mesmo external_id para atualizar a proposta mantendo o mesmo link
+      const templateId =
+        updatedSnapshot.generator_template_id ||
+        updatedSnapshot.template ||
+        proposal.template_id ||
+        null
+
+      let updatedViewUrl = proposal.view_url || updatedSnapshot.view_url || null
+
+      if (templateId) {
+        try {
+          const leadData = {
+            name: updatedSnapshot.lead_name || 'Cliente',
+            address: updatedSnapshot.address || '',
+          }
+          const negotiationPayload = {
+            id: proposal.negotiation_id,
+            validity_date: validityDate || '',
+            payment_terms: paymentTerms || '',
+            defined_payment_method: definedPaymentMethod || '',
+            accepted_payment_methods: paymentMethods.join(', '),
+            installation_lead_time: installationLeadTime || '',
+            notes: notes || '',
+          }
+          const sizingPayload = updatedSnapshot.sizing || {}
+          const fp = updatedSnapshot.financialProjection
+          const paybackYearsVal =
+            fp?.roiYears != null
+              ? Number((fp.roiYears + (fp.roiRemainingMonths || 0) / 12).toFixed(1))
+              : Number(fp?.paybackYears) || 0
+          const annualSavingsVal =
+            Number(fp?.annualSavings) || (Number(fp?.monthlySavings) || 0) * 12
+          const savings25YearsVal = Number(fp?.savings25Years) || annualSavingsVal * 25
+
+          const financialPayload = {
+            total_investment: finalTotal,
+            sale_price: finalTotal,
+            subtotal: subtotal,
+            discount_amount: discountPercent,
+            monthly_savings: Number(fp?.monthlySavings) || 0,
+            payback_years: paybackYearsVal,
+            payback_months: Number(fp?.roiMonths) || 0,
+            savings_25_years: savings25YearsVal,
+            annual_savings: annualSavingsVal,
+            tariff_details: fp?.tariffDetails || {},
+          }
+
+          const genRes = await createGeneratorProposal({
+            template_id: templateId,
+            external_id: proposal.id,
+            fixed_data: updatedSnapshot.fixed_data || updatedSnapshot.branding || {},
+            lead: leadData,
+            negotiation: negotiationPayload,
+            sizing: sizingPayload,
+            financial: financialPayload,
+          })
+          if (genRes?.view_url) {
+            updatedViewUrl = genRes.view_url
+            updatedSnapshot.view_url = genRes.view_url
+          }
+        } catch (genErr) {
+          console.warn('Aviso: Não foi possível atualizar no gerador remoto:', genErr)
+        }
+      }
+
       await pb.collection('proposals').update(proposal.id, {
         discount_amount: discountPercent,
         total_value: finalTotal,
@@ -108,6 +175,8 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
         notes: notes,
         validity_date: validityDate ? new Date(validityDate).toISOString() : null,
         snapshot_data: updatedSnapshot,
+        external_id: proposal.id,
+        ...(updatedViewUrl ? { view_url: updatedViewUrl } : {}),
       })
       await createProposalHistory(proposal.id, updatedSnapshot)
       toast({ title: 'Proposta atualizada' })

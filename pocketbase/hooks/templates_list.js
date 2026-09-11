@@ -9,7 +9,9 @@ routerAdd(
     } catch (_) {}
 
     if (!generatorUrl) {
-      return e.json(500, { message: 'Generator URL não configurada nas configurações do sistema.' })
+      return e.json(500, {
+        message: 'URL do Gerador não configurada nas configurações do sistema.',
+      })
     }
 
     if (generatorUrl.endsWith('/')) {
@@ -50,14 +52,23 @@ routerAdd(
       return e.json(res.statusCode, { message: errMsg })
     }
 
-    var result = res.json
-    if (!Array.isArray(result)) {
-      if (result && Array.isArray(result.templates)) {
-        result = result.templates
-      } else if (result && Array.isArray(result.data)) {
-        result = result.data
-      } else if (!result) {
-        result = []
+    var result = res.json || {}
+
+    // Garantir formato uniforme { contract, templates }
+    if (Array.isArray(result)) {
+      result = {
+        contract: null,
+        templates: result,
+      }
+    } else if (!result.templates && Array.isArray(result.data)) {
+      result = {
+        contract: result.contract || null,
+        templates: result.data,
+      }
+    } else if (!result.templates) {
+      result = {
+        contract: result.contract || null,
+        templates: [],
       }
     }
 

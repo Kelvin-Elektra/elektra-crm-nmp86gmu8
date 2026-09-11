@@ -20,7 +20,7 @@ import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 import { extractFieldErrors, type FieldErrors } from '@/lib/pocketbase/errors'
 import {
-  getTemplates,
+  getTemplatesResponse,
   previewTemplate,
   type GeneratorTemplate,
   type TemplateSchemaField,
@@ -107,8 +107,8 @@ export default function ProposalSettings() {
     setTemplatesLoading(true)
     setTemplatesError(null)
     try {
-      const data = await getTemplates()
-      setTemplates(Array.isArray(data) ? data : [])
+      const res = await getTemplatesResponse()
+      setTemplates(Array.isArray(res.templates) ? res.templates : [])
     } catch (err: any) {
       setTemplatesError(err?.message || 'Falha ao carregar os modelos disponíveis.')
     } finally {

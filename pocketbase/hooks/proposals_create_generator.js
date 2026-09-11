@@ -1,12 +1,7 @@
 routerAdd(
   'POST',
-  '/backend/v1/templates/{templateId}/preview',
+  '/backend/v1/proposals/generate-external',
   (e) => {
-    const templateId = e.request.pathValue('templateId')
-    if (!templateId) {
-      return e.badRequestError('templateId é obrigatório.')
-    }
-
     let generatorUrl = ''
     let generatorPublicUrl = ''
     try {
@@ -33,9 +28,20 @@ routerAdd(
 
     const apiSecret = $secrets.get('API_CRM_GERADOR')
 
-    // 1. Obter o contract do Gerador dinamicamente
-    let targetEndpoint = '/backend/v1/templates/' + templateId + '/preview'
-    let targetMethod = 'POST'
+    const body = e.requestInfo().body || {}
+    const templateId = body.template_id
+    const externalId = body.external_id
+
+    if (!templateId) {
+      return e.badRequestError('template_id é obrigatório.')
+    }
+    if (!externalId) {
+      return e.badRequestError('external_id é obrigatório.')
+    }
+
+    // 1. Ler o contract dinamicamente do endpoint GET /backend/v1/templates/list
+    let createEndpoint = '/backend/v1/proposals'
+    let createMethod = 'POST'
 
     try {
       const listRes = $http.send({
@@ -49,42 +55,44 @@ routerAdd(
 
       if (listRes.statusCode === 200 && listRes.json && listRes.json.contract) {
         const contract = listRes.json.contract
-        if (contract.preview_proposal && contract.preview_proposal.endpoint) {
-          let ep = String(contract.preview_proposal.endpoint).trim()
-          // Extrair método se vier como "POST /endpoint"
+        if (contract.create_proposal && contract.create_proposal.endpoint) {
+          let ep = String(contract.create_proposal.endpoint).trim()
           if (ep.indexOf(' ') !== -1) {
             const parts = ep.split(/\s+/)
             if (parts.length >= 2) {
-              targetMethod = parts[0].toUpperCase()
+              createMethod = parts[0].toUpperCase()
               ep = parts[1]
             }
           }
-          // Substituir {id} ou :id ou {templateId}
-          targetEndpoint = ep
-            .replace('{id}', templateId)
-            .replace(':id', templateId)
-            .replace('{templateId}', templateId)
+          createEndpoint = ep
         }
       }
     } catch (listErr) {
       $app
         .logger()
         .warn(
-          'Aviso: Não foi possível obter contract atualizado antes do preview, usando fallback padrão',
+          'Aviso: Não foi possível obter contract atualizado antes da criação de proposta, usando fallback padrão',
           'error',
           String(listErr),
         )
     }
 
-    // Se o endpoint não começar com /, adicionar
-    if (targetEndpoint.charAt(0) !== '/') {
-      targetEndpoint = '/' + targetEndpoint
+    if (createEndpoint.charAt(0) !== '/') {
+      createEndpoint = '/' + createEndpoint
     }
 
-    const body = e.requestInfo().body || {}
+    // 2. Montar payload estritamente no padrão do contract:
+    // payload_shape: ["template_id", "external_id", "fixed_data", "lead", "negotiation", "sizing", "financial"]
     const payload = {
-      fixed_data: body.fixed_data || body.branding || body,
+      template_id: templateId,
+      external_id: externalId,
+      fixed_data: body.fixed_data || {},
+      lead: body.lead || {},
+      negotiation: body.negotiation || {},
+      sizing: body.sizing || {},
+      financial: body.financial || {},
     }
+
     let bodyStr = '{}'
     try {
       bodyStr = JSON.stringify(payload)
@@ -93,8 +101,8 @@ routerAdd(
     let res
     try {
       res = $http.send({
-        url: generatorUrl + targetEndpoint,
-        method: targetMethod,
+        url: generatorUrl + createEndpoint,
+        method: createMethod,
         headers: {
           'x-api-secret': apiSecret,
           'Content-Type': 'application/json',
@@ -105,12 +113,16 @@ routerAdd(
     } catch (err) {
       $app
         .logger()
-        .error('Falha ao conectar com o Gerador de Propostas (preview)', 'error', String(err))
+        .error(
+          'Falha ao conectar com o Gerador de Propostas (create_proposal)',
+          'error',
+          String(err),
+        )
       return e.json(502, { message: 'Falha ao conectar com o Gerador de Propostas.' })
     }
 
     if (res.statusCode >= 400) {
-      let errMsg = 'Erro ao gerar visualização do modelo no gerador.'
+      let errMsg = 'Erro ao gerar proposta no gerador.'
       try {
         if (res.json && res.json.message) {
           errMsg = res.json.message
@@ -121,11 +133,13 @@ routerAdd(
       $app
         .logger()
         .error(
-          'Gerador retornou erro no preview',
+          'Gerador retornou erro na criação de proposta',
           'status',
           res.statusCode,
-          'templateId',
+          'template_id',
           templateId,
+          'external_id',
+          externalId,
         )
       return e.json(res.statusCode, { message: errMsg })
     }
@@ -133,7 +147,7 @@ routerAdd(
     const result = res.json || {}
     if (result && result.view_url) {
       let viewUrl = String(result.view_url)
-      // Se já for URL absoluta (http:// ou https://), substitui o origin/domínio pelo generatorPublicUrl
+      // Reescrever domínio para generatorPublicUrl preservando path e query
       if (viewUrl.indexOf('http://') === 0 || viewUrl.indexOf('https://') === 0) {
         try {
           const slashIdx = viewUrl.indexOf('/', 8) // após https:// ou http://

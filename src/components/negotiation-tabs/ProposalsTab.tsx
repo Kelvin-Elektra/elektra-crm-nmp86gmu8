@@ -151,7 +151,14 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setViewerOpen(p)}
+                    onClick={() => {
+                      const link = p.view_url || p.snapshot_data?.view_url
+                      if (link) {
+                        window.open(link, '_blank')
+                      } else {
+                        setViewerOpen(p)
+                      }
+                    }}
                     className="flex-1"
                   >
                     <Eye className="h-4 w-4 mr-2" /> Visualizar

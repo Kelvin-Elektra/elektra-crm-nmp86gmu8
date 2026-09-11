@@ -22,6 +22,7 @@ import {
   fetchTariffDetails,
   DEFAULT_SIMULTANEITY_FACTORS,
 } from '@/lib/financial-analysis'
+import { createGeneratorProposal, getTemplatesResponse } from '@/services/templates'
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -425,7 +426,27 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         },
       ]
 
-      const rec = await pb.collection('proposals').create({
+      // 1. Obter templates em produção e definir template_id válido
+      let templateIdToUse = activeTplId
+      try {
+        const templatesRes = await getTemplatesResponse()
+        const prodTemplates = templatesRes.templates || []
+        if (prodTemplates.length > 0) {
+          const found = prodTemplates.find((t) => t.id === templateIdToUse)
+          if (!found) {
+            templateIdToUse = prodTemplates[0].id
+          }
+        }
+      } catch (err) {
+        console.warn('Não foi possível validar templates no gerador:', err)
+      }
+
+      if (!templateIdToUse) {
+        throw new Error('Nenhum modelo de proposta ativo configurado.')
+      }
+
+      // 2. Salvar proposta no CRM primeiro para gerar o ID persistente (external_id)
+      const proposalDataToCreate: Record<string, any> = {
         company_id: neg.company_id,
         negotiation_id: neg.id,
         description:
@@ -440,14 +461,129 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         kit_details: JSON.stringify(snapshotData),
         cost_breakdown: cost_breakdown,
         snapshot_data: snapshotData,
+      }
+
+      const rec = await pb.collection('proposals').create(proposalDataToCreate)
+      const externalId = rec.id
+
+      // 3. Chamar o Gerador de Propostas para gerar o link oficial persistente
+      // Payload estrito: template_id, external_id, fixed_data, lead, negotiation, sizing, financial
+      const leadData = {
+        name: neg.lead_name || neg.expand?.lead_id?.name || 'Cliente',
+        email: neg.lead_email || neg.expand?.lead_id?.email || '',
+        phone: neg.lead_phone || neg.expand?.lead_id?.phone || '',
+        document: neg.lead_document || neg.expand?.lead_id?.document || '',
+        address:
+          neg.address ||
+          (neg.street
+            ? `${neg.street}, ${neg.number || 'S/N'} - ${neg.city || ''}/${neg.state || ''}`
+            : ''),
+      }
+
+      const negotiationPayload = {
+        id: neg.id,
+        title: neg.title || '',
+        validity: validity || '',
+        validity_date: validity || '',
+        payment_terms: paymentTerms || '',
+        defined_payment_method: definedPaymentMethod || '',
+        accepted_payment_methods: acceptedPaymentMethods || '',
+        installation_lead_time: installationLeadTime || '',
+        notes: notes || '',
+        description: description || '',
+      }
+
+      const sizingPayload = {
+        kit_power_kwp: Number(neg.sizing?.kit_power_kwp) || 0,
+        estimated_monthly_generation: estMonthlyGenRough,
+        module_qty: Number(neg.sizing?.module_qty) || 0,
+        selected_module_id: neg.sizing?.selected_module_id || '',
+        inverters: neg.sizing?.inverters || [],
+        consumer_category: consumerCategory,
+        simultaneity_factor: simultaneityFactor,
+        avg_consumption: neg.avg_consumption || 0,
+        ...(neg.sizing || {}),
+      }
+
+      const paybackYearsVal =
+        financialProjection?.roiYears != null
+          ? Number(
+              (
+                financialProjection.roiYears +
+                (financialProjection.roiRemainingMonths || 0) / 12
+              ).toFixed(1),
+            )
+          : 0
+      const annualSavingsVal = Number(financialProjection?.annualSavings) || 0
+      const savings25YearsVal = annualSavingsVal * 25
+
+      const financialPayload = {
+        total_investment: finalPrice,
+        sale_price: finalPrice,
+        subtotal: totalValue,
+        discount_amount: discount,
+        monthly_savings: Number(financialProjection?.monthlySavings) || 0,
+        payback_years: paybackYearsVal,
+        payback_months: Number(financialProjection?.roiMonths) || 0,
+        savings_25_years: savings25YearsVal,
+        annual_savings: annualSavingsVal,
+        tariff_details: tariffDetails || {},
+      }
+
+      let generatorResult: any = null
+      try {
+        generatorResult = await createGeneratorProposal({
+          template_id: templateIdToUse,
+          external_id: externalId,
+          fixed_data: activeTemplateFixedData,
+          lead: leadData,
+          negotiation: negotiationPayload,
+          sizing: sizingPayload,
+          financial: financialPayload,
+        })
+      } catch (genErr: any) {
+        // Se falhar a chamada ao Gerador, remove a proposta do CRM para não deixar incompleta
+        try {
+          await pb.collection('proposals').delete(externalId)
+        } catch {
+          /* intentionally ignored */
+        }
+        throw new Error(
+          genErr?.message || 'Falha ao gerar proposta no gerador. A proposta não foi salva.',
+        )
+      }
+
+      const viewUrl = generatorResult?.view_url
+      if (!viewUrl) {
+        try {
+          await pb.collection('proposals').delete(externalId)
+        } catch {
+          /* intentionally ignored */
+        }
+        throw new Error(
+          'O gerador não retornou o link de visualização da proposta. Operação cancelada.',
+        )
+      }
+
+      // Atualizar o registro do CRM com o link e external_id gerados
+      await pb.collection('proposals').update(externalId, {
+        external_id: externalId,
+        view_url: viewUrl,
+        snapshot_data: {
+          ...snapshotData,
+          view_url: viewUrl,
+          generator_proposal_id: generatorResult.id || null,
+        },
       })
 
       toast({ title: 'Proposta gerada com sucesso' })
       reload()
       onOpenChange(false)
-      openViewer(rec)
+
+      // Abrir o link persistente oficial em NOVA ABA
+      window.open(viewUrl, '_blank')
     } catch (e: any) {
-      toast({ variant: 'destructive', title: 'Erro', description: e.message })
+      toast({ variant: 'destructive', title: 'Erro ao gerar proposta', description: e.message })
     } finally {
       setLoading(false)
     }
