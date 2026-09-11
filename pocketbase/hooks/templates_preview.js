@@ -31,11 +31,69 @@ routerAdd(
       generatorPublicUrl = generatorPublicUrl.slice(0, -1)
     }
 
-    const apiSecret = $secrets.get('API_CRM_GERADOR')
+    const apiSecret = $secrets.get('API_CRM_GERADOR') || ''
+
+    // Função auxiliar para construir headers de autenticação conforme o contrato
+    function resolveAuthHeaders(authConfig, secretValue) {
+      const headers = {}
+      if (!authConfig) {
+        if (secretValue) {
+          headers['x-api-secret'] = secretValue
+        }
+        return headers
+      }
+
+      if (typeof authConfig === 'string') {
+        const lower = authConfig.toLowerCase().trim()
+        if (lower === 'bearer' || lower === 'authorization' || lower.startsWith('bearer')) {
+          headers['Authorization'] = 'Bearer ' + secretValue
+        } else if (lower === 'x-api-secret' || lower === 'api-secret') {
+          headers['x-api-secret'] = secretValue
+        } else if (lower === 'x-api-key' || lower === 'api-key') {
+          headers['x-api-key'] = secretValue
+        } else {
+          headers[authConfig] = secretValue
+        }
+        return headers
+      }
+
+      if (typeof authConfig === 'object' && authConfig !== null) {
+        if (authConfig.headers && typeof authConfig.headers === 'object') {
+          for (const k of Object.keys(authConfig.headers)) {
+            let v = authConfig.headers[k]
+            if (typeof v === 'string' && (v === '{secret}' || v === ':secret' || v === '$secret')) {
+              v = secretValue
+            } else if (typeof v === 'string' && v.indexOf('{secret}') !== -1) {
+              v = v.replace('{secret}', secretValue)
+            }
+            headers[k] = v
+          }
+        } else if (authConfig.type) {
+          const t = String(authConfig.type).toLowerCase()
+          const headerName =
+            authConfig.header || (t === 'bearer' ? 'Authorization' : 'x-api-secret')
+          if (t === 'bearer') {
+            headers[headerName] = 'Bearer ' + secretValue
+          } else {
+            headers[headerName] = secretValue
+          }
+        } else if (authConfig.header) {
+          headers[authConfig.header] = secretValue
+        }
+      }
+
+      if (Object.keys(headers).length === 0 && secretValue) {
+        headers['x-api-secret'] = secretValue
+      }
+
+      return headers
+    }
 
     // 1. Obter o contract do Gerador dinamicamente
     let targetEndpoint = '/backend/v1/templates/' + templateId + '/preview'
     let targetMethod = 'POST'
+    let activeBaseUrl = generatorUrl
+    let previewAuthConfig = null
 
     try {
       const listRes = $http.send({
@@ -49,21 +107,52 @@ routerAdd(
 
       if (listRes.statusCode === 200 && listRes.json && listRes.json.contract) {
         const contract = listRes.json.contract
-        if (contract.preview_proposal && contract.preview_proposal.endpoint) {
-          let ep = String(contract.preview_proposal.endpoint).trim()
-          // Extrair método se vier como "POST /endpoint"
-          if (ep.indexOf(' ') !== -1) {
-            const parts = ep.split(/\s+/)
-            if (parts.length >= 2) {
-              targetMethod = parts[0].toUpperCase()
-              ep = parts[1]
-            }
+
+        try {
+          $app
+            .logger()
+            .info('Contrato recebido do Gerador (preview)', 'contract', JSON.stringify(contract))
+        } catch (_) {}
+
+        if (contract.base_url && typeof contract.base_url === 'string') {
+          let bUrl = contract.base_url.trim()
+          if (bUrl.endsWith('/')) {
+            bUrl = bUrl.slice(0, -1)
           }
-          // Substituir {id} ou :id ou {templateId}
-          targetEndpoint = ep
-            .replace('{id}', templateId)
-            .replace(':id', templateId)
-            .replace('{templateId}', templateId)
+          if (bUrl.startsWith('http://') || bUrl.startsWith('https://')) {
+            activeBaseUrl = bUrl
+          }
+        }
+
+        if (contract.auth) {
+          previewAuthConfig = contract.auth
+        }
+
+        if (contract.preview_proposal) {
+          if (contract.preview_proposal.auth) {
+            previewAuthConfig = contract.preview_proposal.auth
+          }
+
+          if (contract.preview_proposal.method) {
+            targetMethod = String(contract.preview_proposal.method).toUpperCase()
+          }
+
+          if (contract.preview_proposal.endpoint) {
+            let ep = String(contract.preview_proposal.endpoint).trim()
+            // Extrair método se vier como "POST /endpoint"
+            if (ep.indexOf(' ') !== -1) {
+              const parts = ep.split(/\s+/)
+              if (parts.length >= 2) {
+                targetMethod = parts[0].toUpperCase()
+                ep = parts[1]
+              }
+            }
+            // Substituir {id} ou :id ou {templateId}
+            targetEndpoint = ep
+              .replace('{id}', templateId)
+              .replace(':id', templateId)
+              .replace('{templateId}', templateId)
+          }
         }
       }
     } catch (listErr) {
@@ -90,44 +179,96 @@ routerAdd(
       bodyStr = JSON.stringify(payload)
     } catch (_) {}
 
+    const authHeaders = resolveAuthHeaders(previewAuthConfig, apiSecret)
+    const requestHeaders = Object.assign({}, authHeaders, {
+      'Content-Type': 'application/json',
+    })
+
+    const finalUrl = activeBaseUrl + targetEndpoint
+
+    const sanitizedHeaders = {}
+    for (const h of Object.keys(requestHeaders)) {
+      const hLower = h.toLowerCase()
+      if (
+        hLower.indexOf('secret') !== -1 ||
+        hLower.indexOf('auth') !== -1 ||
+        hLower.indexOf('token') !== -1 ||
+        hLower.indexOf('key') !== -1
+      ) {
+        sanitizedHeaders[h] = '[REDACTED]'
+      } else {
+        sanitizedHeaders[h] = requestHeaders[h]
+      }
+    }
+
+    $app
+      .logger()
+      .info(
+        'Disparando chamada de preview para o Gerador',
+        'url',
+        finalUrl,
+        'method',
+        targetMethod,
+        'headers',
+        JSON.stringify(sanitizedHeaders),
+      )
+
     let res
     try {
       res = $http.send({
-        url: generatorUrl + targetEndpoint,
+        url: finalUrl,
         method: targetMethod,
-        headers: {
-          'x-api-secret': apiSecret,
-          'Content-Type': 'application/json',
-        },
+        headers: requestHeaders,
         body: bodyStr,
         timeout: 30,
       })
     } catch (err) {
       $app
         .logger()
-        .error('Falha ao conectar com o Gerador de Propostas (preview)', 'error', String(err))
+        .error(
+          'Falha ao conectar com o Gerador de Propostas (preview)',
+          'error',
+          String(err),
+          'url',
+          finalUrl,
+        )
       return e.json(502, { message: 'Falha ao conectar com o Gerador de Propostas.' })
     }
 
     if (res.statusCode >= 400) {
-      let errMsg = 'Erro ao gerar visualização do modelo no gerador.'
+      let rawBody = ''
       try {
-        if (res.json && res.json.message) {
-          errMsg = res.json.message
-        } else if (res.json && res.json.error) {
-          errMsg = res.json.error
+        if (typeof res.raw === 'string') {
+          rawBody = res.raw
+        } else if (res.json) {
+          rawBody = JSON.stringify(res.json)
+        } else if (res.body) {
+          rawBody = String(res.body)
         }
-      } catch (_) {}
+      } catch (_) {
+        rawBody = String(res.body || '')
+      }
+
       $app
         .logger()
         .error(
           'Gerador retornou erro no preview',
           'status',
           res.statusCode,
+          'raw_body',
+          rawBody,
           'templateId',
           templateId,
         )
-      return e.json(res.statusCode, { message: errMsg })
+
+      if (res.json && typeof res.json === 'object' && Object.keys(res.json).length > 0) {
+        return e.json(res.statusCode, res.json)
+      }
+
+      return e.json(res.statusCode, {
+        message: 'Erro do Gerador (status ' + res.statusCode + ')',
+        detail: rawBody || 'Nenhum detalhe retornado pelo gerador.',
+      })
     }
 
     const result = res.json || {}
