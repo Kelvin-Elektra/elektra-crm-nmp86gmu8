@@ -1,5 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -38,6 +45,11 @@ export function ProposalHistoryDialog({
           <DialogTitle className="flex items-center gap-2">
             <History className="h-5 w-5" /> Histórico da Proposta
           </DialogTitle>
+          <VisuallyHidden>
+            <DialogDescription>
+              Histórico de alterações e versões salvas da proposta comercial.
+            </DialogDescription>
+          </VisuallyHidden>
         </DialogHeader>
         <ScrollArea className="flex-1 -mx-6 px-6">
           {loading ? (

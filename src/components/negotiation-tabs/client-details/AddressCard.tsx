@@ -7,8 +7,10 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import {
@@ -208,6 +210,11 @@ export function AddressCard({ neg, reload }: { neg: any; reload?: () => void }) 
         <DialogContent className="sm:max-w-[550px]">
           <DialogHeader>
             <DialogTitle>Editar Endereço</DialogTitle>
+            <VisuallyHidden>
+              <DialogDescription>
+                Edite os dados de localização e endereço do cliente.
+              </DialogDescription>
+            </VisuallyHidden>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="flex items-end gap-2">

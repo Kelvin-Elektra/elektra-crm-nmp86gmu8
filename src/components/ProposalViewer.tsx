@@ -1,5 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { Button } from '@/components/ui/button'
 import { Loader2, AlertCircle } from 'lucide-react'
 import { useProposalData } from '@/hooks/use-proposal-data'
@@ -34,6 +41,14 @@ export function ProposalViewer({ open, onOpenChange, proposal, negotiation }: an
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[1200px] w-[90vw] h-[95vh] overflow-hidden p-0 border-none bg-slate-100 flex flex-col">
+        <VisuallyHidden>
+          <DialogHeader>
+            <DialogTitle>Visualizador de Proposta</DialogTitle>
+            <DialogDescription>
+              Visualização e impressão do documento da proposta comercial.
+            </DialogDescription>
+          </DialogHeader>
+        </VisuallyHidden>
         {loading ? (
           <div className="flex items-center justify-center h-full min-h-[400px]">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />

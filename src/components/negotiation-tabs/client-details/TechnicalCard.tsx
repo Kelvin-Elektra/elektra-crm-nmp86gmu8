@@ -7,8 +7,10 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -84,6 +86,11 @@ export function TechnicalCard({ neg, reload }: { neg: any; reload?: () => void }
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Editar Informações Técnicas</DialogTitle>
+            <VisuallyHidden>
+              <DialogDescription>
+                Edite o tipo de instalação e informações técnicas.
+              </DialogDescription>
+            </VisuallyHidden>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">

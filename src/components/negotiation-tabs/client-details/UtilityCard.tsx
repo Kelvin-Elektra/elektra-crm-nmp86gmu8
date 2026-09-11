@@ -7,8 +7,10 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import {
@@ -180,6 +182,11 @@ export function UtilityCard({ neg, reload }: { neg: any; reload?: () => void }) 
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Editar Concessionária e Rede</DialogTitle>
+            <VisuallyHidden>
+              <DialogDescription>
+                Edite a concessionária, UC, tipo de rede e classe de consumo.
+              </DialogDescription>
+            </VisuallyHidden>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-3">

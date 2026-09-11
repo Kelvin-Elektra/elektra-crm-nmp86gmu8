@@ -17,8 +17,10 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
@@ -276,6 +278,11 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirmar Venda</DialogTitle>
+            <VisuallyHidden>
+              <DialogDescription>
+                Confirmação da venda e data de fechamento da proposta comercial.
+              </DialogDescription>
+            </VisuallyHidden>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">

@@ -7,8 +7,10 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { Label } from '@/components/ui/label'
 import { NumericInput } from '@/components/ui/numeric-input'
 import { Switch } from '@/components/ui/switch'
@@ -138,6 +140,11 @@ export function ConsumptionCard({ neg, reload }: { neg: any; reload?: () => void
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Editar Consumo</DialogTitle>
+            <VisuallyHidden>
+              <DialogDescription>
+                Edite os valores de consumo de energia da instalação.
+              </DialogDescription>
+            </VisuallyHidden>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="flex items-center space-x-2 mb-4">
