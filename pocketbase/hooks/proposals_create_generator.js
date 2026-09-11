@@ -170,8 +170,38 @@ routerAdd(
         )
     }
 
-    if (createEndpoint.charAt(0) !== '/') {
-      createEndpoint = '/' + createEndpoint
+    // Função auxiliar para sanitizar headers para log
+    function sanitizeHeadersForLog(headers) {
+      const sanitized = {}
+      for (const h of Object.keys(headers)) {
+        const hLower = h.toLowerCase()
+        if (
+          hLower.indexOf('secret') !== -1 ||
+          hLower.indexOf('auth') !== -1 ||
+          hLower.indexOf('token') !== -1 ||
+          hLower.indexOf('key') !== -1
+        ) {
+          sanitized[h] = '[REDACTED]'
+        } else {
+          sanitized[h] = headers[h]
+        }
+      }
+      return sanitized
+    }
+
+    // 1 & 2. Normalização de endpoint e validação de URL final
+    let finalUrl = ''
+    if (createEndpoint.startsWith('http://') || createEndpoint.startsWith('https://')) {
+      finalUrl = createEndpoint
+    } else {
+      if (createEndpoint.charAt(0) !== '/') {
+        createEndpoint = '/' + createEndpoint
+      }
+      if (activeBaseUrl.startsWith('http://') || activeBaseUrl.startsWith('https://')) {
+        finalUrl = activeBaseUrl + createEndpoint
+      } else {
+        finalUrl = generatorUrl + createEndpoint
+      }
     }
 
     // 2. Montar payload estritamente no padrão do contract:
@@ -196,34 +226,17 @@ routerAdd(
       'Content-Type': 'application/json',
     })
 
-    const finalUrl = activeBaseUrl + createEndpoint
-
-    // 2 (b) Logar URL final, método e headers (sem valor de secrets)
-    const sanitizedHeaders = {}
-    for (const h of Object.keys(requestHeaders)) {
-      const hLower = h.toLowerCase()
-      if (
-        hLower.indexOf('secret') !== -1 ||
-        hLower.indexOf('auth') !== -1 ||
-        hLower.indexOf('token') !== -1 ||
-        hLower.indexOf('key') !== -1
-      ) {
-        sanitizedHeaders[h] = '[REDACTED]'
-      } else {
-        sanitizedHeaders[h] = requestHeaders[h]
-      }
-    }
-
+    // 2 (b) Logar URL final, método e headers (sem valor de secrets) da primeira tentativa
     $app
       .logger()
       .info(
-        'Disparando chamada de criação de proposta para o Gerador',
+        'Disparando chamada de criação de proposta para o Gerador (tentativa 1)',
         'url',
         finalUrl,
         'method',
         createMethod,
         'headers',
-        JSON.stringify(sanitizedHeaders),
+        JSON.stringify(sanitizeHeadersForLog(requestHeaders)),
       )
 
     let res
@@ -238,16 +251,60 @@ routerAdd(
     } catch (err) {
       $app
         .logger()
-        .error(
-          'Falha ao conectar com o Gerador de Propostas (create_proposal)',
+        .warn(
+          'Falha na chamada de criação via URL derivada do contract, tentando fallback com URL fixa',
           'error',
           String(err),
           'url',
           finalUrl,
         )
-      return e.json(502, { message: 'Falha ao conectar com o Gerador de Propostas.' })
-    }
 
+      // 3. Retry com fallback: caminho fixo sabidamente acessível
+      const fallbackUrl = generatorUrl + '/backend/v1/proposals'
+      const fallbackHeaders = {
+        'Content-Type': 'application/json',
+      }
+      if (apiSecret) {
+        fallbackHeaders['x-api-secret'] = apiSecret
+      }
+
+      $app
+        .logger()
+        .info(
+          'Disparando chamada de criação de proposta para o Gerador (tentativa 2 - fallback)',
+          'url',
+          fallbackUrl,
+          'method',
+          'POST',
+          'headers',
+          JSON.stringify(sanitizeHeadersForLog(fallbackHeaders)),
+        )
+
+      try {
+        res = $http.send({
+          url: fallbackUrl,
+          method: 'POST',
+          headers: fallbackHeaders,
+          body: bodyStr,
+          timeout: 30,
+        })
+      } catch (fallbackErr) {
+        $app
+          .logger()
+          .error(
+            'Falha ao conectar com o Gerador de Propostas (create_proposal) após fallback',
+            'error_tentativa_1',
+            String(err),
+            'url_tentativa_1',
+            finalUrl,
+            'error_tentativa_2',
+            String(fallbackErr),
+            'url_tentativa_2',
+            fallbackUrl,
+          )
+        return e.json(502, { message: 'Falha ao conectar com o Gerador de Propostas.' })
+      }
+    }
     // 2 (c) e 3: Tratar erro >= 400 com log do corpo cru e propagação fiel ao frontend
     if (res.statusCode >= 400) {
       let rawBody = ''

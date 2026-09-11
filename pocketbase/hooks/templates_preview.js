@@ -165,9 +165,19 @@ routerAdd(
         )
     }
 
-    // Se o endpoint não começar com /, adicionar
-    if (targetEndpoint.charAt(0) !== '/') {
-      targetEndpoint = '/' + targetEndpoint
+    // Normalização de endpoint e validação de URL final
+    let finalUrl = ''
+    if (targetEndpoint.startsWith('http://') || targetEndpoint.startsWith('https://')) {
+      finalUrl = targetEndpoint
+    } else {
+      if (targetEndpoint.charAt(0) !== '/') {
+        targetEndpoint = '/' + targetEndpoint
+      }
+      if (activeBaseUrl.startsWith('http://') || activeBaseUrl.startsWith('https://')) {
+        finalUrl = activeBaseUrl + targetEndpoint
+      } else {
+        finalUrl = generatorUrl + targetEndpoint
+      }
     }
 
     const body = e.requestInfo().body || {}
@@ -183,8 +193,6 @@ routerAdd(
     const requestHeaders = Object.assign({}, authHeaders, {
       'Content-Type': 'application/json',
     })
-
-    const finalUrl = activeBaseUrl + targetEndpoint
 
     const sanitizedHeaders = {}
     for (const h of Object.keys(requestHeaders)) {
