@@ -369,9 +369,7 @@ export default function ProposalSettings() {
               {!templatesLoading && !templatesError && templates.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-12 gap-2">
                   <FileImage className="h-8 w-8 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">
-                    Nenhum template em produção disponível no Gerador.
-                  </p>
+                  <p className="text-sm text-muted-foreground">Nenhum template disponível.</p>
                 </div>
               )}
 
@@ -410,11 +408,6 @@ export default function ProposalSettings() {
                           <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
                             {tpl.description}
                           </p>
-                        )}
-                        {tpl.status && (
-                          <Badge variant="outline" className="mt-2 text-xs">
-                            {tpl.status}
-                          </Badge>
                         )}
                       </div>
                       <div className="flex gap-2 mt-auto">

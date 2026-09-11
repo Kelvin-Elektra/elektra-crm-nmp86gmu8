@@ -275,6 +275,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
         neighborhood: '',
         city: '',
         state: '',
+        city_id: '',
         utility_id: '',
         network_type: '',
         tension: '',

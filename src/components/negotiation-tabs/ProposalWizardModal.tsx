@@ -159,10 +159,10 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         }),
       )
 
-      const settings = await pb
+      const settings = (await pb
         .collection('proposal_settings')
         .getFirstListItem(`company_id='${companyId}'`)
-        .catch(() => ({}))
+        .catch(() => ({}))) as Record<string, any>
       const paymentMethodsList = Array.isArray(settings.default_payment_methods)
         ? settings.default_payment_methods
         : []
@@ -295,7 +295,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         rawSettings: settings,
       })
 
-      const defMode = settings.default_pricing_mode || 'automatic'
+      const defMode = (settings.default_pricing_mode as 'automatic' | 'manual') || 'automatic'
       setPricingMode(defMode)
       setManualKitValue(autoKitPrice)
     } catch (e) {

@@ -21,7 +21,7 @@ export function ConfigurableFieldsForm({ fields, values, onChange }: Props) {
   if (!fields || fields.length === 0) {
     return (
       <p className="text-sm text-muted-foreground italic py-4">
-        Este template não possui campos configuráveis.
+        Este template não possui dados fixos para configurar. Você ainda pode visualizar o preview.
       </p>
     )
   }

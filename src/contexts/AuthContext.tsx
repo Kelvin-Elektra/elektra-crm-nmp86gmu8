@@ -40,7 +40,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [realUser, setRealUser] = useState<User | null>(
-    pb.authStore.isValid ? (pb.authStore.record as User) : null,
+    pb.authStore.isValid ? (pb.authStore.record as unknown as User) : null,
   )
   const [simulatedUser, setSimulatedUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = pb.authStore.onChange((_token, record) => {
-      setRealUser(pb.authStore.isValid ? (record as User) : null)
+      setRealUser(pb.authStore.isValid ? (record as unknown as User) : null)
       if (!record || !pb.authStore.isValid) setSimulatedUser(null)
     })
 
@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       pb.collection('users')
         .authRefresh()
         .then((res) => {
-          setRealUser(res.record as User)
+          setRealUser(res.record as unknown as User)
         })
         .catch((err: any) => {
           if (err.status !== 0) {
@@ -116,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const authData = await pb.collection('users').authWithPassword(email, pass)
-      const record = authData.record as User
+      const record = authData.record as unknown as User
 
       if (record.status === 'inactive') {
         pb.authStore.clear()
@@ -179,7 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (pb.authStore.isValid) {
       try {
         const res = await pb.collection('users').authRefresh()
-        setRealUser(res.record as User)
+        setRealUser(res.record as unknown as User)
       } catch (err: any) {
         if (err.status !== 0) {
           pb.authStore.clear()
@@ -193,7 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const adminLogin = async (email: string, pass: string) => {
     try {
       const authData = await pb.collection('users').authWithPassword(email, pass)
-      const record = authData.record as User
+      const record = authData.record as unknown as User
 
       if (
         record.role !== 'User_elektra' &&
