@@ -32,9 +32,12 @@ routerAdd(
     const apiSecret = $secrets.get('API_CRM_GERADOR')
 
     const body = e.requestInfo().body || {}
+    const payload = {
+      fixed_data: body.fixed_data || body.branding || body,
+    }
     var bodyStr
     try {
-      bodyStr = JSON.stringify(body)
+      bodyStr = JSON.stringify(payload)
     } catch (_) {
       bodyStr = '{}'
     }

@@ -1,9 +1,10 @@
 import pb from '@/lib/pocketbase/client'
 
-export interface ConfigurableField {
+export interface TemplateSchemaField {
   key: string
-  type: string
+  type: 'text' | 'color' | 'image' | string
   label?: string
+  required?: boolean
   default?: any
   options?: string[]
 }
@@ -14,7 +15,11 @@ export interface GeneratorTemplate {
   description?: string
   thumbnail?: string
   status?: string
-  configurable_fields?: ConfigurableField[]
+  variable_schema?: {
+    fixed?: TemplateSchemaField[]
+    [key: string]: any
+  }
+  configurable_fields?: TemplateSchemaField[]
 }
 
 export const getTemplates = (): Promise<GeneratorTemplate[]> =>
@@ -22,10 +27,13 @@ export const getTemplates = (): Promise<GeneratorTemplate[]> =>
 
 export const previewTemplate = (
   templateId: string,
-  data: Record<string, any>,
+  fixedData: Record<string, any>,
 ): Promise<{ view_url?: string; [key: string]: any }> =>
   pb.send(`/backend/v1/templates/${templateId}/preview`, {
     method: 'POST',
-    body: JSON.stringify(data),
+    body: JSON.stringify({
+      fixed_data: fixedData,
+      branding: fixedData,
+    }),
     headers: { 'Content-Type': 'application/json' },
   })

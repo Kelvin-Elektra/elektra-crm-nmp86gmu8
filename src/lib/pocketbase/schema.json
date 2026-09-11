@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-11T19:55:09.193Z",
+  "generatedAt": "2026-09-11T20:54:47.137Z",
   "collections": [
     {
       "name": "users",
@@ -853,6 +853,12 @@
         },
         {
           "name": "default_payment_methods",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "templates_config",
           "type": "json",
           "required": false,
           "system": false

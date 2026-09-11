@@ -19,7 +19,12 @@ import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 import { extractFieldErrors, type FieldErrors } from '@/lib/pocketbase/errors'
-import { getTemplates, previewTemplate, type GeneratorTemplate } from '@/services/templates'
+import {
+  getTemplates,
+  previewTemplate,
+  type GeneratorTemplate,
+  type TemplateSchemaField,
+} from '@/services/templates'
 import {
   Save,
   FileImage,
@@ -70,9 +75,11 @@ export default function ProposalSettings() {
 
   const [selectedTemplate, setSelectedTemplate] = useState<GeneratorTemplate | null>(null)
   const [fixedData, setFixedData] = useState<Record<string, any>>({})
+  const [templatesConfig, setTemplatesConfig] = useState<Record<string, Record<string, any>>>({})
   const [configModalOpen, setConfigModalOpen] = useState(false)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
+  const [formValidationErrors, setFormValidationErrors] = useState<Record<string, string>>({})
 
   const [indicators, setIndicators] = useState({ inflation: '5', interest: '1' })
   const [pagesLayout, setPagesLayout] = useState<{ id: string; elements: string[] }[]>([])
@@ -115,13 +122,24 @@ export default function ProposalSettings() {
     pb.collection('companies')
       .getOne(user.company_id)
       .then((record) => {
-        const logoUrl = record.logo ? pb.files.getURL(record, record.logo) : ''
+        let logoUrl = ''
+        if (record.logo) {
+          logoUrl = pb.files.getURL(record, record.logo)
+        }
         setCompanyData({
           company_name: record.name || '',
-          company_logo: logoUrl,
+          name: record.name || '',
           cnpj: record.cnpj || '',
+          logo: logoUrl,
+          company_logo: logoUrl,
+          email: user.email || '',
+          phone: user.phone || '',
+          website: '',
           slogan: '',
           guarantee_text: '',
+          primaryColor: '#f71b02',
+          secondaryColor: '#f0e800',
+          gradientColor: '#e2ad3c',
         })
       })
       .catch(() => {})
@@ -133,10 +151,14 @@ export default function ProposalSettings() {
       .getFirstListItem(`company_id = '${user.company_id}'`)
       .then((record) => {
         setSettingsId(record.id)
-        if (record.active_template_id || record.template)
+        if (record.active_template_id || record.template) {
           setActiveTemplate(record.active_template_id || record.template)
+        }
         if (record.indicators) setIndicators(record.indicators as any)
         if (record.branding) setFixedData(record.branding as any)
+        if (record.templates_config && typeof record.templates_config === 'object') {
+          setTemplatesConfig(record.templates_config as Record<string, Record<string, any>>)
+        }
         if (record.pricing?.simultaneity_factors) {
           const f = record.pricing.simultaneity_factors
           setSimultaneityFactors({
@@ -165,10 +187,22 @@ export default function ProposalSettings() {
 
   if (!isAdmin && user) return <Navigate to="/dashboard" replace />
 
-  const getDefaultForType = (type: string) => {
+  const getTemplateFields = (tpl: GeneratorTemplate): TemplateSchemaField[] => {
+    if (tpl.variable_schema?.fixed && Array.isArray(tpl.variable_schema.fixed)) {
+      return tpl.variable_schema.fixed
+    }
+    if (tpl.configurable_fields && Array.isArray(tpl.configurable_fields)) {
+      return tpl.configurable_fields
+    }
+    return []
+  }
+
+  const getDefaultForType = (type: string, key: string) => {
     switch (type) {
       case 'color':
-        return '#000000'
+        if (key === 'secondaryColor') return '#f0e800'
+        if (key === 'gradientColor') return '#e2ad3c'
+        return '#f71b02'
       case 'number':
         return 0
       case 'boolean':
@@ -178,31 +212,98 @@ export default function ProposalSettings() {
     }
   }
 
-  const handleSelectTemplate = (tpl: GeneratorTemplate) => {
-    setActiveTemplate(tpl.id)
-    setSelectedTemplate(tpl)
+  const buildTemplateData = (tpl: GeneratorTemplate, currentConfig?: Record<string, any>) => {
+    const fields = getTemplateFields(tpl)
+    const saved = currentConfig || templatesConfig[tpl.id] || {}
     const initial: Record<string, any> = {}
-    for (const field of tpl.configurable_fields || []) {
+
+    for (const field of fields) {
       initial[field.key] =
+        saved[field.key] ??
         fixedData[field.key] ??
         companyData[field.key] ??
         field.default ??
-        getDefaultForType(field.type)
+        getDefaultForType(field.type, field.key)
     }
+
+    // Se o template não tem fields especificados mas temos dados de fallback
+    if (fields.length === 0) {
+      return {
+        ...companyData,
+        ...fixedData,
+        ...saved,
+      }
+    }
+
+    return initial
+  }
+
+  const handleSelectTemplate = (tpl: GeneratorTemplate) => {
+    setActiveTemplate(tpl.id)
+    setSelectedTemplate(tpl)
+    setFormValidationErrors({})
+    setFieldErrors({})
+
+    const initial = buildTemplateData(tpl)
     setFixedData(initial)
     setConfigModalOpen(true)
   }
 
+  const validateFields = (fields: TemplateSchemaField[], values: Record<string, any>) => {
+    const errors: Record<string, string> = {}
+    for (const field of fields) {
+      if (field.required) {
+        const val = values[field.key]
+        if (val === undefined || val === null || String(val).trim() === '') {
+          errors[field.key] = `O campo "${field.label || field.key}" é obrigatório.`
+        }
+      }
+    }
+    return errors
+  }
+
   const handleSave = async () => {
     if (!user?.company_id) return
+
+    // Validar se o modal está aberto com campos obrigatórios
+    if (configModalOpen && selectedTemplate) {
+      const fields = getTemplateFields(selectedTemplate)
+      const valErrors = validateFields(fields, fixedData)
+      if (Object.keys(valErrors).length > 0) {
+        setFormValidationErrors(valErrors)
+        toast({
+          variant: 'destructive',
+          title: 'Campos obrigatórios',
+          description: Object.values(valErrors)[0],
+        })
+        return
+      }
+    }
+
     setLoading(true)
     setFieldErrors({})
+    setFormValidationErrors({})
+
     try {
+      const updatedTemplatesConfig = {
+        ...templatesConfig,
+      }
+
+      if (selectedTemplate) {
+        updatedTemplatesConfig[selectedTemplate.id] = fixedData
+      } else if (activeTemplate) {
+        updatedTemplatesConfig[activeTemplate] = {
+          ...(updatedTemplatesConfig[activeTemplate] || {}),
+          ...fixedData,
+        }
+      }
+
       const data = {
         company_id: user.company_id,
         active_template_id: activeTemplate,
         indicators,
         branding: fixedData,
+        templates_config: updatedTemplatesConfig,
         pages_layout: pagesLayout,
         pricing: {
           simultaneity_factors: {
@@ -217,12 +318,15 @@ export default function ProposalSettings() {
         default_lead_time_text: defaultLeadTimeText,
         default_payment_methods: defaultPaymentMethods.filter((m) => m.trim() !== ''),
       }
+
       if (settingsId) {
         await pb.collection('proposal_settings').update(settingsId, data)
       } else {
         const record = await pb.collection('proposal_settings').create(data)
         setSettingsId(record.id)
       }
+
+      setTemplatesConfig(updatedTemplatesConfig)
       toast({ title: 'Sucesso', description: 'Configurações salvas.' })
       setConfigModalOpen(false)
     } catch (e) {
@@ -242,20 +346,20 @@ export default function ProposalSettings() {
     setPreviewLoading(true)
     setPreviewingTemplateId(tpl.id)
     try {
-      const data = await previewTemplate(tpl.id, {
-        fixed_data: fixedData,
-        branding: fixedData,
-      })
+      // Obter ou montar os valores configurados para este template
+      const currentValues = selectedTemplate?.id === tpl.id ? fixedData : buildTemplateData(tpl)
+
+      const data = await previewTemplate(tpl.id, currentValues)
       if (data.view_url) {
         window.open(data.view_url, '_blank')
       } else {
-        throw new Error('Resposta de preview inválida: view_url não encontrada.')
+        throw new Error('Não foi possível gerar a visualização da proposta.')
       }
     } catch (e: any) {
       toast({
         variant: 'destructive',
-        title: 'Erro',
-        description: e?.message || 'Falha ao gerar preview.',
+        title: 'Erro na visualização',
+        description: e?.message || 'Falha ao gerar visualização do modelo.',
       })
     } finally {
       setPreviewLoading(false)
@@ -732,9 +836,19 @@ export default function ProposalSettings() {
           </DialogHeader>
           {selectedTemplate && (
             <ConfigurableFieldsForm
-              fields={selectedTemplate.configurable_fields || []}
+              fields={getTemplateFields(selectedTemplate)}
               values={fixedData}
-              onChange={(key, val) => setFixedData((prev) => ({ ...prev, [key]: val }))}
+              onChange={(key, val) => {
+                setFixedData((prev) => ({ ...prev, [key]: val }))
+                if (formValidationErrors[key]) {
+                  setFormValidationErrors((prev) => {
+                    const next = { ...prev }
+                    delete next[key]
+                    return next
+                  })
+                }
+              }}
+              errors={formValidationErrors}
             />
           )}
           {Object.keys(fieldErrors).length > 0 && (
