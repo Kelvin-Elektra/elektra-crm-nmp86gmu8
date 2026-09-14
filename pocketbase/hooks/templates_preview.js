@@ -228,10 +228,120 @@ routerAdd(
         body = {}
       }
 
-      // Filtrar fixed_data estritamente pelas chaves do schema do template ativo
-      let rawFixedData = body.fixed_data || body.branding || body || {}
-      // Se tiver schema dinâmico obtido do listRes, podemos filtrar pelas chaves reais
-      if (typeof listRes !== 'undefined' && listRes.json && Array.isArray(listRes.json.templates)) {
+      // Buscar contexto da empresa e proposal_settings do usuário autenticado
+      let companyId = ''
+      try {
+        if (e.auth) {
+          companyId = e.auth.getString('company_id') || ''
+        }
+      } catch (_) {}
+
+      let savedTemplateConfig = {}
+      let companyFallbackData = {}
+
+      if (companyId) {
+        // 1. Tentar ler proposal_settings da empresa
+        try {
+          const settingsRec = $app.findFirstRecordByFilter(
+            'proposal_settings',
+            "company_id = '" + companyId + "'",
+          )
+          if (settingsRec) {
+            let tplConfigs = {}
+            try {
+              tplConfigs = settingsRec.get('templates_config') || {}
+              if (typeof tplConfigs === 'string') {
+                tplConfigs = JSON.parse(tplConfigs)
+              }
+            } catch (_) {
+              tplConfigs = {}
+            }
+
+            if (tplConfigs && typeof tplConfigs === 'object' && tplConfigs[templateId]) {
+              savedTemplateConfig = tplConfigs[templateId]
+            } else if (settingsRec.get('branding')) {
+              let br = settingsRec.get('branding')
+              if (typeof br === 'string') {
+                try {
+                  br = JSON.parse(br)
+                } catch (_) {}
+              }
+              if (br && typeof br === 'object') {
+                companyFallbackData = Object.assign({}, companyFallbackData, br)
+              }
+            }
+          }
+        } catch (settingsErr) {
+          safeLogWarn(
+            'Aviso ao buscar proposal_settings da empresa para preview',
+            String(settingsErr),
+          )
+        }
+
+        // 2. Carregar dados da empresa como base de fallback
+        try {
+          const compRec = $app.findFirstRecordByFilter('companies', "id = '" + companyId + "'")
+          if (compRec) {
+            let logoUrl = ''
+            const logoFile = compRec.getString('logo')
+            if (logoFile) {
+              try {
+                logoUrl = $app.fileUrl(compRec, logoFile)
+              } catch (_) {}
+            }
+            const compName = compRec.getString('name') || ''
+            const compCnpj = compRec.getString('cnpj') || ''
+            companyFallbackData = Object.assign(
+              {
+                company_name: compName,
+                name: compName,
+                cnpj: compCnpj,
+                logo: logoUrl,
+                company_logo: logoUrl,
+              },
+              companyFallbackData,
+            )
+          }
+        } catch (compErr) {
+          safeLogWarn('Aviso ao buscar company para fallback de preview', String(compErr))
+        }
+      }
+
+      // Prioridade dos dados fixos:
+      // 1. body.fixed_data explícito enviado pelo cliente
+      // 2. savedTemplateConfig salvo em proposal_settings.templates_config[templateId]
+      // 3. companyFallbackData (branding / dados da empresa)
+      let incomingFixedData = body.fixed_data
+      if (incomingFixedData === undefined && body.branding !== undefined) {
+        incomingFixedData = body.branding
+      }
+
+      let rawFixedData = {}
+      if (
+        incomingFixedData &&
+        typeof incomingFixedData === 'object' &&
+        Object.keys(incomingFixedData).length > 0
+      ) {
+        // O cliente enviou dados — combinamos com os salvos / fallback para eventuais campos ausentes
+        rawFixedData = Object.assign(
+          {},
+          companyFallbackData,
+          savedTemplateConfig,
+          incomingFixedData,
+        )
+      } else if (savedTemplateConfig && Object.keys(savedTemplateConfig).length > 0) {
+        rawFixedData = Object.assign({}, companyFallbackData, savedTemplateConfig)
+      } else {
+        rawFixedData = Object.assign({}, companyFallbackData)
+      }
+
+      // Se tiver schema dinâmico obtido do listRes, filtramos estritamente pelas chaves do schema
+      if (
+        typeof listRes !== 'undefined' &&
+        listRes &&
+        listRes.json &&
+        Array.isArray(listRes.json.templates)
+      ) {
         const matchingTpl = listRes.json.templates.find((t) => t.id === templateId)
         if (
           matchingTpl &&

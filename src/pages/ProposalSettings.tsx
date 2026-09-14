@@ -222,12 +222,35 @@ export default function ProposalSettings() {
     const initial: Record<string, any> = {}
 
     for (const field of fields) {
-      // Prioridade: valor já salvo para o template > fallback default do schema > companyData > default de tipo
-      initial[field.key] =
-        saved[field.key] ??
-        field.default ??
-        companyData[field.key] ??
-        getDefaultForType(field.type, field.key)
+      // Prioridade: valor já salvo para o template (se não for vazio) > fallback default do schema (se não vazio) > companyData > default de tipo
+      const savedVal = saved[field.key]
+      const hasSavedVal =
+        savedVal !== undefined &&
+        savedVal !== null &&
+        (typeof savedVal !== 'string' || savedVal.trim() !== '')
+
+      const defaultVal = field.default
+      const hasDefaultVal =
+        defaultVal !== undefined &&
+        defaultVal !== null &&
+        (typeof defaultVal !== 'string' || defaultVal.trim() !== '')
+
+      const compVal = companyData[field.key]
+      const hasCompVal =
+        compVal !== undefined &&
+        compVal !== null &&
+        (typeof compVal !== 'string' || compVal.trim() !== '')
+
+      if (hasSavedVal) {
+        initial[field.key] = savedVal
+      } else if (hasDefaultVal) {
+        initial[field.key] = defaultVal
+      } else if (hasCompVal) {
+        initial[field.key] = compVal
+      } else {
+        initial[field.key] =
+          savedVal ?? defaultVal ?? compVal ?? getDefaultForType(field.type, field.key)
+      }
     }
 
     // Se o template não tem fields especificados mas temos dados de fallback
@@ -454,9 +477,33 @@ export default function ProposalSettings() {
     setPreviewingTemplateId(tpl.id)
     try {
       const fields = getTemplateFields(tpl)
-      // Obter ou montar os valores configurados para este template
+      // Obter valores mais recentes salvos diretamente do banco ou do estado para evitar dados desatualizados
+      let latestConfig = templatesConfig[tpl.id] || {}
+      if (!latestConfig || Object.keys(latestConfig).length === 0) {
+        try {
+          if (user?.company_id) {
+            const freshRec = await pb
+              .collection('proposal_settings')
+              .getFirstListItem(`company_id = '${user.company_id}'`)
+            if (freshRec?.templates_config && typeof freshRec.templates_config === 'object') {
+              const freshMap = freshRec.templates_config as Record<string, Record<string, any>>
+              setTemplatesConfig(freshMap)
+              if (freshMap[tpl.id]) {
+                latestConfig = freshMap[tpl.id]
+              }
+            }
+          }
+        } catch {
+          /* ignora se falhar busca fresh */
+        }
+      }
+
+      // Prioridade: se o modal estiver aberto editando este template, usa fixedData atual do modal;
+      // senão, monta a partir da configuração salva do template com fallback para schema/empresa
       const currentValues =
-        configModalOpen && selectedTemplate?.id === tpl.id ? fixedData : buildTemplateData(tpl)
+        configModalOpen && selectedTemplate?.id === tpl.id
+          ? fixedData
+          : buildTemplateData(tpl, latestConfig)
 
       const data = await previewTemplate(tpl.id, currentValues, fields)
       if (data.view_url) {
