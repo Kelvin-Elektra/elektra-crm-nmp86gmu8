@@ -278,16 +278,146 @@ routerAdd(
         }
       }
 
+      // Normalização e aliases espelhados de variáveis dinâmicas (retrocompatível):
+      // O desenvolvedor observou que na proposta gerada só populavam nome e endereço,
+      // enquanto consumo, potência, geração, investimento e payback não populavam.
+      // Injetamos aliases alternativos para garantir correspondência no Gerador:
+      // - sizing: manter kit_power_kwp; adicionar power_kwp, kwp;
+      //           manter avg_consumption; adicionar average_consumption, monthly_consumption, consumption_kwh;
+      //           manter estimated_monthly_generation; adicionar monthly_generation, generation_kwh;
+      //           manter module_qty; adicionar module_quantity, modules_count
+      // - financial: manter total_investment; adicionar investment, price, total_value;
+      //              manter monthly_savings; adicionar economy_monthly, estimated_monthly_savings;
+      //              manter payback_years, payback_months; adicionar payback (numérico, em anos);
+      //              manter annual_savings; adicionar yearly_savings;
+      //              manter savings_25_years; adicionar total_savings_25y
+      // - lead: manter document; adicionar cpf_cnpj; manter phone; adicionar whatsapp
+      const rawLead = body.lead || {}
+      const leadDoc = rawLead.document || rawLead.cpf_cnpj || ''
+      const leadPhone = rawLead.phone || rawLead.whatsapp || ''
+      const enrichedLead = Object.assign({}, rawLead, {
+        document: leadDoc,
+        cpf_cnpj: rawLead.cpf_cnpj || leadDoc,
+        phone: leadPhone,
+        whatsapp: rawLead.whatsapp || leadPhone,
+      })
+
+      const rawSizing = body.sizing || {}
+      const kitPower = Number(rawSizing.kit_power_kwp || rawSizing.power_kwp || rawSizing.kwp || 0)
+      const avgCons = Number(
+        rawSizing.avg_consumption ||
+          rawSizing.average_consumption ||
+          rawSizing.monthly_consumption ||
+          rawSizing.consumption_kwh ||
+          0,
+      )
+      const estGen = Number(
+        rawSizing.estimated_monthly_generation ||
+          rawSizing.monthly_generation ||
+          rawSizing.generation_kwh ||
+          0,
+      )
+      const modQty = Number(
+        rawSizing.module_qty || rawSizing.module_quantity || rawSizing.modules_count || 0,
+      )
+
+      const enrichedSizing = Object.assign({}, rawSizing, {
+        kit_power_kwp: rawSizing.kit_power_kwp !== undefined ? rawSizing.kit_power_kwp : kitPower,
+        power_kwp: rawSizing.power_kwp !== undefined ? rawSizing.power_kwp : kitPower,
+        kwp: rawSizing.kwp !== undefined ? rawSizing.kwp : kitPower,
+        avg_consumption:
+          rawSizing.avg_consumption !== undefined ? rawSizing.avg_consumption : avgCons,
+        average_consumption:
+          rawSizing.average_consumption !== undefined ? rawSizing.average_consumption : avgCons,
+        monthly_consumption:
+          rawSizing.monthly_consumption !== undefined ? rawSizing.monthly_consumption : avgCons,
+        consumption_kwh:
+          rawSizing.consumption_kwh !== undefined ? rawSizing.consumption_kwh : avgCons,
+        estimated_monthly_generation:
+          rawSizing.estimated_monthly_generation !== undefined
+            ? rawSizing.estimated_monthly_generation
+            : estGen,
+        monthly_generation:
+          rawSizing.monthly_generation !== undefined ? rawSizing.monthly_generation : estGen,
+        generation_kwh: rawSizing.generation_kwh !== undefined ? rawSizing.generation_kwh : estGen,
+        module_qty: rawSizing.module_qty !== undefined ? rawSizing.module_qty : modQty,
+        module_quantity:
+          rawSizing.module_quantity !== undefined ? rawSizing.module_quantity : modQty,
+        modules_count: rawSizing.modules_count !== undefined ? rawSizing.modules_count : modQty,
+      })
+
+      const rawFinancial = body.financial || {}
+      const totInv = Number(
+        rawFinancial.total_investment ||
+          rawFinancial.investment ||
+          rawFinancial.price ||
+          rawFinancial.total_value ||
+          0,
+      )
+      const monSav = Number(
+        rawFinancial.monthly_savings ||
+          rawFinancial.economy_monthly ||
+          rawFinancial.estimated_monthly_savings ||
+          0,
+      )
+      const pbYears = Number(
+        rawFinancial.payback_years !== undefined
+          ? rawFinancial.payback_years
+          : rawFinancial.payback !== undefined
+            ? rawFinancial.payback
+            : 0,
+      )
+      const annSav = Number(
+        rawFinancial.annual_savings !== undefined
+          ? rawFinancial.annual_savings
+          : rawFinancial.yearly_savings !== undefined
+            ? rawFinancial.yearly_savings
+            : monSav * 12,
+      )
+      const sav25y = Number(
+        rawFinancial.savings_25_years !== undefined
+          ? rawFinancial.savings_25_years
+          : rawFinancial.total_savings_25y !== undefined
+            ? rawFinancial.total_savings_25y
+            : annSav * 25,
+      )
+
+      const enrichedFinancial = Object.assign({}, rawFinancial, {
+        total_investment:
+          rawFinancial.total_investment !== undefined ? rawFinancial.total_investment : totInv,
+        investment: rawFinancial.investment !== undefined ? rawFinancial.investment : totInv,
+        price: rawFinancial.price !== undefined ? rawFinancial.price : totInv,
+        total_value: rawFinancial.total_value !== undefined ? rawFinancial.total_value : totInv,
+        monthly_savings:
+          rawFinancial.monthly_savings !== undefined ? rawFinancial.monthly_savings : monSav,
+        economy_monthly:
+          rawFinancial.economy_monthly !== undefined ? rawFinancial.economy_monthly : monSav,
+        estimated_monthly_savings:
+          rawFinancial.estimated_monthly_savings !== undefined
+            ? rawFinancial.estimated_monthly_savings
+            : monSav,
+        payback_years:
+          rawFinancial.payback_years !== undefined ? rawFinancial.payback_years : pbYears,
+        payback: rawFinancial.payback !== undefined ? rawFinancial.payback : pbYears,
+        annual_savings:
+          rawFinancial.annual_savings !== undefined ? rawFinancial.annual_savings : annSav,
+        yearly_savings:
+          rawFinancial.yearly_savings !== undefined ? rawFinancial.yearly_savings : annSav,
+        savings_25_years:
+          rawFinancial.savings_25_years !== undefined ? rawFinancial.savings_25_years : sav25y,
+        total_savings_25y:
+          rawFinancial.total_savings_25y !== undefined ? rawFinancial.total_savings_25y : sav25y,
+      })
+
       const payload = {
         template_id: templateId,
         external_id: externalId,
         fixed_data: rawFixedData,
-        lead: body.lead || {},
+        lead: enrichedLead,
         negotiation: body.negotiation || {},
-        sizing: body.sizing || {},
-        financial: body.financial || {},
+        sizing: enrichedSizing,
+        financial: enrichedFinancial,
       }
-
       let bodyStr = '{}'
       try {
         bodyStr = JSON.stringify(payload)

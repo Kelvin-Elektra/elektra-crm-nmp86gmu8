@@ -979,8 +979,8 @@ export default function ProposalSettings() {
       </Tabs>
 
       <Dialog open={configModalOpen} onOpenChange={setConfigModalOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-2xl w-full max-h-[90vh] flex flex-col p-4 sm:p-6 overflow-hidden">
+          <DialogHeader className="shrink-0 pb-2">
             <DialogTitle>Configurar Template</DialogTitle>
             <DialogDescription>
               {selectedTemplate?.name
@@ -988,43 +988,47 @@ export default function ProposalSettings() {
                 : 'Ajuste os dados fixos do template selecionado.'}
             </DialogDescription>
           </DialogHeader>
-          {selectedTemplate && (
-            <ConfigurableFieldsForm
-              fields={getTemplateFields(selectedTemplate)}
-              values={fixedData}
-              onChange={(key, val) => {
-                setFixedData((prev) => ({ ...prev, [key]: val }))
-                if (formValidationErrors[key]) {
-                  setFormValidationErrors((prev) => {
-                    const next = { ...prev }
-                    delete next[key]
-                    return next
-                  })
-                }
-              }}
-              errors={formValidationErrors}
-              companyId={user?.company_id}
-              templateId={selectedTemplate.id}
-              onResetField={handleResetSingleField}
-            />
-          )}
-          {Object.keys(fieldErrors).length > 0 && (
-            <div className="flex items-start gap-2 text-destructive text-sm bg-destructive/10 p-3 rounded-lg">
-              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-              <div>
-                {Object.entries(fieldErrors).map(([field, msg]) => (
-                  <p key={field}>{msg}</p>
-                ))}
+
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden w-full min-w-0 pr-1">
+            {selectedTemplate && (
+              <ConfigurableFieldsForm
+                fields={getTemplateFields(selectedTemplate)}
+                values={fixedData}
+                onChange={(key, val) => {
+                  setFixedData((prev) => ({ ...prev, [key]: val }))
+                  if (formValidationErrors[key]) {
+                    setFormValidationErrors((prev) => {
+                      const next = { ...prev }
+                      delete next[key]
+                      return next
+                    })
+                  }
+                }}
+                errors={formValidationErrors}
+                companyId={user?.company_id}
+                templateId={selectedTemplate.id}
+                onResetField={handleResetSingleField}
+              />
+            )}
+            {Object.keys(fieldErrors).length > 0 && (
+              <div className="flex items-start gap-2 text-destructive text-sm bg-destructive/10 p-3 rounded-lg mt-3">
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                <div>
+                  {Object.entries(fieldErrors).map(([field, msg]) => (
+                    <p key={field}>{msg}</p>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-          <DialogFooter className="flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+            )}
+          </div>
+
+          <DialogFooter className="shrink-0 pt-3 border-t mt-2 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={handleResetAllToSchemaDefaults}
-              className="text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground w-full sm:w-auto"
             >
               <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
               Restaurar sugestão do sistema

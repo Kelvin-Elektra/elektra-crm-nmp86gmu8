@@ -11,6 +11,12 @@ export interface TemplateSchemaField {
   maxLength?: number
   max?: number
   description?: string
+  item_schema?: TemplateSchemaField[] | Record<string, TemplateSchemaField>
+  items?:
+    | TemplateSchemaField[]
+    | Record<string, TemplateSchemaField>
+    | { type?: string; properties?: Record<string, TemplateSchemaField> }
+  properties?: Record<string, TemplateSchemaField>
 }
 
 export interface GeneratorTemplate {

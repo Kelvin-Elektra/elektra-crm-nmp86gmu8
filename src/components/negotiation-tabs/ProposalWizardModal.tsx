@@ -473,11 +473,21 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
 
       // 3. Chamar o Gerador de Propostas para gerar o link oficial persistente
       // Payload estrito: template_id, external_id, fixed_data, lead, negotiation, sizing, financial
+      // Mapeamento e aliases de variáveis dinâmicas retrocompatíveis:
+      // - lead: document -> cpf_cnpj; phone -> whatsapp
+      // - sizing: kit_power_kwp -> power_kwp, kwp; avg_consumption -> average_consumption, monthly_consumption, consumption_kwh;
+      //           estimated_monthly_generation -> monthly_generation, generation_kwh; module_qty -> module_quantity, modules_count
+      // - financial: total_investment -> investment, price, total_value; monthly_savings -> economy_monthly, estimated_monthly_savings;
+      //              payback_years & payback_months -> payback (numérico em anos); annual_savings -> yearly_savings; savings_25_years -> total_savings_25y
+      const leadDocument = neg.lead_document || neg.expand?.lead_id?.document || ''
+      const leadPhone = neg.lead_phone || neg.expand?.lead_id?.phone || ''
       const leadData = {
         name: neg.lead_name || neg.expand?.lead_id?.name || 'Cliente',
         email: neg.lead_email || neg.expand?.lead_id?.email || '',
-        phone: neg.lead_phone || neg.expand?.lead_id?.phone || '',
-        document: neg.lead_document || neg.expand?.lead_id?.document || '',
+        phone: leadPhone,
+        whatsapp: leadPhone,
+        document: leadDocument,
+        cpf_cnpj: leadDocument,
         address:
           neg.address ||
           (neg.street
@@ -498,15 +508,29 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         description: description || '',
       }
 
+      const kitPowerKwp = Number(neg.sizing?.kit_power_kwp) || 0
+      const avgConsumptionVal =
+        Number(neg.avg_consumption) || Number(neg.sizing?.avg_consumption) || 0
+      const moduleQtyVal = Number(neg.sizing?.module_qty) || 0
+
       const sizingPayload = {
-        kit_power_kwp: Number(neg.sizing?.kit_power_kwp) || 0,
+        kit_power_kwp: kitPowerKwp,
+        power_kwp: kitPowerKwp,
+        kwp: kitPowerKwp,
+        avg_consumption: avgConsumptionVal,
+        average_consumption: avgConsumptionVal,
+        monthly_consumption: avgConsumptionVal,
+        consumption_kwh: avgConsumptionVal,
         estimated_monthly_generation: estMonthlyGenRough,
-        module_qty: Number(neg.sizing?.module_qty) || 0,
+        monthly_generation: estMonthlyGenRough,
+        generation_kwh: estMonthlyGenRough,
+        module_qty: moduleQtyVal,
+        module_quantity: moduleQtyVal,
+        modules_count: moduleQtyVal,
         selected_module_id: neg.sizing?.selected_module_id || '',
         inverters: neg.sizing?.inverters || [],
         consumer_category: consumerCategory,
         simultaneity_factor: simultaneityFactor,
-        avg_consumption: neg.avg_consumption || 0,
         ...(neg.sizing || {}),
       }
 
@@ -521,17 +545,26 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
           : 0
       const annualSavingsVal = Number(financialProjection?.annualSavings) || 0
       const savings25YearsVal = annualSavingsVal * 25
+      const monthlySavingsVal = Number(financialProjection?.monthlySavings) || 0
 
       const financialPayload = {
         total_investment: finalPrice,
+        investment: finalPrice,
+        price: finalPrice,
+        total_value: finalPrice,
         sale_price: finalPrice,
         subtotal: totalValue,
         discount_amount: discount,
-        monthly_savings: Number(financialProjection?.monthlySavings) || 0,
+        monthly_savings: monthlySavingsVal,
+        economy_monthly: monthlySavingsVal,
+        estimated_monthly_savings: monthlySavingsVal,
         payback_years: paybackYearsVal,
         payback_months: Number(financialProjection?.roiMonths) || 0,
-        savings_25_years: savings25YearsVal,
+        payback: paybackYearsVal,
         annual_savings: annualSavingsVal,
+        yearly_savings: annualSavingsVal,
+        savings_25_years: savings25YearsVal,
+        total_savings_25y: savings25YearsVal,
         tariff_details: tariffDetails || {},
       }
 

@@ -113,8 +113,21 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
 
       if (templateId) {
         try {
+          // Mapeamento e aliases de variáveis dinâmicas retrocompatíveis:
+          // - lead: document -> cpf_cnpj; phone -> whatsapp
+          // - sizing: kit_power_kwp -> power_kwp, kwp; avg_consumption -> average_consumption, monthly_consumption, consumption_kwh;
+          //           estimated_monthly_generation -> monthly_generation, generation_kwh; module_qty -> module_quantity, modules_count
+          // - financial: total_investment -> investment, price, total_value; monthly_savings -> economy_monthly, estimated_monthly_savings;
+          //              payback_years & payback_months -> payback (numérico em anos); annual_savings -> yearly_savings; savings_25_years -> total_savings_25y
+          const leadDoc = updatedSnapshot.lead_document || updatedSnapshot.document || ''
+          const leadPh = updatedSnapshot.lead_phone || updatedSnapshot.phone || ''
           const leadData = {
             name: updatedSnapshot.lead_name || 'Cliente',
+            email: updatedSnapshot.lead_email || updatedSnapshot.email || '',
+            phone: leadPh,
+            whatsapp: leadPh,
+            document: leadDoc,
+            cpf_cnpj: leadDoc,
             address: updatedSnapshot.address || '',
           }
           const negotiationPayload = {
@@ -126,29 +139,60 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
             installation_lead_time: installationLeadTime || '',
             notes: notes || '',
           }
-          const sizingPayload = updatedSnapshot.sizing || {}
+
+          const rawSizing = updatedSnapshot.sizing || {}
+          const kitPower = Number(rawSizing.kit_power_kwp) || 0
+          const avgCons =
+            Number(rawSizing.avg_consumption) || Number(updatedSnapshot.avg_consumption) || 0
+          const estGen = Number(rawSizing.estimated_monthly_generation) || 0
+          const modQty = Number(rawSizing.module_qty) || 0
+
+          const sizingPayload = {
+            ...rawSizing,
+            kit_power_kwp: kitPower,
+            power_kwp: kitPower,
+            kwp: kitPower,
+            avg_consumption: avgCons,
+            average_consumption: avgCons,
+            monthly_consumption: avgCons,
+            consumption_kwh: avgCons,
+            estimated_monthly_generation: estGen,
+            monthly_generation: estGen,
+            generation_kwh: estGen,
+            module_qty: modQty,
+            module_quantity: modQty,
+            modules_count: modQty,
+          }
+
           const fp = updatedSnapshot.financialProjection
           const paybackYearsVal =
             fp?.roiYears != null
               ? Number((fp.roiYears + (fp.roiRemainingMonths || 0) / 12).toFixed(1))
               : Number(fp?.paybackYears) || 0
-          const annualSavingsVal =
-            Number(fp?.annualSavings) || (Number(fp?.monthlySavings) || 0) * 12
+          const monthlySav = Number(fp?.monthlySavings) || 0
+          const annualSavingsVal = Number(fp?.annualSavings) || monthlySav * 12
           const savings25YearsVal = Number(fp?.savings25Years) || annualSavingsVal * 25
 
           const financialPayload = {
             total_investment: finalTotal,
+            investment: finalTotal,
+            price: finalTotal,
+            total_value: finalTotal,
             sale_price: finalTotal,
             subtotal: subtotal,
             discount_amount: discountPercent,
-            monthly_savings: Number(fp?.monthlySavings) || 0,
+            monthly_savings: monthlySav,
+            economy_monthly: monthlySav,
+            estimated_monthly_savings: monthlySav,
             payback_years: paybackYearsVal,
             payback_months: Number(fp?.roiMonths) || 0,
-            savings_25_years: savings25YearsVal,
+            payback: paybackYearsVal,
             annual_savings: annualSavingsVal,
+            yearly_savings: annualSavingsVal,
+            savings_25_years: savings25YearsVal,
+            total_savings_25y: savings25YearsVal,
             tariff_details: fp?.tariffDetails || {},
           }
-
           // Obter schemas dinâmicos se possível para filtrar o fixed_data
           let templateFields: any[] | undefined = undefined
           try {
