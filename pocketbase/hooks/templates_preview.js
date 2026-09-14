@@ -139,9 +139,10 @@ routerAdd(
       let targetMethod = 'POST'
       let activeBaseUrl = generatorUrl
       let previewAuthConfig = null
+      let listRes = null
 
       try {
-        const listRes = $http.send({
+        listRes = $http.send({
           url: generatorUrl + '/backend/v1/templates/list',
           method: 'GET',
           headers: {
@@ -227,8 +228,29 @@ routerAdd(
         body = {}
       }
 
+      // Filtrar fixed_data estritamente pelas chaves do schema do template ativo
+      let rawFixedData = body.fixed_data || body.branding || body || {}
+      // Se tiver schema dinâmico obtido do listRes, podemos filtrar pelas chaves reais
+      if (typeof listRes !== 'undefined' && listRes.json && Array.isArray(listRes.json.templates)) {
+        const matchingTpl = listRes.json.templates.find((t) => t.id === templateId)
+        if (
+          matchingTpl &&
+          matchingTpl.variable_schema &&
+          Array.isArray(matchingTpl.variable_schema.fixed)
+        ) {
+          const schemaKeys = matchingTpl.variable_schema.fixed.map((f) => f.key)
+          const filteredFixedData = {}
+          for (const k of schemaKeys) {
+            if (rawFixedData[k] !== undefined) {
+              filteredFixedData[k] = rawFixedData[k]
+            }
+          }
+          rawFixedData = filteredFixedData
+        }
+      }
+
       const payload = {
-        fixed_data: body.fixed_data || body.branding || body,
+        fixed_data: rawFixedData,
       }
       let bodyStr = '{}'
       try {
@@ -237,7 +259,7 @@ routerAdd(
 
       const authHeaders = resolveAuthHeaders(previewAuthConfig, apiSecret)
       const requestHeaders = Object.assign({}, authHeaders, {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json; charset=utf-8',
       })
 
       const sanitizedHeaders = {}
@@ -282,7 +304,7 @@ routerAdd(
         // Retry com fallback: rota direta e sabidamente acessível generatorUrl + caminho padrão
         const fallbackUrl = generatorUrl + '/backend/v1/templates/' + templateId + '/preview'
         const fallbackHeaders = {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=utf-8',
         }
         if (apiSecret) {
           fallbackHeaders['x-api-secret'] = apiSecret
@@ -376,6 +398,12 @@ routerAdd(
           }
           result.view_url = generatorPublicUrl + viewUrl
         }
+      }
+
+      if (e.response && e.response.header) {
+        try {
+          e.response.header().set('Content-Type', 'application/json; charset=utf-8')
+        } catch (_) {}
       }
 
       return e.json(200, result)

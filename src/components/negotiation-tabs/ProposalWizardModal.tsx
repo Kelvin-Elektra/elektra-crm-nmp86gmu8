@@ -428,13 +428,18 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
 
       // 1. Obter templates em produção e definir template_id válido
       let templateIdToUse = activeTplId
+      let activeTemplateSchemaFields: any[] | undefined = undefined
       try {
         const templatesRes = await getTemplatesResponse()
         const prodTemplates = templatesRes.templates || []
         if (prodTemplates.length > 0) {
-          const found = prodTemplates.find((t) => t.id === templateIdToUse)
+          let found = prodTemplates.find((t) => t.id === templateIdToUse)
           if (!found) {
-            templateIdToUse = prodTemplates[0].id
+            found = prodTemplates[0]
+            templateIdToUse = found.id
+          }
+          if (found?.variable_schema?.fixed && Array.isArray(found.variable_schema.fixed)) {
+            activeTemplateSchemaFields = found.variable_schema.fixed
           }
         }
       } catch (err) {
@@ -532,15 +537,18 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
 
       let generatorResult: any = null
       try {
-        generatorResult = await createGeneratorProposal({
-          template_id: templateIdToUse,
-          external_id: externalId,
-          fixed_data: activeTemplateFixedData,
-          lead: leadData,
-          negotiation: negotiationPayload,
-          sizing: sizingPayload,
-          financial: financialPayload,
-        })
+        generatorResult = await createGeneratorProposal(
+          {
+            template_id: templateIdToUse,
+            external_id: externalId,
+            fixed_data: activeTemplateFixedData,
+            lead: leadData,
+            negotiation: negotiationPayload,
+            sizing: sizingPayload,
+            financial: financialPayload,
+          },
+          activeTemplateSchemaFields,
+        )
       } catch (genErr: any) {
         // Se falhar a chamada ao Gerador, remove a proposta do CRM para não deixar incompleta
         try {

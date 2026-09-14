@@ -174,9 +174,10 @@ routerAdd(
       let createMethod = 'POST'
       let activeBaseUrl = generatorUrl
       let proposalAuthConfig = null
+      let listRes = null
 
       try {
-        const listRes = $http.send({
+        listRes = $http.send({
           url: generatorUrl + '/backend/v1/templates/list',
           method: 'GET',
           headers: {
@@ -253,10 +254,34 @@ routerAdd(
 
       // 2. Montar payload estritamente no padrão do contract:
       // payload_shape: ["template_id", "external_id", "fixed_data", "lead", "negotiation", "sizing", "financial"]
+      let rawFixedData = body.fixed_data || {}
+      if (
+        typeof listRes !== 'undefined' &&
+        listRes &&
+        listRes.json &&
+        Array.isArray(listRes.json.templates)
+      ) {
+        const matchingTpl = listRes.json.templates.find((t) => t.id === templateId)
+        if (
+          matchingTpl &&
+          matchingTpl.variable_schema &&
+          Array.isArray(matchingTpl.variable_schema.fixed)
+        ) {
+          const schemaKeys = matchingTpl.variable_schema.fixed.map((f) => f.key)
+          const filteredFixedData = {}
+          for (const k of schemaKeys) {
+            if (rawFixedData[k] !== undefined) {
+              filteredFixedData[k] = rawFixedData[k]
+            }
+          }
+          rawFixedData = filteredFixedData
+        }
+      }
+
       const payload = {
         template_id: templateId,
         external_id: externalId,
-        fixed_data: body.fixed_data || {},
+        fixed_data: rawFixedData,
         lead: body.lead || {},
         negotiation: body.negotiation || {},
         sizing: body.sizing || {},
@@ -270,7 +295,7 @@ routerAdd(
 
       const authHeaders = resolveAuthHeaders(proposalAuthConfig, apiSecret)
       const requestHeaders = Object.assign({}, authHeaders, {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json; charset=utf-8',
       })
 
       safeLogInfo('Disparando chamada de criação de proposta para o Gerador (tentativa 1)', {
@@ -300,7 +325,7 @@ routerAdd(
         // 3. Retry com fallback: caminho fixo sabidamente acessível
         const fallbackUrl = generatorUrl + '/backend/v1/proposals'
         const fallbackHeaders = {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=utf-8',
         }
         if (apiSecret) {
           fallbackHeaders['x-api-secret'] = apiSecret
@@ -389,6 +414,12 @@ routerAdd(
           }
           result.view_url = generatorPublicUrl + viewUrl
         }
+      }
+
+      if (e.response && e.response.header) {
+        try {
+          e.response.header().set('Content-Type', 'application/json; charset=utf-8')
+        } catch (_) {}
       }
 
       return e.json(200, result)

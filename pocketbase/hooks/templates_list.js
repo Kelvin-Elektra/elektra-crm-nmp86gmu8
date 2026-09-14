@@ -52,7 +52,33 @@ routerAdd(
       return e.json(res.statusCode, { message: errMsg })
     }
 
-    var result = res.json || {}
+    function fixMojibakeDeep(obj) {
+      if (obj === null || obj === undefined) return obj
+      if (typeof obj === 'string') {
+        try {
+          // Se contiver sequências típicas de mojibake UTF-8 decodificado como latin1 (ex: Ã, Â, etc.)
+          if (/[\u00C2-\u00C3]/.test(obj)) {
+            return decodeURIComponent(escape(obj))
+          }
+        } catch (_) {}
+        return obj
+      }
+      if (Array.isArray(obj)) {
+        return obj.map(fixMojibakeDeep)
+      }
+      if (typeof obj === 'object') {
+        var copy = {}
+        var keys = Object.keys(obj)
+        for (var i = 0; i < keys.length; i++) {
+          copy[keys[i]] = fixMojibakeDeep(obj[keys[i]])
+        }
+        return copy
+      }
+      return obj
+    }
+
+    var rawResult = res.json || {}
+    var result = fixMojibakeDeep(rawResult)
 
     // Garantir formato uniforme { contract, templates }
     if (Array.isArray(result)) {
@@ -70,6 +96,12 @@ routerAdd(
         contract: result.contract || null,
         templates: [],
       }
+    }
+
+    if (e.response && e.response.header) {
+      try {
+        e.response.header().set('Content-Type', 'application/json; charset=utf-8')
+      } catch (_) {}
     }
 
     return e.json(200, result)

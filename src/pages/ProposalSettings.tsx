@@ -42,6 +42,7 @@ import {
   AlertCircle,
   Loader2,
   Check,
+  RotateCcw,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
@@ -221,10 +222,11 @@ export default function ProposalSettings() {
     const initial: Record<string, any> = {}
 
     for (const field of fields) {
+      // Prioridade: valor já salvo para o template > fallback default do schema > companyData > default de tipo
       initial[field.key] =
         saved[field.key] ??
-        companyData[field.key] ??
         field.default ??
+        companyData[field.key] ??
         getDefaultForType(field.type, field.key)
     }
 
@@ -237,6 +239,54 @@ export default function ProposalSettings() {
     }
 
     return initial
+  }
+
+  const handleResetAllToSchemaDefaults = () => {
+    if (!selectedTemplate) return
+    const fields = getTemplateFields(selectedTemplate)
+    const nextData: Record<string, any> = {}
+    for (const field of fields) {
+      if (field.default !== undefined) {
+        nextData[field.key] = field.default
+      } else if (companyData[field.key] !== undefined) {
+        nextData[field.key] = companyData[field.key]
+      } else {
+        nextData[field.key] = getDefaultForType(field.type, field.key)
+      }
+    }
+    setFixedData(nextData)
+    setFormValidationErrors({})
+    toast({
+      title: 'Sugestões restauradas',
+      description: 'Todos os campos foram restaurados com as sugestões padrão do sistema.',
+    })
+  }
+
+  const handleResetSingleField = (key: string) => {
+    if (!selectedTemplate) return
+    const fields = getTemplateFields(selectedTemplate)
+    const field = fields.find((f) => f.key === key)
+    if (!field) return
+
+    const defaultVal =
+      field.default !== undefined
+        ? field.default
+        : companyData[field.key] !== undefined
+          ? companyData[field.key]
+          : getDefaultForType(field.type, field.key)
+
+    setFixedData((prev) => ({ ...prev, [key]: defaultVal }))
+    if (formValidationErrors[key]) {
+      setFormValidationErrors((prev) => {
+        const next = { ...prev }
+        delete next[key]
+        return next
+      })
+    }
+    toast({
+      title: 'Campo restaurado',
+      description: `O campo "${field.label || field.key}" foi restaurado com o valor sugerido.`,
+    })
   }
 
   const handleSelectTemplate = (tpl: GeneratorTemplate) => {
@@ -403,11 +453,12 @@ export default function ProposalSettings() {
     setPreviewLoading(true)
     setPreviewingTemplateId(tpl.id)
     try {
+      const fields = getTemplateFields(tpl)
       // Obter ou montar os valores configurados para este template
       const currentValues =
         configModalOpen && selectedTemplate?.id === tpl.id ? fixedData : buildTemplateData(tpl)
 
-      const data = await previewTemplate(tpl.id, currentValues)
+      const data = await previewTemplate(tpl.id, currentValues, fields)
       if (data.view_url) {
         let finalUrl = data.view_url
         // Garantir que caso a resposta contenha outro host, substitua pelo domínio público
@@ -952,6 +1003,9 @@ export default function ProposalSettings() {
                 }
               }}
               errors={formValidationErrors}
+              companyId={user?.company_id}
+              templateId={selectedTemplate.id}
+              onResetField={handleResetSingleField}
             />
           )}
           {Object.keys(fieldErrors).length > 0 && (
@@ -964,30 +1018,43 @@ export default function ProposalSettings() {
               </div>
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
             <Button
+              type="button"
               variant="outline"
-              onClick={() => handlePreview(selectedTemplate!)}
-              disabled={previewLoading}
+              size="sm"
+              onClick={handleResetAllToSchemaDefaults}
+              className="text-muted-foreground hover:text-foreground"
             >
-              {previewLoading ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Eye className="h-4 w-4 mr-2" />
-              )}
-              Visualizar
+              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+              Restaurar sugestão do sistema
             </Button>
-            <Button variant="ghost" onClick={() => setConfigModalOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSaveModal} disabled={modalLoading}>
-              {modalLoading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="mr-2 h-4 w-4" />
-              )}
-              Salvar
-            </Button>
+
+            <div className="flex items-center gap-2 justify-end w-full sm:w-auto">
+              <Button
+                variant="outline"
+                onClick={() => handlePreview(selectedTemplate!)}
+                disabled={previewLoading}
+              >
+                {previewLoading ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Eye className="h-4 w-4 mr-2" />
+                )}
+                Visualizar
+              </Button>
+              <Button variant="ghost" onClick={() => setConfigModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSaveModal} disabled={modalLoading}>
+                {modalLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="mr-2 h-4 w-4" />
+                )}
+                Salvar
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

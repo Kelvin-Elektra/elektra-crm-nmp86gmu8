@@ -16,7 +16,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { createProposalHistory } from '@/services/proposal-history'
-import { createGeneratorProposal } from '@/services/templates'
+import { createGeneratorProposal, getTemplatesResponse } from '@/services/templates'
 import { Plus, Trash2 } from 'lucide-react'
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -149,15 +149,30 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
             tariff_details: fp?.tariffDetails || {},
           }
 
-          const genRes = await createGeneratorProposal({
-            template_id: templateId,
-            external_id: proposal.id,
-            fixed_data: updatedSnapshot.fixed_data || updatedSnapshot.branding || {},
-            lead: leadData,
-            negotiation: negotiationPayload,
-            sizing: sizingPayload,
-            financial: financialPayload,
-          })
+          // Obter schemas dinâmicos se possível para filtrar o fixed_data
+          let templateFields: any[] | undefined = undefined
+          try {
+            const templatesRes = await getTemplatesResponse()
+            const found = templatesRes.templates.find((t) => t.id === templateId)
+            if (found?.variable_schema?.fixed) {
+              templateFields = found.variable_schema.fixed
+            }
+          } catch {
+            /* intentionally ignored */
+          }
+
+          const genRes = await createGeneratorProposal(
+            {
+              template_id: templateId,
+              external_id: proposal.id,
+              fixed_data: updatedSnapshot.fixed_data || updatedSnapshot.branding || {},
+              lead: leadData,
+              negotiation: negotiationPayload,
+              sizing: sizingPayload,
+              financial: financialPayload,
+            },
+            templateFields,
+          )
           if (genRes?.view_url) {
             updatedViewUrl = genRes.view_url
             updatedSnapshot.view_url = genRes.view_url
