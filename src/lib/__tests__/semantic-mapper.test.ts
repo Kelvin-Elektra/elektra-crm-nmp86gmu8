@@ -270,15 +270,15 @@ describe('Semantic Mapper for Dynamic Proposal Variables', () => {
     const dummyEquipments = [
       {
         item: 'DAH Solar DHM-T72X10/FS(BB) 555W',
-        especificacao: '555W',
-        qtd: 15,
-        garantia: '25 anos',
+        specification: '555W',
+        quantity: '15',
+        warranty: '25 anos',
       },
       {
         item: 'Cabo Solar Preto 6mm²',
-        especificacao: 'Material de Instalação e Proteção',
-        qtd: 100,
-        garantia: '-',
+        specification: 'Material de Instalação e Proteção',
+        quantity: '100',
+        warranty: '-',
       },
     ]
 
@@ -355,8 +355,8 @@ describe('Semantic Mapper for Dynamic Proposal Variables', () => {
         consumption_coverage_pct: 109.2,
         occupied_area_m2: 25.8,
         equipments: [
-          { item: 'Painel 555W', especificacao: '555W', qtd: 10, garantia: '25 anos' },
-          { item: 'Inversor 5kW', especificacao: '5kW', qtd: 1, garantia: '10 anos' },
+          { item: 'Painel 555W', specification: '555W', quantity: '10', warranty: '25 anos' },
+          { item: 'Inversor 5kW', specification: '5kW', quantity: '1', warranty: '10 anos' },
         ],
       },
       financial: {

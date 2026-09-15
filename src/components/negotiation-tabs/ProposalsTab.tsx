@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -11,6 +12,8 @@ import {
   ThumbsDown,
   Pencil,
   History,
+  TrendingUp,
+  ExternalLink,
 } from 'lucide-react'
 import {
   Dialog,
@@ -35,6 +38,7 @@ import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/contexts/AuthContext'
 
 export function ProposalsTab({ proposals, neg, reload }: any) {
+  const navigate = useNavigate()
   const { user } = useAuth()
   const { toast } = useToast()
   const isAdmin =
@@ -107,7 +111,14 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center gap-2 flex-wrap">
+        <Button
+          variant="outline"
+          onClick={() => navigate(`/negociacoes/${neg.id}/proposta`)}
+          className="gap-2"
+        >
+          <FileText className="h-4 w-4 text-primary" /> Página da Proposta & Financeiro
+        </Button>
         <Button onClick={handleGenerate}>
           <Plus className="h-4 w-4 mr-2" /> Gerar Proposta
         </Button>
@@ -151,6 +162,15 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
               <CardContent>
                 <div className="flex items-center gap-2 mt-2 pt-4 border-t">
                   <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => navigate(`/negociacoes/${neg.id}/proposta`)}
+                    className="flex-1 gap-1.5"
+                    title="Abrir página dedicada da proposta"
+                  >
+                    <FileText className="h-4 w-4" /> Detalhes & Financeiro
+                  </Button>
+                  <Button
                     variant="outline"
                     size="sm"
                     onClick={() => {
@@ -161,9 +181,9 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
                         setViewerOpen(p)
                       }
                     }}
-                    className="flex-1"
+                    title="Visualizar documento"
                   >
-                    <Eye className="h-4 w-4 mr-2" /> Visualizar
+                    <Eye className="h-4 w-4 mr-1" /> Doc
                   </Button>
                   {isAdmin && (
                     <Button

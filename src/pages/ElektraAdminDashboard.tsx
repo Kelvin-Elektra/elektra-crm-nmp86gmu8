@@ -219,21 +219,21 @@ export default function ElektraAdminDashboard() {
         const sampleEquipments = [
           {
             item: `Módulo Fotovoltaico ${moduleQty > 0 ? moduleQty : 10}x Monocristalino`,
-            especificacao: '555W',
-            qtd: moduleQty || 10,
-            garantia: '25 anos',
+            specification: '555W',
+            quantity: String(moduleQty || 10),
+            warranty: '25 anos',
           },
           {
             item: 'Inversor Solar On-Grid',
-            especificacao: `${kitPowerKwp} kW`,
-            qtd: 1,
-            garantia: '10 anos',
+            specification: `${kitPowerKwp} kW`,
+            quantity: '1',
+            warranty: '10 anos',
           },
           {
             item: 'Estrutura de Fixação e Cabeamento Solar',
-            especificacao: sz.roof_type || 'Telhado Cerâmico',
-            qtd: 1,
-            garantia: '-',
+            specification: sz.roof_type || 'Telhado Cerâmico',
+            quantity: '1',
+            warranty: '-',
           },
         ]
 
@@ -367,21 +367,21 @@ export default function ElektraAdminDashboard() {
         const fallbackEquipments = [
           {
             item: 'DAH Solar DHM-T72X10/FS(BB) 555W',
-            especificacao: '555W',
-            qtd: 10,
-            garantia: '25 anos',
+            specification: '555W',
+            quantity: '10',
+            warranty: '25 anos',
           },
           {
             item: 'Inversor Deye 5kW Monofásico On-Grid',
-            especificacao: '5kW 220V',
-            qtd: 1,
-            garantia: '10 anos',
+            specification: '5kW 220V',
+            quantity: '1',
+            warranty: '10 anos',
           },
           {
             item: 'Cabo Solar Preto 6mm² e Conectores MC4',
-            especificacao: 'Material de Instalação e Proteção',
-            qtd: 100,
-            garantia: '-',
+            specification: 'Material de Instalação e Proteção',
+            quantity: '100',
+            warranty: '-',
           },
         ]
 

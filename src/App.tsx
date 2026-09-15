@@ -19,6 +19,7 @@ import Negotiations from './pages/Negotiations'
 import Proposals from './pages/Proposals'
 import Settings from './pages/Settings'
 import NegotiationDetail from './pages/NegotiationDetail'
+import NegotiationProposalPage from './pages/NegotiationProposalPage'
 import ProposalSettings from './pages/ProposalSettings'
 import PvKitSettings from './pages/PvKitSettings'
 import { WhatsAppSupportButton } from './components/WhatsAppSupportButton'
@@ -182,6 +183,7 @@ const App = () => (
               <Route path="/leads" element={<Leads />} />
               <Route path="/negociacoes" element={<Negotiations />} />
               <Route path="/negociacoes/:id" element={<NegotiationDetail />} />
+              <Route path="/negociacoes/:id/proposta" element={<NegotiationProposalPage />} />
               <Route path="/propostas" element={<Proposals />} />
               <Route path="/configuracoes-kit-pv" element={<PvKitSettings />} />
               <Route path="/configuracoes-proposta" element={<ProposalSettings />} />

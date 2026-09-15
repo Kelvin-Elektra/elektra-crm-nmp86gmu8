@@ -7,10 +7,11 @@ import { Settings2, Sun, Battery, BarChart3, Edit, Compass } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { getOrFetchHsp } from '@/services/hsp'
 import { updateNegotiation } from '@/services/db'
+import { useNavigate } from 'react-router-dom'
 import { SizingGenerationModal } from './SizingGenerationModal'
 import { SizingEquipmentModal } from './SizingEquipmentModal'
 import { SizingOrientationModal } from './SizingOrientationModal'
-import { FinancialAnalysisCard } from './FinancialAnalysisCard'
+import { ArrowRight, TrendingUp } from 'lucide-react'
 
 const MONTH_LABELS = [
   'Jan',
@@ -29,6 +30,7 @@ const MONTH_LABELS = [
 const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
 export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
+  const navigate = useNavigate()
   const sizing = neg.sizing || {}
   const [efficiencyRule, setEfficiencyRule] = useState<any>(null)
   const [hspData, setHspData] = useState<any>(null)
@@ -319,7 +321,30 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
         </CardContent>
       </Card>
 
-      <FinancialAnalysisCard neg={neg} estMonthlyGen={estMonthlyGen} reload={reload} />
+      {/* Atalho para a página da Proposta - Aba Financeiro */}
+      <Card className="border-primary/30 bg-gradient-to-r from-primary/5 via-primary/[0.02] to-transparent">
+        <CardContent className="p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-emerald-600" />
+              <h3 className="font-semibold text-base text-foreground">
+                Análise Financeira e Retorno do Investimento
+              </h3>
+            </div>
+            <p className="text-sm text-muted-foreground max-w-2xl">
+              Os índices financeiros (TIR anual, Múltiplo do Investimento, Payback e projeção de 25
+              anos) dependem do valor final orçado e agora vivem em uma página dedicada dentro da
+              proposta.
+            </p>
+          </div>
+          <Button
+            onClick={() => navigate(`/negociacoes/${neg.id}/proposta?tab=financeiro`)}
+            className="gap-2 shrink-0"
+          >
+            Ver Análise Financeira <ArrowRight className="w-4 h-4" />
+          </Button>
+        </CardContent>
+      </Card>
 
       <SizingEquipmentModal
         open={equipModalOpen}

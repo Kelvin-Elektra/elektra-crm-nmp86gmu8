@@ -323,32 +323,32 @@ describe('solar-calculations', () => {
       // 1. Módulos
       expect(equipments[0]).toEqual({
         item: 'DAH Solar DHM-T72X10/FS(BB) 555W',
-        especificacao: '555W',
-        qtd: 15,
-        garantia: '25 anos',
+        specification: '555W',
+        quantity: '15',
+        warranty: '25 anos',
       })
 
       // 2. Inversor
       expect(equipments[1]).toEqual({
         item: 'Huawei SUN2000-8KTL-M1',
-        especificacao: '8 kW · 220V',
-        qtd: 1,
-        garantia: '10 anos',
+        specification: '8 kW · 220V',
+        quantity: '1',
+        warranty: '10 anos',
       })
 
       // 3. Insumos (garantia "-")
       expect(equipments[2]).toEqual({
         item: 'Estrutura de Fixação Telhado Cerâmico',
-        especificacao: 'Alumínio Anodizado',
-        qtd: 1,
-        garantia: '-',
+        specification: 'Alumínio Anodizado',
+        quantity: '1',
+        warranty: '-',
       })
 
       expect(equipments[3]).toEqual({
         item: 'Cabo Solar Preto 6mm²',
-        especificacao: 'Material de Instalação e Proteção',
-        qtd: 50,
-        garantia: '-',
+        specification: 'Material de Instalação e Proteção',
+        quantity: '50',
+        warranty: '-',
       })
     })
 
@@ -371,11 +371,13 @@ describe('solar-calculations', () => {
 
       expect(equipments).toHaveLength(2)
       expect(equipments[0].item).toBe('Canadian Painel 550W')
-      expect(equipments[0].qtd).toBe(10)
-      expect(equipments[0].garantia).toBe('25 anos') // fallback padrão
+      expect(equipments[0].quantity).toBe('10')
+      expect(equipments[0].warranty).toBe('25 anos') // fallback padrão
+      expect(equipments[0].specification).toBe('550W')
 
       expect(equipments[1].item).toBe('Conector MC4')
-      expect(equipments[1].garantia).toBe('-')
+      expect(equipments[1].quantity).toBe('4')
+      expect(equipments[1].warranty).toBe('-')
     })
   })
 

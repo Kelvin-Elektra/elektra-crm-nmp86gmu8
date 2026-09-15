@@ -183,9 +183,9 @@ export function calculateSavings25Years(annualSavings?: number, monthlySavings?:
 
 export interface EquipmentItem {
   item: string
-  especificacao: string
-  qtd: number | string
-  garantia: string
+  specification: string
+  quantity: string
+  warranty: string
 }
 
 export interface CommercialConditionItem {
@@ -272,9 +272,9 @@ export function buildEquipmentsArray(params: {
 
     items.push({
       item: itemName,
-      especificacao: spec,
-      qtd: qty > 0 ? qty : 1,
-      garantia: modWarranty,
+      specification: spec,
+      quantity: String(qty > 0 ? qty : 1),
+      warranty: modWarranty,
     })
   }
 
@@ -304,9 +304,9 @@ export function buildEquipmentsArray(params: {
 
       items.push({
         item: invName,
-        especificacao: spec,
-        qtd: invQty > 0 ? invQty : 1,
-        garantia: invWarranty,
+        specification: spec,
+        quantity: String(invQty > 0 ? invQty : 1),
+        warranty: invWarranty,
       })
     }
   }
@@ -330,9 +330,9 @@ export function buildEquipmentsArray(params: {
 
       items.push({
         item: sName,
-        especificacao: spec,
-        qtd: formattedQty > 0 ? formattedQty : 1,
-        garantia: '-', // Insumos sem garantia declarada levam traço "-"
+        specification: spec,
+        quantity: String(formattedQty > 0 ? formattedQty : 1),
+        warranty: '-', // Insumos sem garantia declarada levam traço "-"
       })
     }
   }
