@@ -6,6 +6,8 @@ import {
   calculateInvestmentMultiple,
   calculateTir,
   calculateSavings25Years,
+  calculateYearlySavingsTable,
+  generateSavingsProjection,
   extractValidityDays,
   formatProposalDate,
   extractEstimatedMonthlyGeneration,
@@ -105,6 +107,102 @@ describe('solar-calculations', () => {
     it('deve calcular a partir da economia mensal quando anual não for fornecida', () => {
       // 344.526 * 12 * 25 = 103357.8
       expect(calculateSavings25Years(undefined, 344.526)).toBe(103357.8)
+    })
+  })
+
+  describe('calculateYearlySavingsTable e generateSavingsProjection com números reais do usuário', () => {
+    // Caso real: consumo 500, geração 546, investimento R$ 9.169,17, economia mensal R$ 344,53, economia anual ~R$ 4.134,36
+    const annualSavings = 4134.36
+    const totalInvestment = 9169.17
+
+    it('calculateYearlySavingsTable deve gerar 25 anos com colunas corretas e saldo após investimento', () => {
+      const table = calculateYearlySavingsTable(annualSavings, totalInvestment, 25)
+      expect(table).toHaveLength(25)
+
+      // Ano 1
+      expect(table[0].year).toBe(1)
+      expect(table[0].annualSavings).toBe(4134.36)
+      expect(table[0].cumulativeSavings).toBe(4134.36)
+      expect(table[0].balanceWithInvestment).toBe(Number((4134.36 - totalInvestment).toFixed(2))) // -5034.81
+
+      // Ano 3 (acumulado = 12403.08 > 9169.17, saldo positivo)
+      expect(table[2].year).toBe(3)
+      expect(table[2].cumulativeSavings).toBe(12403.08)
+      expect(table[2].balanceWithInvestment).toBe(Number((12403.08 - totalInvestment).toFixed(2))) // +3233.91
+
+      // Ano 5: 4134.36 * 5 = 20671.80
+      expect(table[4].year).toBe(5)
+      expect(table[4].cumulativeSavings).toBe(20671.8)
+      expect(table[4].balanceWithInvestment).toBe(Number((20671.8 - totalInvestment).toFixed(2))) // +11502.63
+
+      // Ano 25: 4134.36 * 25 = 103359.00
+      expect(table[24].year).toBe(25)
+      expect(table[24].cumulativeSavings).toBe(103359.0)
+      expect(table[24].balanceWithInvestment).toBe(Number((103359.0 - totalInvestment).toFixed(2))) // +94189.83
+    })
+
+    it('generateSavingsProjection deve gerar os 6 marcos oficiais (Anos 1, 5, 10, 15, 20 e 25)', () => {
+      const projection = generateSavingsProjection(annualSavings)
+      expect(projection).toHaveLength(6)
+
+      expect(projection[0]).toEqual({
+        year: 1,
+        label: 'Ano 1',
+        annualSavings: 4134.36,
+        cumulativeSavings: 4134.36,
+      })
+
+      // Ano 5 = R$ 20.671,80
+      expect(projection[1]).toEqual({
+        year: 5,
+        label: 'Ano 5',
+        annualSavings: 4134.36,
+        cumulativeSavings: 20671.8,
+      })
+
+      // Ano 10 = R$ 41.343,60
+      expect(projection[2]).toEqual({
+        year: 10,
+        label: 'Ano 10',
+        annualSavings: 4134.36,
+        cumulativeSavings: 41343.6,
+      })
+
+      // Ano 15 = R$ 62.015,40
+      expect(projection[3]).toEqual({
+        year: 15,
+        label: 'Ano 15',
+        annualSavings: 4134.36,
+        cumulativeSavings: 62015.4,
+      })
+
+      // Ano 20 = R$ 82.687,20
+      expect(projection[4]).toEqual({
+        year: 20,
+        label: 'Ano 20',
+        annualSavings: 4134.36,
+        cumulativeSavings: 82687.2,
+      })
+
+      // Ano 25 = R$ 103.359,00
+      expect(projection[5]).toEqual({
+        year: 25,
+        label: 'Ano 25',
+        annualSavings: 4134.36,
+        cumulativeSavings: 103359.0,
+      })
+    })
+
+    it('métricas financeiras derivadas (TIR, Múltiplo, Payback) com o caso real do usuário', () => {
+      const multiple = calculateInvestmentMultiple(103359.0, totalInvestment)
+      // 103359 / 9169.17 ≈ 11.27 -> 11.3
+      expect(multiple).toBe(11.3)
+
+      const tir = calculateTir(totalInvestment, annualSavings, 25)
+      // Com ~4134.36 de economia anual e ~9169.17 de investimento, TIR fica ~45.1%
+      expect(tir).toBeGreaterThan(44)
+      expect(tir).toBeLessThan(46)
+      expect(tir).toBeCloseTo(45.1, 0)
     })
   })
 

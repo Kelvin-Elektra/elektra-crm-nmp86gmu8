@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { TemplateMappingTab } from '@/components/TemplateMappingTab'
+import { ProposalGenerationLogTab } from '@/components/ProposalGenerationLogTab'
 import { getTemplates, previewTemplate, GeneratorTemplate } from '@/services/templates'
 
 export default function ElektraAdminDashboard() {
@@ -36,10 +37,12 @@ export default function ElektraAdminDashboard() {
   const [users, setUsers] = useState<any[]>([])
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('all')
   const [logs, setLogs] = useState<any[]>([])
+  const [proposalsList, setProposalsList] = useState<any[]>([])
+  const [proposalsLoading, setProposalsLoading] = useState(false)
   const [sysSettings, setSysSettings] = useState<any>(null)
-  const [activeTab, setActiveTab] = useState<'companies' | 'templates' | 'settings' | 'logs'>(
-    'companies',
-  )
+  const [activeTab, setActiveTab] = useState<
+    'companies' | 'templates' | 'generation_logs' | 'settings' | 'logs'
+  >('companies')
 
   // Estados para a aba Configuração de Templates
   const [templates, setTemplates] = useState<GeneratorTemplate[]>([])
@@ -58,6 +61,21 @@ export default function ElektraAdminDashboard() {
     loadData()
   }, [realUser, navigate])
 
+  const loadProposalsLogData = async () => {
+    setProposalsLoading(true)
+    try {
+      const props = await pb.collection('proposals').getFullList({
+        sort: '-created',
+        expand: 'negotiation_id,negotiation_id.lead_id,company_id',
+      })
+      setProposalsList(props)
+    } catch (err) {
+      console.error('Erro ao carregar histórico de propostas:', err)
+    } finally {
+      setProposalsLoading(false)
+    }
+  }
+
   const loadData = async () => {
     try {
       const comps = await pb.collection('companies').getFullList({ sort: 'name' })
@@ -72,6 +90,8 @@ export default function ElektraAdminDashboard() {
 
       // Carregar templates do Gerador via endpoint existente
       loadTemplatesData(selectedCompanyId)
+      // Carregar histórico de propostas para a aba de Auditoria / Log de Geração
+      loadProposalsLogData()
     } catch (err) {
       console.error(err)
     }
@@ -119,19 +139,19 @@ export default function ElektraAdminDashboard() {
         setDynamicMappings({})
       }
 
-      // Buscar a negociação mais recente para servir como dados reais de amostra
+      // Buscar a negociação mais recente para servir como dados reais de amostra (mesma fonte do ProposalWizardModal)
       let negFilter = cId ? `company_id="${cId}"` : ''
       let recentNeg: any = null
       try {
         recentNeg = await pb.collection('negotiations').getFirstListItem(negFilter, {
           sort: '-created',
-          expand: 'lead_id,company_id',
+          expand: 'lead_id,company_id,owner_id',
         })
       } catch (_) {
         try {
           recentNeg = await pb.collection('negotiations').getFirstListItem('', {
             sort: '-created',
-            expand: 'lead_id,company_id',
+            expand: 'lead_id,company_id,owner_id',
           })
         } catch {
           /* intentionally ignored */
@@ -141,13 +161,67 @@ export default function ElektraAdminDashboard() {
       if (recentNeg) {
         const lead = recentNeg.expand?.lead_id || {}
         const comp = recentNeg.expand?.company_id || {}
+        const owner = recentNeg.expand?.owner_id || {}
+        const sz = recentNeg.sizing || {}
+
+        // Buscar última proposta associada se houver para enriquecer dados financeiros
+        let lastProp: any = null
+        try {
+          lastProp = await pb
+            .collection('proposals')
+            .getFirstListItem(`negotiation_id="${recentNeg.id}"`, {
+              sort: '-created',
+            })
+        } catch {
+          /* intentionally ignored */
+        }
+
+        const propSnap = lastProp?.snapshot_data || {}
+        const propFin = propSnap.financial || {}
+        const propProj = propSnap.financialProjection || {}
+
+        const avgConsumption =
+          Number(recentNeg.avg_consumption) || Number(sz.avg_consumption) || 500
+        const estGeneration =
+          Number(sz.estimated_monthly_generation) ||
+          Number(sz.monthly_generation) ||
+          Number(propProj.estMonthlyGen) ||
+          546
+        const kitPowerKwp = Number(sz.kit_power_kwp) || 5.0
+        const moduleQty = Number(sz.module_qty) || 10
+
+        const totalInv =
+          Number(lastProp?.total_value) ||
+          Number(lastProp?.price) ||
+          Number(propFin.total_investment) ||
+          9169.17
+        const monthlySavings =
+          Number(propFin.monthly_savings) || Number(propProj.monthlySavings) || 344.53
+        const annualSavings =
+          Number(propFin.annual_savings) ||
+          Number(propProj.annualSavings) ||
+          Number((monthlySavings * 12).toFixed(2)) ||
+          4134.36
+        const savings25 =
+          Number(propFin.savings_25_years) || Number((annualSavings * 25).toFixed(2)) || 103359.0
+
+        const consultantName = owner.name || recentNeg.owner_name || 'Consultor Elektra'
+        const leadDocument = lead.document || recentNeg.lead_document || '000.000.000-00'
+        const leadPhone = lead.phone || recentNeg.lead_phone || '(11) 99999-9999'
+
         setSampleNegotiationData({
           lead: {
-            name: lead.name || 'Cliente de Demonstração',
-            document: lead.document || '000.000.000-00',
-            phone: lead.phone || '(11) 99999-9999',
-            email: lead.email || 'cliente@exemplo.com.br',
-            address: lead.address || 'Rua Solar das Flores, 123',
+            name: lead.name || recentNeg.lead_name || 'Cliente de Demonstração',
+            document: leadDocument,
+            cpf_cnpj: leadDocument,
+            phone: leadPhone,
+            whatsapp: leadPhone,
+            email: lead.email || recentNeg.lead_email || 'cliente@exemplo.com.br',
+            address:
+              lead.address ||
+              (lead.street
+                ? `${lead.street}, ${lead.number || 'S/N'} - ${lead.city || ''}/${lead.state || ''}`
+                : 'Rua Solar das Flores, 123'),
             city: lead.city || 'São Paulo',
             state: lead.state || 'SP',
             cep: lead.cep || '01001-000',
@@ -157,6 +231,10 @@ export default function ElektraAdminDashboard() {
           negotiation: {
             title: recentNeg.title || 'Projeto Solar Fotovoltaico',
             validity: recentNeg.validity || '10 dias',
+            validity_days: 10,
+            proposal_number: lastProp?.id || recentNeg.id || 'PROP-001',
+            proposal_date: new Date().toLocaleDateString('pt-BR'),
+            consultant_name: consultantName,
             payment_terms: recentNeg.payment_terms || 'À vista ou Financiamento',
             defined_payment_method: recentNeg.defined_payment_method || 'Financiamento 60x',
             accepted_payment_methods: recentNeg.accepted_payment_methods || 'Pix, Boleto, Cartão',
@@ -166,15 +244,23 @@ export default function ElektraAdminDashboard() {
             uc: recentNeg.uc || '12345678',
           },
           sizing: {
-            kit_power_kwp: recentNeg.sizing_kit_power_kwp || 8.5,
-            avg_consumption: recentNeg.sizing_avg_consumption || 750,
-            estimated_monthly_generation: recentNeg.sizing_estimated_generation || 950,
-            module_qty: recentNeg.sizing_module_qty || 16,
-            consumer_category: recentNeg.sizing_consumer_category || 'Residencial',
-            concessionaire: recentNeg.sizing_concessionaire || 'Enel',
-            roof_type: recentNeg.sizing_roof_type || 'Telhado Cerâmico',
-            network_type: recentNeg.sizing_network_type || 'Bifásico',
-            simultaneity_factor: recentNeg.sizing_simultaneity || 30,
+            kit_power_kwp: kitPowerKwp,
+            power_kwp: kitPowerKwp,
+            kwp: kitPowerKwp,
+            avg_consumption: avgConsumption,
+            average_consumption: avgConsumption,
+            consumption_kwh: avgConsumption,
+            estimated_monthly_generation: estGeneration,
+            monthly_generation: estGeneration,
+            generation_kwh: estGeneration,
+            module_qty: moduleQty,
+            module_quantity: moduleQty,
+            modules_count: moduleQty,
+            consumer_category: sz.consumer_category || 'Residencial',
+            concessionaire: sz.concessionaire || 'Enel',
+            roof_type: sz.roof_type || 'Telhado Cerâmico',
+            network_type: sz.network_type || 'Bifásico',
+            simultaneity_factor: sz.simultaneity_factor || 30,
             address_struct: {
               city: lead.city || 'São Paulo',
               state: lead.state || 'SP',
@@ -184,18 +270,24 @@ export default function ElektraAdminDashboard() {
             },
           },
           financial: {
-            total_investment: recentNeg.financial_total_investment || 28500,
-            monthly_savings: recentNeg.financial_monthly_savings || 680,
-            annual_savings: recentNeg.financial_annual_savings || 8160,
-            savings_25_years: recentNeg.financial_savings_25_years || 204000,
-            payback_years: recentNeg.financial_payback_years || 3.5,
-            payback_months: recentNeg.financial_payback_months || 42,
-            tariff_rate: recentNeg.financial_tariff_rate || 0.95,
+            total_investment: totalInv,
+            investment: totalInv,
+            price: totalInv,
+            monthly_savings: monthlySavings,
+            economy_monthly: monthlySavings,
+            annual_savings: annualSavings,
+            yearly_savings: annualSavings,
+            savings_25_years: savings25,
+            total_savings_25y: savings25,
+            payback_years: propProj.roiYears || 2.2,
+            payback_months: propProj.roiMonths || 26,
+            payback: propProj.roiYears || 2.2,
+            tariff_rate: 0.95,
             tariff_details: {
               te: 0.42,
               tusd: 0.53,
             },
-            subtotal: recentNeg.financial_total_investment || 28500,
+            subtotal: totalInv,
             discount_amount: 0,
           },
           company: {
@@ -206,40 +298,89 @@ export default function ElektraAdminDashboard() {
           },
         })
       } else {
-        // Dados de fallback estruturados para simular variáveis
+        // Dados de fallback enriquecidos com os campos normalizados do CRM
         setSampleNegotiationData({
           lead: {
             name: 'Cliente Modelo de Teste',
             document: '123.456.789-00',
+            cpf_cnpj: '123.456.789-00',
             phone: '(11) 98765-4321',
+            whatsapp: '(11) 98765-4321',
             email: 'cliente.teste@exemplo.com.br',
             address: 'Av. Paulista, 1000',
             city: 'São Paulo',
             state: 'SP',
             cep: '01310-100',
+            neighborhood: 'Bela Vista',
+            number: '1000',
           },
           negotiation: {
             title: 'Proposta Fotovoltaica Residencial',
             validity: '15 dias',
+            validity_days: 15,
+            proposal_number: 'PROP-001',
+            proposal_date: new Date().toLocaleDateString('pt-BR'),
+            consultant_name: 'Consultor Elektra',
             payment_terms: 'Entrada + 36x',
+            defined_payment_method: 'Financiamento Solar',
+            accepted_payment_methods: 'Pix, Cartão, Financiamento Bancário',
             installation_lead_time: '30 dias',
+            notes: 'Proposta modelo para conferência de mapeamento',
+            description: 'Sistema Fotovoltaico Conectado à Rede',
+            uc: '12345678',
           },
           sizing: {
-            kit_power_kwp: 7.2,
-            avg_consumption: 650,
-            estimated_monthly_generation: 880,
-            module_qty: 14,
+            kit_power_kwp: 5.46,
+            power_kwp: 5.46,
+            kwp: 5.46,
+            avg_consumption: 500,
+            average_consumption: 500,
+            consumption_kwh: 500,
+            estimated_monthly_generation: 546,
+            monthly_generation: 546,
+            generation_kwh: 546,
+            module_qty: 10,
+            module_quantity: 10,
+            modules_count: 10,
             consumer_category: 'Residencial',
+            concessionaire: 'Enel',
+            roof_type: 'Telhado Cerâmico',
+            network_type: 'Bifásico',
+            simultaneity_factor: 30,
+            address_struct: {
+              city: 'São Paulo',
+              state: 'SP',
+              street: 'Av. Paulista',
+              number: '1000',
+              zip: '01310-100',
+            },
           },
           financial: {
-            total_investment: 24900,
-            monthly_savings: 590,
-            annual_savings: 7080,
-            payback_years: 3.5,
+            total_investment: 9169.17,
+            investment: 9169.17,
+            price: 9169.17,
+            monthly_savings: 344.53,
+            economy_monthly: 344.53,
+            annual_savings: 4134.36,
+            yearly_savings: 4134.36,
+            savings_25_years: 103359.0,
+            total_savings_25y: 103359.0,
+            payback_years: 2.2,
+            payback_months: 26,
+            payback: 2.2,
             tariff_rate: 0.92,
+            tariff_details: {
+              te: 0.42,
+              tusd: 0.53,
+            },
+            subtotal: 9169.17,
+            discount_amount: 0,
           },
           company: {
             name: 'Elektra Solar Demo',
+            cnpj: '00.000.000/0001-00',
+            phone: '(11) 3000-0000',
+            email: 'contato@elektrasolar.com.br',
           },
         })
       }
@@ -423,6 +564,12 @@ export default function ElektraAdminDashboard() {
             <SlidersHorizontal className="h-4 w-4 mr-2" /> Configuração de Templates
           </Button>
           <Button
+            variant={activeTab === 'generation_logs' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('generation_logs')}
+          >
+            <Terminal className="h-4 w-4 mr-2 text-blue-500" /> Log de Geração de Propostas
+          </Button>
+          <Button
             variant={activeTab === 'settings' ? 'default' : 'outline'}
             onClick={() => setActiveTab('settings')}
           >
@@ -542,6 +689,16 @@ export default function ElektraAdminDashboard() {
             onPreviewTemplate={handlePreviewTemplateAction}
             previewLoading={previewLoading}
             saving={savingMappings}
+          />
+        )}
+
+        {activeTab === 'generation_logs' && (
+          <ProposalGenerationLogTab
+            proposals={proposalsList}
+            loading={proposalsLoading}
+            onRefresh={loadProposalsLogData}
+            selectedCompanyId={selectedCompanyId}
+            companies={companies}
           />
         )}
 

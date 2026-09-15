@@ -17,6 +17,11 @@ import {
   AlertTriangle,
   ChevronDown,
   FileText,
+  DollarSign,
+  Percent,
+  Clock,
+  PiggyBank,
+  Table,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -37,6 +42,12 @@ import {
   FIO_B_DEFAULT_RATE,
   type TariffDetails,
 } from '@/lib/financial-analysis'
+import {
+  calculateYearlySavingsTable,
+  calculateTir,
+  calculateInvestmentMultiple,
+  calculateSavings25Years,
+} from '@/lib/solar-calculations'
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -181,6 +192,23 @@ export function FinancialAnalysisCard({
   const fioBBaseValue = tariffDetails.fio_b_value || FIO_B_DEFAULT_RATE
   const currentScalingFactor = getFioBScalingFactor()
 
+  // Análise de Retorno do Investimento (Ano a Ano e Indicadores Oficiais)
+  const annualSavings = projection.annualSavings || 0
+  const hasFinancialData = annualSavings > 0 || systemPrice > 0
+  const [roiSectionOpen, setRoiSectionOpen] = useState(hasFinancialData)
+
+  // Atualizar abertura padrão quando houver dados
+  useEffect(() => {
+    if (hasFinancialData) {
+      setRoiSectionOpen(true)
+    }
+  }, [hasFinancialData])
+
+  const yearlySavingsTable = calculateYearlySavingsTable(annualSavings, systemPrice, 25)
+  const tirPercent = calculateTir(systemPrice, annualSavings, 25)
+  const totalSavings25 = calculateSavings25Years(annualSavings)
+  const investmentMultiple = calculateInvestmentMultiple(totalSavings25, systemPrice)
+
   const roiLabel =
     projection.roiMonths > 0
       ? [
@@ -190,12 +218,17 @@ export function FinancialAnalysisCard({
         ].join('')
       : ''
 
+  const paybackYearsDecimal =
+    projection.roiMonths > 0
+      ? Number((projection.roiYears + (projection.roiRemainingMonths || 0) / 12).toFixed(1))
+      : 0
+
   return (
     <Card className="border-primary/20">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <Calculator className="w-5 h-5 text-primary" />
-          Análise Financeira e Retorno do Investimento
+          Análise Financeira e Parâmetros Tarifários
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -279,34 +312,184 @@ export function FinancialAnalysisCard({
           </div>
         </div>
 
-        <div className="bg-primary/5 rounded-lg p-4 border border-primary/10">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2">
+        {/* Seção Recolhível: Análise Financeira e Retorno do Investimento */}
+        <Collapsible
+          open={roiSectionOpen}
+          onOpenChange={setRoiSectionOpen}
+          className="border border-primary/30 rounded-xl overflow-hidden shadow-sm bg-card"
+        >
+          <div className="flex items-center justify-between px-5 py-4 bg-primary/10 border-b border-primary/20">
+            <div className="flex items-center gap-2.5">
               <TrendingUp className="w-5 h-5 text-primary" />
-              <span className="font-semibold">Retorno do Investimento (ROI)</span>
-              <Badge variant="secondary" className="text-xs">
-                <FileText className="w-3 h-3 mr-1" />
-                por proposta
-              </Badge>
+              <div>
+                <h3 className="font-bold text-base text-foreground flex items-center gap-2">
+                  Análise Financeira e Retorno do Investimento
+                  <Badge variant="secondary" className="text-[11px] font-normal py-0">
+                    Fonte da verdade do Gerador
+                  </Badge>
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Projeção de 25 anos, TIR anual, payback acumulado e múltiplos calculados
+                </p>
+              </div>
             </div>
-            <div className="text-right">
-              {roiLabel ? (
-                <>
-                  <span className="text-2xl font-bold text-primary">{roiLabel}</span>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Baseado em investimento de {BRL.format(systemPrice)}
-                  </p>
-                </>
-              ) : (
-                <span className="text-sm text-muted-foreground">
-                  {systemPrice > 0
-                    ? 'Economia insuficiente para calcular ROI'
-                    : 'Gere uma proposta para calcular o ROI'}
-                </span>
-              )}
-            </div>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-1.5 h-8 px-2 text-xs">
+                <span>{roiSectionOpen ? 'Recolher' : 'Expandir'}</span>
+                <ChevronDown
+                  className={cn(
+                    'h-4 w-4 transition-transform duration-200',
+                    roiSectionOpen && 'rotate-180',
+                  )}
+                />
+              </Button>
+            </CollapsibleTrigger>
           </div>
-        </div>
+
+          <CollapsibleContent>
+            <div className="p-5 space-y-6 bg-slate-50/50">
+              {/* 4 Cards de Indicadores Financeiros */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* 1. TIR (%) */}
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm space-y-1">
+                  <div className="flex items-center justify-between text-muted-foreground text-xs">
+                    <span className="font-medium">TIR Anual</span>
+                    <Percent className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div className="text-2xl font-bold text-emerald-600">
+                    {tirPercent > 0 ? `${tirPercent.toFixed(1)}%` : '—'}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Taxa Interna de Retorno (fluxo 25 anos)
+                  </p>
+                </div>
+
+                {/* 2. Múltiplo sobre o investimento */}
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm space-y-1">
+                  <div className="flex items-center justify-between text-muted-foreground text-xs">
+                    <span className="font-medium">Múltiplo do Investimento</span>
+                    <DollarSign className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div className="text-2xl font-bold text-blue-600">
+                    {investmentMultiple > 0 ? `${investmentMultiple.toFixed(1)}x` : '—'}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Economia 25 anos / Investimento
+                  </p>
+                </div>
+
+                {/* 3. Payback */}
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm space-y-1">
+                  <div className="flex items-center justify-between text-muted-foreground text-xs">
+                    <span className="font-medium">Payback Estimado</span>
+                    <Clock className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div className="text-2xl font-bold text-amber-600">
+                    {roiLabel
+                      ? roiLabel
+                      : paybackYearsDecimal > 0
+                        ? `${paybackYearsDecimal} anos`
+                        : '—'}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    {systemPrice > 0
+                      ? `Investimento base: ${BRL.format(systemPrice)}`
+                      : 'Gere uma proposta para fixar valor'}
+                  </p>
+                </div>
+
+                {/* 4. Economia Total em 25 anos */}
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm space-y-1">
+                  <div className="flex items-center justify-between text-muted-foreground text-xs">
+                    <span className="font-medium">Economia em 25 Anos</span>
+                    <PiggyBank className="w-4 h-4 text-emerald-700" />
+                  </div>
+                  <div className="text-2xl font-bold text-emerald-700">
+                    {totalSavings25 > 0 ? BRL.format(totalSavings25) : '—'}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    {annualSavings > 0
+                      ? `${BRL.format(annualSavings)}/ano`
+                      : 'Aguardando simulação'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Tabela Ano a Ano (1 a 25) */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Table className="w-4 h-4 text-primary" />
+                    <h4 className="font-semibold text-sm text-foreground">
+                      Tabela Ano a Ano de Economia (Ano 1 ao Ano 25)
+                    </h4>
+                  </div>
+                  <Badge variant="outline" className="text-xs font-mono">
+                    25 anos projetados
+                  </Badge>
+                </div>
+
+                <div className="max-h-[360px] overflow-y-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="sticky top-0 bg-slate-100 z-10 border-b text-slate-700 font-semibold">
+                      <tr>
+                        <th className="py-2.5 px-4 w-20">Ano</th>
+                        <th className="py-2.5 px-4">Economia do Ano</th>
+                        <th className="py-2.5 px-4">Economia Acumulada</th>
+                        <th className="py-2.5 px-4 text-right">Saldo após Investimento</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {yearlySavingsTable.map((row) => {
+                        const isPaybackAchieved = row.balanceWithInvestment >= 0
+                        const isMilestone = [1, 5, 10, 15, 20, 25].includes(row.year)
+                        return (
+                          <tr
+                            key={row.year}
+                            className={cn(
+                              'transition-colors',
+                              isMilestone ? 'bg-primary/5 font-medium' : 'hover:bg-slate-50',
+                            )}
+                          >
+                            <td className="py-2 px-4 font-mono font-medium">
+                              Ano {row.year}
+                              {isMilestone && (
+                                <span className="ml-1 text-[10px] text-primary font-bold">★</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-4 text-slate-700">
+                              {BRL.format(row.annualSavings)}
+                            </td>
+                            <td className="py-2 px-4 font-semibold text-emerald-700">
+                              {BRL.format(row.cumulativeSavings)}
+                            </td>
+                            <td
+                              className={cn(
+                                'py-2 px-4 text-right font-mono font-semibold',
+                                isPaybackAchieved ? 'text-emerald-600' : 'text-slate-500',
+                              )}
+                            >
+                              {row.balanceWithInvestment >= 0 ? '+' : ''}
+                              {BRL.format(row.balanceWithInvestment)}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="p-3 bg-slate-50 border-t text-[11px] text-muted-foreground flex items-center justify-between">
+                  <span>
+                    ★ Marcos oficiais enviados no array savings_projection (1, 5, 10, 15, 20 e 25
+                    anos)
+                  </span>
+                  <span>Investimento considerado: {BRL.format(systemPrice)}</span>
+                </div>
+              </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
 
         <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen}>
           <div className="flex items-center justify-between border rounded-lg px-4 py-3 bg-muted/50">

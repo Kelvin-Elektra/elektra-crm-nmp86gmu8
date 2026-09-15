@@ -32,7 +32,9 @@ import {
   ExternalLink,
   Loader2,
   Filter,
+  Copy,
 } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
 
 interface TemplateMappingTabProps {
   templates: GeneratorTemplate[]
@@ -62,6 +64,7 @@ export const TemplateMappingTab: React.FC<TemplateMappingTabProps> = ({
   previewLoading,
   saving,
 }) => {
+  const { toast } = useToast()
   // Template selecionado
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(() => {
     return templates[0]?.id || ''
@@ -212,6 +215,57 @@ export const TemplateMappingTab: React.FC<TemplateMappingTabProps> = ({
     await onPreviewTemplate(selectedTemplate, currentTemplateMappings)
   }
 
+  // Copiar mapeamento completo (JSON) com fallback e toast
+  const handleCopyCompleteMapping = async () => {
+    if (!selectedTemplate) return
+    const exportData = {
+      template_id: selectedTemplate.id,
+      template_name: selectedTemplate.name,
+      exported_at: new Date().toISOString(),
+      manual_mappings: currentTemplateMappings,
+      all_templates_mappings: localMappings,
+      evaluated_fields: evaluatedFields.map((f) => ({
+        key: f.key,
+        label: f.label,
+        type: f.type,
+        status: f.status,
+        manualMapping: f.manualMapping,
+        effectivePath: f.effectivePath,
+        effectiveValue: f.effectiveValue,
+        autoSuggestion: f.autoSuggestion,
+      })),
+    }
+
+    const jsonStr = JSON.stringify(exportData, null, 2)
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(jsonStr)
+      } else {
+        const textArea = document.createElement('textarea')
+        textArea.value = jsonStr
+        textArea.style.position = 'fixed'
+        textArea.style.left = '-999999px'
+        textArea.style.top = '-999999px'
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+        document.execCommand('copy')
+        textArea.remove()
+      }
+      toast({
+        title: 'Copiado!',
+        description: `Mapeamento completo do template "${selectedTemplate.name}" copiado em formato JSON.`,
+      })
+    } catch (err) {
+      console.error('Falha ao copiar mapeamento JSON:', err)
+      toast({
+        title: 'Erro ao copiar',
+        description: 'Não foi possível copiar o JSON para a área de transferência.',
+        variant: 'destructive',
+      })
+    }
+  }
+
   const renderBadge = (status: DynamicFieldStatus) => {
     switch (status) {
       case 'auto':
@@ -285,17 +339,28 @@ export const TemplateMappingTab: React.FC<TemplateMappingTabProps> = ({
         </div>
 
         {/* Ações principais */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={handleCopyCompleteMapping}
+            disabled={!selectedTemplate}
+            className="gap-1.5 text-xs h-9 border-slate-300 hover:bg-slate-50"
+            title="Copia o mapeamento configurado (JSON) para a área de transferência"
+          >
+            <Copy className="h-3.5 w-3.5 text-slate-600" />
+            Copiar mapeamento completo (JSON)
+          </Button>
+
           <Button
             variant="outline"
             onClick={handlePreview}
             disabled={previewLoading || !selectedTemplate}
-            className="gap-2"
+            className="gap-1.5 text-xs h-9"
           >
             {previewLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              <Eye className="h-4 w-4 text-blue-600" />
+              <Eye className="h-3.5 w-3.5 text-blue-600" />
             )}
             Visualizar Preview
           </Button>
@@ -303,9 +368,13 @@ export const TemplateMappingTab: React.FC<TemplateMappingTabProps> = ({
           <Button
             onClick={handleSave}
             disabled={saving || !selectedTemplate}
-            className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+            className="gap-1.5 text-xs h-9 bg-blue-600 hover:bg-blue-700 text-white"
           >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {saving ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Save className="h-3.5 w-3.5" />
+            )}
             Salvar Mapeamento
           </Button>
         </div>
