@@ -11,10 +11,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { LogOut, Play, ShieldCheck, Users, Building2, Terminal, Settings } from 'lucide-react'
+import {
+  LogOut,
+  Play,
+  ShieldCheck,
+  Users,
+  Building2,
+  Terminal,
+  Settings,
+  SlidersHorizontal,
+} from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
+import { TemplateMappingTab } from '@/components/TemplateMappingTab'
+import { getTemplates, previewTemplate, GeneratorTemplate } from '@/services/templates'
 
 export default function ElektraAdminDashboard() {
   const { realUser, logout, simulateUser } = useAuth()
@@ -26,7 +37,18 @@ export default function ElektraAdminDashboard() {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('all')
   const [logs, setLogs] = useState<any[]>([])
   const [sysSettings, setSysSettings] = useState<any>(null)
-  const [activeTab, setActiveTab] = useState<'companies' | 'logs' | 'settings'>('companies')
+  const [activeTab, setActiveTab] = useState<'companies' | 'templates' | 'settings' | 'logs'>(
+    'companies',
+  )
+
+  // Estados para a aba Configuração de Templates
+  const [templates, setTemplates] = useState<GeneratorTemplate[]>([])
+  const [templatesLoading, setTemplatesLoading] = useState(false)
+  const [dynamicMappings, setDynamicMappings] = useState<Record<string, Record<string, string>>>({})
+  const [proposalSettingsRecord, setProposalSettingsRecord] = useState<any>(null)
+  const [sampleNegotiationData, setSampleNegotiationData] = useState<any>({})
+  const [savingMappings, setSavingMappings] = useState(false)
+  const [previewLoading, setPreviewLoading] = useState(false)
 
   useEffect(() => {
     if (!realUser || realUser.role !== 'User_elektra') {
@@ -47,8 +69,292 @@ export default function ElektraAdminDashboard() {
 
       const settingsRecord = await pb.collection('system_settings').getFirstListItem('')
       setSysSettings(settingsRecord)
+
+      // Carregar templates do Gerador via endpoint existente
+      loadTemplatesData(selectedCompanyId)
     } catch (err) {
       console.error(err)
+    }
+  }
+
+  const loadTemplatesData = async (targetCompanyId?: string) => {
+    setTemplatesLoading(true)
+    try {
+      const tpls = await getTemplates()
+      setTemplates(tpls)
+
+      // Determinar company_id efetivo para carregar proposal_settings
+      const cId = targetCompanyId && targetCompanyId !== 'all' ? targetCompanyId : ''
+      let pSettings: any = null
+      if (cId) {
+        try {
+          pSettings = await pb
+            .collection('proposal_settings')
+            .getFirstListItem(`company_id="${cId}"`)
+        } catch {
+          /* intentionally ignored */
+        }
+      }
+      if (!pSettings) {
+        try {
+          pSettings = await pb.collection('proposal_settings').getFirstListItem('')
+        } catch {
+          /* intentionally ignored */
+        }
+      }
+
+      setProposalSettingsRecord(pSettings)
+
+      if (pSettings && pSettings.dynamic_mappings) {
+        let dm = pSettings.dynamic_mappings
+        if (typeof dm === 'string') {
+          try {
+            dm = JSON.parse(dm)
+          } catch {
+            /* intentionally ignored */
+          }
+        }
+        setDynamicMappings(dm && typeof dm === 'object' ? dm : {})
+      } else {
+        setDynamicMappings({})
+      }
+
+      // Buscar a negociação mais recente para servir como dados reais de amostra
+      let negFilter = cId ? `company_id="${cId}"` : ''
+      let recentNeg: any = null
+      try {
+        recentNeg = await pb.collection('negotiations').getFirstListItem(negFilter, {
+          sort: '-created',
+          expand: 'lead_id,company_id',
+        })
+      } catch (_) {
+        try {
+          recentNeg = await pb.collection('negotiations').getFirstListItem('', {
+            sort: '-created',
+            expand: 'lead_id,company_id',
+          })
+        } catch {
+          /* intentionally ignored */
+        }
+      }
+
+      if (recentNeg) {
+        const lead = recentNeg.expand?.lead_id || {}
+        const comp = recentNeg.expand?.company_id || {}
+        setSampleNegotiationData({
+          lead: {
+            name: lead.name || 'Cliente de Demonstração',
+            document: lead.document || '000.000.000-00',
+            phone: lead.phone || '(11) 99999-9999',
+            email: lead.email || 'cliente@exemplo.com.br',
+            address: lead.address || 'Rua Solar das Flores, 123',
+            city: lead.city || 'São Paulo',
+            state: lead.state || 'SP',
+            cep: lead.cep || '01001-000',
+            neighborhood: lead.neighborhood || 'Centro',
+            number: lead.number || '123',
+          },
+          negotiation: {
+            title: recentNeg.title || 'Projeto Solar Fotovoltaico',
+            validity: recentNeg.validity || '10 dias',
+            payment_terms: recentNeg.payment_terms || 'À vista ou Financiamento',
+            defined_payment_method: recentNeg.defined_payment_method || 'Financiamento 60x',
+            accepted_payment_methods: recentNeg.accepted_payment_methods || 'Pix, Boleto, Cartão',
+            installation_lead_time: recentNeg.installation_lead_time || '30 a 45 dias',
+            notes: recentNeg.notes || '',
+            description: recentNeg.description || '',
+            uc: recentNeg.uc || '12345678',
+          },
+          sizing: {
+            kit_power_kwp: recentNeg.sizing_kit_power_kwp || 8.5,
+            avg_consumption: recentNeg.sizing_avg_consumption || 750,
+            estimated_monthly_generation: recentNeg.sizing_estimated_generation || 950,
+            module_qty: recentNeg.sizing_module_qty || 16,
+            consumer_category: recentNeg.sizing_consumer_category || 'Residencial',
+            concessionaire: recentNeg.sizing_concessionaire || 'Enel',
+            roof_type: recentNeg.sizing_roof_type || 'Telhado Cerâmico',
+            network_type: recentNeg.sizing_network_type || 'Bifásico',
+            simultaneity_factor: recentNeg.sizing_simultaneity || 30,
+            address_struct: {
+              city: lead.city || 'São Paulo',
+              state: lead.state || 'SP',
+              street: lead.address || 'Rua Solar das Flores',
+              number: lead.number || '123',
+              zip: lead.cep || '01001-000',
+            },
+          },
+          financial: {
+            total_investment: recentNeg.financial_total_investment || 28500,
+            monthly_savings: recentNeg.financial_monthly_savings || 680,
+            annual_savings: recentNeg.financial_annual_savings || 8160,
+            savings_25_years: recentNeg.financial_savings_25_years || 204000,
+            payback_years: recentNeg.financial_payback_years || 3.5,
+            payback_months: recentNeg.financial_payback_months || 42,
+            tariff_rate: recentNeg.financial_tariff_rate || 0.95,
+            tariff_details: {
+              te: 0.42,
+              tusd: 0.53,
+            },
+            subtotal: recentNeg.financial_total_investment || 28500,
+            discount_amount: 0,
+          },
+          company: {
+            name: comp.name || 'Elektra Solar',
+            cnpj: comp.cnpj || '00.000.000/0001-00',
+            phone: comp.phone || '(11) 3000-0000',
+            email: comp.email || 'contato@elektrasolar.com.br',
+          },
+        })
+      } else {
+        // Dados de fallback estruturados para simular variáveis
+        setSampleNegotiationData({
+          lead: {
+            name: 'Cliente Modelo de Teste',
+            document: '123.456.789-00',
+            phone: '(11) 98765-4321',
+            email: 'cliente.teste@exemplo.com.br',
+            address: 'Av. Paulista, 1000',
+            city: 'São Paulo',
+            state: 'SP',
+            cep: '01310-100',
+          },
+          negotiation: {
+            title: 'Proposta Fotovoltaica Residencial',
+            validity: '15 dias',
+            payment_terms: 'Entrada + 36x',
+            installation_lead_time: '30 dias',
+          },
+          sizing: {
+            kit_power_kwp: 7.2,
+            avg_consumption: 650,
+            estimated_monthly_generation: 880,
+            module_qty: 14,
+            consumer_category: 'Residencial',
+          },
+          financial: {
+            total_investment: 24900,
+            monthly_savings: 590,
+            annual_savings: 7080,
+            payback_years: 3.5,
+            tariff_rate: 0.92,
+          },
+          company: {
+            name: 'Elektra Solar Demo',
+          },
+        })
+      }
+    } catch (err) {
+      console.error('Erro ao carregar dados de templates:', err)
+    } finally {
+      setTemplatesLoading(false)
+    }
+  }
+
+  // Recarregar dados de template se a empresa selecionada mudar
+  useEffect(() => {
+    if (realUser && realUser.role === 'User_elektra') {
+      loadTemplatesData(selectedCompanyId)
+    }
+  }, [selectedCompanyId])
+
+  const handleSaveDynamicMappings = async (
+    templateId: string,
+    mappingsForTemplate: Record<string, string>,
+  ) => {
+    setSavingMappings(true)
+    try {
+      const updatedDm: Record<string, Record<string, string>> = {
+        ...dynamicMappings,
+        [templateId]: mappingsForTemplate,
+      }
+
+      // Se todas as chaves do template forem automáticas, manter objeto limpo
+      if (Object.keys(mappingsForTemplate).length === 0) {
+        delete updatedDm[templateId]
+      }
+
+      let targetId = proposalSettingsRecord?.id
+      let compId = selectedCompanyId && selectedCompanyId !== 'all' ? selectedCompanyId : undefined
+
+      if (!targetId) {
+        // Criar registro de proposal_settings
+        const created = await pb.collection('proposal_settings').create({
+          company_id: compId,
+          dynamic_mappings: updatedDm,
+        })
+        setProposalSettingsRecord(created)
+      } else {
+        const updated = await pb.collection('proposal_settings').update(targetId, {
+          dynamic_mappings: updatedDm,
+        })
+        setProposalSettingsRecord(updated)
+      }
+
+      setDynamicMappings(updatedDm)
+      toast({
+        title: 'Mapeamento Salvo',
+        description: `Mapeamento do template "${templateId}" gravado com sucesso.`,
+      })
+    } catch (err: any) {
+      console.error(err)
+      toast({
+        title: 'Erro ao Salvar Mapeamento',
+        description: err?.message || 'Falha ao persistir no banco de dados.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingMappings(false)
+    }
+  }
+
+  const handlePreviewTemplateAction = async (
+    template: GeneratorTemplate,
+    customMappings?: Record<string, string>,
+  ) => {
+    setPreviewLoading(true)
+    try {
+      const compId =
+        selectedCompanyId && selectedCompanyId !== 'all' ? selectedCompanyId : undefined
+
+      // Salvar temporariamente para o preview refletir o override que está em tela se fornecido
+      if (customMappings && proposalSettingsRecord?.id) {
+        try {
+          const merged = {
+            ...dynamicMappings,
+            [template.id]: customMappings,
+          }
+          await pb.collection('proposal_settings').update(proposalSettingsRecord.id, {
+            dynamic_mappings: merged,
+          })
+          setDynamicMappings(merged)
+        } catch {
+          /* intentionally ignored */
+        }
+      }
+
+      const res = await previewTemplate(template.id, sampleNegotiationData, compId)
+      if (res && res.preview_url) {
+        window.open(res.preview_url, '_blank', 'noopener,noreferrer')
+        toast({
+          title: 'Preview Gerado',
+          description: 'A pré-visualização do modelo foi aberta em uma nova guia.',
+        })
+      } else {
+        toast({
+          title: 'Preview Indisponível',
+          description: 'O Gerador não retornou preview_url para este modelo.',
+          variant: 'destructive',
+        })
+      }
+    } catch (err: any) {
+      console.error(err)
+      toast({
+        title: 'Erro na Visualização',
+        description: err?.message || 'Falha ao solicitar preview do template ao Gerador.',
+        variant: 'destructive',
+      })
+    } finally {
+      setPreviewLoading(false)
     }
   }
 
@@ -109,6 +415,12 @@ export default function ElektraAdminDashboard() {
             onClick={() => setActiveTab('companies')}
           >
             <Building2 className="h-4 w-4 mr-2" /> Empresas e Simulação
+          </Button>
+          <Button
+            variant={activeTab === 'templates' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('templates')}
+          >
+            <SlidersHorizontal className="h-4 w-4 mr-2" /> Configuração de Templates
           </Button>
           <Button
             variant={activeTab === 'settings' ? 'default' : 'outline'}
@@ -216,6 +528,21 @@ export default function ElektraAdminDashboard() {
               </Card>
             </div>
           </div>
+        )}
+
+        {activeTab === 'templates' && (
+          <TemplateMappingTab
+            templates={templates}
+            templatesLoading={templatesLoading}
+            activeCompanyId={selectedCompanyId}
+            companies={companies}
+            dynamicMappings={dynamicMappings}
+            sampleNegotiationData={sampleNegotiationData}
+            onSaveMappings={handleSaveDynamicMappings}
+            onPreviewTemplate={handlePreviewTemplateAction}
+            previewLoading={previewLoading}
+            saving={savingMappings}
+          />
         )}
 
         {activeTab === 'settings' && (

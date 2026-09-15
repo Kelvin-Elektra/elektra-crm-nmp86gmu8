@@ -137,15 +137,26 @@ export const getTemplates = async (): Promise<GeneratorTemplate[]> => {
 export const previewTemplate = (
   templateId: string,
   fixedData: Record<string, any>,
-  schemaFields?: TemplateSchemaField[],
+  schemaFieldsOrCompanyId?: TemplateSchemaField[] | string,
   extraContext?: {
     lead?: Record<string, any>
     sizing?: Record<string, any>
     financial?: Record<string, any>
     negotiation?: Record<string, any>
+    company_id?: string
+    [key: string]: any
   },
-): Promise<{ view_url?: string; [key: string]: any }> => {
+): Promise<{ view_url?: string; preview_url?: string; [key: string]: any }> => {
   let cleanedData = fixedData
+  let schemaFields: TemplateSchemaField[] | undefined
+  let companyId: string | undefined
+
+  if (typeof schemaFieldsOrCompanyId === 'string') {
+    companyId = schemaFieldsOrCompanyId
+  } else if (Array.isArray(schemaFieldsOrCompanyId)) {
+    schemaFields = schemaFieldsOrCompanyId
+  }
+
   if (schemaFields && schemaFields.length > 0) {
     cleanedData = {}
     for (const f of schemaFields) {
@@ -155,13 +166,19 @@ export const previewTemplate = (
     }
   }
 
+  const payload: Record<string, any> = {
+    fixed_data: cleanedData,
+    branding: cleanedData,
+    ...(extraContext || {}),
+  }
+
+  if (companyId) {
+    payload.company_id = companyId
+  }
+
   return pb.send(`/backend/v1/templates/${templateId}/preview`, {
     method: 'POST',
-    body: JSON.stringify({
-      fixed_data: cleanedData,
-      branding: cleanedData,
-      ...(extraContext || {}),
-    }),
+    body: JSON.stringify(payload),
     headers: { 'Content-Type': 'application/json; charset=utf-8' },
   })
 }

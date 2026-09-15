@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-15T01:30:40.130Z",
+  "generatedAt": "2026-09-15T02:53:22.508Z",
   "collections": [
     {
       "name": "users",
@@ -871,6 +871,12 @@
         },
         {
           "name": "templates_config",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "dynamic_mappings",
           "type": "json",
           "required": false,
           "system": false

@@ -238,6 +238,7 @@ routerAdd(
 
       let savedTemplateConfig = {}
       let companyFallbackData = {}
+      let manualDynamicMappings = {}
 
       if (companyId) {
         // 1. Tentar ler proposal_settings da empresa
@@ -268,6 +269,20 @@ routerAdd(
               }
               if (br && typeof br === 'object') {
                 companyFallbackData = Object.assign({}, companyFallbackData, br)
+              }
+            }
+
+            let dm = settingsRec.get('dynamic_mappings')
+            if (typeof dm === 'string') {
+              try {
+                dm = JSON.parse(dm)
+              } catch (_) {}
+            }
+            if (dm && typeof dm === 'object') {
+              if (dm[templateId] && typeof dm[templateId] === 'object') {
+                manualDynamicMappings = dm[templateId]
+              } else if (!dm[templateId] && !dm['default']) {
+                manualDynamicMappings = dm
               }
             }
           }
@@ -423,6 +438,18 @@ routerAdd(
           }
         }
         return tokens
+      }
+
+      function getValueByPath(obj, path) {
+        if (!obj || !path || typeof path !== 'string') return undefined
+        var parts = path.split('.')
+        var curr = obj
+        for (var pi = 0; pi < parts.length; pi++) {
+          var p = parts[pi]
+          if (curr === null || curr === undefined || typeof curr !== 'object') return undefined
+          curr = curr[p]
+        }
+        return curr
       }
 
       // Dados de mock/preview inteligentes vindos do template, do body ou valores padrão realistas
@@ -1126,11 +1153,58 @@ routerAdd(
         }
       }
 
+      var previewCrmDataRoot = {
+        lead: enrichedPreviewLead,
+        negotiation: enrichedPreviewNegotiation,
+        sizing: enrichedPreviewSizing,
+        financial: enrichedPreviewFinancial,
+        raw: {
+          lead: bodyLead,
+          negotiation: bodyNegotiation,
+          sizing: bodySizing,
+          financial: bodyFinancial,
+        },
+      }
+
       var previewResolvedReport = {}
       var previewUnresolvedReport = []
 
       for (var pri = 0; pri < previewDynamicKeys.length; pri++) {
         var pKey = previewDynamicKeys[pri]
+        var manualPath = manualDynamicMappings ? manualDynamicMappings[pKey] : null
+
+        // 1. Ordem de resolução: Mapeamento Manual do ADM (se configurado e não vazio)
+        var manualValue = undefined
+        if (manualPath && typeof manualPath === 'string' && manualPath.trim() !== '') {
+          var pClean = manualPath.trim()
+          manualValue = getValueByPath(previewCrmDataRoot, pClean)
+          if (manualValue === undefined) {
+            manualValue = getValueByPath(previewSemanticContext, pClean)
+          }
+          if (manualValue === undefined) {
+            manualValue =
+              getValueByPath(enrichedPreviewFinancial, pClean) ||
+              getValueByPath(enrichedPreviewSizing, pClean) ||
+              getValueByPath(enrichedPreviewLead, pClean) ||
+              getValueByPath(enrichedPreviewNegotiation, pClean)
+          }
+
+          if (manualValue !== undefined && manualValue !== null && manualValue !== '') {
+            previewResolvedReport[pKey] = {
+              category: 'manual',
+              field: pClean,
+              matchType: 'manual_override',
+              value: manualValue,
+            }
+            enrichedPreviewLead[pKey] = manualValue
+            enrichedPreviewSizing[pKey] = manualValue
+            enrichedPreviewFinancial[pKey] = manualValue
+            enrichedPreviewNegotiation[pKey] = manualValue
+            continue
+          }
+        }
+
+        // 2 & 3. Correspondência Exata e Mapeador Semântico Automático
         var pRes = resolvePreviewSemanticValue(pKey)
         if (pRes.resolved) {
           previewResolvedReport[pKey] = {

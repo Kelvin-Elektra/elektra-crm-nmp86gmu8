@@ -125,6 +125,57 @@ routerAdd(
         safeLogWarn('Aviso ao buscar system_settings', String(settingsErr))
       }
 
+      // Buscar empresa e proposal_settings com dynamic_mappings
+      let companyId = ''
+      try {
+        if (e.auth) {
+          companyId = e.auth.getString('company_id') || ''
+        }
+      } catch (_) {}
+
+      // Se body tiver negotiation_id ou external_id, podemos conferir a empresa da negociação/proposta caso e.auth não tenha
+      if (!companyId && body.external_id) {
+        try {
+          const propRec = $app.findFirstRecordByFilter(
+            'proposals',
+            "id = '" + body.external_id + "'",
+          )
+          if (propRec) companyId = propRec.getString('company_id') || ''
+        } catch (_) {}
+      }
+
+      let manualDynamicMappings = {}
+      if (companyId) {
+        try {
+          const pSettings = $app.findFirstRecordByFilter(
+            'proposal_settings',
+            "company_id = '" + companyId + "'",
+          )
+          if (pSettings) {
+            let dm = pSettings.get('dynamic_mappings')
+            if (typeof dm === 'string') {
+              try {
+                dm = JSON.parse(dm)
+              } catch (_) {}
+            }
+            if (dm && typeof dm === 'object') {
+              // Se tiver chave por template_id: dm[templateId]
+              if (dm[templateId] && typeof dm[templateId] === 'object') {
+                manualDynamicMappings = dm[templateId]
+              } else if (!dm[templateId] && !dm['default']) {
+                // Caso seja mapa plano direto ou contenha o template
+                manualDynamicMappings = dm
+              }
+            }
+          }
+        } catch (settingsFetchErr) {
+          safeLogWarn(
+            'Aviso ao buscar dynamic_mappings em proposal_settings',
+            String(settingsFetchErr),
+          )
+        }
+      }
+
       if (!generatorUrl) {
         return e.json(500, {
           message: 'URL do Gerador não configurada nas configurações do sistema.',
@@ -342,6 +393,19 @@ routerAdd(
           }
         }
         return tokens
+      }
+
+      // Função auxiliar para resolução de caminhos com dot-notation (ex: financial.total_investment, sizing.kit_power_kwp)
+      function getValueByPath(obj, path) {
+        if (!obj || !path || typeof path !== 'string') return undefined
+        var parts = path.split('.')
+        var curr = obj
+        for (var pi = 0; pi < parts.length; pi++) {
+          var p = parts[pi]
+          if (curr === null || curr === undefined || typeof curr !== 'object') return undefined
+          curr = curr[p]
+        }
+        return curr
       }
 
       const rawLead = body.lead || {}
@@ -1076,11 +1140,61 @@ routerAdd(
         dynamicKeysToResolve = Object.keys(templateDynamicSchema)
       }
 
+      // Raiz completa de dados da negociação para suporte a dot-notation manual
+      const crmDataRoot = {
+        lead: enrichedLead,
+        negotiation: enrichedNegotiation,
+        sizing: enrichedSizing,
+        financial: enrichedFinancial,
+        raw: {
+          lead: rawLead,
+          negotiation: rawNegotiation,
+          sizing: rawSizing,
+          financial: rawFinancial,
+        },
+      }
+
       var resolvedReport = {}
       var unresolvedReport = []
 
       for (var ri = 0; ri < dynamicKeysToResolve.length; ri++) {
         var kToRes = dynamicKeysToResolve[ri]
+        var manualPath = manualDynamicMappings ? manualDynamicMappings[kToRes] : null
+
+        // 1. Ordem de resolução: Mapeamento Manual do ADM (se configurado e não vazio)
+        var manualValue = undefined
+        if (manualPath && typeof manualPath === 'string' && manualPath.trim() !== '') {
+          var pClean = manualPath.trim()
+          manualValue = getValueByPath(crmDataRoot, pClean)
+          if (manualValue === undefined) {
+            manualValue = getValueByPath(semanticContext, pClean)
+          }
+          if (manualValue === undefined) {
+            // Tenta nos objetos individuais
+            manualValue =
+              getValueByPath(enrichedFinancial, pClean) ||
+              getValueByPath(enrichedSizing, pClean) ||
+              getValueByPath(enrichedLead, pClean) ||
+              getValueByPath(enrichedNegotiation, pClean)
+          }
+
+          if (manualValue !== undefined && manualValue !== null && manualValue !== '') {
+            resolvedReport[kToRes] = {
+              category: 'manual',
+              field: pClean,
+              matchType: 'manual_override',
+              value: manualValue,
+            }
+            // Enriquecer todas as categorias do payload para o template
+            enrichedLead[kToRes] = manualValue
+            enrichedSizing[kToRes] = manualValue
+            enrichedFinancial[kToRes] = manualValue
+            enrichedNegotiation[kToRes] = manualValue
+            continue
+          }
+        }
+
+        // 2 & 3. Correspondência Exata e Mapeador Semântico Automático
         var resObj = resolveSemanticValue(kToRes)
         if (resObj.resolved) {
           resolvedReport[kToRes] = {
