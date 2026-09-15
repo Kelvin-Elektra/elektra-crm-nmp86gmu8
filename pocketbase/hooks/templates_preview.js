@@ -359,8 +359,813 @@ routerAdd(
         }
       }
 
+      // =========================================================================
+      // MAPEADOR SEMÂNTICO DE VARIÁVEIS DINÂMICAS PARA PREVIEW
+      // =========================================================================
+      function normalizeSemanticStr(str) {
+        if (!str || typeof str !== 'string') return ''
+        var s = str.trim().toLowerCase()
+        s = s
+          .replace(/[áàâãä]/g, 'a')
+          .replace(/[éèêë]/g, 'e')
+          .replace(/[íìîï]/g, 'i')
+          .replace(/[óòôõö]/g, 'o')
+          .replace(/[úùûü]/g, 'u')
+          .replace(/[ç]/g, 'c')
+          .replace(/[ñ]/g, 'n')
+        s = s.replace(/[\-_.:\/\\()\[\]]/g, ' ')
+        s = s.replace(/\s+/g, ' ').trim()
+        return s
+      }
+
+      var SEMANTIC_STOPWORDS = {
+        de: true,
+        do: true,
+        da: true,
+        dos: true,
+        das: true,
+        em: true,
+        no: true,
+        na: true,
+        nos: true,
+        nas: true,
+        para: true,
+        por: true,
+        com: true,
+        of: true,
+        in: true,
+        on: true,
+        for: true,
+        with: true,
+        at: true,
+        to: true,
+        o: true,
+        a: true,
+        os: true,
+        as: true,
+        um: true,
+        uma: true,
+        uns: true,
+        umas: true,
+        the: true,
+        an: true,
+      }
+
+      function getSemanticTokenList(str) {
+        var norm = normalizeSemanticStr(str)
+        if (!norm) return []
+        var rawTokens = norm.split(' ')
+        var tokens = []
+        for (var i = 0; i < rawTokens.length; i++) {
+          var t = rawTokens[i]
+          if (t && !SEMANTIC_STOPWORDS[t]) {
+            tokens.push(t)
+          }
+        }
+        return tokens
+      }
+
+      // Dados de mock/preview inteligentes vindos do template, do body ou valores padrão realistas
+      var matchingTplPreview = null
+      if (
+        typeof listRes !== 'undefined' &&
+        listRes &&
+        listRes.json &&
+        Array.isArray(listRes.json.templates)
+      ) {
+        matchingTplPreview = listRes.json.templates.find((t) => t.id === templateId)
+      }
+
+      var previewMock = (matchingTplPreview && matchingTplPreview.mock_data) || {}
+      var bodyLead = body.lead || previewMock.lead || {}
+      var bodyNegotiation = body.negotiation || previewMock.negotiation || {}
+      var bodySizing = body.sizing || previewMock.sizing || {}
+      var bodyFinancial = body.financial || previewMock.financial || {}
+
+      var leadDoc = bodyLead.document || bodyLead.cpf_cnpj || '123.456.789-00'
+      var leadPhone = bodyLead.phone || bodyLead.whatsapp || '(11) 98765-4321'
+      var leadName = bodyLead.name || 'Cliente Exemplo'
+      var leadEmail = bodyLead.email || 'cliente@exemplo.com'
+      var leadAddress = bodyLead.address || 'Av. Brasil, 1500 - São Paulo/SP'
+
+      var kitPower = Number(
+        bodySizing.kit_power_kwp || bodySizing.power_kwp || bodySizing.kwp || 6.5,
+      )
+      var avgCons = Number(bodySizing.avg_consumption || bodySizing.monthly_consumption || 600)
+      var estGen = Number(
+        bodySizing.estimated_monthly_generation || bodySizing.monthly_generation || 750,
+      )
+      var modQty = Number(bodySizing.module_qty || bodySizing.module_quantity || 12)
+
+      var totInv = Number(
+        bodyFinancial.total_investment || bodyFinancial.investment || bodyFinancial.price || 24900,
+      )
+      var monSav = Number(bodyFinancial.monthly_savings || bodyFinancial.economy_monthly || 550)
+      var pbYears = Number(
+        bodyFinancial.payback_years !== undefined
+          ? bodyFinancial.payback_years
+          : bodyFinancial.payback || 3.8,
+      )
+      var pbMonths = Number(
+        bodyFinancial.payback_months !== undefined
+          ? bodyFinancial.payback_months
+          : Math.round(pbYears * 12),
+      )
+      var annSav = Number(
+        bodyFinancial.annual_savings || bodyFinancial.yearly_savings || monSav * 12,
+      )
+      var sav25y = Number(
+        bodyFinancial.savings_25_years || bodyFinancial.total_savings_25y || annSav * 25,
+      )
+
+      var previewSemanticContext = {
+        lead: {
+          name: leadName,
+          email: leadEmail,
+          phone: leadPhone,
+          whatsapp: leadPhone,
+          document: leadDoc,
+          cpf_cnpj: leadDoc,
+          address: leadAddress,
+          city: bodyLead.city || 'São Paulo',
+          state: bodyLead.state || 'SP',
+        },
+        negotiation: {
+          id: bodyNegotiation.id || 'preview_neg_01',
+          title: bodyNegotiation.title || 'Proposta Solar Residencial',
+          validity: bodyNegotiation.validity || '10 dias',
+          validity_date: bodyNegotiation.validity_date || '',
+          payment_terms: bodyNegotiation.payment_terms || 'Entrada + 12x no cartão',
+          defined_payment_method: bodyNegotiation.defined_payment_method || 'Cartão de Crédito',
+          accepted_payment_methods:
+            bodyNegotiation.accepted_payment_methods || 'PIX, Cartão, Financiamento',
+          installation_lead_time: bodyNegotiation.installation_lead_time || '30 dias',
+          notes: bodyNegotiation.notes || '',
+          description: bodyNegotiation.description || 'Sistema Fotovoltaico 6.5 kWp',
+        },
+        sizing: {
+          kit_power_kwp: kitPower,
+          power_kwp: kitPower,
+          kwp: kitPower,
+          avg_consumption: avgCons,
+          average_consumption: avgCons,
+          monthly_consumption: avgCons,
+          consumption_kwh: avgCons,
+          estimated_monthly_generation: estGen,
+          monthly_generation: estGen,
+          generation_kwh: estGen,
+          module_qty: modQty,
+          module_quantity: modQty,
+          modules_count: modQty,
+          inverters: bodySizing.inverters || [{ brand: 'Deye', model: 'SUN-5K', power: 5, qty: 1 }],
+          consumer_category: bodySizing.consumer_category || 'Residencial',
+          simultaneity_factor: bodySizing.simultaneity_factor || 30,
+          network_type: bodySizing.network_type || 'Bifásico',
+          roof_type: bodySizing.roof_type || 'Cerâmico',
+          concessionaire: bodySizing.concessionaire || 'Copel',
+        },
+        financial: {
+          total_investment: totInv,
+          investment: totInv,
+          price: totInv,
+          total_value: totInv,
+          sale_price: totInv,
+          subtotal: totInv,
+          discount_amount: 0,
+          monthly_savings: monSav,
+          economy_monthly: monSav,
+          estimated_monthly_savings: monSav,
+          payback_years: pbYears,
+          payback_months: pbMonths,
+          payback: pbYears,
+          annual_savings: annSav,
+          yearly_savings: annSav,
+          savings_25_years: sav25y,
+          total_savings_25y: sav25y,
+          tariff_details: { te: 0.45, tusd: 0.65, total: 1.1 },
+          tariff_rate: 1.1,
+          tariff_te: 0.45,
+          tariff_tusd: 0.65,
+        },
+      }
+
+      var SEMANTIC_CONCEPTS = [
+        {
+          concept: 'kit_power',
+          targetCategory: 'sizing',
+          targetField: 'kit_power_kwp',
+          synonyms: [
+            'kit power kwp',
+            'kit power',
+            'power kwp',
+            'power',
+            'potencia kit',
+            'potencia instalada',
+            'potencia do kit',
+            'potencia',
+            'kwp',
+            'system size',
+            'tamanho sistema',
+            'potencia sistema',
+            'potencia gerador',
+            'kit potencia',
+          ],
+          keywords: ['potencia', 'kwp', 'power'],
+          negativeKeywords: [
+            'geracao',
+            'generation',
+            'producao',
+            'consumo',
+            'consumption',
+            'inversor',
+            'modulo',
+          ],
+        },
+        {
+          concept: 'module_qty',
+          targetCategory: 'sizing',
+          targetField: 'module_qty',
+          synonyms: [
+            'module qty',
+            'module quantity',
+            'modules count',
+            'module count',
+            'modules qty',
+            'qtd modulos',
+            'quantidade modulos',
+            'numero modulos',
+            'quant modulos',
+            'qtd paineis',
+            'quantidade paineis',
+            'numero paineis',
+            'quant paineis',
+            'paineis solares',
+            'modulos solares',
+            'total modulos',
+            'total paineis',
+            'modulos',
+            'paineis',
+            'panels',
+            'modules',
+          ],
+          keywords: [
+            'modulo',
+            'modulos',
+            'painel',
+            'paineis',
+            'module',
+            'modules',
+            'panel',
+            'panels',
+          ],
+          negativeKeywords: ['potencia', 'kwp', 'inversor', 'inverter'],
+        },
+        {
+          concept: 'consumption',
+          targetCategory: 'sizing',
+          targetField: 'avg_consumption',
+          synonyms: [
+            'avg consumption',
+            'average consumption',
+            'monthly consumption',
+            'consumption kwh',
+            'consumo medio',
+            'consumo medio mensal',
+            'consumo mensal',
+            'consumo kwh',
+            'consumo',
+            'gasto energetico',
+            'demanda energia',
+            'consumo energia',
+            'energy consumption',
+            'monthly energy',
+          ],
+          keywords: ['consumo', 'consumption', 'gasto'],
+          negativeKeywords: ['geracao', 'generation', 'economia', 'savings', 'producao'],
+        },
+        {
+          concept: 'generation',
+          targetCategory: 'sizing',
+          targetField: 'estimated_monthly_generation',
+          synonyms: [
+            'estimated monthly generation',
+            'monthly generation',
+            'generation kwh',
+            'estimated generation',
+            'geracao estimada',
+            'geracao media',
+            'geracao media mensal',
+            'geracao mensal',
+            'geracao kwh',
+            'geracao',
+            'producao estimada',
+            'producao mensal',
+            'producao energia',
+            'estimated production',
+            'energy generation',
+            'solar generation',
+            'geracao solar',
+          ],
+          keywords: ['geracao', 'generation', 'producao', 'production'],
+          negativeKeywords: ['consumo', 'consumption', 'potencia', 'kwp'],
+        },
+        {
+          concept: 'total_investment',
+          targetCategory: 'financial',
+          targetField: 'total_investment',
+          synonyms: [
+            'total investment',
+            'investment total',
+            'investment',
+            'sale price',
+            'price',
+            'total value',
+            'value total',
+            'valor total',
+            'investimento total',
+            'total investimento',
+            'investimento',
+            'preco venda',
+            'preco total',
+            'preco',
+            'valor sistema',
+            'custo total',
+            'total cost',
+            'system price',
+            'valor da proposta',
+            'valor proposta',
+            'valor total investimento',
+          ],
+          keywords: ['investimento', 'investment', 'preco', 'price'],
+          negativeKeywords: ['economia', 'savings', 'mensal', 'payback', 'retorno'],
+        },
+        {
+          concept: 'monthly_savings',
+          targetCategory: 'financial',
+          targetField: 'monthly_savings',
+          synonyms: [
+            'monthly savings',
+            'estimated monthly savings',
+            'economy monthly',
+            'savings monthly',
+            'economia mensal',
+            'economia estimada',
+            'economia media mensal',
+            'economia mes',
+            'economia',
+            'estimated savings',
+            'monthly economy',
+          ],
+          keywords: ['economia', 'savings', 'economy'],
+          negativeKeywords: ['25', '25 anos', 'anual', 'annual', 'yearly', 'total'],
+        },
+        {
+          concept: 'savings_25_years',
+          targetCategory: 'financial',
+          targetField: 'savings_25_years',
+          synonyms: [
+            'savings 25 years',
+            'total savings 25y',
+            'savings 25y',
+            'total savings',
+            'economia 25 anos',
+            'economia 25y',
+            'economia total 25 anos',
+            'economia acumulada',
+            'economia 25',
+            '25 years savings',
+            'savings 25',
+          ],
+          keywords: ['25', 'acumulada'],
+          negativeKeywords: ['mensal', 'anual'],
+        },
+        {
+          concept: 'annual_savings',
+          targetCategory: 'financial',
+          targetField: 'annual_savings',
+          synonyms: [
+            'annual savings',
+            'yearly savings',
+            'economia anual',
+            'economia ano',
+            'annual economy',
+            'yearly economy',
+          ],
+          keywords: ['anual', 'annual', 'yearly', 'ano'],
+          negativeKeywords: ['mensal', '25'],
+        },
+        {
+          concept: 'payback_years',
+          targetCategory: 'financial',
+          targetField: 'payback_years',
+          synonyms: [
+            'payback years',
+            'payback',
+            'tempo retorno',
+            'prazo retorno',
+            'retorno investimento',
+            'payback anos',
+            'anos retorno',
+            'tempo de retorno',
+            'retorno',
+          ],
+          keywords: ['payback', 'retorno'],
+          negativeKeywords: ['meses', 'months'],
+        },
+        {
+          concept: 'payback_months',
+          targetCategory: 'financial',
+          targetField: 'payback_months',
+          synonyms: [
+            'payback months',
+            'payback meses',
+            'tempo retorno meses',
+            'retorno meses',
+            'meses retorno',
+          ],
+          keywords: ['payback', 'retorno'],
+          negativeKeywords: [],
+        },
+        {
+          concept: 'tariff',
+          targetCategory: 'financial',
+          targetField: 'tariff_rate',
+          synonyms: [
+            'tariff rate',
+            'tariff',
+            'tarifa',
+            'tarifa energia',
+            'valor tarifa',
+            'tarifa concessionaria',
+            'energy tariff',
+            'tariff value',
+          ],
+          keywords: ['tarifa', 'tariff'],
+          negativeKeywords: [],
+        },
+        {
+          concept: 'lead_name',
+          targetCategory: 'lead',
+          targetField: 'name',
+          synonyms: [
+            'client name',
+            'customer name',
+            'lead name',
+            'client',
+            'customer',
+            'lead',
+            'nome cliente',
+            'cliente',
+            'nome do cliente',
+            'nome titular',
+            'titular',
+            'nome consumidor',
+            'consumidor',
+          ],
+          keywords: ['cliente', 'client', 'customer', 'titular', 'consumidor'],
+          negativeKeywords: ['empresa', 'company'],
+        },
+        {
+          concept: 'lead_document',
+          targetCategory: 'lead',
+          targetField: 'document',
+          synonyms: [
+            'client document',
+            'document',
+            'cpf cnpj',
+            'cpf',
+            'cnpj',
+            'documento cliente',
+            'documento titular',
+            'doc titular',
+            'cpf titular',
+            'cnpj titular',
+            'identificacao',
+          ],
+          keywords: ['cpf', 'cnpj', 'documento', 'document'],
+          negativeKeywords: [],
+        },
+        {
+          concept: 'lead_phone',
+          targetCategory: 'lead',
+          targetField: 'phone',
+          synonyms: [
+            'phone',
+            'whatsapp',
+            'telephone',
+            'mobile',
+            'celular',
+            'telefone',
+            'telefone cliente',
+            'whatsapp cliente',
+            'contato cliente',
+            'contato',
+          ],
+          keywords: ['telefone', 'phone', 'whatsapp', 'celular', 'contato'],
+          negativeKeywords: [],
+        },
+        {
+          concept: 'lead_email',
+          targetCategory: 'lead',
+          targetField: 'email',
+          synonyms: [
+            'email',
+            'client email',
+            'customer email',
+            'e mail',
+            'email cliente',
+            'e mail cliente',
+            'correio eletronico',
+          ],
+          keywords: ['email', 'mail'],
+          negativeKeywords: [],
+        },
+        {
+          concept: 'address',
+          targetCategory: 'lead',
+          targetField: 'address',
+          synonyms: [
+            'address',
+            'endereco',
+            'full address',
+            'endereco completo',
+            'local instalacao',
+            'endereco instalacao',
+            'installation address',
+            'localizacao',
+          ],
+          keywords: ['endereco', 'address', 'instalacao', 'local'],
+          negativeKeywords: [],
+        },
+        {
+          concept: 'city',
+          targetCategory: 'lead',
+          targetField: 'city',
+          synonyms: ['city', 'cidade', 'municipio'],
+          keywords: ['cidade', 'city', 'municipio'],
+          negativeKeywords: [],
+        },
+        {
+          concept: 'state',
+          targetCategory: 'lead',
+          targetField: 'state',
+          synonyms: ['state', 'estado', 'uf'],
+          keywords: ['estado', 'state', 'uf'],
+          negativeKeywords: [],
+        },
+        {
+          concept: 'validity',
+          targetCategory: 'negotiation',
+          targetField: 'validity',
+          synonyms: [
+            'validity',
+            'validity date',
+            'validade',
+            'data validade',
+            'validade proposta',
+            'prazo validade',
+            'expiration date',
+          ],
+          keywords: ['validade', 'validity'],
+          negativeKeywords: [],
+        },
+        {
+          concept: 'installation_lead_time',
+          targetCategory: 'negotiation',
+          targetField: 'installation_lead_time',
+          synonyms: [
+            'installation lead time',
+            'lead time',
+            'prazo instalacao',
+            'prazo execucao',
+            'tempo instalacao',
+            'tempo execucao',
+            'delivery time',
+          ],
+          keywords: ['prazo', 'lead time'],
+          negativeKeywords: ['validade'],
+        },
+        {
+          concept: 'payment_terms',
+          targetCategory: 'negotiation',
+          targetField: 'payment_terms',
+          synonyms: [
+            'payment terms',
+            'condicoes pagamento',
+            'forma pagamento',
+            'condicao pagamento',
+            'formas pagamento aceitas',
+            'pagamento',
+            'payment method',
+            'defined payment method',
+          ],
+          keywords: ['pagamento', 'payment'],
+          negativeKeywords: [],
+        },
+        {
+          concept: 'concessionaire',
+          targetCategory: 'sizing',
+          targetField: 'concessionaire',
+          synonyms: [
+            'concessionaire',
+            'distributor',
+            'distribuidora',
+            'concessionaria',
+            'concessionaria energia',
+            'utility company',
+          ],
+          keywords: ['concessionaria', 'distribuidora', 'utility'],
+          negativeKeywords: [],
+        },
+        {
+          concept: 'consumer_category',
+          targetCategory: 'sizing',
+          targetField: 'consumer_category',
+          synonyms: [
+            'consumer category',
+            'categoria consumo',
+            'categoria consumidor',
+            'tipo consumidor',
+            'classe consumo',
+            'consumer type',
+          ],
+          keywords: ['categoria', 'classe'],
+          negativeKeywords: [],
+        },
+      ]
+
+      function resolvePreviewSemanticValue(rawKey) {
+        if (!rawKey || typeof rawKey !== 'string') return { resolved: false }
+        var normKey = normalizeSemanticStr(rawKey)
+        var keyTokens = getSemanticTokenList(rawKey)
+
+        var cats = ['lead', 'sizing', 'financial', 'negotiation']
+        for (var ci = 0; ci < cats.length; ci++) {
+          var cName = cats[ci]
+          var cObj = previewSemanticContext[cName]
+          if (cObj && cObj[rawKey] !== undefined && cObj[rawKey] !== null && cObj[rawKey] !== '') {
+            return {
+              resolved: true,
+              category: cName,
+              field: rawKey,
+              value: cObj[rawKey],
+              matchType: 'exact_key',
+            }
+          }
+        }
+
+        for (var si = 0; si < SEMANTIC_CONCEPTS.length; si++) {
+          var sc = SEMANTIC_CONCEPTS[si]
+          for (var yi = 0; yi < sc.synonyms.length; yi++) {
+            if (normKey === normalizeSemanticStr(sc.synonyms[yi])) {
+              var val = previewSemanticContext[sc.targetCategory]
+                ? previewSemanticContext[sc.targetCategory][sc.targetField]
+                : undefined
+              if (val !== undefined && val !== null && val !== '') {
+                return {
+                  resolved: true,
+                  category: sc.targetCategory,
+                  field: sc.targetField,
+                  value: val,
+                  matchType: 'semantic_synonym',
+                }
+              }
+            }
+          }
+        }
+
+        var sortedKey = keyTokens.slice().sort().join(' ')
+        for (var ti = 0; ti < SEMANTIC_CONCEPTS.length; ti++) {
+          var tc = SEMANTIC_CONCEPTS[ti]
+          for (var ty = 0; ty < tc.synonyms.length; ty++) {
+            var synTokens = getSemanticTokenList(tc.synonyms[ty])
+            if (sortedKey === synTokens.slice().sort().join(' ') && sortedKey.length > 0) {
+              var valT = previewSemanticContext[tc.targetCategory]
+                ? previewSemanticContext[tc.targetCategory][tc.targetField]
+                : undefined
+              if (valT !== undefined && valT !== null && valT !== '') {
+                return {
+                  resolved: true,
+                  category: tc.targetCategory,
+                  field: tc.targetField,
+                  value: valT,
+                  matchType: 'semantic_token_order',
+                }
+              }
+            }
+          }
+        }
+
+        var bestMatch = null
+        var bestScore = 0
+        for (var ki = 0; ki < SEMANTIC_CONCEPTS.length; ki++) {
+          var kc = SEMANTIC_CONCEPTS[ki]
+          var hasNeg = false
+          for (var ni = 0; ni < kc.negativeKeywords.length; ni++) {
+            if (normKey.indexOf(kc.negativeKeywords[ni]) !== -1) {
+              hasNeg = true
+              break
+            }
+          }
+          if (hasNeg) continue
+
+          var score = 0
+          for (var kwi = 0; kwi < kc.keywords.length; kwi++) {
+            if (normKey.indexOf(kc.keywords[kwi]) !== -1) score++
+          }
+
+          if (score > 0 && score > bestScore) {
+            var valK = previewSemanticContext[kc.targetCategory]
+              ? previewSemanticContext[kc.targetCategory][kc.targetField]
+              : undefined
+            if (valK !== undefined && valK !== null && valK !== '') {
+              bestScore = score
+              bestMatch = {
+                resolved: true,
+                category: kc.targetCategory,
+                field: kc.targetField,
+                value: valK,
+                matchType: 'semantic_keyword',
+              }
+            }
+          }
+        }
+
+        if (bestMatch) return bestMatch
+        return { resolved: false }
+      }
+
+      var enrichedPreviewLead = Object.assign({}, previewSemanticContext.lead, bodyLead)
+      var enrichedPreviewSizing = Object.assign({}, previewSemanticContext.sizing, bodySizing)
+      var enrichedPreviewFinancial = Object.assign(
+        {},
+        previewSemanticContext.financial,
+        bodyFinancial,
+      )
+      var enrichedPreviewNegotiation = Object.assign(
+        {},
+        previewSemanticContext.negotiation,
+        bodyNegotiation,
+      )
+
+      var previewDynamicKeys = []
+      if (
+        matchingTplPreview &&
+        matchingTplPreview.variable_schema &&
+        matchingTplPreview.variable_schema.dynamic
+      ) {
+        var dynSchema = matchingTplPreview.variable_schema.dynamic
+        if (Array.isArray(dynSchema)) {
+          for (var pdi = 0; pdi < dynSchema.length; pdi++) {
+            var pdItem = dynSchema[pdi]
+            var pdKey = typeof pdItem === 'string' ? pdItem : pdItem.key || pdItem.name || ''
+            if (pdKey) previewDynamicKeys.push(pdKey)
+          }
+        } else if (dynSchema && typeof dynSchema === 'object') {
+          previewDynamicKeys = Object.keys(dynSchema)
+        }
+      }
+
+      var previewResolvedReport = {}
+      var previewUnresolvedReport = []
+
+      for (var pri = 0; pri < previewDynamicKeys.length; pri++) {
+        var pKey = previewDynamicKeys[pri]
+        var pRes = resolvePreviewSemanticValue(pKey)
+        if (pRes.resolved) {
+          previewResolvedReport[pKey] = {
+            category: pRes.category,
+            field: pRes.field,
+            matchType: pRes.matchType,
+            value: pRes.value,
+          }
+          if (pRes.category === 'lead') enrichedPreviewLead[pKey] = pRes.value
+          else if (pRes.category === 'sizing') enrichedPreviewSizing[pKey] = pRes.value
+          else if (pRes.category === 'financial') enrichedPreviewFinancial[pKey] = pRes.value
+          else if (pRes.category === 'negotiation') enrichedPreviewNegotiation[pKey] = pRes.value
+        } else {
+          previewUnresolvedReport.push(pKey)
+        }
+      }
+
+      if (previewDynamicKeys.length > 0) {
+        safeLogInfo('Relatório de Mapeamento Semântico no Preview', {
+          template_id: templateId,
+          total_dynamic: previewDynamicKeys.length,
+          resolved_count: Object.keys(previewResolvedReport).length,
+          unresolved_count: previewUnresolvedReport.length,
+          resolved: previewResolvedReport,
+          unresolved: previewUnresolvedReport,
+        })
+      }
+
       const payload = {
+        template_id: templateId,
         fixed_data: rawFixedData,
+        lead: enrichedPreviewLead,
+        sizing: enrichedPreviewSizing,
+        financial: enrichedPreviewFinancial,
+        negotiation: enrichedPreviewNegotiation,
       }
       let bodyStr = '{}'
       try {

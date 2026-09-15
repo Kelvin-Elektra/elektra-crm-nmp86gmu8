@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { createProposalHistory } from '@/services/proposal-history'
 import { createGeneratorProposal, getTemplatesResponse } from '@/services/templates'
+import { enrichPayloadWithSemanticVariables } from '@/lib/semantic-mapper'
 import { Plus, Trash2 } from 'lucide-react'
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -193,27 +194,38 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
             total_savings_25y: savings25YearsVal,
             tariff_details: fp?.tariffDetails || {},
           }
-          // Obter schemas dinâmicos se possível para filtrar o fixed_data
+          // Obter schemas dinâmicos se possível para filtrar o fixed_data e enriquecer semanticamente
           let templateFields: any[] | undefined = undefined
+          let dynamicSchema: any = undefined
           try {
             const templatesRes = await getTemplatesResponse()
             const found = templatesRes.templates.find((t) => t.id === templateId)
             if (found?.variable_schema?.fixed) {
               templateFields = found.variable_schema.fixed
             }
+            if (found?.variable_schema?.dynamic) {
+              dynamicSchema = found.variable_schema.dynamic
+            }
           } catch {
             /* intentionally ignored */
           }
+
+          const enriched = enrichPayloadWithSemanticVariables(dynamicSchema, {
+            lead: leadData,
+            negotiation: negotiationPayload,
+            sizing: sizingPayload,
+            financial: financialPayload,
+          })
 
           const genRes = await createGeneratorProposal(
             {
               template_id: templateId,
               external_id: proposal.id,
               fixed_data: updatedSnapshot.fixed_data || updatedSnapshot.branding || {},
-              lead: leadData,
-              negotiation: negotiationPayload,
-              sizing: sizingPayload,
-              financial: financialPayload,
+              lead: enriched.lead,
+              negotiation: enriched.negotiation,
+              sizing: enriched.sizing,
+              financial: enriched.financial,
             },
             templateFields,
           )

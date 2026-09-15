@@ -505,7 +505,12 @@ export default function ProposalSettings() {
           ? fixedData
           : buildTemplateData(tpl, latestConfig)
 
-      const data = await previewTemplate(tpl.id, currentValues, fields)
+      const data = await previewTemplate(tpl.id, currentValues, fields, {
+        sizing: tpl.mock_data?.sizing,
+        financial: tpl.mock_data?.financial,
+        lead: tpl.mock_data?.lead,
+        negotiation: tpl.mock_data?.negotiation,
+      })
       if (data.view_url) {
         let finalUrl = data.view_url
         // Garantir que caso a resposta contenha outro host, substitua pelo domínio público

@@ -23,6 +23,7 @@ import {
   DEFAULT_SIMULTANEITY_FACTORS,
 } from '@/lib/financial-analysis'
 import { createGeneratorProposal, getTemplatesResponse } from '@/services/templates'
+import { enrichPayloadWithSemanticVariables } from '@/lib/semantic-mapper'
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -429,6 +430,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
       // 1. Obter templates em produção e definir template_id válido
       let templateIdToUse = activeTplId
       let activeTemplateSchemaFields: any[] | undefined = undefined
+      let dynamicSchema: any = undefined
       try {
         const templatesRes = await getTemplatesResponse()
         const prodTemplates = templatesRes.templates || []
@@ -440,6 +442,9 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
           }
           if (found?.variable_schema?.fixed && Array.isArray(found.variable_schema.fixed)) {
             activeTemplateSchemaFields = found.variable_schema.fixed
+          }
+          if (found?.variable_schema?.dynamic) {
+            dynamicSchema = found.variable_schema.dynamic
           }
         }
       } catch (err) {
@@ -568,6 +573,14 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         tariff_details: tariffDetails || {},
       }
 
+      // Aplica resolução semântica a partir do schema dinâmico do contrato externo
+      const enriched = enrichPayloadWithSemanticVariables(dynamicSchema, {
+        lead: leadData,
+        negotiation: negotiationPayload,
+        sizing: sizingPayload,
+        financial: financialPayload,
+      })
+
       let generatorResult: any = null
       try {
         generatorResult = await createGeneratorProposal(
@@ -575,10 +588,10 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
             template_id: templateIdToUse,
             external_id: externalId,
             fixed_data: activeTemplateFixedData,
-            lead: leadData,
-            negotiation: negotiationPayload,
-            sizing: sizingPayload,
-            financial: financialPayload,
+            lead: enriched.lead,
+            negotiation: enriched.negotiation,
+            sizing: enriched.sizing,
+            financial: enriched.financial,
           },
           activeTemplateSchemaFields,
         )

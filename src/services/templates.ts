@@ -138,6 +138,12 @@ export const previewTemplate = (
   templateId: string,
   fixedData: Record<string, any>,
   schemaFields?: TemplateSchemaField[],
+  extraContext?: {
+    lead?: Record<string, any>
+    sizing?: Record<string, any>
+    financial?: Record<string, any>
+    negotiation?: Record<string, any>
+  },
 ): Promise<{ view_url?: string; [key: string]: any }> => {
   let cleanedData = fixedData
   if (schemaFields && schemaFields.length > 0) {
@@ -154,6 +160,7 @@ export const previewTemplate = (
     body: JSON.stringify({
       fixed_data: cleanedData,
       branding: cleanedData,
+      ...(extraContext || {}),
     }),
     headers: { 'Content-Type': 'application/json; charset=utf-8' },
   })
