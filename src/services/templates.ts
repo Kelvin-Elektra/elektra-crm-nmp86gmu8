@@ -68,6 +68,7 @@ export interface CreateProposalPayload {
   negotiation: Record<string, any>
   sizing: Record<string, any>
   financial: Record<string, any>
+  dynamic?: Record<string, any>
 }
 
 export interface CreateProposalResponse {

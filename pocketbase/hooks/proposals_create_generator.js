@@ -113,6 +113,26 @@ routerAdd(
         return headers
       }
 
+      // 0. Extração de body, templateId e externalId no topo
+      let body = {}
+      try {
+        const reqInfo = e.requestInfo ? e.requestInfo() : null
+        body = (reqInfo && reqInfo.body) || {}
+      } catch (bodyErr) {
+        safeLogWarn('Aviso ao ler request body via requestInfo', String(bodyErr))
+        body = {}
+      }
+
+      const templateId = body.template_id
+      const externalId = body.external_id
+
+      if (!templateId) {
+        return e.json(400, { message: 'template_id é obrigatório.' })
+      }
+      if (!externalId) {
+        return e.json(400, { message: 'external_id é obrigatório.' })
+      }
+
       let generatorUrl = ''
       let generatorPublicUrl = ''
       try {
@@ -134,12 +154,9 @@ routerAdd(
       } catch (_) {}
 
       // Se body tiver negotiation_id ou external_id, podemos conferir a empresa da negociação/proposta caso e.auth não tenha
-      if (!companyId && body.external_id) {
+      if (!companyId && externalId) {
         try {
-          const propRec = $app.findFirstRecordByFilter(
-            'proposals',
-            "id = '" + body.external_id + "'",
-          )
+          const propRec = $app.findFirstRecordByFilter('proposals', "id = '" + externalId + "'")
           if (propRec) companyId = propRec.getString('company_id') || ''
         } catch (_) {}
       }
@@ -199,25 +216,6 @@ routerAdd(
         try {
           apiSecret = $os.getenv('API_CRM_GERADOR') || ''
         } catch (_) {}
-      }
-
-      let body = {}
-      try {
-        const reqInfo = e.requestInfo ? e.requestInfo() : null
-        body = (reqInfo && reqInfo.body) || {}
-      } catch (bodyErr) {
-        safeLogWarn('Aviso ao ler request body via requestInfo', String(bodyErr))
-        body = {}
-      }
-
-      const templateId = body.template_id
-      const externalId = body.external_id
-
-      if (!templateId) {
-        return e.json(400, { message: 'template_id é obrigatório.' })
-      }
-      if (!externalId) {
-        return e.json(400, { message: 'external_id é obrigatório.' })
       }
 
       // 1. Ler o contract dinamicamente do endpoint GET /backend/v1/templates/list
@@ -1551,6 +1549,7 @@ routerAdd(
 
       var resolvedReport = {}
       var unresolvedReport = []
+      var resolvedDynamic = {}
 
       for (var ri = 0; ri < dynamicKeysToResolve.length; ri++) {
         var kToRes = dynamicKeysToResolve[ri]
@@ -1580,6 +1579,7 @@ routerAdd(
               matchType: 'manual_override',
               value: manualValue,
             }
+            resolvedDynamic[kToRes] = manualValue
             // Enriquecer todas as categorias do payload para o template
             enrichedLead[kToRes] = manualValue
             enrichedSizing[kToRes] = manualValue
@@ -1598,12 +1598,36 @@ routerAdd(
             matchType: resObj.matchType,
             value: resObj.value,
           }
+          resolvedDynamic[kToRes] = resObj.value
           if (resObj.category === 'lead') enrichedLead[kToRes] = resObj.value
           else if (resObj.category === 'sizing') enrichedSizing[kToRes] = resObj.value
           else if (resObj.category === 'financial') enrichedFinancial[kToRes] = resObj.value
           else if (resObj.category === 'negotiation') enrichedNegotiation[kToRes] = resObj.value
+          else {
+            enrichedSizing[kToRes] = resObj.value
+            enrichedFinancial[kToRes] = resObj.value
+            enrichedNegotiation[kToRes] = resObj.value
+          }
         } else {
           unresolvedReport.push(kToRes)
+        }
+      }
+
+      // Espelhar variáveis dinâmicas em fixed_data se o schema fixed do template as declarar
+      if (
+        currentTpl &&
+        currentTpl.variable_schema &&
+        Array.isArray(currentTpl.variable_schema.fixed)
+      ) {
+        for (var fxi = 0; fxi < currentTpl.variable_schema.fixed.length; fxi++) {
+          var fixKey = currentTpl.variable_schema.fixed[fxi].key
+          if (
+            fixKey &&
+            rawFixedData[fixKey] === undefined &&
+            resolvedDynamic[fixKey] !== undefined
+          ) {
+            rawFixedData[fixKey] = resolvedDynamic[fixKey]
+          }
         }
       }
 
@@ -1625,6 +1649,7 @@ routerAdd(
         negotiation: enrichedNegotiation,
         sizing: enrichedSizing,
         financial: enrichedFinancial,
+        dynamic: resolvedDynamic,
       }
       let bodyStr = '{}'
       try {

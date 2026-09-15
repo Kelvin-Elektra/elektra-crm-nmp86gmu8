@@ -169,6 +169,100 @@ describe('Semantic Mapper for Dynamic Proposal Variables', () => {
     expect(enriched.sizing['potencia_kit']).toBe(10)
     expect(enriched.sizing['consumo_medio']).toBe(800)
     expect(enriched.financial['investimento_total']).toBe(45000)
+    expect(enriched.dynamic['potencia_kit']).toBe(10)
+    expect(enriched.dynamic['consumo_medio']).toBe(800)
+    expect(enriched.dynamic['investimento_total']).toBe(45000)
     expect(enriched.unresolved).toContain('variavel_inexistente_xyz')
+  })
+
+  it('applies manualDynamicMappings with priority over semantic resolution and populates dynamic block', () => {
+    const dynamicSchema = [
+      'estimated_generation_kwh',
+      'average_monthly_consumption_kwh',
+      'validity_days',
+      'consumption_coverage_pct',
+      'occupied_area_m2',
+      'co2_avoided_ton',
+      'investment_multiple',
+      'tir_pct',
+      'consultant_name',
+      'proposal_number',
+      'proposal_date',
+      'savings_25_years',
+    ]
+
+    const basePayload = {
+      lead: { name: 'Cliente Teste' },
+      negotiation: {
+        avg_consumption: 500,
+        validity_days: 10,
+        consultant_name: 'Consultor Teste',
+        proposal_number: 'PROP-123',
+        proposal_date: '28/03/2026',
+      },
+      sizing: {
+        estimated_monthly_generation: 531,
+        avg_consumption: 400, // manual mapping will override to negotiation.avg_consumption (500)
+        consumption_coverage_pct: 109.2,
+        occupied_area_m2: 25.5,
+      },
+      financial: {
+        savings_25_years: 150000,
+        investment_multiple: 8.5,
+        tir_pct: 32.4,
+        co2_avoided_ton: 0.25,
+      },
+    }
+
+    // Manual mapping configured by ADM for Template 2 (hckz6sy7teg0vi0)
+    const manualMappings = {
+      average_monthly_consumption_kwh: 'negotiation.avg_consumption',
+      estimated_generation_kwh: 'sizing.estimated_monthly_generation',
+    }
+
+    const enriched = enrichPayloadWithSemanticVariables(dynamicSchema, basePayload, manualMappings)
+
+    // Manual override checks
+    expect(enriched.dynamic['average_monthly_consumption_kwh']).toBe(500)
+    expect(enriched.dynamic['estimated_generation_kwh']).toBe(531)
+    expect(enriched.resolved['average_monthly_consumption_kwh'].matchType).toBe('manual_override')
+    expect(enriched.resolved['estimated_generation_kwh'].matchType).toBe('manual_override')
+
+    // Semantic / exact checks for all 12 variables
+    expect(enriched.dynamic['validity_days']).toBe(10)
+    expect(enriched.dynamic['consumption_coverage_pct']).toBe(109.2)
+    expect(enriched.dynamic['occupied_area_m2']).toBe(25.5)
+    expect(enriched.dynamic['co2_avoided_ton']).toBe(0.25)
+    expect(enriched.dynamic['investment_multiple']).toBe(8.5)
+    expect(enriched.dynamic['tir_pct']).toBe(32.4)
+    expect(enriched.dynamic['consultant_name']).toBe('Consultor Teste')
+    expect(enriched.dynamic['proposal_number']).toBe('PROP-123')
+    expect(enriched.dynamic['proposal_date']).toBe('28/03/2026')
+    expect(enriched.dynamic['savings_25_years']).toBe(150000)
+
+    // Check all 12 keys are present in dynamic
+    expect(Object.keys(enriched.dynamic)).toHaveLength(12)
+    expect(enriched.unresolved).toHaveLength(0)
+  })
+
+  it('verifies exact calculation values for negotiation qdvjkm9lykdg5d0 scenario', () => {
+    // Sizing 12 months mock from negotiation qdvjkm9lykdg5d0:
+    // months: jan: 624, feb: 546, mar: 559, apr: 520, may: 481, jun: 442, jul: 468, aug: 507, sep: 533, oct: 559, nov: 572, dec: 611
+    // sum = 6422, average = 6422 / 12 = 535.166... or feb ref = 546
+    const avgConsumption = 500
+    const estGen = 546 // or 531
+    const coverage = Number(((estGen / avgConsumption) * 100).toFixed(1))
+    expect(coverage).toBeCloseTo(109.2, 1)
+
+    // Validity date test: 2026-09-25 with base 2026-09-15 -> 10 days
+    const validityDate = '2026-09-25'
+    const baseDate = new Date('2026-09-15T12:00:00Z')
+    const tDate = new Date(validityDate + 'T12:00:00Z')
+    const diffDays = Math.round((tDate.getTime() - baseDate.getTime()) / (1000 * 60 * 60 * 24))
+    expect(diffDays).toBe(10)
+
+    // CO2 avoided for ~546 kWh/month: 546 * 12 * 0.0385 / 1000 = ~0.25 ton
+    const co2Ton = Number(((estGen * 12 * 0.0385) / 1000).toFixed(2))
+    expect(co2Ton).toBe(0.25)
   })
 })

@@ -468,29 +468,6 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         throw new Error('Nenhum modelo de proposta ativo configurado.')
       }
 
-      // 2. Salvar proposta no CRM primeiro para gerar o ID persistente (external_id)
-      const proposalDataToCreate: Record<string, any> = {
-        company_id: neg.company_id,
-        negotiation_id: neg.id,
-        description:
-          description || `Proposta Sistema ${(neg.sizing?.kit_power_kwp || 0).toFixed(2)} kWp`,
-        price: totalValue,
-        status: 'draft',
-        validity_date: validity ? new Date(validity).toISOString() : null,
-        payment_terms: paymentTerms,
-        notes: notes,
-        discount_amount: discount,
-        total_value: finalPrice,
-        kit_details: JSON.stringify(snapshotData),
-        cost_breakdown: cost_breakdown,
-        snapshot_data: snapshotData,
-      }
-
-      const rec = await pb.collection('proposals').create(proposalDataToCreate)
-      const externalId = rec.id
-
-      // 3. Chamar o Gerador de Propostas para gerar o link oficial persistente
-      // Payload estrito: template_id, external_id, fixed_data, lead, negotiation, sizing, financial
       // Mapeamento e aliases de variáveis dinâmicas retrocompatíveis:
       // - lead: document -> cpf_cnpj; phone -> whatsapp
       // - sizing: kit_power_kwp -> power_kwp, kwp; avg_consumption -> average_consumption, monthly_consumption, consumption_kwh;
@@ -515,7 +492,6 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
 
       const consultantName =
         neg.owner_name || neg.expand?.owner_id?.name || user?.name || 'Consultor Elektra'
-      const proposalNumber = externalId || ''
       const proposalDate = formatProposalDate(new Date())
       const validityDays = extractValidityDays(validity, new Date(), 10)
 
@@ -526,7 +502,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         validity_date: validity || '',
         validity_days: validityDays,
         consultant_name: consultantName,
-        proposal_number: proposalNumber,
+        proposal_number: '',
         proposal_date: proposalDate,
         payment_terms: paymentTerms || '',
         defined_payment_method: definedPaymentMethod || '',
@@ -619,13 +595,94 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         tariff_details: tariffDetails || {},
       }
 
+      // Buscar mapeamentos manuais configurados pelo ADM para o template
+      let manualTemplateMappings: Record<string, string> | null = null
+      try {
+        if (neg.company_id) {
+          const pSettings = await pb
+            .collection('proposal_settings')
+            .getFirstListItem(`company_id = "${neg.company_id}"`)
+          if (pSettings?.dynamic_mappings) {
+            let dm = pSettings.dynamic_mappings
+            if (typeof dm === 'string') {
+              try {
+                dm = JSON.parse(dm)
+              } catch {
+                /* intentionally ignored */
+              }
+            }
+            if (dm && typeof dm === 'object') {
+              if (dm[templateIdToUse] && typeof dm[templateIdToUse] === 'object') {
+                manualTemplateMappings = dm[templateIdToUse]
+              } else if (!dm[templateIdToUse] && !dm['default']) {
+                manualTemplateMappings = dm
+              }
+            }
+          }
+        }
+      } catch {
+        /* intentionally ignored */
+      }
+
       // Aplica resolução semântica a partir do schema dinâmico do contrato externo
-      const enriched = enrichPayloadWithSemanticVariables(dynamicSchema, {
-        lead: leadData,
-        negotiation: negotiationPayload,
-        sizing: sizingPayload,
-        financial: financialPayload,
-      })
+      const enriched = enrichPayloadWithSemanticVariables(
+        dynamicSchema,
+        {
+          lead: leadData,
+          negotiation: negotiationPayload,
+          sizing: sizingPayload,
+          financial: financialPayload,
+        },
+        manualTemplateMappings,
+      )
+
+      // Espelhar variáveis dinâmicas em fixed_data se o schema do template as declarar em fixed
+      const finalFixedData = { ...activeTemplateFixedData }
+      if (activeTemplateSchemaFields && Array.isArray(activeTemplateSchemaFields)) {
+        for (const f of activeTemplateSchemaFields) {
+          if (finalFixedData[f.key] === undefined && enriched.dynamic?.[f.key] !== undefined) {
+            finalFixedData[f.key] = enriched.dynamic[f.key]
+          }
+        }
+      }
+
+      // Snapshot data enriquecido contendo dynamic para auditoria
+      const enrichedSnapshotData = {
+        ...snapshotData,
+        fixed_data: finalFixedData,
+        lead: enriched.lead,
+        negotiation: enriched.negotiation,
+        sizing: enriched.sizing,
+        financial: enriched.financial,
+        dynamic: enriched.dynamic,
+      }
+
+      // 2. Salvar proposta no CRM primeiro para gerar o ID persistente (external_id) com snapshot enriquecido
+      const proposalDataToCreate: Record<string, any> = {
+        company_id: neg.company_id,
+        negotiation_id: neg.id,
+        description:
+          description || `Proposta Sistema ${(neg.sizing?.kit_power_kwp || 0).toFixed(2)} kWp`,
+        price: totalValue,
+        status: 'draft',
+        validity_date: validity ? new Date(validity).toISOString() : null,
+        payment_terms: paymentTerms,
+        notes: notes,
+        discount_amount: discount,
+        total_value: finalPrice,
+        kit_details: JSON.stringify(enrichedSnapshotData),
+        cost_breakdown: cost_breakdown,
+        snapshot_data: enrichedSnapshotData,
+      }
+
+      const rec = await pb.collection('proposals').create(proposalDataToCreate)
+      const externalId = rec.id
+
+      // Atualiza proposal_number nas estruturas após id gerado
+      enriched.negotiation.proposal_number = externalId
+      if (enriched.dynamic && enriched.dynamic.proposal_number !== undefined) {
+        enriched.dynamic.proposal_number = externalId
+      }
 
       let generatorResult: any = null
       try {
@@ -633,11 +690,12 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
           {
             template_id: templateIdToUse,
             external_id: externalId,
-            fixed_data: activeTemplateFixedData,
+            fixed_data: finalFixedData,
             lead: enriched.lead,
             negotiation: enriched.negotiation,
             sizing: enriched.sizing,
             financial: enriched.financial,
+            dynamic: enriched.dynamic,
           },
           activeTemplateSchemaFields,
         )
@@ -665,12 +723,12 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         )
       }
 
-      // Atualizar o registro do CRM com o link e external_id gerados
+      // Atualizar o registro do CRM com o link e external_id gerados e snapshot enriquecido
       await pb.collection('proposals').update(externalId, {
         external_id: externalId,
         view_url: viewUrl,
         snapshot_data: {
-          ...snapshotData,
+          ...enrichedSnapshotData,
           view_url: viewUrl,
           generator_proposal_id: generatorResult.id || null,
         },

@@ -826,7 +826,9 @@ export function enrichPayloadWithSemanticVariables(
     negotiation: Record<string, any>
     sizing: Record<string, any>
     financial: Record<string, any>
+    [key: string]: any
   },
+  manualMappings?: Record<string, string> | null,
 ) {
   const dynamicKeys: string[] = []
   if (Array.isArray(dynamicSchema)) {
@@ -842,18 +844,79 @@ export function enrichPayloadWithSemanticVariables(
   const enrichedNegotiation = { ...payload.negotiation }
   const enrichedSizing = { ...payload.sizing }
   const enrichedFinancial = { ...payload.financial }
+  const dynamicMap: Record<string, any> = {}
 
   const resolved: Record<string, any> = {}
   const unresolved: string[] = []
 
+  // Helper para ler dot-notation
+  const getDotValue = (obj: any, path: string): any => {
+    if (!obj || !path) return undefined
+    const parts = path.split('.')
+    let curr = obj
+    for (const p of parts) {
+      if (curr === null || curr === undefined || typeof curr !== 'object') return undefined
+      curr = curr[p]
+    }
+    return curr
+  }
+
   for (const k of dynamicKeys) {
-    const res = resolveSemanticVariableValue(k, payload)
-    if (res.resolved) {
-      resolved[k] = res
-      if (res.category === 'lead') enrichedLead[k] = res.value
-      else if (res.category === 'sizing') enrichedSizing[k] = res.value
-      else if (res.category === 'financial') enrichedFinancial[k] = res.value
-      else if (res.category === 'negotiation') enrichedNegotiation[k] = res.value
+    let resolvedValue: any = undefined
+    let resolutionCategory: string = ''
+    let resolutionField: string = ''
+    let resolutionType: string = ''
+
+    // 1. Prioridade máxima: Mapeamento Manual do ADM
+    const manualPath = manualMappings ? manualMappings[k] : null
+    if (manualPath && typeof manualPath === 'string' && manualPath.trim() !== '') {
+      const pClean = manualPath.trim()
+      let val = getDotValue(payload, pClean)
+      if (val === undefined) {
+        val =
+          getDotValue(enrichedFinancial, pClean) ||
+          getDotValue(enrichedSizing, pClean) ||
+          getDotValue(enrichedLead, pClean) ||
+          getDotValue(enrichedNegotiation, pClean)
+      }
+      if (val !== undefined && val !== null && val !== '') {
+        resolvedValue = val
+        resolutionCategory = 'manual'
+        resolutionField = pClean
+        resolutionType = 'manual_override'
+      }
+    }
+
+    // 2. Prioridade secundária: Exata e Semântica
+    if (resolvedValue === undefined) {
+      const res = resolveSemanticVariableValue(k, payload)
+      if (res.resolved && res.value !== undefined && res.value !== null && res.value !== '') {
+        resolvedValue = res.value
+        resolutionCategory = res.category || ''
+        resolutionField = res.field || ''
+        resolutionType = res.matchType || 'semantic'
+      }
+    }
+
+    if (resolvedValue !== undefined) {
+      dynamicMap[k] = resolvedValue
+      resolved[k] = {
+        resolved: true,
+        category: resolutionCategory,
+        field: resolutionField,
+        value: resolvedValue,
+        matchType: resolutionType,
+      }
+      if (resolutionCategory === 'lead') enrichedLead[k] = resolvedValue
+      else if (resolutionCategory === 'sizing') enrichedSizing[k] = resolvedValue
+      else if (resolutionCategory === 'financial') enrichedFinancial[k] = resolvedValue
+      else if (resolutionCategory === 'negotiation') enrichedNegotiation[k] = resolvedValue
+      else {
+        // Enriquecer em sizing/financial/negotiation como fallback
+        enrichedSizing[k] = resolvedValue
+        enrichedFinancial[k] = resolvedValue
+        enrichedNegotiation[k] = resolvedValue
+      }
     } else {
       unresolved.push(k)
     }
@@ -864,6 +927,7 @@ export function enrichPayloadWithSemanticVariables(
     negotiation: enrichedNegotiation,
     sizing: enrichedSizing,
     financial: enrichedFinancial,
+    dynamic: dynamicMap,
     resolved,
     unresolved,
   }
