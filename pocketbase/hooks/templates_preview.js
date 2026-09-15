@@ -505,6 +505,25 @@ routerAdd(
         bodyFinancial.savings_25_years || bodyFinancial.total_savings_25y || annSav * 25,
       )
 
+      var previewSavingsProj = []
+      if (
+        Array.isArray(bodyFinancial.savings_projection) &&
+        bodyFinancial.savings_projection.length > 0
+      ) {
+        previewSavingsProj = bodyFinancial.savings_projection
+      } else if (annSav > 0) {
+        var pMilestones = [1, 5, 10, 15, 20, 25]
+        for (var pmi = 0; pmi < pMilestones.length; pmi++) {
+          var pyr = pMilestones[pmi]
+          previewSavingsProj.push({
+            year: pyr,
+            label: 'Ano ' + pyr,
+            annualSavings: Number(annSav.toFixed(2)),
+            cumulativeSavings: Number((annSav * pyr).toFixed(2)),
+          })
+        }
+      }
+
       // Cálculos novos para o preview
       var previewConsultant =
         bodyNegotiation.consultant_name ||
@@ -639,6 +658,7 @@ routerAdd(
           tariff_rate: 1.1,
           tariff_te: 0.45,
           tariff_tusd: 0.65,
+          savings_projection: previewSavingsProj,
         },
       }
 
@@ -1016,7 +1036,24 @@ routerAdd(
             'savings 25',
           ],
           keywords: ['25', 'acumulada'],
-          negativeKeywords: ['mensal', 'anual'],
+          negativeKeywords: ['mensal', 'anual', 'projecao', 'projection'],
+        },
+        {
+          concept: 'savings_projection',
+          targetCategory: 'financial',
+          targetField: 'savings_projection',
+          synonyms: [
+            'savings projection',
+            'projecao economia',
+            'projecao de economia',
+            'savings milestones',
+            'projection savings',
+            'marcos economia',
+            'tabela projecao',
+            'projecao 25 anos',
+          ],
+          keywords: ['projecao', 'projection', 'marcos'],
+          negativeKeywords: [],
         },
         {
           concept: 'annual_savings',

@@ -63,12 +63,14 @@ export interface TemplatesListResponse {
 export interface CreateProposalPayload {
   template_id: string
   external_id: string
+  negotiation_id?: string
   fixed_data: Record<string, any>
   lead: Record<string, any>
   negotiation: Record<string, any>
   sizing: Record<string, any>
   financial: Record<string, any>
   dynamic?: Record<string, any>
+  manual_mappings?: Record<string, string>
 }
 
 export interface CreateProposalResponse {

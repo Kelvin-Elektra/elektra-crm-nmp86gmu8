@@ -181,6 +181,63 @@ export function calculateSavings25Years(annualSavings?: number, monthlySavings?:
   return 0
 }
 
+export interface YearlySavingsRow {
+  year: number
+  annualSavings: number
+  cumulativeSavings: number
+  balanceWithInvestment: number
+}
+
+export interface SavingsProjectionMilestone {
+  year: number
+  label: string
+  annualSavings: number
+  cumulativeSavings: number
+}
+
+/**
+ * 6b. Gera a tabela financeira ano a ano (Ano 1 até Ano 25)
+ * Fonte da verdade dos cálculos de economia acumulada e retorno do investimento.
+ */
+export function calculateYearlySavingsTable(
+  annualSavings: number,
+  totalInvestment: number = 0,
+  years: number = 25,
+): YearlySavingsRow[] {
+  const ann = Number(annualSavings) || 0
+  const inv = Number(totalInvestment) || 0
+  const rows: YearlySavingsRow[] = []
+
+  let accumulated = 0
+  for (let y = 1; y <= years; y++) {
+    accumulated += ann
+    rows.push({
+      year: y,
+      annualSavings: Number(ann.toFixed(2)),
+      cumulativeSavings: Number(accumulated.toFixed(2)),
+      balanceWithInvestment: Number((accumulated - inv).toFixed(2)),
+    })
+  }
+  return rows
+}
+
+/**
+ * 6c. Array savings_projection com os 6 marcos oficiais (Anos 1, 5, 10, 15, 20 e 25)
+ * Utilizado diretamente pelos templates do Gerador (ex: Template 2).
+ */
+export function generateSavingsProjection(
+  annualSavings: number,
+  milestones: number[] = [1, 5, 10, 15, 20, 25],
+): SavingsProjectionMilestone[] {
+  const ann = Number(annualSavings) || 0
+  return milestones.map((year) => ({
+    year,
+    label: `Ano ${year}`,
+    annualSavings: Number(ann.toFixed(2)),
+    cumulativeSavings: Number((ann * year).toFixed(2)),
+  }))
+}
+
 /**
  * 7. Extração robusta de dias de validade (NÚMERO DE DIAS, ex: 15)
  * NUNCA retorna data por extenso.

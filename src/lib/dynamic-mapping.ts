@@ -183,6 +183,12 @@ export const CRM_FIELD_SECTIONS: CrmFieldSection[] = [
         section: 'financial',
       },
       {
+        path: 'financial.savings_projection',
+        label: 'Projeção de Economia (6 marcos: Anos 1, 5, 10, 15, 20 e 25)',
+        section: 'financial',
+        description: 'Array com marcos de economia para gráficos e tabelas do template',
+      },
+      {
         path: 'financial.investment_multiple',
         label: 'Múltiplo do Investimento (ex: 11.3x)',
         section: 'financial',

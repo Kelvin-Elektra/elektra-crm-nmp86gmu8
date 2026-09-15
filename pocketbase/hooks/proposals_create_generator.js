@@ -153,7 +153,20 @@ routerAdd(
         }
       } catch (_) {}
 
-      // Se body tiver negotiation_id ou external_id, podemos conferir a empresa da negociação/proposta caso e.auth não tenha
+      // Se body tiver negotiation_id ou external_id, conferir a empresa da negociação/proposta
+      const negIdFromBody = body.negotiation_id || (body.negotiation && body.negotiation.id) || ''
+      if (negIdFromBody) {
+        try {
+          const negRec = $app.findFirstRecordByFilter(
+            'negotiations',
+            "id = '" + negIdFromBody + "'",
+          )
+          if (negRec) {
+            const cId = negRec.getString('company_id')
+            if (cId) companyId = cId
+          }
+        } catch (_) {}
+      }
       if (!companyId && externalId) {
         try {
           const propRec = $app.findFirstRecordByFilter('proposals', "id = '" + externalId + "'")
@@ -162,7 +175,14 @@ routerAdd(
       }
 
       let manualDynamicMappings = {}
-      if (companyId) {
+
+      // 1. Prioridade: Se o frontend enviou manual_mappings explicitamente no body
+      if (body.manual_mappings && typeof body.manual_mappings === 'object') {
+        manualDynamicMappings = Object.assign({}, body.manual_mappings)
+      }
+
+      // 2. Se não veio no body ou estiver vazio, busca no proposal_settings da empresa
+      if (Object.keys(manualDynamicMappings).length === 0 && companyId) {
         try {
           const pSettings = $app.findFirstRecordByFilter(
             'proposal_settings',
@@ -176,11 +196,9 @@ routerAdd(
               } catch (_) {}
             }
             if (dm && typeof dm === 'object') {
-              // Se tiver chave por template_id: dm[templateId]
               if (dm[templateId] && typeof dm[templateId] === 'object') {
                 manualDynamicMappings = dm[templateId]
               } else if (!dm[templateId] && !dm['default']) {
-                // Caso seja mapa plano direto ou contenha o template
                 manualDynamicMappings = dm
               }
             }
@@ -191,6 +209,32 @@ routerAdd(
             String(settingsFetchErr),
           )
         }
+      }
+
+      // 3. Fallback: Se ainda não encontrou e houver qualquer proposal_settings com mapeamento
+      if (Object.keys(manualDynamicMappings).length === 0) {
+        try {
+          const allSettings = $app.findRecordsByFilter(
+            'proposal_settings',
+            'id != ""',
+            '-created',
+            5,
+          )
+          for (var si = 0; si < allSettings.length; si++) {
+            var rawDm = allSettings[si].get('dynamic_mappings')
+            if (typeof rawDm === 'string') {
+              try {
+                rawDm = JSON.parse(rawDm)
+              } catch (_) {}
+            }
+            if (rawDm && typeof rawDm === 'object') {
+              if (rawDm[templateId] && typeof rawDm[templateId] === 'object') {
+                manualDynamicMappings = rawDm[templateId]
+                break
+              }
+            }
+          }
+        } catch (_) {}
       }
 
       if (!generatorUrl) {
@@ -683,6 +727,27 @@ routerAdd(
       )
 
       // Contexto canônico com dados normalizados
+      // 13. Array savings_projection com 6 marcos (Anos 1, 5, 10, 15, 20 e 25)
+      var savingsProjection = []
+      if (
+        Array.isArray(rawFinancial.savings_projection) &&
+        rawFinancial.savings_projection.length > 0
+      ) {
+        savingsProjection = rawFinancial.savings_projection
+      } else if (annSav > 0) {
+        var milestones = [1, 5, 10, 15, 20, 25]
+        for (var mIdx = 0; mIdx < milestones.length; mIdx++) {
+          var yr = milestones[mIdx]
+          savingsProjection.push({
+            year: yr,
+            label: 'Ano ' + yr,
+            annualSavings: Number(annSav.toFixed(2)),
+            cumulativeSavings: Number((annSav * yr).toFixed(2)),
+          })
+        }
+      }
+
+      // Contexto canônico com dados normalizados
       const semanticContext = {
         lead: {
           name: leadName,
@@ -762,6 +827,7 @@ routerAdd(
           tariff_rate: tariffRate,
           tariff_te: Number(tariffDetails.te || 0),
           tariff_tusd: Number(tariffDetails.tusd || 0),
+          savings_projection: savingsProjection,
         },
       }
 
@@ -1140,7 +1206,24 @@ routerAdd(
             'savings 25',
           ],
           keywords: ['25', 'acumulada'],
-          negativeKeywords: ['mensal', 'anual'],
+          negativeKeywords: ['mensal', 'anual', 'projecao', 'projection'],
+        },
+        {
+          concept: 'savings_projection',
+          targetCategory: 'financial',
+          targetField: 'savings_projection',
+          synonyms: [
+            'savings projection',
+            'projecao economia',
+            'projecao de economia',
+            'savings milestones',
+            'projection savings',
+            'marcos economia',
+            'tabela projecao',
+            'projecao 25 anos',
+          ],
+          keywords: ['projecao', 'projection', 'marcos'],
+          negativeKeywords: [],
         },
         {
           concept: 'annual_savings',
@@ -1650,6 +1733,45 @@ routerAdd(
         sizing: enrichedSizing,
         financial: enrichedFinancial,
         dynamic: resolvedDynamic,
+      }
+
+      // Atualizar o snapshot da proposta no CRM gravando o payload completo com metadados de resolução
+      if (externalId) {
+        try {
+          const propToUpdate = $app.findFirstRecordByFilter(
+            'proposals',
+            "id = '" + externalId + "'",
+          )
+          if (propToUpdate) {
+            let currentSnap = {}
+            try {
+              const rawSnap = propToUpdate.get('snapshot_data')
+              if (typeof rawSnap === 'string') currentSnap = JSON.parse(rawSnap)
+              else if (rawSnap && typeof rawSnap === 'object') currentSnap = rawSnap
+            } catch (_) {}
+
+            const mergedSnap = Object.assign({}, currentSnap, {
+              template_id: templateId,
+              external_id: externalId,
+              fixed_data: rawFixedData,
+              lead: enrichedLead,
+              negotiation: enrichedNegotiation,
+              sizing: enrichedSizing,
+              financial: enrichedFinancial,
+              dynamic: resolvedDynamic,
+              resolution_report: resolvedReport,
+              unresolved_report: unresolvedReport,
+              manual_mappings: manualDynamicMappings,
+            })
+            propToUpdate.set('snapshot_data', mergedSnap)
+            $app.save(propToUpdate)
+          }
+        } catch (snapErr) {
+          safeLogWarn(
+            'Aviso ao sincronizar snapshot_data com relatório de resolução',
+            String(snapErr),
+          )
+        }
       }
       let bodyStr = '{}'
       try {

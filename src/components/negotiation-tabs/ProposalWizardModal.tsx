@@ -30,6 +30,8 @@ import {
   calculateCo2Avoided,
   calculateInvestmentMultiple,
   calculateTir,
+  calculateSavings25Years,
+  generateSavingsProjection,
   extractValidityDays,
   formatProposalDate,
   extractEstimatedMonthlyGeneration,
@@ -570,6 +572,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
       const co2AvoidedTon = calculateCo2Avoided(estMonthlyGenRough)
       const investmentMultiple = calculateInvestmentMultiple(savings25YearsVal, finalPrice)
       const tirPct = calculateTir(finalPrice, annualSavingsVal, 25)
+      const savingsProjection = generateSavingsProjection(annualSavingsVal)
 
       const financialPayload = {
         total_investment: finalPrice,
@@ -593,6 +596,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         tir_pct: tirPct,
         co2_avoided_ton: co2AvoidedTon,
         tariff_details: tariffDetails || {},
+        savings_projection: savingsProjection,
       }
 
       // Buscar mapeamentos manuais configurados pelo ADM para o template
@@ -689,6 +693,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         generatorResult = await createGeneratorProposal(
           {
             template_id: templateIdToUse,
+            negotiation_id: neg.id,
             external_id: externalId,
             fixed_data: finalFixedData,
             lead: enriched.lead,
@@ -696,6 +701,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
             sizing: enriched.sizing,
             financial: enriched.financial,
             dynamic: enriched.dynamic,
+            manual_mappings: manualTemplateMappings || undefined,
           },
           activeTemplateSchemaFields,
         )
