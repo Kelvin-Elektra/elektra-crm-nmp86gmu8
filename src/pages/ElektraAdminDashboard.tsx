@@ -209,6 +209,57 @@ export default function ElektraAdminDashboard() {
         const leadDocument = lead.document || recentNeg.lead_document || '000.000.000-00'
         const leadPhone = lead.phone || recentNeg.lead_phone || '(11) 99999-9999'
 
+        const sampleCoveragePct =
+          avgConsumption > 0 ? Number(((estGeneration / avgConsumption) * 100).toFixed(1)) : 109.2
+        const sampleOccupiedArea = Number((moduleQty * 2.0).toFixed(1))
+        const sampleCo2Avoided = Number(((estGeneration * 12 * 0.0385) / 1000).toFixed(2))
+        const sampleInvMultiple = totalInv > 0 ? Number((savings25 / totalInv).toFixed(1)) : 11.3
+        const sampleTir = 35.5
+
+        const sampleEquipments = [
+          {
+            item: `Módulo Fotovoltaico ${moduleQty > 0 ? moduleQty : 10}x Monocristalino`,
+            especificacao: '555W',
+            qtd: moduleQty || 10,
+            garantia: '25 anos',
+          },
+          {
+            item: 'Inversor Solar On-Grid',
+            especificacao: `${kitPowerKwp} kW`,
+            qtd: 1,
+            garantia: '10 anos',
+          },
+          {
+            item: 'Estrutura de Fixação e Cabeamento Solar',
+            especificacao: sz.roof_type || 'Telhado Cerâmico',
+            qtd: 1,
+            garantia: '-',
+          },
+        ]
+
+        const sampleCommercialConditions = [
+          { item: 'Pagamento', condicao: recentNeg.payment_terms || 'À vista ou Financiamento' },
+          {
+            item: 'Forma Definida',
+            condicao: recentNeg.defined_payment_method || 'Financiamento Bancário',
+          },
+          { item: 'Validade da Proposta', condicao: '10 dias' },
+          {
+            item: 'Prazo de Instalação',
+            condicao: recentNeg.installation_lead_time || '30 a 45 dias',
+          },
+          { item: 'Garantias', condicao: 'Painéis 25 anos · Inversor 10 anos · Instalação 1 ano' },
+        ]
+
+        const sampleSavingsProjection = [
+          { ano: 1, economia_acumulada: annualSavings },
+          { ano: 5, economia_acumulada: Number((annualSavings * 5).toFixed(2)) },
+          { ano: 10, economia_acumulada: Number((annualSavings * 10).toFixed(2)) },
+          { ano: 15, economia_acumulada: Number((annualSavings * 15).toFixed(2)) },
+          { ano: 20, economia_acumulada: Number((annualSavings * 20).toFixed(2)) },
+          { ano: 25, economia_acumulada: savings25 },
+        ]
+
         setSampleNegotiationData({
           lead: {
             name: lead.name || recentNeg.lead_name || 'Cliente de Demonstração',
@@ -242,6 +293,7 @@ export default function ElektraAdminDashboard() {
             notes: recentNeg.notes || '',
             description: recentNeg.description || '',
             uc: recentNeg.uc || '12345678',
+            commercial_conditions: sampleCommercialConditions,
           },
           sizing: {
             kit_power_kwp: kitPowerKwp,
@@ -249,10 +301,14 @@ export default function ElektraAdminDashboard() {
             kwp: kitPowerKwp,
             avg_consumption: avgConsumption,
             average_consumption: avgConsumption,
+            average_monthly_consumption_kwh: avgConsumption,
             consumption_kwh: avgConsumption,
             estimated_monthly_generation: estGeneration,
             monthly_generation: estGeneration,
             generation_kwh: estGeneration,
+            estimated_generation_kwh: estGeneration,
+            consumption_coverage_pct: sampleCoveragePct,
+            occupied_area_m2: sampleOccupiedArea,
             module_qty: moduleQty,
             module_quantity: moduleQty,
             modules_count: moduleQty,
@@ -261,6 +317,8 @@ export default function ElektraAdminDashboard() {
             roof_type: sz.roof_type || 'Telhado Cerâmico',
             network_type: sz.network_type || 'Bifásico',
             simultaneity_factor: sz.simultaneity_factor || 30,
+            equipments: sampleEquipments,
+            commercial_conditions: sampleCommercialConditions,
             address_struct: {
               city: lead.city || 'São Paulo',
               state: lead.state || 'SP',
@@ -273,8 +331,11 @@ export default function ElektraAdminDashboard() {
             total_investment: totalInv,
             investment: totalInv,
             price: totalInv,
+            total_value: totalInv,
+            sale_price: totalInv,
             monthly_savings: monthlySavings,
             economy_monthly: monthlySavings,
+            estimated_monthly_savings: monthlySavings,
             annual_savings: annualSavings,
             yearly_savings: annualSavings,
             savings_25_years: savings25,
@@ -282,6 +343,10 @@ export default function ElektraAdminDashboard() {
             payback_years: propProj.roiYears || 2.2,
             payback_months: propProj.roiMonths || 26,
             payback: propProj.roiYears || 2.2,
+            investment_multiple: sampleInvMultiple,
+            tir_pct: sampleTir,
+            co2_avoided_ton: sampleCo2Avoided,
+            savings_projection: sampleSavingsProjection,
             tariff_rate: 0.95,
             tariff_details: {
               te: 0.42,
@@ -298,7 +363,45 @@ export default function ElektraAdminDashboard() {
           },
         })
       } else {
-        // Dados de fallback enriquecidos com os campos normalizados do CRM
+        // Dados de fallback enriquecidos com os campos normalizados do CRM e Template 2
+        const fallbackEquipments = [
+          {
+            item: 'DAH Solar DHM-T72X10/FS(BB) 555W',
+            especificacao: '555W',
+            qtd: 10,
+            garantia: '25 anos',
+          },
+          {
+            item: 'Inversor Deye 5kW Monofásico On-Grid',
+            especificacao: '5kW 220V',
+            qtd: 1,
+            garantia: '10 anos',
+          },
+          {
+            item: 'Cabo Solar Preto 6mm² e Conectores MC4',
+            especificacao: 'Material de Instalação e Proteção',
+            qtd: 100,
+            garantia: '-',
+          },
+        ]
+
+        const fallbackCommercialConditions = [
+          { item: 'Pagamento', condicao: 'À vista com 5% de desconto' },
+          { item: 'Financiamento', condicao: 'Até 84 meses em parcelas fixas' },
+          { item: 'Validade', condicao: '15 dias' },
+          { item: 'Prazo de entrega', condicao: 'Até 45 dias úteis' },
+          { item: 'Garantias', condicao: 'Painéis 25 anos · Inversor 10 anos · Instalação 5 anos' },
+        ]
+
+        const fallbackSavingsProjection = [
+          { ano: 1, economia_acumulada: 4134.36 },
+          { ano: 5, economia_acumulada: 20671.8 },
+          { ano: 10, economia_acumulada: 41343.6 },
+          { ano: 15, economia_acumulada: 62015.4 },
+          { ano: 20, economia_acumulada: 82687.2 },
+          { ano: 25, economia_acumulada: 103359.0 },
+        ]
+
         setSampleNegotiationData({
           lead: {
             name: 'Cliente Modelo de Teste',
@@ -328,6 +431,7 @@ export default function ElektraAdminDashboard() {
             notes: 'Proposta modelo para conferência de mapeamento',
             description: 'Sistema Fotovoltaico Conectado à Rede',
             uc: '12345678',
+            commercial_conditions: fallbackCommercialConditions,
           },
           sizing: {
             kit_power_kwp: 5.46,
@@ -335,10 +439,14 @@ export default function ElektraAdminDashboard() {
             kwp: 5.46,
             avg_consumption: 500,
             average_consumption: 500,
+            average_monthly_consumption_kwh: 500,
             consumption_kwh: 500,
             estimated_monthly_generation: 546,
             monthly_generation: 546,
             generation_kwh: 546,
+            estimated_generation_kwh: 546,
+            consumption_coverage_pct: 109.2,
+            occupied_area_m2: 25.8,
             module_qty: 10,
             module_quantity: 10,
             modules_count: 10,
@@ -347,6 +455,8 @@ export default function ElektraAdminDashboard() {
             roof_type: 'Telhado Cerâmico',
             network_type: 'Bifásico',
             simultaneity_factor: 30,
+            equipments: fallbackEquipments,
+            commercial_conditions: fallbackCommercialConditions,
             address_struct: {
               city: 'São Paulo',
               state: 'SP',
@@ -359,8 +469,11 @@ export default function ElektraAdminDashboard() {
             total_investment: 9169.17,
             investment: 9169.17,
             price: 9169.17,
+            total_value: 9169.17,
+            sale_price: 9169.17,
             monthly_savings: 344.53,
             economy_monthly: 344.53,
+            estimated_monthly_savings: 344.53,
             annual_savings: 4134.36,
             yearly_savings: 4134.36,
             savings_25_years: 103359.0,
@@ -368,6 +481,10 @@ export default function ElektraAdminDashboard() {
             payback_years: 2.2,
             payback_months: 26,
             payback: 2.2,
+            investment_multiple: 11.3,
+            tir_pct: 45.1,
+            co2_avoided_ton: 0.25,
+            savings_projection: fallbackSavingsProjection,
             tariff_rate: 0.92,
             tariff_details: {
               te: 0.42,

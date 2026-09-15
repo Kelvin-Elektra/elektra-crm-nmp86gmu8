@@ -484,6 +484,68 @@ routerAdd(
       )
       var modQty = Number(bodySizing.module_qty || bodySizing.module_quantity || 12)
 
+      var previewEquipments = []
+      if (Array.isArray(bodySizing.equipments) && bodySizing.equipments.length > 0) {
+        previewEquipments = bodySizing.equipments
+      } else {
+        previewEquipments = [
+          {
+            item: 'Módulo Fotovoltaico ' + modQty + 'x Monocristalino',
+            especificacao: '555W',
+            qtd: modQty,
+            garantia: '25 anos',
+          },
+          {
+            item: 'Inversor Solar On-Grid',
+            especificacao: kitPower + ' kW',
+            qtd: 1,
+            garantia: '10 anos',
+          },
+          {
+            item: 'Estrutura de Fixação e Cabeamento',
+            especificacao: bodySizing.roof_type || 'Telhado Cerâmico',
+            qtd: 1,
+            garantia: '-',
+          },
+        ]
+      }
+
+      var previewCommercialConditions = []
+      if (
+        Array.isArray(bodyNegotiation.commercial_conditions) &&
+        bodyNegotiation.commercial_conditions.length > 0
+      ) {
+        previewCommercialConditions = bodyNegotiation.commercial_conditions
+      } else if (
+        Array.isArray(bodySizing.commercial_conditions) &&
+        bodySizing.commercial_conditions.length > 0
+      ) {
+        previewCommercialConditions = bodySizing.commercial_conditions
+      } else {
+        previewCommercialConditions = [
+          {
+            item: 'Pagamento',
+            condicao: bodyNegotiation.payment_terms || 'À vista ou Financiamento',
+          },
+          {
+            item: 'Forma Definida',
+            condicao: bodyNegotiation.defined_payment_method || 'Financiamento Solar',
+          },
+          {
+            item: 'Validade da Proposta',
+            condicao: bodyNegotiation.validity || '10 dias',
+          },
+          {
+            item: 'Prazo de Instalação',
+            condicao: bodyNegotiation.installation_lead_time || '30 a 45 dias',
+          },
+          {
+            item: 'Garantias',
+            condicao: 'Painéis 25 anos · Inversor 10 anos · Instalação 1 ano',
+          },
+        ]
+      }
+
       var totInv = Number(
         bodyFinancial.total_investment || bodyFinancial.investment || bodyFinancial.price || 24900,
       )
@@ -607,6 +669,7 @@ routerAdd(
           installation_lead_time: bodyNegotiation.installation_lead_time || '30 dias',
           notes: bodyNegotiation.notes || '',
           description: bodyNegotiation.description || 'Sistema Fotovoltaico 6.5 kWp',
+          commercial_conditions: previewCommercialConditions,
         },
         sizing: {
           kit_power_kwp: kitPower,
@@ -632,6 +695,8 @@ routerAdd(
           network_type: bodySizing.network_type || 'Bifásico',
           roof_type: bodySizing.roof_type || 'Cerâmico',
           concessionaire: bodySizing.concessionaire || 'Copel',
+          equipments: previewEquipments,
+          commercial_conditions: previewCommercialConditions,
         },
         financial: {
           total_investment: totInv,
@@ -743,6 +808,7 @@ routerAdd(
             'average consumption',
             'average monthly consumption',
             'average monthly consumption kwh',
+            'average_monthly_consumption_kwh',
             'monthly consumption',
             'consumption kwh',
             'consumo medio',
@@ -771,6 +837,7 @@ routerAdd(
             'generation kwh',
             'estimated generation',
             'estimated generation kwh',
+            'estimated_generation_kwh',
             'generation estimated kwh',
             'geracao estimada',
             'geracao estimada kwh',
@@ -1307,6 +1374,40 @@ routerAdd(
           ],
           keywords: ['categoria', 'classe'],
           negativeKeywords: [],
+        },
+        {
+          concept: 'equipments',
+          targetCategory: 'sizing',
+          targetField: 'equipments',
+          synonyms: [
+            'equipments',
+            'equipamentos',
+            'equipamentos especificados',
+            'tabela equipamentos',
+            'lista equipamentos',
+            'equipment list',
+            'equipments list',
+            'itens kit',
+            'kit equipamentos',
+          ],
+          keywords: ['equipamentos', 'equipments', 'equipamento'],
+          negativeKeywords: ['condicoes', 'comerciais', 'pagamento'],
+        },
+        {
+          concept: 'commercial_conditions',
+          targetCategory: 'negotiation',
+          targetField: 'commercial_conditions',
+          synonyms: [
+            'commercial conditions',
+            'condicoes comerciais',
+            'condicoes',
+            'tabela condicoes comerciais',
+            'tabela condicoes',
+            'termos comerciais',
+            'commercial terms',
+          ],
+          keywords: ['condicoes', 'comerciais', 'commercial', 'conditions'],
+          negativeKeywords: ['equipamentos', 'equipments'],
         },
       ]
 

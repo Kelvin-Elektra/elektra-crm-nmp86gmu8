@@ -316,4 +316,101 @@ describe('Semantic Mapper for Dynamic Proposal Variables', () => {
     expect(res.dynamic.commercial_conditions).toEqual(dummyConditions)
     expect(res.dynamic.commercial_conditions).toHaveLength(5)
   })
+
+  it('Build 4: garante cobertura completa do schema do Template 2 com todas as 15 chaves', () => {
+    // 15 chaves do schema dinâmico e arrays do Template 2
+    const template2Keys = [
+      'consultant_name',
+      'proposal_number',
+      'proposal_date',
+      'validity_days',
+      'estimated_generation_kwh',
+      'average_monthly_consumption_kwh',
+      'consumption_coverage_pct',
+      'occupied_area_m2',
+      'co2_avoided_ton',
+      'savings_25_years',
+      'tir_pct',
+      'investment_multiple',
+      'equipments',
+      'savings_projection',
+      'commercial_conditions',
+    ]
+
+    const fullPayload = {
+      lead: { name: 'Cliente Build 4' },
+      negotiation: {
+        consultant_name: 'Consultor Oficial',
+        proposal_number: 'PROP-2026-B4',
+        proposal_date: '28/03/2026',
+        validity_days: 10,
+        commercial_conditions: [
+          { item: 'Pagamento', condicao: 'À vista' },
+          { item: 'Instalação', condicao: '30 dias' },
+        ],
+      },
+      sizing: {
+        avg_consumption: 500,
+        estimated_monthly_generation: 546,
+        consumption_coverage_pct: 109.2,
+        occupied_area_m2: 25.8,
+        equipments: [
+          { item: 'Painel 555W', especificacao: '555W', qtd: 10, garantia: '25 anos' },
+          { item: 'Inversor 5kW', especificacao: '5kW', qtd: 1, garantia: '10 anos' },
+        ],
+      },
+      financial: {
+        total_investment: 10000,
+        savings_25_years: 113000,
+        investment_multiple: 11.3,
+        tir_pct: 45.1,
+        co2_avoided_ton: 0.25,
+        savings_projection: [
+          { ano: 1, economia_acumulada: 4500 },
+          { ano: 25, economia_acumulada: 113000 },
+        ],
+      },
+    }
+
+    const res = enrichPayloadWithSemanticVariables(template2Keys, fullPayload)
+
+    expect(res.unresolved).toHaveLength(0)
+    expect(Object.keys(res.dynamic)).toHaveLength(15)
+
+    // Validar valores e tipos
+    expect(res.dynamic.consultant_name).toBe('Consultor Oficial')
+    expect(res.dynamic.proposal_number).toBe('PROP-2026-B4')
+    expect(res.dynamic.proposal_date).toBe('28/03/2026')
+    expect(res.dynamic.validity_days).toBe(10)
+    expect(res.dynamic.estimated_generation_kwh).toBe(546)
+    expect(res.dynamic.average_monthly_consumption_kwh).toBe(500)
+    expect(res.dynamic.consumption_coverage_pct).toBe(109.2)
+    expect(res.dynamic.occupied_area_m2).toBe(25.8)
+    expect(res.dynamic.co2_avoided_ton).toBe(0.25)
+    expect(res.dynamic.savings_25_years).toBe(113000)
+    expect(res.dynamic.tir_pct).toBe(45.1)
+    expect(res.dynamic.investment_multiple).toBe(11.3)
+    expect(Array.isArray(res.dynamic.equipments)).toBe(true)
+    expect(res.dynamic.equipments).toHaveLength(2)
+    expect(Array.isArray(res.dynamic.savings_projection)).toBe(true)
+    expect(res.dynamic.savings_projection).toHaveLength(2)
+    expect(Array.isArray(res.dynamic.commercial_conditions)).toBe(true)
+    expect(res.dynamic.commercial_conditions).toHaveLength(2)
+  })
+
+  it('Build 4: variáveis desconhecidas do contrato do Gerador devem ser classificadas como unmapped', () => {
+    const unknownKeys = ['contrato_variavel_desconhecida_1', 'gerador_campo_customizado_xyz']
+
+    const fullPayload = {
+      lead: { name: 'Cliente' },
+      negotiation: {},
+      sizing: {},
+      financial: {},
+    }
+
+    const res = enrichPayloadWithSemanticVariables(unknownKeys, fullPayload)
+
+    expect(res.unresolved).toEqual(unknownKeys)
+    expect(res.dynamic.contrato_variavel_desconhecida_1).toBeUndefined()
+  })
 })

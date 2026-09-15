@@ -710,25 +710,47 @@ export const TemplateMappingTab: React.FC<TemplateMappingTabProps> = ({
 
                             {field.effectiveValue !== undefined &&
                               field.effectiveValue !== null && (
-                                <span
-                                  className="font-mono text-[11px] text-slate-700 truncate max-w-sm"
-                                  title={
-                                    typeof field.effectiveValue === 'object'
-                                      ? JSON.stringify(field.effectiveValue)
-                                      : String(field.effectiveValue)
-                                  }
-                                >
-                                  Valor atual:{' '}
-                                  <strong>
-                                    {Array.isArray(field.effectiveValue)
-                                      ? `[Array: ${field.effectiveValue.length} ${
-                                          field.effectiveValue.length === 1 ? 'item' : 'itens'
-                                        }]`
-                                      : typeof field.effectiveValue === 'object'
-                                        ? '{Objeto}'
-                                        : String(field.effectiveValue)}
-                                  </strong>
-                                </span>
+                                <div className="w-full">
+                                  {Array.isArray(field.effectiveValue) ? (
+                                    <details className="mt-1 cursor-pointer group">
+                                      <summary className="font-mono text-[11px] text-slate-700 hover:text-blue-600 font-semibold flex items-center gap-1">
+                                        <span>Valor atual:</span>
+                                        <Badge
+                                          variant="secondary"
+                                          className="text-[10px] font-mono py-0 px-1.5"
+                                        >
+                                          {field.effectiveValue.length}{' '}
+                                          {field.effectiveValue.length === 1 ? 'item' : 'itens'}
+                                        </Badge>
+                                        <span className="text-[10px] text-blue-600 group-open:hidden">
+                                          (clique para ver prévia)
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 hidden group-open:inline">
+                                          (ocultar)
+                                        </span>
+                                      </summary>
+                                      <div className="mt-1.5 p-2 bg-slate-900 text-slate-100 rounded text-[10px] font-mono max-h-48 overflow-y-auto whitespace-pre-wrap border border-slate-800">
+                                        {JSON.stringify(field.effectiveValue, null, 2)}
+                                      </div>
+                                    </details>
+                                  ) : (
+                                    <span
+                                      className="font-mono text-[11px] text-slate-700 truncate max-w-sm block"
+                                      title={
+                                        typeof field.effectiveValue === 'object'
+                                          ? JSON.stringify(field.effectiveValue)
+                                          : String(field.effectiveValue)
+                                      }
+                                    >
+                                      Valor atual:{' '}
+                                      <strong>
+                                        {typeof field.effectiveValue === 'object'
+                                          ? JSON.stringify(field.effectiveValue)
+                                          : String(field.effectiveValue)}
+                                      </strong>
+                                    </span>
+                                  )}
+                                </div>
                               )}
                           </div>
                         </div>

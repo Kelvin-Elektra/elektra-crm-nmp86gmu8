@@ -96,6 +96,13 @@ export const CRM_FIELD_SECTIONS: CrmFieldSection[] = [
       { path: 'negotiation.notes', label: 'Observações Internas', section: 'negotiation' },
       { path: 'negotiation.description', label: 'Descrição da Proposta', section: 'negotiation' },
       { path: 'negotiation.uc', label: 'Unidade Consumidora (UC)', section: 'negotiation' },
+      {
+        path: 'negotiation.commercial_conditions',
+        label: 'Tabela de Condições Comerciais (Array de Itens)',
+        section: 'negotiation',
+        type: 'array',
+        description: 'Tabela de condições comerciais: pagamento, validade, entrega e prazos',
+      },
     ],
   },
   {
@@ -202,6 +209,7 @@ export const CRM_FIELD_SECTIONS: CrmFieldSection[] = [
         path: 'financial.savings_projection',
         label: 'Projeção de Economia (6 marcos: Anos 1, 5, 10, 15, 20 e 25)',
         section: 'financial',
+        type: 'array',
         description: 'Array com marcos de economia para gráficos e tabelas do template',
       },
       {
@@ -408,7 +416,8 @@ export function evaluateDynamicFieldStatus(
   // 3. Sem override manual -> usar automático
   if (autoRes.resolved && autoPath) {
     const val = autoRes.value
-    const isEmpty = val === undefined || val === null || val === ''
+    const isEmpty =
+      val === undefined || val === null || val === '' || (Array.isArray(val) && val.length === 0)
     return {
       key: fieldKey,
       label,
@@ -424,7 +433,7 @@ export function evaluateDynamicFieldStatus(
     }
   }
 
-  // 4. Não mapeada
+  // 4. Não mapeada - se o contrato do Gerador declarar uma variável desconhecida pelo CRM
   return {
     key: fieldKey,
     label,
