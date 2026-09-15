@@ -27,6 +27,8 @@ import {
   extractValidityDays,
   formatProposalDate,
   extractEstimatedMonthlyGeneration,
+  buildEquipmentsArray,
+  buildCommercialConditionsArray,
 } from '@/lib/solar-calculations'
 import { Plus, Trash2 } from 'lucide-react'
 
@@ -132,6 +134,17 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           //              payback_years & payback_months -> payback (numérico em anos); annual_savings -> yearly_savings; savings_25_years -> total_savings_25y
           const leadDoc = updatedSnapshot.lead_document || updatedSnapshot.document || ''
           const leadPh = updatedSnapshot.lead_phone || updatedSnapshot.phone || ''
+          const leadCity =
+            updatedSnapshot.sizing?.address_struct?.city ||
+            updatedSnapshot.sizing?.city ||
+            updatedSnapshot.city ||
+            ''
+          const leadState =
+            updatedSnapshot.sizing?.address_struct?.state ||
+            updatedSnapshot.sizing?.state ||
+            updatedSnapshot.state ||
+            ''
+
           const leadData = {
             name: updatedSnapshot.lead_name || 'Cliente',
             email: updatedSnapshot.lead_email || updatedSnapshot.email || '',
@@ -140,6 +153,8 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
             document: leadDoc,
             cpf_cnpj: leadDoc,
             address: updatedSnapshot.address || '',
+            city: leadCity,
+            state: leadState,
           }
 
           const consultantName =
@@ -149,6 +164,16 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           const proposalNumber = proposal.id || ''
           const proposalDate = formatProposalDate(proposal.created)
           const validityDays = extractValidityDays(validityDate, proposal.created, 10)
+
+          const commercialConditions = buildCommercialConditionsArray({
+            paymentTerms,
+            definedPaymentMethod,
+            acceptedPaymentMethods: paymentMethods.join(', '),
+            validityDays,
+            installationLeadTime,
+            moduleWarranty: updatedSnapshot.pricing_data?.rawModule?.warranty,
+            inverterWarranty: updatedSnapshot.pricing_data?.rawInverters?.[0]?.warranty,
+          })
 
           const negotiationPayload = {
             id: proposal.negotiation_id,
@@ -163,6 +188,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
             accepted_payment_methods: paymentMethods.join(', '),
             installation_lead_time: installationLeadTime || '',
             notes: notes || '',
+            commercial_conditions: commercialConditions,
           }
 
           const rawSizing = updatedSnapshot.sizing || {}
@@ -173,6 +199,25 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           const modQty = Number(rawSizing.module_qty) || 0
           const consumptionCoveragePct = calculateConsumptionCoverage(estGen, avgCons)
           const occupiedAreaM2 = calculateOccupiedArea(modQty, rawSizing.module_dimensions || null)
+
+          const fp = updatedSnapshot.financialProjection
+          const resolvedConcessionaire =
+            rawSizing.concessionaire ||
+            fp?.tariffDetails?.utility_name ||
+            fp?.tariffDetails?.name ||
+            ''
+          const resolvedRoofType = rawSizing.roof_type || rawSizing.structure_type || ''
+          const resolvedTension =
+            rawSizing.tension || rawSizing.voltage || fp?.tariffDetails?.voltage || ''
+
+          const equipmentsList = buildEquipmentsArray({
+            module: updatedSnapshot.pricing_data?.rawModule,
+            moduleQty: modQty,
+            inverters: updatedSnapshot.pricing_data?.rawInverters || rawSizing.inverters,
+            supplies:
+              updatedSnapshot.pricing_data?.kitComposition ||
+              updatedSnapshot.pricing_data?.supplies,
+          })
 
           const sizingPayload = {
             ...rawSizing,
@@ -193,9 +238,18 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
             module_qty: modQty,
             module_quantity: modQty,
             modules_count: modQty,
+            concessionaire: resolvedConcessionaire,
+            roof_type: resolvedRoofType,
+            tension: resolvedTension,
+            city: leadCity,
+            state: leadState,
+            equipments: equipmentsList,
+            commercial_conditions: commercialConditions,
           }
-
-          const fp = updatedSnapshot.financialProjection
+          if (resolvedConcessionaire) sizingPayload.concessionaire = resolvedConcessionaire
+          if (resolvedRoofType) sizingPayload.roof_type = resolvedRoofType
+          if (resolvedTension) sizingPayload.tension = resolvedTension
+          sizingPayload.equipments = equipmentsList
           const paybackYearsVal =
             fp?.roiYears != null
               ? Number((fp.roiYears + (fp.roiRemainingMonths || 0) / 12).toFixed(1))
@@ -262,6 +316,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
               negotiation: enriched.negotiation,
               sizing: enriched.sizing,
               financial: enriched.financial,
+              dynamic: enriched.dynamic,
             },
             templateFields,
           )

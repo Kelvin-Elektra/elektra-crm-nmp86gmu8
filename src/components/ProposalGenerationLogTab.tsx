@@ -510,12 +510,30 @@ export const ProposalGenerationLogTab: React.FC<ProposalGenerationLogTabProps> =
                                 </td>
                                 <td className="py-2.5 px-3">
                                   {hasValue ? (
-                                    <span
-                                      className="font-mono text-slate-800 truncate block max-w-[160px]"
-                                      title={String(val)}
-                                    >
-                                      {typeof val === 'object' ? JSON.stringify(val) : String(val)}
-                                    </span>
+                                    Array.isArray(val) ? (
+                                      <details className="cursor-pointer group">
+                                        <summary className="font-mono text-slate-800 text-[11px] font-semibold hover:text-blue-600">
+                                          {val.length} {val.length === 1 ? 'item' : 'itens'}{' '}
+                                          <span className="text-[10px] text-slate-400">(ver)</span>
+                                        </summary>
+                                        <div className="mt-1 p-2 bg-slate-900 text-slate-100 rounded text-[10px] font-mono max-h-40 overflow-y-auto whitespace-pre-wrap">
+                                          {JSON.stringify(val, null, 2)}
+                                        </div>
+                                      </details>
+                                    ) : (
+                                      <span
+                                        className="font-mono text-slate-800 truncate block max-w-[180px]"
+                                        title={
+                                          typeof val === 'object'
+                                            ? JSON.stringify(val)
+                                            : String(val)
+                                        }
+                                      >
+                                        {typeof val === 'object'
+                                          ? JSON.stringify(val)
+                                          : String(val)}
+                                      </span>
+                                    )
                                   ) : (
                                     <span className="text-slate-400 italic text-[11px]">vazio</span>
                                   )}
@@ -560,12 +578,30 @@ export const ProposalGenerationLogTab: React.FC<ProposalGenerationLogTabProps> =
                                 </td>
                                 <td className="py-2.5 px-3">
                                   {hasValue ? (
-                                    <span
-                                      className="font-mono text-slate-800 truncate block max-w-[160px]"
-                                      title={String(val)}
-                                    >
-                                      {typeof val === 'object' ? JSON.stringify(val) : String(val)}
-                                    </span>
+                                    Array.isArray(val) ? (
+                                      <details className="cursor-pointer group">
+                                        <summary className="font-mono text-slate-800 text-[11px] font-semibold hover:text-blue-600">
+                                          {val.length} {val.length === 1 ? 'item' : 'itens'}{' '}
+                                          <span className="text-[10px] text-slate-400">(ver)</span>
+                                        </summary>
+                                        <div className="mt-1 p-2 bg-slate-900 text-slate-100 rounded text-[10px] font-mono max-h-40 overflow-y-auto whitespace-pre-wrap">
+                                          {JSON.stringify(val, null, 2)}
+                                        </div>
+                                      </details>
+                                    ) : (
+                                      <span
+                                        className="font-mono text-slate-800 truncate block max-w-[180px]"
+                                        title={
+                                          typeof val === 'object'
+                                            ? JSON.stringify(val)
+                                            : String(val)
+                                        }
+                                      >
+                                        {typeof val === 'object'
+                                          ? JSON.stringify(val)
+                                          : String(val)}
+                                      </span>
+                                    )
                                   ) : (
                                     <span className="text-slate-400 italic text-[11px]">vazio</span>
                                   )}

@@ -711,10 +711,23 @@ export const TemplateMappingTab: React.FC<TemplateMappingTabProps> = ({
                             {field.effectiveValue !== undefined &&
                               field.effectiveValue !== null && (
                                 <span
-                                  className="font-mono text-[11px] text-slate-700 truncate max-w-xs"
-                                  title={String(field.effectiveValue)}
+                                  className="font-mono text-[11px] text-slate-700 truncate max-w-sm"
+                                  title={
+                                    typeof field.effectiveValue === 'object'
+                                      ? JSON.stringify(field.effectiveValue)
+                                      : String(field.effectiveValue)
+                                  }
                                 >
-                                  Valor atual: <strong>{String(field.effectiveValue)}</strong>
+                                  Valor atual:{' '}
+                                  <strong>
+                                    {Array.isArray(field.effectiveValue)
+                                      ? `[Array: ${field.effectiveValue.length} ${
+                                          field.effectiveValue.length === 1 ? 'item' : 'itens'
+                                        }]`
+                                      : typeof field.effectiveValue === 'object'
+                                        ? '{Objeto}'
+                                        : String(field.effectiveValue)}
+                                  </strong>
                                 </span>
                               )}
                           </div>

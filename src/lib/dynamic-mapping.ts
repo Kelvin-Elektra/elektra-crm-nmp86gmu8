@@ -36,6 +36,14 @@ export const CRM_FIELD_SECTIONS: CrmFieldSection[] = [
     label: 'Negociação',
     fields: [
       {
+        path: 'negotiation.commercial_conditions',
+        label: 'Condições Comerciais (Array de Itens)',
+        section: 'negotiation',
+        type: 'array',
+        description:
+          'Tabela de condições comerciais: pagamento, financiamento, validade, entrega e garantias',
+      },
+      {
         path: 'negotiation.consultant_name',
         label: 'Nome do Consultor Responsável',
         section: 'negotiation',
@@ -114,6 +122,14 @@ export const CRM_FIELD_SECTIONS: CrmFieldSection[] = [
         description: 'Área total requerida para instalação dos módulos em m²',
       },
       { path: 'sizing.module_qty', label: 'Quantidade de Módulos (Painéis)', section: 'sizing' },
+      {
+        path: 'sizing.equipments',
+        label: 'Equipamentos e Insumos do Kit (Array de Itens)',
+        section: 'sizing',
+        type: 'array',
+        description:
+          'Tabela de equipamentos especificados: módulos, inversores e insumos com garantia',
+      },
       {
         path: 'sizing.consumer_category',
         label: 'Categoria de Consumo (Residencial/etc)',

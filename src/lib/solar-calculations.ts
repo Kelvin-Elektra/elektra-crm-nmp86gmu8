@@ -181,6 +181,254 @@ export function calculateSavings25Years(annualSavings?: number, monthlySavings?:
   return 0
 }
 
+export interface EquipmentItem {
+  item: string
+  especificacao: string
+  qtd: number | string
+  garantia: string
+}
+
+export interface CommercialConditionItem {
+  item: string
+  condicao: string
+}
+
+/**
+ * Normaliza número de anos para formato padrão "X anos" ou "X a"
+ */
+function formatWarrantyYears(val: any, defaultFallback: string = '-'): string {
+  if (val === undefined || val === null || val === '') return defaultFallback
+  const s = String(val).trim()
+  if (!s || s === '-') return defaultFallback
+  if (/^\d+$/.test(s)) {
+    return `${s} anos`
+  }
+  return s
+}
+
+/**
+ * Constrói o array `equipments` esperado pelos templates de proposta (ex: Template 2)
+ * Ordem:
+ * 1. Módulos da proposta: item = nome/modelo, especificacao = potência etc., qtd = module_qty, garantia = catálogo (ex: "25 anos")
+ * 2. Inversores da proposta: item = marca/modelo, especificacao = potência etc., qtd, garantia = catálogo (ex: "10 anos")
+ *    - Se não houver inversor selecionado, omite a linha sem quebrar o array
+ * 3. Insumos do kit (estrutura, cabos, conectores etc.): item = nome do insumo, especificacao = tipo/base, qtd, garantia = "-"
+ */
+export function buildEquipmentsArray(params: {
+  module?: {
+    name?: string
+    brand?: string
+    power?: number
+    notes?: string
+    warranty?: string
+    [key: string]: any
+  } | null
+  moduleQty?: number
+  inverters?: Array<{
+    name?: string
+    brand?: string
+    power?: number
+    voltage?: string
+    type?: string
+    qty?: number
+    quantity?: number
+    warranty?: string
+    [key: string]: any
+  }> | null
+  supplies?: Array<{
+    name?: string
+    qty?: number
+    quantity?: number
+    type?: string
+    calcBase?: string
+    calc_base?: string
+    specification?: string
+    [key: string]: any
+  }> | null
+}): EquipmentItem[] {
+  const items: EquipmentItem[] = []
+
+  // 1. Módulos
+  const qty = Number(params.moduleQty) || 0
+  const mod = params.module
+  if (qty > 0 || mod) {
+    const brand = mod?.brand ? String(mod.brand).trim() : ''
+    const name = mod?.name ? String(mod.name).trim() : ''
+    let itemName = ''
+    if (brand && name && !name.toLowerCase().includes(brand.toLowerCase())) {
+      itemName = `${brand} ${name}`
+    } else {
+      itemName = name || brand || 'Módulo Fotovoltaico'
+    }
+
+    const powerStr = mod?.power ? `${mod.power}W` : ''
+    const extraSpec = mod?.frame ? `Frame: ${mod.frame}` : ''
+    const spec = [powerStr, extraSpec].filter(Boolean).join(' · ') || 'Alta Eficiência'
+
+    const modWarranty = formatWarrantyYears(
+      mod?.warranty || mod?.notes?.match(/(\d+)\s*anos?/i)?.[0] || '25 anos',
+      '25 anos',
+    )
+
+    items.push({
+      item: itemName,
+      especificacao: spec,
+      qtd: qty > 0 ? qty : 1,
+      garantia: modWarranty,
+    })
+  }
+
+  // 2. Inversores
+  const inverters = params.inverters || []
+  if (Array.isArray(inverters) && inverters.length > 0) {
+    for (const inv of inverters) {
+      const invQty = Number(inv.qty || inv.quantity || 1)
+      if (invQty <= 0 && !inv.name) continue
+
+      const brand = inv.brand ? String(inv.brand).trim() : ''
+      const name = inv.name ? String(inv.name).trim() : ''
+      let invName = ''
+      if (brand && name && !name.toLowerCase().includes(brand.toLowerCase())) {
+        invName = `${brand} ${name}`
+      } else {
+        invName = name || brand || 'Inversor Solar'
+      }
+
+      const powerStr = inv.power ? `${inv.power} kW` : ''
+      const typeStr = inv.type ? String(inv.type) : ''
+      const voltStr = inv.voltage ? String(inv.voltage) : ''
+      const spec =
+        [powerStr, typeStr, voltStr].filter(Boolean).join(' · ') || 'Inversor de Conexão à Rede'
+
+      const invWarranty = formatWarrantyYears(inv.warranty, '10 anos')
+
+      items.push({
+        item: invName,
+        especificacao: spec,
+        qtd: invQty > 0 ? invQty : 1,
+        garantia: invWarranty,
+      })
+    }
+  }
+
+  // 3. Insumos do kit
+  const supplies = params.supplies || []
+  if (Array.isArray(supplies) && supplies.length > 0) {
+    for (const sup of supplies) {
+      // Pular se for o próprio módulo ou inversor marcado como type module/inverter no kitComposition
+      if (sup.type === 'module' || sup.type === 'inverter') continue
+
+      const sName = String(sup.name || 'Insumo').trim()
+      if (!sName) continue
+
+      const sQty = Number(sup.qty || sup.quantity || 1)
+      const formattedQty = Number.isInteger(sQty) ? sQty : Number(sQty.toFixed(1))
+
+      const spec =
+        sup.specification ||
+        (sup.type === 'supply' ? 'Material de Instalação e Proteção' : 'Componente Homologado')
+
+      items.push({
+        item: sName,
+        especificacao: spec,
+        qtd: formattedQty > 0 ? formattedQty : 1,
+        garantia: '-', // Insumos sem garantia declarada levam traço "-"
+      })
+    }
+  }
+
+  return items
+}
+
+/**
+ * Constrói o array `commercial_conditions` esperado pelos templates de proposta (ex: Template 2)
+ *
+ * Itens obrigatórios pelo template:
+ * - Pagamento: payment_terms / defined_payment_method / accepted_payment_methods
+ * - Financiamento: opções de financiamento disponíveis (ex: "Até 84 meses" ou descrição)
+ * - Validade: dias de validade (ex: "15 dias")
+ * - Prazo de entrega: prazo de instalação / execução (ex: "Até 45 dias")
+ * - Garantias: resumo das garantias (módulos, inversor, instalação)
+ */
+export function buildCommercialConditionsArray(params: {
+  paymentTerms?: string
+  definedPaymentMethod?: string
+  acceptedPaymentMethods?: string | string[]
+  validityDays?: number | string
+  installationLeadTime?: string
+  moduleWarranty?: string
+  inverterWarranty?: string
+  workmanshipWarranty?: string
+  financingTerms?: string
+}): CommercialConditionItem[] {
+  // 1. Pagamento
+  let paymentText = '-'
+  const terms = (params.paymentTerms || '').trim()
+  const defined = (params.definedPaymentMethod || '').trim()
+  let accepted = ''
+  if (Array.isArray(params.acceptedPaymentMethods)) {
+    accepted = params.acceptedPaymentMethods.filter(Boolean).join(', ')
+  } else if (typeof params.acceptedPaymentMethods === 'string') {
+    accepted = params.acceptedPaymentMethods.trim()
+  }
+
+  if (defined) {
+    paymentText = terms ? `${defined} (${terms})` : defined
+  } else if (terms) {
+    paymentText = terms
+  } else if (accepted) {
+    paymentText = accepted
+  } else {
+    paymentText = 'A combinar'
+  }
+
+  // 2. Financiamento
+  let financingText = (params.financingTerms || '').trim()
+  if (!financingText) {
+    // Verificar se no accepted_payment_methods fala sobre financiamento
+    if (accepted && /financi|banco|parcela|meses/i.test(accepted)) {
+      financingText = accepted
+    } else {
+      financingText = 'Até 84 meses (sob análise bancária)'
+    }
+  }
+
+  // 3. Validade
+  let validityText = '-'
+  if (
+    params.validityDays !== undefined &&
+    params.validityDays !== null &&
+    params.validityDays !== ''
+  ) {
+    const s = String(params.validityDays).trim()
+    validityText = /dias?/i.test(s) ? s : `${s} dias`
+  } else {
+    validityText = '15 dias'
+  }
+
+  // 4. Prazo de entrega / instalação
+  let leadTimeText = (params.installationLeadTime || '').trim()
+  if (!leadTimeText) {
+    leadTimeText = 'Até 45 dias úteis'
+  } else if (/^\d+$/.test(leadTimeText)) {
+    leadTimeText = `Até ${leadTimeText} dias úteis`
+  }
+
+  // 5. Garantias
+  const modW = formatWarrantyYears(params.moduleWarranty, '25 anos')
+  const invW = formatWarrantyYears(params.inverterWarranty, '10 anos')
+  const workW = formatWarrantyYears(params.workmanshipWarranty, '5 anos')
+  const warrantiesText = `Painéis ${modW} · Inversor ${invW} · Instalação ${workW}`
+
+  return [
+    { item: 'Pagamento', condicao: paymentText },
+    { item: 'Financiamento', condicao: financingText },
+    { item: 'Validade', condicao: validityText },
+    { item: 'Prazo de entrega', condicao: leadTimeText },
+    { item: 'Garantias', condicao: warrantiesText },
+  ]
+}
+
 export interface YearlySavingsRow {
   year: number
   annualSavings: number

@@ -35,6 +35,8 @@ import {
   extractValidityDays,
   formatProposalDate,
   extractEstimatedMonthlyGeneration,
+  buildEquipmentsArray,
+  buildCommercialConditionsArray,
 } from '@/lib/solar-calculations'
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -478,6 +480,19 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
       //              payback_years & payback_months -> payback (numérico em anos); annual_savings -> yearly_savings; savings_25_years -> total_savings_25y
       const leadDocument = neg.lead_document || neg.expand?.lead_id?.document || ''
       const leadPhone = neg.lead_phone || neg.expand?.lead_id?.phone || ''
+      const leadCity =
+        neg.sizing?.address_struct?.city ||
+        neg.sizing?.city ||
+        neg.city ||
+        neg.expand?.lead_id?.city ||
+        ''
+      const leadState =
+        neg.sizing?.address_struct?.state ||
+        neg.sizing?.state ||
+        neg.state ||
+        neg.expand?.lead_id?.state ||
+        ''
+
       const leadData = {
         name: neg.lead_name || neg.expand?.lead_id?.name || 'Cliente',
         email: neg.lead_email || neg.expand?.lead_id?.email || '',
@@ -490,12 +505,25 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
           (neg.street
             ? `${neg.street}, ${neg.number || 'S/N'} - ${neg.city || ''}/${neg.state || ''}`
             : ''),
+        city: leadCity,
+        state: leadState,
       }
 
       const consultantName =
         neg.owner_name || neg.expand?.owner_id?.name || user?.name || 'Consultor Elektra'
       const proposalDate = formatProposalDate(new Date())
       const validityDays = extractValidityDays(validity, new Date(), 10)
+
+      // Construir commercial_conditions
+      const commercialConditions = buildCommercialConditionsArray({
+        paymentTerms,
+        definedPaymentMethod,
+        acceptedPaymentMethods,
+        validityDays,
+        installationLeadTime,
+        moduleWarranty: rawPricingData?.rawModule?.warranty,
+        inverterWarranty: rawPricingData?.rawInverters?.[0]?.warranty,
+      })
 
       const negotiationPayload = {
         id: neg.id,
@@ -512,6 +540,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         installation_lead_time: installationLeadTime || '',
         notes: notes || '',
         description: description || '',
+        commercial_conditions: commercialConditions,
       }
 
       const kitPowerKwp = Number(neg.sizing?.kit_power_kwp) || 0
@@ -531,6 +560,35 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
             }
           : null,
       )
+
+      // Resolver concessionária / telhado / tensão de forma limpa
+      const resolvedConcessionaire =
+        neg.sizing?.concessionaire ||
+        neg.concessionaire ||
+        (tariffDetails as any)?.utility_name ||
+        (tariffDetails as any)?.name ||
+        neg.expand?.utility_id?.name ||
+        ''
+      const resolvedRoofType =
+        neg.sizing?.roof_type ||
+        neg.sizing?.structure_type ||
+        neg.sizing?.roof_structure ||
+        neg.roof_type ||
+        ''
+      const resolvedTension =
+        neg.sizing?.tension ||
+        neg.sizing?.voltage ||
+        neg.sizing?.network_voltage ||
+        (tariffDetails as any)?.voltage ||
+        ''
+
+      // Construir equipments array
+      const equipmentsList = buildEquipmentsArray({
+        module: rawPricingData?.rawModule,
+        moduleQty: moduleQtyVal,
+        inverters: rawPricingData?.rawInverters || neg.sizing?.inverters,
+        supplies: rawPricingData?.kitComposition || rawPricingData?.supplies,
+      })
 
       const sizingPayload = {
         kit_power_kwp: kitPowerKwp,
@@ -554,8 +612,20 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         inverters: neg.sizing?.inverters || [],
         consumer_category: consumerCategory,
         simultaneity_factor: simultaneityFactor,
+        equipments: equipmentsList,
+        commercial_conditions: commercialConditions,
+        concessionaire: resolvedConcessionaire,
+        roof_type: resolvedRoofType,
+        tension: resolvedTension,
+        city: leadCity,
+        state: leadState,
         ...(neg.sizing || {}),
       }
+      // Garantir que os campos resolvidos não sejam sobrescritos se existirem
+      if (resolvedConcessionaire) sizingPayload.concessionaire = resolvedConcessionaire
+      if (resolvedRoofType) sizingPayload.roof_type = resolvedRoofType
+      if (resolvedTension) sizingPayload.tension = resolvedTension
+      sizingPayload.equipments = equipmentsList
 
       const paybackYearsVal =
         financialProjection?.roiYears != null
@@ -597,6 +667,8 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         co2_avoided_ton: co2AvoidedTon,
         tariff_details: tariffDetails || {},
         savings_projection: savingsProjection,
+        equipments: equipmentsList,
+        commercial_conditions: commercialConditions,
       }
 
       // Buscar mapeamentos manuais configurados pelo ADM para o template

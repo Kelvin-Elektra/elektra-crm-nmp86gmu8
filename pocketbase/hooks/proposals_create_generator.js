@@ -1478,8 +1478,41 @@ routerAdd(
           keywords: ['categoria', 'classe'],
           negativeKeywords: [],
         },
+        {
+          concept: 'equipments',
+          targetCategory: 'sizing',
+          targetField: 'equipments',
+          synonyms: [
+            'equipments',
+            'equipamentos',
+            'equipamentos especificados',
+            'tabela equipamentos',
+            'lista equipamentos',
+            'equipment list',
+            'equipments list',
+            'itens kit',
+            'kit equipamentos',
+          ],
+          keywords: ['equipamentos', 'equipments', 'equipamento'],
+          negativeKeywords: ['condicoes', 'comerciais', 'pagamento'],
+        },
+        {
+          concept: 'commercial_conditions',
+          targetCategory: 'negotiation',
+          targetField: 'commercial_conditions',
+          synonyms: [
+            'commercial conditions',
+            'condicoes comerciais',
+            'condicoes',
+            'tabela condicoes comerciais',
+            'tabela condicoes',
+            'termos comerciais',
+            'commercial terms',
+          ],
+          keywords: ['condicoes', 'comerciais', 'commercial', 'conditions'],
+          negativeKeywords: ['equipamentos', 'equipments'],
+        },
       ]
-
       function resolveSemanticValue(rawKey) {
         if (!rawKey || typeof rawKey !== 'string') return { resolved: false }
         var normKey = normalizeSemanticStr(rawKey)
@@ -1490,17 +1523,21 @@ routerAdd(
         for (var ci = 0; ci < cats.length; ci++) {
           var cName = cats[ci]
           var cObj = semanticContext[cName]
-          if (cObj && cObj[rawKey] !== undefined && cObj[rawKey] !== null && cObj[rawKey] !== '') {
+          if (
+            cObj &&
+            cObj[rawKey] !== undefined &&
+            cObj[rawKey] !== null &&
+            (typeof cObj[rawKey] === 'object' || cObj[rawKey] !== '')
+          ) {
             return {
               resolved: true,
               category: cName,
               field: rawKey,
               value: cObj[rawKey],
-              matchType: 'exact_key',
+              matchType: 'exact_property',
             }
           }
         }
-
         // (b) Correspondência semântica via sinônimos
         for (var si = 0; si < SEMANTIC_CONCEPTS.length; si++) {
           var sc = SEMANTIC_CONCEPTS[si]
@@ -1509,7 +1546,7 @@ routerAdd(
               var val = semanticContext[sc.targetCategory]
                 ? semanticContext[sc.targetCategory][sc.targetField]
                 : undefined
-              if (val !== undefined && val !== null && val !== '') {
+              if (val !== undefined && val !== null && (typeof val === 'object' || val !== '')) {
                 return {
                   resolved: true,
                   category: sc.targetCategory,
@@ -1532,7 +1569,11 @@ routerAdd(
               var valT = semanticContext[tc.targetCategory]
                 ? semanticContext[tc.targetCategory][tc.targetField]
                 : undefined
-              if (valT !== undefined && valT !== null && valT !== '') {
+              if (
+                valT !== undefined &&
+                valT !== null &&
+                (typeof valT === 'object' || valT !== '')
+              ) {
                 return {
                   resolved: true,
                   category: tc.targetCategory,
@@ -1568,7 +1609,7 @@ routerAdd(
             var valK = semanticContext[kc.targetCategory]
               ? semanticContext[kc.targetCategory][kc.targetField]
               : undefined
-            if (valK !== undefined && valK !== null && valK !== '') {
+            if (valK !== undefined && valK !== null && (typeof valK === 'object' || valK !== '')) {
               bestScore = score
               bestMatch = {
                 resolved: true,

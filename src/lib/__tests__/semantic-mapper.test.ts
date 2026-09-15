@@ -265,4 +265,55 @@ describe('Semantic Mapper for Dynamic Proposal Variables', () => {
     const co2Ton = Number(((estGen * 12 * 0.0385) / 1000).toFixed(2))
     expect(co2Ton).toBe(0.25)
   })
+
+  it('deve mapear semanticamente equipments e commercial_conditions com arrays', () => {
+    const dummyEquipments = [
+      {
+        item: 'DAH Solar DHM-T72X10/FS(BB) 555W',
+        especificacao: '555W',
+        qtd: 15,
+        garantia: '25 anos',
+      },
+      {
+        item: 'Cabo Solar Preto 6mm²',
+        especificacao: 'Material de Instalação e Proteção',
+        qtd: 100,
+        garantia: '-',
+      },
+    ]
+
+    const dummyConditions = [
+      { item: 'Pagamento', condicao: 'À vista com 5% de desconto' },
+      { item: 'Financiamento', condicao: 'Até 84 meses' },
+      { item: 'Validade', condicao: '15 dias' },
+      { item: 'Prazo de entrega', condicao: 'Até 45 dias úteis' },
+      { item: 'Garantias', condicao: 'Painéis 25 anos · Inversor 10 anos · Instalação 5 anos' },
+    ]
+
+    const payload = {
+      lead: { name: 'Cliente Solar' },
+      negotiation: {
+        commercial_conditions: dummyConditions,
+      },
+      sizing: {
+        equipments: dummyEquipments,
+      },
+      financial: {},
+    }
+
+    const dynamicSchema = [
+      { key: 'equipments', label: 'Equipamentos' },
+      { key: 'commercial_conditions', label: 'Condições Comerciais' },
+    ]
+
+    const res = enrichPayloadWithSemanticVariables(dynamicSchema, payload)
+
+    expect(res.resolved.equipments?.resolved).toBe(true)
+    expect(res.dynamic.equipments).toEqual(dummyEquipments)
+    expect(res.dynamic.equipments).toHaveLength(2)
+
+    expect(res.resolved.commercial_conditions?.resolved).toBe(true)
+    expect(res.dynamic.commercial_conditions).toEqual(dummyConditions)
+    expect(res.dynamic.commercial_conditions).toHaveLength(5)
+  })
 })

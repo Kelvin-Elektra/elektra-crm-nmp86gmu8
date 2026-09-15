@@ -712,6 +712,40 @@ export const SEMANTIC_CONCEPTS: SemanticConceptDef[] = [
     keywords: ['categoria', 'classe'],
     negativeKeywords: [],
   },
+  {
+    concept: 'equipments',
+    targetCategory: 'sizing',
+    targetField: 'equipments',
+    synonyms: [
+      'equipments',
+      'equipamentos',
+      'equipamentos especificados',
+      'tabela equipamentos',
+      'lista equipamentos',
+      'equipment list',
+      'equipments list',
+      'itens kit',
+      'kit equipamentos',
+    ],
+    keywords: ['equipamentos', 'equipments', 'equipamento'],
+    negativeKeywords: ['condicoes', 'comerciais', 'pagamento'],
+  },
+  {
+    concept: 'commercial_conditions',
+    targetCategory: 'negotiation',
+    targetField: 'commercial_conditions',
+    synonyms: [
+      'commercial conditions',
+      'condicoes comerciais',
+      'condicoes',
+      'tabela condicoes comerciais',
+      'tabela condicoes',
+      'termos comerciais',
+      'commercial terms',
+    ],
+    keywords: ['condicoes', 'comerciais', 'commercial', 'conditions'],
+    negativeKeywords: ['equipamentos', 'equipments'],
+  },
 ]
 
 export interface SemanticResolutionResult {
@@ -744,7 +778,12 @@ export function resolveSemanticVariableValue(
   ]
   for (const cName of cats) {
     const cObj = context[cName]
-    if (cObj && cObj[rawKey] !== undefined && cObj[rawKey] !== null && cObj[rawKey] !== '') {
+    if (
+      cObj &&
+      cObj[rawKey] !== undefined &&
+      cObj[rawKey] !== null &&
+      (typeof cObj[rawKey] === 'object' || cObj[rawKey] !== '')
+    ) {
       return {
         resolved: true,
         category: cName,
@@ -762,7 +801,7 @@ export function resolveSemanticVariableValue(
         const val = context[sc.targetCategory]
           ? context[sc.targetCategory]![sc.targetField]
           : undefined
-        if (val !== undefined && val !== null && val !== '') {
+        if (val !== undefined && val !== null && (typeof val === 'object' || val !== '')) {
           return {
             resolved: true,
             category: sc.targetCategory,
@@ -784,7 +823,7 @@ export function resolveSemanticVariableValue(
         const valT = context[tc.targetCategory]
           ? context[tc.targetCategory]![tc.targetField]
           : undefined
-        if (valT !== undefined && valT !== null && valT !== '') {
+        if (valT !== undefined && valT !== null && (typeof valT === 'object' || valT !== '')) {
           return {
             resolved: true,
             category: tc.targetCategory,
@@ -819,7 +858,7 @@ export function resolveSemanticVariableValue(
       const valK = context[kc.targetCategory]
         ? context[kc.targetCategory]![kc.targetField]
         : undefined
-      if (valK !== undefined && valK !== null && valK !== '') {
+      if (valK !== undefined && valK !== null && (typeof valK === 'object' || valK !== '')) {
         bestScore = score
         bestMatch = {
           resolved: true,
@@ -896,7 +935,7 @@ export function enrichPayloadWithSemanticVariables(
           getDotValue(enrichedLead, pClean) ||
           getDotValue(enrichedNegotiation, pClean)
       }
-      if (val !== undefined && val !== null && val !== '') {
+      if (val !== undefined && val !== null && (typeof val === 'object' || val !== '')) {
         resolvedValue = val
         resolutionCategory = 'manual'
         resolutionField = pClean
@@ -907,14 +946,18 @@ export function enrichPayloadWithSemanticVariables(
     // 2. Prioridade secundária: Exata e Semântica
     if (resolvedValue === undefined) {
       const res = resolveSemanticVariableValue(k, payload)
-      if (res.resolved && res.value !== undefined && res.value !== null && res.value !== '') {
+      if (
+        res.resolved &&
+        res.value !== undefined &&
+        res.value !== null &&
+        (typeof res.value === 'object' || res.value !== '')
+      ) {
         resolvedValue = res.value
         resolutionCategory = res.category || ''
         resolutionField = res.field || ''
         resolutionType = res.matchType || 'semantic'
       }
     }
-
     if (resolvedValue !== undefined) {
       dynamicMap[k] = resolvedValue
       resolved[k] = {

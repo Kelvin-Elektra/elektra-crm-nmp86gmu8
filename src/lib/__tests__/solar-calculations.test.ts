@@ -12,6 +12,8 @@ import {
   formatProposalDate,
   extractEstimatedMonthlyGeneration,
   BRAZIL_GRID_EMISSION_FACTOR,
+  buildEquipmentsArray,
+  buildCommercialConditionsArray,
 } from '../solar-calculations'
 
 describe('solar-calculations', () => {
@@ -277,6 +279,152 @@ describe('solar-calculations', () => {
       // 5 kWp * 4.5 HSP * 30 dias * 0.8 = 540 kWh
       const res = extractEstimatedMonthlyGeneration({}, 5, 4.5)
       expect(res).toBe(540)
+    })
+  })
+
+  describe('buildEquipmentsArray (Build 3)', () => {
+    it('deve montar array com módulos, inversores e insumos com garantia traço "-"', () => {
+      const equipments = buildEquipmentsArray({
+        module: {
+          name: 'DHM-T72X10/FS(BB) 555W',
+          brand: 'DAH Solar',
+          power: 555,
+          warranty: '25 anos',
+        },
+        moduleQty: 15,
+        inverters: [
+          {
+            name: 'SUN2000-8KTL-M1',
+            brand: 'Huawei',
+            power: 8,
+            voltage: '220V',
+            qty: 1,
+            warranty: '10 anos',
+          },
+        ],
+        supplies: [
+          {
+            name: 'Estrutura de Fixação Telhado Cerâmico',
+            specification: 'Alumínio Anodizado',
+            qty: 1,
+            type: 'supply',
+          },
+          {
+            name: 'Cabo Solar Preto 6mm²',
+            specification: 'Material de Instalação e Proteção',
+            qty: 50,
+            type: 'supply',
+          },
+        ],
+      })
+
+      expect(equipments).toHaveLength(4)
+
+      // 1. Módulos
+      expect(equipments[0]).toEqual({
+        item: 'DAH Solar DHM-T72X10/FS(BB) 555W',
+        especificacao: '555W',
+        qtd: 15,
+        garantia: '25 anos',
+      })
+
+      // 2. Inversor
+      expect(equipments[1]).toEqual({
+        item: 'Huawei SUN2000-8KTL-M1',
+        especificacao: '8 kW · 220V',
+        qtd: 1,
+        garantia: '10 anos',
+      })
+
+      // 3. Insumos (garantia "-")
+      expect(equipments[2]).toEqual({
+        item: 'Estrutura de Fixação Telhado Cerâmico',
+        especificacao: 'Alumínio Anodizado',
+        qtd: 1,
+        garantia: '-',
+      })
+
+      expect(equipments[3]).toEqual({
+        item: 'Cabo Solar Preto 6mm²',
+        especificacao: 'Material de Instalação e Proteção',
+        qtd: 50,
+        garantia: '-',
+      })
+    })
+
+    it('deve omitir inversores sem quebrar se a lista for vazia ou nula', () => {
+      const equipments = buildEquipmentsArray({
+        module: {
+          name: 'Painel 550W',
+          brand: 'Canadian',
+          power: 550,
+        },
+        moduleQty: 10,
+        inverters: [],
+        supplies: [
+          {
+            name: 'Conector MC4',
+            qty: 4,
+          },
+        ],
+      })
+
+      expect(equipments).toHaveLength(2)
+      expect(equipments[0].item).toBe('Canadian Painel 550W')
+      expect(equipments[0].qtd).toBe(10)
+      expect(equipments[0].garantia).toBe('25 anos') // fallback padrão
+
+      expect(equipments[1].item).toBe('Conector MC4')
+      expect(equipments[1].garantia).toBe('-')
+    })
+  })
+
+  describe('buildCommercialConditionsArray (Build 3)', () => {
+    it('deve montar as 5 condições exigidas pelo template com dados da negociação', () => {
+      const conditions = buildCommercialConditionsArray({
+        paymentTerms: 'À vista com 5% ou financiado',
+        definedPaymentMethod: 'PIX à vista',
+        acceptedPaymentMethods: ['PIX', 'Financiamento Santander'],
+        validityDays: 15,
+        installationLeadTime: '30 dias',
+        moduleWarranty: '25',
+        inverterWarranty: '10',
+      })
+
+      expect(conditions).toHaveLength(5)
+      expect(conditions[0]).toEqual({
+        item: 'Pagamento',
+        condicao: 'PIX à vista (À vista com 5% ou financiado)',
+      })
+      expect(conditions[1].item).toBe('Financiamento')
+      expect(conditions[1].condicao).toContain('Santander')
+      expect(conditions[2]).toEqual({
+        item: 'Validade',
+        condicao: '15 dias',
+      })
+      expect(conditions[3]).toEqual({
+        item: 'Prazo de entrega',
+        condicao: '30 dias',
+      })
+      expect(conditions[4].item).toBe('Garantias')
+      expect(conditions[4].condicao).toContain('Painéis 25 anos · Inversor 10 anos')
+    })
+
+    it('deve preencher valores padrão elegantes quando campos da negociação forem vazios', () => {
+      const conditions = buildCommercialConditionsArray({})
+
+      expect(conditions).toHaveLength(5)
+      expect(conditions[0]).toEqual({ item: 'Pagamento', condicao: 'A combinar' })
+      expect(conditions[1]).toEqual({
+        item: 'Financiamento',
+        condicao: 'Até 84 meses (sob análise bancária)',
+      })
+      expect(conditions[2]).toEqual({ item: 'Validade', condicao: '15 dias' })
+      expect(conditions[3]).toEqual({ item: 'Prazo de entrega', condicao: 'Até 45 dias úteis' })
+      expect(conditions[4].item).toBe('Garantias')
+      expect(conditions[4].condicao).toContain(
+        'Painéis 25 anos · Inversor 10 anos · Instalação 5 anos',
+      )
     })
   })
 })
