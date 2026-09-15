@@ -36,6 +36,30 @@ export const CRM_FIELD_SECTIONS: CrmFieldSection[] = [
     label: 'Negociação',
     fields: [
       {
+        path: 'negotiation.consultant_name',
+        label: 'Nome do Consultor Responsável',
+        section: 'negotiation',
+        description: 'Nome do consultor/vendedor responsável pela negociação',
+      },
+      {
+        path: 'negotiation.proposal_number',
+        label: 'Número / Código da Proposta',
+        section: 'negotiation',
+        description: 'Identificador ou código sequencial da proposta',
+      },
+      {
+        path: 'negotiation.proposal_date',
+        label: 'Data de Emissão da Proposta (dd/mm/aaaa)',
+        section: 'negotiation',
+        description: 'Data de criação ou emissão formatada em padrão brasileiro',
+      },
+      {
+        path: 'negotiation.validity_days',
+        label: 'Validade da Proposta em Dias (ex: 15)',
+        section: 'negotiation',
+        description: 'Prazo de validade numérico em dias',
+      },
+      {
         path: 'negotiation.title',
         label: 'Título da Negociação / Projeto',
         section: 'negotiation',
@@ -76,6 +100,18 @@ export const CRM_FIELD_SECTIONS: CrmFieldSection[] = [
         path: 'sizing.estimated_monthly_generation',
         label: 'Geração Mensal Estimada (kWh)',
         section: 'sizing',
+      },
+      {
+        path: 'sizing.consumption_coverage_pct',
+        label: 'Cobertura do Consumo (%)',
+        section: 'sizing',
+        description: 'Percentual do consumo médio suprido pela geração estimada (ex: 124.8%)',
+      },
+      {
+        path: 'sizing.occupied_area_m2',
+        label: 'Área Ocupada pelos Módulos (m²)',
+        section: 'sizing',
+        description: 'Área total requerida para instalação dos módulos em m²',
       },
       { path: 'sizing.module_qty', label: 'Quantidade de Módulos (Painéis)', section: 'sizing' },
       {
@@ -145,6 +181,24 @@ export const CRM_FIELD_SECTIONS: CrmFieldSection[] = [
         path: 'financial.savings_25_years',
         label: 'Economia Total em 25 Anos (R$)',
         section: 'financial',
+      },
+      {
+        path: 'financial.investment_multiple',
+        label: 'Múltiplo do Investimento (ex: 11.3x)',
+        section: 'financial',
+        description: 'Economia em 25 anos dividida pelo investimento total',
+      },
+      {
+        path: 'financial.tir_pct',
+        label: 'Taxa Interna de Retorno - TIR Anual (%)',
+        section: 'financial',
+        description: 'TIR calculada via fluxo de caixa de 25 anos',
+      },
+      {
+        path: 'financial.co2_avoided_ton',
+        label: 'CO₂ Evitado Anual (toneladas)',
+        section: 'financial',
+        description: 'Redução de emissão de CO₂ anual calculada com fator do SIN brasileiro',
       },
       {
         path: 'financial.payback_years',

@@ -415,26 +415,185 @@ routerAdd(
       const leadEmail = rawLead.email || ''
       const leadAddress = rawLead.address || rawLead.endereco || ''
 
+      const rawNegotiation = body.negotiation || {}
       const rawSizing = body.sizing || {}
+      const rawFinancial = body.financial || {}
+
+      // Resolver nome do consultor responsável
+      let consultantName = rawNegotiation.consultant_name || rawNegotiation.seller_name || ''
+      let proposalNumber = rawNegotiation.proposal_number || externalId || ''
+      let proposalDate = rawNegotiation.proposal_date || ''
+      let proposalCreatedRaw = null
+
+      if (externalId) {
+        try {
+          const propRec = $app.findFirstRecordByFilter('proposals', "id = '" + externalId + "'")
+          if (propRec) {
+            proposalCreatedRaw = propRec.getString('created')
+            const negId = propRec.getString('negotiation_id') || rawNegotiation.id
+            if (negId) {
+              const negRec = $app.findFirstRecordByFilter('negotiations', "id = '" + negId + "'")
+              if (negRec) {
+                const ownerId = negRec.getString('owner_id')
+                if (ownerId && !consultantName) {
+                  try {
+                    const userRec = $app.findFirstRecordByFilter('users', "id = '" + ownerId + "'")
+                    if (userRec) {
+                      consultantName = userRec.getString('name') || ''
+                    }
+                  } catch (_) {}
+                }
+                // Se avg_consumption da negociação tiver valor e sizing não tiver
+                if (!rawSizing.avg_consumption && negRec.getInt('avg_consumption')) {
+                  rawSizing.avg_consumption = negRec.getInt('avg_consumption')
+                }
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (!consultantName && e.auth) {
+        consultantName = e.auth.getString('name') || ''
+      }
+      if (!consultantName) {
+        consultantName = 'Consultor Elektra'
+      }
+
+      // Formatar proposal_date (dd/mm/aaaa)
+      if (!proposalDate) {
+        const dObj = proposalCreatedRaw ? new Date(proposalCreatedRaw) : new Date()
+        const dayStr = String(dObj.getDate()).padStart(2, '0')
+        const monStr = String(dObj.getMonth() + 1).padStart(2, '0')
+        const yearStr = dObj.getFullYear()
+        proposalDate = dayStr + '/' + monStr + '/' + yearStr
+      }
+
+      // Extração robusta de dias de validade (NÚMERO DE DIAS)
+      function parseValidityDays(rawVal, baseCreated) {
+        if (rawVal === undefined || rawVal === null || rawVal === '') return 10
+        if (typeof rawVal === 'number' && rawVal > 0) return Math.round(rawVal)
+        var s = String(rawVal).trim()
+        var mNum = s.match(/^(\d+)\s*(?:dias?|d)?$/i)
+        if (mNum) {
+          var n = parseInt(mNum[1], 10)
+          if (n > 0) return n
+        }
+        var mIso = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
+        if (mIso) {
+          var tDate = new Date(s)
+          var bDate = baseCreated ? new Date(baseCreated) : new Date()
+          if (!isNaN(tDate.getTime()) && !isNaN(bDate.getTime())) {
+            var diff = Math.round((tDate.getTime() - bDate.getTime()) / (1000 * 60 * 60 * 24))
+            if (diff > 0) return diff
+          }
+        }
+        var mBr = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+        if (mBr) {
+          var d = parseInt(mBr[1], 10)
+          var m = parseInt(mBr[2], 10) - 1
+          var y = parseInt(mBr[3], 10)
+          var tDate2 = new Date(y, m, d)
+          var bDate2 = baseCreated ? new Date(baseCreated) : new Date()
+          if (!isNaN(tDate2.getTime()) && !isNaN(bDate2.getTime())) {
+            var diff2 = Math.round((tDate2.getTime() - bDate2.getTime()) / (1000 * 60 * 60 * 24))
+            if (diff2 > 0) return diff2
+          }
+        }
+        var mAny = s.match(/(\d+)/)
+        if (mAny) {
+          var c = parseInt(mAny[1], 10)
+          if (c > 0 && c <= 365) return c
+        }
+        return 10
+      }
+
+      const rawValidityVal =
+        rawNegotiation.validity_days !== undefined
+          ? rawNegotiation.validity_days
+          : rawNegotiation.validity || rawNegotiation.validity_date || ''
+      const validityDays = parseValidityDays(rawValidityVal, proposalCreatedRaw)
+
+      // Extração robusta de geração estimada (kwh) com fallback
       const kitPower = Number(rawSizing.kit_power_kwp || rawSizing.power_kwp || rawSizing.kwp || 0)
-      const avgCons = Number(
-        rawSizing.avg_consumption ||
-          rawSizing.average_consumption ||
-          rawSizing.monthly_consumption ||
-          rawSizing.consumption_kwh ||
-          0,
-      )
-      const estGen = Number(
+      let estGen = Number(
         rawSizing.estimated_monthly_generation ||
           rawSizing.monthly_generation ||
           rawSizing.generation_kwh ||
           0,
       )
+
+      if (estGen <= 0) {
+        var monthsList = [
+          'jan',
+          'feb',
+          'mar',
+          'apr',
+          'may',
+          'jun',
+          'jul',
+          'aug',
+          'sep',
+          'oct',
+          'nov',
+          'dec',
+        ]
+        var mSum = 0
+        var mCount = 0
+        for (var mi = 0; mi < monthsList.length; mi++) {
+          var mVal = Number(rawSizing[monthsList[mi]])
+          if (!isNaN(mVal) && mVal > 0) {
+            mSum += mVal
+            mCount++
+          }
+        }
+        if (mCount > 0) {
+          estGen = Number((mSum / mCount).toFixed(1))
+        } else if (kitPower > 0) {
+          // Fallback potência * HSP(4.5) * 30 * 0.8
+          estGen = Number((kitPower * 4.5 * 30 * 0.8).toFixed(1))
+        }
+      }
+
+      const avgCons = Number(
+        rawSizing.avg_consumption ||
+          rawSizing.average_consumption ||
+          rawSizing.monthly_consumption ||
+          rawSizing.consumption_kwh ||
+          rawNegotiation.avg_consumption ||
+          0,
+      )
+
       const modQty = Number(
         rawSizing.module_qty || rawSizing.module_quantity || rawSizing.modules_count || 0,
       )
 
-      const rawFinancial = body.financial || {}
+      // 7. Cobertura do consumo (%)
+      let consumptionCoveragePct = 0
+      if (avgCons > 0 && estGen > 0) {
+        consumptionCoveragePct = Number(((estGen / avgCons) * 100).toFixed(1))
+      }
+
+      // 8. Área ocupada (m²)
+      let moduleUnitArea = 2.58 // padrão ~2.58 m²
+      const selectedModId = rawSizing.selected_module_id || ''
+      if (selectedModId) {
+        try {
+          const modRec = $app.findFirstRecordByFilter('pv_modules', "id = '" + selectedModId + "'")
+          if (modRec) {
+            let h = modRec.getFloat('height') || 0
+            let w = modRec.getFloat('width') || 0
+            if (h > 10) h = h / 1000
+            if (w > 10) w = w / 1000
+            if (h > 0 && w > 0) {
+              moduleUnitArea = h * w
+            }
+          }
+        } catch (_) {}
+      }
+      const occupiedAreaM2 = modQty > 0 ? Number((moduleUnitArea * modQty).toFixed(1)) : 0
+
+      // Financeiro e novos cálculos
       const totInv = Number(
         rawFinancial.total_investment ||
           rawFinancial.investment ||
@@ -470,6 +629,8 @@ routerAdd(
             ? rawFinancial.yearly_savings
             : monSav * 12,
       )
+
+      // 12. Economia 25 anos (R$) - garantia de consistência
       const sav25y = Number(
         rawFinancial.savings_25_years !== undefined
           ? rawFinancial.savings_25_years
@@ -478,7 +639,44 @@ routerAdd(
             : annSav * 25,
       )
 
-      const rawNegotiation = body.negotiation || {}
+      // 9. CO2 evitado (toneladas/ano): geração mensal * 12 * 0.0385 / 1000
+      const BRAZIL_GRID_EMISSION_FACTOR = 0.0000385
+      const co2AvoidedTon =
+        estGen > 0 ? Number((estGen * 12 * BRAZIL_GRID_EMISSION_FACTOR).toFixed(2)) : 0
+
+      // 10. Múltiplo do investimento: savings_25_years ÷ total_investment
+      let investmentMultiple = 0
+      if (totInv > 0 && sav25y > 0) {
+        investmentMultiple = Number((sav25y / totInv).toFixed(1))
+      }
+
+      // 11. TIR anual (%) via bisseção sobre fluxo: -totInv no ano 0, annSav nos anos 1..25
+      function calcTirBisect(I0, S, years) {
+        if (!I0 || I0 <= 0 || !S || S <= 0) return 0
+        if (S * years <= I0) return 0
+        function vpl(r) {
+          if (r === 0) return S * years - I0
+          return -I0 + (S * (1 - Math.pow(1 + r, -years))) / r
+        }
+        var low = 0.0001
+        var high = 5.0
+        while (vpl(high) > 0 && high < 50.0) {
+          high *= 2
+        }
+        if (vpl(low) < 0) return 0
+        for (var it = 0; it < 100; it++) {
+          var mid = (low + high) / 2
+          var vm = vpl(mid)
+          if (Math.abs(vm) < 1e-6 || (high - low) / 2 < 1e-6) {
+            return Number((mid * 100).toFixed(1))
+          }
+          if (vm > 0) low = mid
+          else high = mid
+        }
+        return Number((((low + high) / 2) * 100).toFixed(1))
+      }
+      const tirPct = calcTirBisect(totInv, annSav, 25)
+
       const tariffDetails = rawFinancial.tariff_details || {}
       const tariffRate = Number(
         tariffDetails.total ||
@@ -504,6 +702,10 @@ routerAdd(
           title: rawNegotiation.title || '',
           validity: rawNegotiation.validity || rawNegotiation.validity_date || '',
           validity_date: rawNegotiation.validity_date || rawNegotiation.validity || '',
+          validity_days: validityDays,
+          consultant_name: consultantName,
+          proposal_number: proposalNumber,
+          proposal_date: proposalDate,
           payment_terms: rawNegotiation.payment_terms || '',
           defined_payment_method: rawNegotiation.defined_payment_method || '',
           accepted_payment_methods: rawNegotiation.accepted_payment_methods || '',
@@ -517,11 +719,15 @@ routerAdd(
           kwp: kitPower,
           avg_consumption: avgCons,
           average_consumption: avgCons,
+          average_monthly_consumption_kwh: avgCons,
           monthly_consumption: avgCons,
           consumption_kwh: avgCons,
           estimated_monthly_generation: estGen,
           monthly_generation: estGen,
           generation_kwh: estGen,
+          estimated_generation_kwh: estGen,
+          consumption_coverage_pct: consumptionCoveragePct,
+          occupied_area_m2: occupiedAreaM2,
           module_qty: modQty,
           module_quantity: modQty,
           modules_count: modQty,
@@ -551,6 +757,9 @@ routerAdd(
           yearly_savings: annSav,
           savings_25_years: sav25y,
           total_savings_25y: sav25y,
+          investment_multiple: investmentMultiple,
+          tir_pct: tirPct,
+          co2_avoided_ton: co2AvoidedTon,
           tariff_details: tariffDetails,
           tariff_rate: tariffRate,
           tariff_te: Number(tariffDetails.te || 0),
@@ -630,6 +839,7 @@ routerAdd(
           ],
           negativeKeywords: ['potencia', 'kwp', 'inversor', 'inverter'],
         },
+
         {
           concept: 'consumption',
           targetCategory: 'sizing',
@@ -637,6 +847,8 @@ routerAdd(
           synonyms: [
             'avg consumption',
             'average consumption',
+            'average monthly consumption',
+            'average monthly consumption kwh',
             'monthly consumption',
             'consumption kwh',
             'consumo medio',
@@ -649,6 +861,8 @@ routerAdd(
             'consumo energia',
             'energy consumption',
             'monthly energy',
+            'consumo medio kwh',
+            'consumo medio mensal kwh',
           ],
           keywords: ['consumo', 'consumption', 'gasto'],
           negativeKeywords: ['geracao', 'generation', 'economia', 'savings', 'producao'],
@@ -662,7 +876,10 @@ routerAdd(
             'monthly generation',
             'generation kwh',
             'estimated generation',
+            'estimated generation kwh',
+            'generation estimated kwh',
             'geracao estimada',
+            'geracao estimada kwh',
             'geracao media',
             'geracao media mensal',
             'geracao mensal',
@@ -675,9 +892,187 @@ routerAdd(
             'energy generation',
             'solar generation',
             'geracao solar',
+            'geracao mensal estimada kwh',
           ],
           keywords: ['geracao', 'generation', 'producao', 'production'],
           negativeKeywords: ['consumo', 'consumption', 'potencia', 'kwp'],
+        },
+        {
+          concept: 'consumption_coverage',
+          targetCategory: 'sizing',
+          targetField: 'consumption_coverage_pct',
+          synonyms: [
+            'consumption coverage pct',
+            'consumption coverage',
+            'coverage pct',
+            'coverage',
+            'cobertura consumo pct',
+            'cobertura consumo',
+            'cobertura percentual',
+            'cobertura',
+            'percentual cobertura',
+            'taxa cobertura',
+            'cobertura demanda',
+            'energy coverage',
+          ],
+          keywords: ['cobertura', 'coverage'],
+          negativeKeywords: ['area'],
+        },
+        {
+          concept: 'occupied_area',
+          targetCategory: 'sizing',
+          targetField: 'occupied_area_m2',
+          synonyms: [
+            'occupied area m2',
+            'occupied area',
+            'area m2',
+            'area',
+            'area ocupada m2',
+            'area ocupada',
+            'area necessaria',
+            'area instalacao',
+            'area modulos',
+            'area paineis',
+            'area total modulos',
+            'tamanho area',
+            'required area',
+            'installation area',
+          ],
+          keywords: ['area', 'ocupada', 'm2'],
+          negativeKeywords: ['cobertura', 'co2'],
+        },
+        {
+          concept: 'co2_avoided',
+          targetCategory: 'financial',
+          targetField: 'co2_avoided_ton',
+          synonyms: [
+            'co2 avoided ton',
+            'co2 avoided',
+            'co2 evitado ton',
+            'co2 evitado',
+            'co2 evitado toneladas',
+            'emissoes evitadas',
+            'toneladas co2',
+            'co2 tons',
+            'co2',
+            'carbon avoided',
+            'carbon offset',
+            'reducao co2',
+            'carbono evitado',
+          ],
+          keywords: ['co2', 'carbono', 'carbon', 'evitado'],
+          negativeKeywords: [],
+        },
+        {
+          concept: 'investment_multiple',
+          targetCategory: 'financial',
+          targetField: 'investment_multiple',
+          synonyms: [
+            'investment multiple',
+            'multiplo investimento',
+            'multiplo do investimento',
+            'multiplo',
+            'multiplicador investimento',
+            'multiplo retorno',
+            'multiple',
+            'roi multiple',
+          ],
+          keywords: ['multiplo', 'multiple'],
+          negativeKeywords: ['tir', 'irr'],
+        },
+        {
+          concept: 'tir_pct',
+          targetCategory: 'financial',
+          targetField: 'tir_pct',
+          synonyms: [
+            'tir pct',
+            'tir',
+            'taxa interna retorno',
+            'taxa interna de retorno',
+            'irr pct',
+            'irr',
+            'internal rate return',
+            'internal rate of return',
+            'retorno tir',
+            'tir anual',
+          ],
+          keywords: ['tir', 'irr', 'retorno'],
+          negativeKeywords: ['payback', 'meses', 'tempo'],
+        },
+        {
+          concept: 'consultant_name',
+          targetCategory: 'negotiation',
+          targetField: 'consultant_name',
+          synonyms: [
+            'consultant name',
+            'consultant',
+            'seller name',
+            'seller',
+            'salesperson',
+            'representative',
+            'consultor',
+            'nome consultor',
+            'nome do consultor',
+            'vendedor',
+            'nome vendedor',
+            'nome do vendedor',
+            'responsavel',
+            'consultor comercial',
+          ],
+          keywords: ['consultor', 'vendedor', 'consultant', 'seller'],
+          negativeKeywords: ['cliente', 'client'],
+        },
+        {
+          concept: 'proposal_number',
+          targetCategory: 'negotiation',
+          targetField: 'proposal_number',
+          synonyms: [
+            'proposal number',
+            'proposal code',
+            'proposal id',
+            'numero proposta',
+            'codigo proposta',
+            'num proposta',
+            'nro proposta',
+            'numero da proposta',
+            'codigo da proposta',
+          ],
+          keywords: ['proposta', 'numero', 'codigo'],
+          negativeKeywords: ['validade', 'data', 'consultor'],
+        },
+        {
+          concept: 'proposal_date',
+          targetCategory: 'negotiation',
+          targetField: 'proposal_date',
+          synonyms: [
+            'proposal date',
+            'creation date',
+            'issue date',
+            'data proposta',
+            'data da proposta',
+            'data emissao',
+            'data de emissao',
+            'data criacao',
+          ],
+          keywords: ['data', 'emissao', 'criacao'],
+          negativeKeywords: ['validade', 'validity', 'prazo'],
+        },
+        {
+          concept: 'validity_days',
+          targetCategory: 'negotiation',
+          targetField: 'validity_days',
+          synonyms: [
+            'validity days',
+            'validity in days',
+            'dias validade',
+            'validade dias',
+            'prazo validade dias',
+            'validade em dias',
+            'dias de validade',
+            'numero dias validade',
+          ],
+          keywords: ['validade', 'dias'],
+          negativeKeywords: [],
         },
         {
           concept: 'total_investment',

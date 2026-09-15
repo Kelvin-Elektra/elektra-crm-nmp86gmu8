@@ -505,6 +505,61 @@ routerAdd(
         bodyFinancial.savings_25_years || bodyFinancial.total_savings_25y || annSav * 25,
       )
 
+      // Cálculos novos para o preview
+      var previewConsultant =
+        bodyNegotiation.consultant_name ||
+        (e.auth ? e.auth.getString('name') : '') ||
+        'Consultor Elektra'
+      var previewProposalNum = bodyNegotiation.proposal_number || 'PROP-PREVIEW'
+      var previewDateObj = new Date()
+      var previewProposalDate =
+        String(previewDateObj.getDate()).padStart(2, '0') +
+        '/' +
+        String(previewDateObj.getMonth() + 1).padStart(2, '0') +
+        '/' +
+        previewDateObj.getFullYear()
+
+      var previewValidityDays = 15
+      if (bodyNegotiation.validity_days) {
+        previewValidityDays = Number(bodyNegotiation.validity_days) || 15
+      } else if (bodyNegotiation.validity) {
+        var mNumP = String(bodyNegotiation.validity).match(/^(\d+)/)
+        if (mNumP) previewValidityDays = parseInt(mNumP[1], 10)
+      }
+
+      var previewCoveragePct =
+        avgCons > 0 && estGen > 0 ? Number(((estGen / avgCons) * 100).toFixed(1)) : 125.0
+      var previewOccupiedArea = modQty > 0 ? Number((modQty * 2.58).toFixed(1)) : 31.0
+      var BRAZIL_GRID_FACTOR = 0.0000385
+      var previewCo2Avoided = Number((estGen * 12 * BRAZIL_GRID_FACTOR).toFixed(2))
+      var previewInvMultiple = totInv > 0 && sav25y > 0 ? Number((sav25y / totInv).toFixed(1)) : 6.6
+
+      function calcTirBisectPreview(I0, S, years) {
+        if (!I0 || I0 <= 0 || !S || S <= 0) return 0
+        if (S * years <= I0) return 0
+        function vpl(r) {
+          if (r === 0) return S * years - I0
+          return -I0 + (S * (1 - Math.pow(1 + r, -years))) / r
+        }
+        var low = 0.0001
+        var high = 5.0
+        while (vpl(high) > 0 && high < 50.0) {
+          high *= 2
+        }
+        if (vpl(low) < 0) return 0
+        for (var it = 0; it < 100; it++) {
+          var mid = (low + high) / 2
+          var vm = vpl(mid)
+          if (Math.abs(vm) < 1e-6 || (high - low) / 2 < 1e-6) {
+            return Number((mid * 100).toFixed(1))
+          }
+          if (vm > 0) low = mid
+          else high = mid
+        }
+        return Number((((low + high) / 2) * 100).toFixed(1))
+      }
+      var previewTir = calcTirBisectPreview(totInv, annSav, 25)
+
       var previewSemanticContext = {
         lead: {
           name: leadName,
@@ -522,6 +577,10 @@ routerAdd(
           title: bodyNegotiation.title || 'Proposta Solar Residencial',
           validity: bodyNegotiation.validity || '10 dias',
           validity_date: bodyNegotiation.validity_date || '',
+          validity_days: previewValidityDays,
+          consultant_name: previewConsultant,
+          proposal_number: previewProposalNum,
+          proposal_date: previewProposalDate,
           payment_terms: bodyNegotiation.payment_terms || 'Entrada + 12x no cartão',
           defined_payment_method: bodyNegotiation.defined_payment_method || 'Cartão de Crédito',
           accepted_payment_methods:
@@ -536,11 +595,15 @@ routerAdd(
           kwp: kitPower,
           avg_consumption: avgCons,
           average_consumption: avgCons,
+          average_monthly_consumption_kwh: avgCons,
           monthly_consumption: avgCons,
           consumption_kwh: avgCons,
           estimated_monthly_generation: estGen,
           monthly_generation: estGen,
           generation_kwh: estGen,
+          estimated_generation_kwh: estGen,
+          consumption_coverage_pct: previewCoveragePct,
+          occupied_area_m2: previewOccupiedArea,
           module_qty: modQty,
           module_quantity: modQty,
           modules_count: modQty,
@@ -569,6 +632,9 @@ routerAdd(
           yearly_savings: annSav,
           savings_25_years: sav25y,
           total_savings_25y: sav25y,
+          investment_multiple: previewInvMultiple,
+          tir_pct: previewTir,
+          co2_avoided_ton: previewCo2Avoided,
           tariff_details: { te: 0.45, tusd: 0.65, total: 1.1 },
           tariff_rate: 1.1,
           tariff_te: 0.45,
@@ -647,6 +713,7 @@ routerAdd(
           ],
           negativeKeywords: ['potencia', 'kwp', 'inversor', 'inverter'],
         },
+
         {
           concept: 'consumption',
           targetCategory: 'sizing',
@@ -654,6 +721,8 @@ routerAdd(
           synonyms: [
             'avg consumption',
             'average consumption',
+            'average monthly consumption',
+            'average monthly consumption kwh',
             'monthly consumption',
             'consumption kwh',
             'consumo medio',
@@ -666,6 +735,8 @@ routerAdd(
             'consumo energia',
             'energy consumption',
             'monthly energy',
+            'consumo medio kwh',
+            'consumo medio mensal kwh',
           ],
           keywords: ['consumo', 'consumption', 'gasto'],
           negativeKeywords: ['geracao', 'generation', 'economia', 'savings', 'producao'],
@@ -679,7 +750,10 @@ routerAdd(
             'monthly generation',
             'generation kwh',
             'estimated generation',
+            'estimated generation kwh',
+            'generation estimated kwh',
             'geracao estimada',
+            'geracao estimada kwh',
             'geracao media',
             'geracao media mensal',
             'geracao mensal',
@@ -692,9 +766,187 @@ routerAdd(
             'energy generation',
             'solar generation',
             'geracao solar',
+            'geracao mensal estimada kwh',
           ],
           keywords: ['geracao', 'generation', 'producao', 'production'],
           negativeKeywords: ['consumo', 'consumption', 'potencia', 'kwp'],
+        },
+        {
+          concept: 'consumption_coverage',
+          targetCategory: 'sizing',
+          targetField: 'consumption_coverage_pct',
+          synonyms: [
+            'consumption coverage pct',
+            'consumption coverage',
+            'coverage pct',
+            'coverage',
+            'cobertura consumo pct',
+            'cobertura consumo',
+            'cobertura percentual',
+            'cobertura',
+            'percentual cobertura',
+            'taxa cobertura',
+            'cobertura demanda',
+            'energy coverage',
+          ],
+          keywords: ['cobertura', 'coverage'],
+          negativeKeywords: ['area'],
+        },
+        {
+          concept: 'occupied_area',
+          targetCategory: 'sizing',
+          targetField: 'occupied_area_m2',
+          synonyms: [
+            'occupied area m2',
+            'occupied area',
+            'area m2',
+            'area',
+            'area ocupada m2',
+            'area ocupada',
+            'area necessaria',
+            'area instalacao',
+            'area modulos',
+            'area paineis',
+            'area total modulos',
+            'tamanho area',
+            'required area',
+            'installation area',
+          ],
+          keywords: ['area', 'ocupada', 'm2'],
+          negativeKeywords: ['cobertura', 'co2'],
+        },
+        {
+          concept: 'co2_avoided',
+          targetCategory: 'financial',
+          targetField: 'co2_avoided_ton',
+          synonyms: [
+            'co2 avoided ton',
+            'co2 avoided',
+            'co2 evitado ton',
+            'co2 evitado',
+            'co2 evitado toneladas',
+            'emissoes evitadas',
+            'toneladas co2',
+            'co2 tons',
+            'co2',
+            'carbon avoided',
+            'carbon offset',
+            'reducao co2',
+            'carbono evitado',
+          ],
+          keywords: ['co2', 'carbono', 'carbon', 'evitado'],
+          negativeKeywords: [],
+        },
+        {
+          concept: 'investment_multiple',
+          targetCategory: 'financial',
+          targetField: 'investment_multiple',
+          synonyms: [
+            'investment multiple',
+            'multiplo investimento',
+            'multiplo do investimento',
+            'multiplo',
+            'multiplicador investimento',
+            'multiplo retorno',
+            'multiple',
+            'roi multiple',
+          ],
+          keywords: ['multiplo', 'multiple'],
+          negativeKeywords: ['tir', 'irr'],
+        },
+        {
+          concept: 'tir_pct',
+          targetCategory: 'financial',
+          targetField: 'tir_pct',
+          synonyms: [
+            'tir pct',
+            'tir',
+            'taxa interna retorno',
+            'taxa interna de retorno',
+            'irr pct',
+            'irr',
+            'internal rate return',
+            'internal rate of return',
+            'retorno tir',
+            'tir anual',
+          ],
+          keywords: ['tir', 'irr', 'retorno'],
+          negativeKeywords: ['payback', 'meses', 'tempo'],
+        },
+        {
+          concept: 'consultant_name',
+          targetCategory: 'negotiation',
+          targetField: 'consultant_name',
+          synonyms: [
+            'consultant name',
+            'consultant',
+            'seller name',
+            'seller',
+            'salesperson',
+            'representative',
+            'consultor',
+            'nome consultor',
+            'nome do consultor',
+            'vendedor',
+            'nome vendedor',
+            'nome do vendedor',
+            'responsavel',
+            'consultor comercial',
+          ],
+          keywords: ['consultor', 'vendedor', 'consultant', 'seller'],
+          negativeKeywords: ['cliente', 'client'],
+        },
+        {
+          concept: 'proposal_number',
+          targetCategory: 'negotiation',
+          targetField: 'proposal_number',
+          synonyms: [
+            'proposal number',
+            'proposal code',
+            'proposal id',
+            'numero proposta',
+            'codigo proposta',
+            'num proposta',
+            'nro proposta',
+            'numero da proposta',
+            'codigo da proposta',
+          ],
+          keywords: ['proposta', 'numero', 'codigo'],
+          negativeKeywords: ['validade', 'data', 'consultor'],
+        },
+        {
+          concept: 'proposal_date',
+          targetCategory: 'negotiation',
+          targetField: 'proposal_date',
+          synonyms: [
+            'proposal date',
+            'creation date',
+            'issue date',
+            'data proposta',
+            'data da proposta',
+            'data emissao',
+            'data de emissao',
+            'data criacao',
+          ],
+          keywords: ['data', 'emissao', 'criacao'],
+          negativeKeywords: ['validade', 'validity', 'prazo'],
+        },
+        {
+          concept: 'validity_days',
+          targetCategory: 'negotiation',
+          targetField: 'validity_days',
+          synonyms: [
+            'validity days',
+            'validity in days',
+            'dias validade',
+            'validade dias',
+            'prazo validade dias',
+            'validade em dias',
+            'dias de validade',
+            'numero dias validade',
+          ],
+          keywords: ['validade', 'dias'],
+          negativeKeywords: [],
         },
         {
           concept: 'total_investment',

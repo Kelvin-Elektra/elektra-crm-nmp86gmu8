@@ -18,6 +18,16 @@ import pb from '@/lib/pocketbase/client'
 import { createProposalHistory } from '@/services/proposal-history'
 import { createGeneratorProposal, getTemplatesResponse } from '@/services/templates'
 import { enrichPayloadWithSemanticVariables } from '@/lib/semantic-mapper'
+import {
+  calculateConsumptionCoverage,
+  calculateOccupiedArea,
+  calculateCo2Avoided,
+  calculateInvestmentMultiple,
+  calculateTir,
+  extractValidityDays,
+  formatProposalDate,
+  extractEstimatedMonthlyGeneration,
+} from '@/lib/solar-calculations'
 import { Plus, Trash2 } from 'lucide-react'
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -131,9 +141,23 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
             cpf_cnpj: leadDoc,
             address: updatedSnapshot.address || '',
           }
+
+          const consultantName =
+            (proposal as any)?.consultant_name ||
+            (proposal as any)?.expand?.negotiation_id?.expand?.owner_id?.name ||
+            'Consultor Elektra'
+          const proposalNumber = proposal.id || ''
+          const proposalDate = formatProposalDate(proposal.created)
+          const validityDays = extractValidityDays(validityDate, proposal.created, 10)
+
           const negotiationPayload = {
             id: proposal.negotiation_id,
             validity_date: validityDate || '',
+            validity: validityDate || '',
+            validity_days: validityDays,
+            consultant_name: consultantName,
+            proposal_number: proposalNumber,
+            proposal_date: proposalDate,
             payment_terms: paymentTerms || '',
             defined_payment_method: definedPaymentMethod || '',
             accepted_payment_methods: paymentMethods.join(', '),
@@ -145,8 +169,10 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           const kitPower = Number(rawSizing.kit_power_kwp) || 0
           const avgCons =
             Number(rawSizing.avg_consumption) || Number(updatedSnapshot.avg_consumption) || 0
-          const estGen = Number(rawSizing.estimated_monthly_generation) || 0
+          const estGen = extractEstimatedMonthlyGeneration(rawSizing, kitPower)
           const modQty = Number(rawSizing.module_qty) || 0
+          const consumptionCoveragePct = calculateConsumptionCoverage(estGen, avgCons)
+          const occupiedAreaM2 = calculateOccupiedArea(modQty, rawSizing.module_dimensions || null)
 
           const sizingPayload = {
             ...rawSizing,
@@ -155,11 +181,15 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
             kwp: kitPower,
             avg_consumption: avgCons,
             average_consumption: avgCons,
+            average_monthly_consumption_kwh: avgCons,
             monthly_consumption: avgCons,
             consumption_kwh: avgCons,
             estimated_monthly_generation: estGen,
             monthly_generation: estGen,
             generation_kwh: estGen,
+            estimated_generation_kwh: estGen,
+            consumption_coverage_pct: consumptionCoveragePct,
+            occupied_area_m2: occupiedAreaM2,
             module_qty: modQty,
             module_quantity: modQty,
             modules_count: modQty,
@@ -173,6 +203,9 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           const monthlySav = Number(fp?.monthlySavings) || 0
           const annualSavingsVal = Number(fp?.annualSavings) || monthlySav * 12
           const savings25YearsVal = Number(fp?.savings25Years) || annualSavingsVal * 25
+          const co2AvoidedTon = calculateCo2Avoided(estGen)
+          const investmentMultiple = calculateInvestmentMultiple(savings25YearsVal, finalTotal)
+          const tirPct = calculateTir(finalTotal, annualSavingsVal, 25)
 
           const financialPayload = {
             total_investment: finalTotal,
@@ -192,6 +225,9 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
             yearly_savings: annualSavingsVal,
             savings_25_years: savings25YearsVal,
             total_savings_25y: savings25YearsVal,
+            investment_multiple: investmentMultiple,
+            tir_pct: tirPct,
+            co2_avoided_ton: co2AvoidedTon,
             tariff_details: fp?.tariffDetails || {},
           }
           // Obter schemas dinâmicos se possível para filtrar o fixed_data e enriquecer semanticamente

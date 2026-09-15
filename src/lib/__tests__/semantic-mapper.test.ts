@@ -91,6 +91,46 @@ describe('Semantic Mapper for Dynamic Proposal Variables', () => {
     expect(genRes.resolved).toBe(true)
     expect(genRes.field).toBe('estimated_monthly_generation')
     expect(genRes.value).toBe(520)
+
+    const genKwhRes = resolveSemanticVariableValue('estimated_generation_kwh', context)
+    expect(genKwhRes.resolved).toBe(true)
+    expect(genKwhRes.field).toBe('estimated_monthly_generation')
+    expect(genKwhRes.value).toBe(520)
+
+    const avgConsKwhRes = resolveSemanticVariableValue('average_monthly_consumption_kwh', context)
+    expect(avgConsKwhRes.resolved).toBe(true)
+    expect(avgConsKwhRes.field).toBe('avg_consumption')
+    expect(avgConsKwhRes.value).toBe(450)
+  })
+
+  it('resolves Template 2 specific fields and calculations correctly', () => {
+    const context = {
+      negotiation: {
+        consultant_name: 'Carlos Silva',
+        proposal_number: 'PROP-2026-001',
+        proposal_date: '28/03/2026',
+        validity_days: 15,
+      },
+      sizing: {
+        consumption_coverage_pct: 124.8,
+        occupied_area_m2: 31.0,
+      },
+      financial: {
+        investment_multiple: 11.3,
+        tir_pct: 45.1,
+        co2_avoided_ton: 0.29,
+      },
+    }
+
+    expect(resolveSemanticVariableValue('consultant_name', context).value).toBe('Carlos Silva')
+    expect(resolveSemanticVariableValue('proposal_number', context).value).toBe('PROP-2026-001')
+    expect(resolveSemanticVariableValue('proposal_date', context).value).toBe('28/03/2026')
+    expect(resolveSemanticVariableValue('validity_days', context).value).toBe(15)
+    expect(resolveSemanticVariableValue('consumption_coverage_pct', context).value).toBe(124.8)
+    expect(resolveSemanticVariableValue('occupied_area_m2', context).value).toBe(31.0)
+    expect(resolveSemanticVariableValue('investment_multiple', context).value).toBe(11.3)
+    expect(resolveSemanticVariableValue('tir_pct', context).value).toBe(45.1)
+    expect(resolveSemanticVariableValue('co2_avoided_ton', context).value).toBe(0.29)
   })
 
   it('resolves payback, savings and customer info', () => {

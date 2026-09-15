@@ -24,6 +24,16 @@ import {
 } from '@/lib/financial-analysis'
 import { createGeneratorProposal, getTemplatesResponse } from '@/services/templates'
 import { enrichPayloadWithSemanticVariables } from '@/lib/semantic-mapper'
+import {
+  calculateConsumptionCoverage,
+  calculateOccupiedArea,
+  calculateCo2Avoided,
+  calculateInvestmentMultiple,
+  calculateTir,
+  extractValidityDays,
+  formatProposalDate,
+  extractEstimatedMonthlyGeneration,
+} from '@/lib/solar-calculations'
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -351,10 +361,13 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
       const consumerCategory = neg.sizing?.consumer_category || ''
       const simultaneityFactor =
         neg.sizing?.simultaneity_factor ?? DEFAULT_SIMULTANEITY_FACTORS[consumerCategory] ?? 30
-      const estMonthlyGenRough = Number(neg.sizing?.estimated_monthly_generation) || 0
+      const estMonthlyGenRough = extractEstimatedMonthlyGeneration(
+        neg.sizing,
+        Number(neg.sizing?.kit_power_kwp),
+      )
       const tariffDetails = await fetchTariffDetails(neg.utility_id, consumerCategory)
       const financialProjection = calculateFinancialProjection({
-        avgConsumption: neg.avg_consumption || 0,
+        avgConsumption: neg.avg_consumption || Number(neg.sizing?.avg_consumption) || 0,
         estMonthlyGen: estMonthlyGenRough,
         simultaneityFactor,
         tariffDetails,
@@ -500,11 +513,21 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
             : ''),
       }
 
+      const consultantName =
+        neg.owner_name || neg.expand?.owner_id?.name || user?.name || 'Consultor Elektra'
+      const proposalNumber = externalId || ''
+      const proposalDate = formatProposalDate(new Date())
+      const validityDays = extractValidityDays(validity, new Date(), 10)
+
       const negotiationPayload = {
         id: neg.id,
         title: neg.title || '',
         validity: validity || '',
         validity_date: validity || '',
+        validity_days: validityDays,
+        consultant_name: consultantName,
+        proposal_number: proposalNumber,
+        proposal_date: proposalDate,
         payment_terms: paymentTerms || '',
         defined_payment_method: definedPaymentMethod || '',
         accepted_payment_methods: acceptedPaymentMethods || '',
@@ -517,6 +540,19 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
       const avgConsumptionVal =
         Number(neg.avg_consumption) || Number(neg.sizing?.avg_consumption) || 0
       const moduleQtyVal = Number(neg.sizing?.module_qty) || 0
+      const consumptionCoveragePct = calculateConsumptionCoverage(
+        estMonthlyGenRough,
+        avgConsumptionVal,
+      )
+      const occupiedAreaM2 = calculateOccupiedArea(
+        moduleQtyVal,
+        rawPricingData?.rawModule
+          ? {
+              height: rawPricingData.rawModule.height,
+              width: rawPricingData.rawModule.width,
+            }
+          : null,
+      )
 
       const sizingPayload = {
         kit_power_kwp: kitPowerKwp,
@@ -524,11 +560,15 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         kwp: kitPowerKwp,
         avg_consumption: avgConsumptionVal,
         average_consumption: avgConsumptionVal,
+        average_monthly_consumption_kwh: avgConsumptionVal,
         monthly_consumption: avgConsumptionVal,
         consumption_kwh: avgConsumptionVal,
         estimated_monthly_generation: estMonthlyGenRough,
         monthly_generation: estMonthlyGenRough,
         generation_kwh: estMonthlyGenRough,
+        estimated_generation_kwh: estMonthlyGenRough,
+        consumption_coverage_pct: consumptionCoveragePct,
+        occupied_area_m2: occupiedAreaM2,
         module_qty: moduleQtyVal,
         module_quantity: moduleQtyVal,
         modules_count: moduleQtyVal,
@@ -551,6 +591,9 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
       const annualSavingsVal = Number(financialProjection?.annualSavings) || 0
       const savings25YearsVal = annualSavingsVal * 25
       const monthlySavingsVal = Number(financialProjection?.monthlySavings) || 0
+      const co2AvoidedTon = calculateCo2Avoided(estMonthlyGenRough)
+      const investmentMultiple = calculateInvestmentMultiple(savings25YearsVal, finalPrice)
+      const tirPct = calculateTir(finalPrice, annualSavingsVal, 25)
 
       const financialPayload = {
         total_investment: finalPrice,
@@ -570,6 +613,9 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
         yearly_savings: annualSavingsVal,
         savings_25_years: savings25YearsVal,
         total_savings_25y: savings25YearsVal,
+        investment_multiple: investmentMultiple,
+        tir_pct: tirPct,
+        co2_avoided_ton: co2AvoidedTon,
         tariff_details: tariffDetails || {},
       }
 
