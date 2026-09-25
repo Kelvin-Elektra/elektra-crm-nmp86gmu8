@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-15T19:40:21.900Z",
+  "generatedAt": "2026-09-25T14:07:13.920Z",
   "collections": [
     {
       "name": "users",
@@ -171,6 +171,25 @@
         },
         {
           "name": "accepted_payment_methods",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "signature_policy",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["client_only", "client_rep", "client_rep_owner", "client_owner"]
+        },
+        {
+          "name": "signature_owner_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "signature_owner_email",
           "type": "text",
           "required": false,
           "system": false
@@ -2061,6 +2080,127 @@
         }
       ],
       "indexes": []
+    },
+    {
+      "name": "signature_requests",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && company_id = @request.auth.company_id",
+        "view": "@request.auth.id != '' && company_id = @request.auth.company_id",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != '' && company_id = @request.auth.company_id",
+        "delete": "@request.auth.id != '' && company_id = @request.auth.company_id"
+      },
+      "fields": [
+        {
+          "name": "company_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "companies"
+        },
+        {
+          "name": "negotiation_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "negotiations"
+        },
+        {
+          "name": "proposal_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "proposals"
+        },
+        {
+          "name": "source",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["proposal", "upload"]
+        },
+        {
+          "name": "document_name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["enviado", "aguardando", "assinado", "recusado", "cancelado"]
+        },
+        {
+          "name": "signers",
+          "type": "json",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "assinafy_document_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "assinafy_signer_ids",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "signed_pdf",
+          "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sent_at",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "signed_at",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "signing_url",
+          "type": "url",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "error_message",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_sig_req_neg ON signature_requests (negotiation_id)",
+        "CREATE INDEX idx_sig_req_company ON signature_requests (company_id)",
+        "CREATE INDEX idx_sig_req_assinafy_doc ON signature_requests (assinafy_document_id)"
+      ]
     }
   ]
 }

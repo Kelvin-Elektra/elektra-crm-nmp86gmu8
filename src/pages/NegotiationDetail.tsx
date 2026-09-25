@@ -29,6 +29,7 @@ import { SizingTab } from '@/components/negotiation-tabs/SizingTab'
 import { BudgetsTab } from '@/components/negotiation-tabs/BudgetsTab'
 import { FilesTab } from '@/components/negotiation-tabs/FilesTab'
 import { ProposalsTab } from '@/components/negotiation-tabs/ProposalsTab'
+import { DocsTab } from '@/components/negotiation-tabs/DocsTab'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Info } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -192,14 +193,7 @@ export default function NegotiationDetail() {
             <BudgetsTab neg={neg} />
           </TabsContent>
           <TabsContent value="documentos" className="mt-0">
-            <div className="text-center p-12 border rounded-xl bg-muted/10 border-dashed">
-              <Folder className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
-              <h3 className="text-lg font-medium">Contratos e Documentos Oficiais</h3>
-              <p className="text-muted-foreground text-sm max-w-md mx-auto mt-2">
-                Em breve você poderá gerar contratos de prestação de serviços e procurações
-                diretamente por aqui.
-              </p>
-            </div>
+            <DocsTab neg={neg} proposals={proposals} />
           </TabsContent>
           <TabsContent value="arquivos" className="mt-0">
             <FilesTab neg={neg} reload={loadData} />

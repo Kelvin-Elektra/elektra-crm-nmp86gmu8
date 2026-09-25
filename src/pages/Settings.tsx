@@ -143,6 +143,9 @@ export default function Settings() {
       await pb.collection('companies').update(company.id, {
         name: company.name,
         cnpj: company.cnpj || '',
+        signature_policy: company.signature_policy || 'client_only',
+        signature_owner_name: company.signature_owner_name || '',
+        signature_owner_email: company.signature_owner_email || '',
       })
       toast({ title: 'Dados da empresa atualizados!' })
     } catch (err: any) {
@@ -395,6 +398,66 @@ export default function Settings() {
                       placeholder="00.000.000/0000-00"
                     />
                   </div>
+
+                  <Separator className="my-4" />
+
+                  <div className="space-y-4">
+                    <h4 className="font-semibold text-sm">Assinatura Digital (Assinafy)</h4>
+                    <div className="space-y-2">
+                      <Label>Regra padrão de signatários</Label>
+                      <Select
+                        value={company?.signature_policy || 'client_only'}
+                        onValueChange={(val) => setCompany({ ...company, signature_policy: val })}
+                        disabled={!isOwner}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="client_only">Apenas o Cliente</SelectItem>
+                          <SelectItem value="client_rep">Representante + Cliente</SelectItem>
+                          <SelectItem value="client_rep_owner">
+                            Representante + Cliente + Dono da Empresa
+                          </SelectItem>
+                          <SelectItem value="client_owner">Cliente + Dono da Empresa</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Define quem deve constar por padrão nas solicitações de assinatura da
+                        empresa.
+                      </p>
+                    </div>
+
+                    {(company?.signature_policy === 'client_owner' ||
+                      company?.signature_policy === 'client_rep_owner') && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 rounded-lg border bg-muted/20">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Nome do Dono/Diretor da Empresa</Label>
+                          <Input
+                            value={company?.signature_owner_name || ''}
+                            onChange={(e) =>
+                              setCompany({ ...company, signature_owner_name: e.target.value })
+                            }
+                            disabled={!isOwner}
+                            placeholder="Nome para assinatura"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">E-mail do Dono/Diretor</Label>
+                          <Input
+                            type="email"
+                            value={company?.signature_owner_email || ''}
+                            onChange={(e) =>
+                              setCompany({ ...company, signature_owner_email: e.target.value })
+                            }
+                            disabled={!isOwner}
+                            placeholder="email@empresa.com.br"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {isOwner && (
                     <Button onClick={handleUpdateCompany}>Salvar Dados da Empresa</Button>
                   )}
