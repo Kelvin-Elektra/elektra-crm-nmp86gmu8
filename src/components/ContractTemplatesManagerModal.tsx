@@ -247,7 +247,7 @@ O valor total do investimento é de {{valor_total}}, a ser pago via {{forma_paga
 
     toast({
       title: 'Variável inserida',
-      description: `Tag ${placeholder} adicionada ao texto do modelo.`,
+      description: `Campo ${placeholder} adicionado ao texto do modelo.`,
       duration: 1500,
     })
   }
@@ -333,7 +333,7 @@ O valor total do investimento é de {{valor_total}}, a ser pago via {{forma_paga
                 Modelos de Contrato de Prestação de Serviços
               </DialogTitle>
               <DialogDescription className="text-xs">
-                Cadastre e edite minutas contratuais personalizadas com placeholders dinâmicos{' '}
+                Cadastre e edite minutas contratuais personalizadas com campos automáticos{' '}
                 {'{chave}'} preenchidos com os dados da negociação.
               </DialogDescription>
             </div>
@@ -393,7 +393,7 @@ O valor total do investimento é de {{valor_total}}, a ser pago via {{forma_paga
                             {tpl.active ? 'Ativo' : 'Inativo'}
                           </Badge>
                           <span className="text-[10px] text-muted-foreground">
-                            {tpl.placeholders?.length || 0} tags
+                            {tpl.placeholders?.length || 0} campos
                           </span>
                         </div>
                       </div>
@@ -448,10 +448,10 @@ O valor total do investimento é de {{valor_total}}, a ser pago via {{forma_paga
                     <div className="flex items-center justify-between">
                       <Label className="text-xs flex items-center gap-1.5 font-semibold">
                         <FileText className="h-3.5 w-3.5 text-primary" />
-                        Texto do Contrato (Markdown e Placeholders)
+                        Texto do Contrato (Markdown e Campos)
                       </Label>
                       <span className="text-[11px] text-muted-foreground">
-                        Use o painel ao lado para inserir variáveis dinâmicas no cursor.
+                        Use o painel ao lado para inserir campos dinâmicos no cursor.
                       </span>
                     </div>
                     <Textarea
@@ -470,7 +470,7 @@ O valor total do investimento é de {{valor_total}}, a ser pago via {{forma_paga
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                         <Sparkles className="h-3.5 w-3.5 text-blue-600" />
-                        Catálogo de Variáveis
+                        Campos Disponíveis
                       </span>
                       <span className="text-[10px] text-muted-foreground">Clique para inserir</span>
                     </div>
@@ -479,7 +479,7 @@ O valor total do investimento é de {{valor_total}}, a ser pago via {{forma_paga
                       <Input
                         value={tagSearch}
                         onChange={(e) => setTagSearch(e.target.value)}
-                        placeholder="Buscar variável..."
+                        placeholder="Buscar campo..."
                         className="h-7 text-xs pl-7"
                       />
                     </div>
@@ -510,7 +510,7 @@ O valor total do investimento é de {{valor_total}}, a ser pago via {{forma_paga
                   <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
                     {filteredCatalogFields.length === 0 ? (
                       <p className="text-center text-xs text-muted-foreground py-6">
-                        Nenhuma variável encontrada.
+                        Nenhum campo encontrado.
                       </p>
                     ) : (
                       filteredCatalogFields.map((item) => (
@@ -603,15 +603,15 @@ O valor total do investimento é de {{valor_total}}, a ser pago via {{forma_paga
                         className="bg-amber-50 text-amber-800 border-amber-300 gap-1 text-[11px]"
                       >
                         <AlertTriangle className="h-3 w-3 text-amber-600" />
-                        {previewEvaluation.unresolvedCount} tag(s) sem valor
+                        {previewEvaluation.unresolvedCount} campo(s) sem preenchimento
                       </Badge>
                     ) : (
                       <Badge
                         variant="outline"
                         className="bg-emerald-50 text-emerald-800 border-emerald-300 gap-1 text-[11px]"
                       >
-                        <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Todas as tags
-                        resolvidas
+                        <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Todos os campos
+                        preenchidos
                       </Badge>
                     )}
                   </div>

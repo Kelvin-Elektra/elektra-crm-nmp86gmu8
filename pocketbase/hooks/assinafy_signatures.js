@@ -62,7 +62,7 @@ routerAdd(
       if (!apiKey || !accountId) {
         return e.json(400, {
           message:
-            'A integração com a plataforma de assinatura (Assinafy) ainda não está configurada pelo administrador do sistema. Contate o suporte.',
+            'A integração com a plataforma de assinatura digital ainda não está configurada pelo administrador do sistema. Contate o suporte.',
         })
       }
 

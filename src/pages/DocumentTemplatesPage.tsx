@@ -346,7 +346,7 @@ export function DocumentTemplatesPage() {
 
     toast({
       title: 'Campo inserido!',
-      description: `${placeholder} adicionado na posição do cursor.`,
+      description: `Campo ${placeholder} adicionado na posição do cursor.`,
     })
   }
 

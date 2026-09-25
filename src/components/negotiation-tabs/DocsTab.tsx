@@ -93,12 +93,16 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
   const [poaTemplates, setPoaTemplates] = useState<ContractTemplateRecord[]>([])
   const [selectedPoaTemplateId, setSelectedPoaTemplateId] = useState<string>('')
   const [isPreviewContractModalOpen, setIsPreviewContractModalOpen] = useState(false)
-  const [previewTemplateType, setPreviewTemplateType] = useState<'contract' | 'power_of_attorney'>('contract')
+  const [previewTemplateType, setPreviewTemplateType] = useState<'contract' | 'power_of_attorney'>(
+    'contract',
+  )
   const [companyRecord, setCompanyRecord] = useState<any>(null)
 
   // Modal de envio com ajuste de signatários
   const [isSendModalOpen, setIsSendModalOpen] = useState(false)
-  const [sendType, setSendType] = useState<'proposal' | 'upload' | 'contract' | 'power_of_attorney'>('proposal')
+  const [sendType, setSendType] = useState<
+    'proposal' | 'upload' | 'contract' | 'power_of_attorney'
+  >('proposal')
   const [activeDocName, setActiveDocName] = useState('')
   const [activeSigners, setActiveSigners] = useState<SignerItem[]>([])
   const [sendingSignature, setSendingSignature] = useState(false)
@@ -212,38 +216,20 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
       docName = uploadedFile ? uploadedFile.name : 'Documento Avulso.pdf'
     }
 
-    const defaultSigners = buildDefaultSigners({
-      policy: (companyRecord?.signature_policy as any) || 'client_only',
-      clientName: neg.expand?.lead_id?.name || neg.lead_name || 'Cliente',
-      clientEmail: neg.expand?.lead_id?.email || '',
-      clientPhone: neg.expand?.lead_id?.phone || '',
-      repName: user?.name || '',
-      repEmail: user?.email || '',
-      ownerName: companyRecord?.signature_owner_name || '',
-      ownerEmail: companyRecord?.signature_owner_email || '',
-    })
-
-    setActiveSigners(defaultSigners)
-    setActiveDocName(docName)
-    setIsSendModalOpen(true)
-  }
-    setActiveDocName(docName)
-
-    // Monta signatários padrão
     const lead = neg.expand?.lead_id || {}
-    const owner = neg.expand?.owner_id || {}
+    const rep = neg.expand?.owner_id || {}
 
     const defaultSigners = buildDefaultSigners({
       policy: companyPolicy,
       lead: {
-        name: lead.name || '',
+        name: lead.name || neg.lead_name || 'Cliente',
         email: lead.email || '',
         phone: lead.phone || '',
       },
       representative: {
-        name: owner.name || '',
-        email: owner.email || '',
-        phone: owner.phone || '',
+        name: rep.name || user?.name || '',
+        email: rep.email || user?.email || '',
+        phone: rep.phone || '',
       },
       owner: {
         name: companyOwnerName || '',
@@ -252,6 +238,7 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
     })
 
     setActiveSigners(defaultSigners)
+    setActiveDocName(docName)
     setIsSendModalOpen(true)
   }
 
@@ -401,8 +388,8 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
           sendType === 'contract'
             ? selectedContractTemplateId
             : sendType === 'power_of_attorney'
-            ? selectedPoaTemplateId
-            : undefined,
+              ? selectedPoaTemplateId
+              : undefined,
         source: sendType as any,
         document_name: activeDocName,
         signers: activeSigners,
@@ -533,7 +520,11 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                     </SelectTrigger>
                     <SelectContent>
                       {proposals.map((p) => {
-                        const codeDisplay = p.proposal_code || `#${p.id.slice(0, 4)}`
+                        const codeDisplay =
+                          p.proposal_code ||
+                          (p.proposal_seq != null
+                            ? `#${String(p.proposal_seq).padStart(4, '0')}`
+                            : `#${p.id.slice(0, 4)}`)
                         const desc = p.description || 'Sistema Solar FV'
                         const val = (p.total_value || p.price || 0).toLocaleString('pt-BR', {
                           minimumFractionDigits: 2,
@@ -696,7 +687,8 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
               </a>
             </div>
             <CardDescription>
-              Outorga de poderes para homologação técnica, vistoria e troca de medidor perante a distribuidora.
+              Outorga de poderes para homologação técnica, vistoria e troca de medidor perante a
+              distribuidora.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 flex-1">
@@ -714,10 +706,7 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
               <div className="space-y-3">
                 <div className="space-y-1.5">
                   <Label>Modelo de Procuração</Label>
-                  <Select
-                    value={selectedPoaTemplateId}
-                    onValueChange={setSelectedPoaTemplateId}
-                  >
+                  <Select value={selectedPoaTemplateId} onValueChange={setSelectedPoaTemplateId}>
                     <SelectTrigger className="bg-white">
                       <SelectValue placeholder="Escolha a procuração" />
                     </SelectTrigger>
@@ -860,7 +849,7 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                       Verificar Status
                     </Button>
 
-                    {req.signing_url && (
+                    {req.signing_url ? (
                       <>
                         <Button
                           variant="secondary"
@@ -877,20 +866,39 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="text-xs gap-1"
-                          onClick={() => {
-                            navigator.clipboard.writeText(req.signing_url || '')
-                            toast({
-                              title: 'Link copiado!',
-                              description: 'Link de assinatura copiado para a área de transferência. Pode enviar no WhatsApp!',
-                            })
+                          className="text-xs gap-1 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(req.signing_url || '')
+                              toast({
+                                title: 'Link copiado!',
+                                description:
+                                  'Link de assinatura copiado para a área de transferência. Pode colar diretamente no WhatsApp do cliente!',
+                              })
+                            } catch {
+                              toast({
+                                title: 'Copie o link abaixo:',
+                                description: req.signing_url,
+                              })
+                            }
                           }}
-                          title="Copiar link para enviar via WhatsApp"
+                          title="Copiar link de assinatura para enviar via WhatsApp"
                         >
                           <Copy className="h-3.5 w-3.5" />
                           Copiar Link
                         </Button>
                       </>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs gap-1 text-muted-foreground"
+                        onClick={() => handleSyncStatus(req.id)}
+                        title="Obter link da assinatura"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        Obter Link
+                      </Button>
                     )}
 
                     {req.status === 'assinado' && req.signed_pdf && (
@@ -1139,14 +1147,18 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                         <div className="flex items-center gap-2">
                           <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
                           <span>
-                            Atenção: há <strong>{res.unresolvedCount}</strong> campo(s) sem valor no CRM ({res.unresolvedKeys.join(', ')}).
+                            Atenção: há <strong>{res.unresolvedCount}</strong> campo(s) sem valor no
+                            CRM ({res.unresolvedKeys.join(', ')}).
                           </span>
                         </div>
                       </div>
                     ) : (
                       <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs flex items-center gap-2">
                         <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                        <span>Todos os campos foram preenchidos automaticamente com os dados da negociação!</span>
+                        <span>
+                          Todos os campos foram preenchidos automaticamente com os dados da
+                          negociação!
+                        </span>
                       </div>
                     )}
                     <div className="bg-white p-8 rounded-xl border shadow-sm">
