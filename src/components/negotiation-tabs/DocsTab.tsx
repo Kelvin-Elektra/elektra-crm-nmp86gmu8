@@ -45,6 +45,7 @@ import {
   Settings as SettingsIcon,
   Eye,
   Copy,
+  ClipboardList,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/use-toast'
@@ -93,16 +94,18 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
   const [selectedContractTemplateId, setSelectedContractTemplateId] = useState<string>('')
   const [poaTemplates, setPoaTemplates] = useState<ContractTemplateRecord[]>([])
   const [selectedPoaTemplateId, setSelectedPoaTemplateId] = useState<string>('')
+  const [checklistTemplates, setChecklistTemplates] = useState<ContractTemplateRecord[]>([])
+  const [selectedChecklistTemplateId, setSelectedChecklistTemplateId] = useState<string>('')
   const [isPreviewContractModalOpen, setIsPreviewContractModalOpen] = useState(false)
-  const [previewTemplateType, setPreviewTemplateType] = useState<'contract' | 'power_of_attorney'>(
-    'contract',
-  )
+  const [previewTemplateType, setPreviewTemplateType] = useState<
+    'contract' | 'power_of_attorney' | 'checklist'
+  >('contract')
   const [companyRecord, setCompanyRecord] = useState<any>(null)
 
   // Modal de envio com ajuste de signatários
   const [isSendModalOpen, setIsSendModalOpen] = useState(false)
   const [sendType, setSendType] = useState<
-    'proposal' | 'upload' | 'contract' | 'power_of_attorney'
+    'proposal' | 'upload' | 'contract' | 'power_of_attorney' | 'checklist'
   >('proposal')
   const [activeDocName, setActiveDocName] = useState('')
   const [activeSigners, setActiveSigners] = useState<SignerItem[]>([])
@@ -155,6 +158,12 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
       if (poas.length > 0 && !selectedPoaTemplateId) {
         setSelectedPoaTemplateId(poas[0].id)
       }
+
+      const checklists = await getActiveContractTemplates(neg.company_id, 'checklist')
+      setChecklistTemplates(checklists)
+      if (checklists.length > 0 && !selectedChecklistTemplateId) {
+        setSelectedChecklistTemplateId(checklists[0].id)
+      }
     } catch (err) {
       console.error('Erro ao carregar modelos de documentos:', err)
     }
@@ -195,7 +204,9 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
   }
 
   // Prepara o formulário de envio com os signatários padrão
-  const prepareSendModal = (type: 'proposal' | 'upload' | 'contract' | 'power_of_attorney') => {
+  const prepareSendModal = (
+    type: 'proposal' | 'upload' | 'contract' | 'power_of_attorney' | 'checklist',
+  ) => {
     setSendType(type)
 
     let docName = 'Documento.pdf'
@@ -213,6 +224,11 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
     } else if (type === 'power_of_attorney') {
       const tpl = poaTemplates.find((t) => t.id === selectedPoaTemplateId)
       docName = tpl ? `Procuração - ${tpl.name} - ${leadName}.pdf` : `Procuração - ${leadName}.pdf`
+    } else if (type === 'checklist') {
+      const tpl = checklistTemplates.find((t) => t.id === selectedChecklistTemplateId)
+      docName = tpl
+        ? `Checklist Técnico - ${tpl.name} - ${leadName}.pdf`
+        : `Checklist Técnico - ${leadName}.pdf`
     } else {
       docName = uploadedFile ? uploadedFile.name : 'Documento Avulso.pdf'
     }
@@ -341,18 +357,27 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
         if (prop?.view_url) {
           pdfUrl = prop.view_url
         }
-      } else if (sendType === 'contract' || sendType === 'power_of_attorney') {
-        // Gera o PDF a partir do modelo selecionado (contrato ou procuração) e dados da negociação
+      } else if (
+        sendType === 'contract' ||
+        sendType === 'power_of_attorney' ||
+        sendType === 'checklist'
+      ) {
+        // Gera o PDF a partir do modelo selecionado (contrato, procuração ou checklist) e dados da negociação
         const isPoa = sendType === 'power_of_attorney'
-        const tpl = isPoa
-          ? poaTemplates.find((t) => t.id === selectedPoaTemplateId)
-          : contractTemplates.find((t) => t.id === selectedContractTemplateId)
+        const isChecklist = sendType === 'checklist'
+        const tpl = isChecklist
+          ? checklistTemplates.find((t) => t.id === selectedChecklistTemplateId)
+          : isPoa
+            ? poaTemplates.find((t) => t.id === selectedPoaTemplateId)
+            : contractTemplates.find((t) => t.id === selectedContractTemplateId)
 
         if (!tpl) {
           throw new Error(
-            isPoa
-              ? 'Selecione um modelo de procuração válido.'
-              : 'Selecione um modelo de contrato válido.',
+            isChecklist
+              ? 'Selecione um modelo de checklist técnico válido.'
+              : isPoa
+                ? 'Selecione um modelo de procuração válido.'
+                : 'Selecione um modelo de contrato válido.',
           )
         }
 
@@ -388,9 +413,11 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
         contract_template_id:
           sendType === 'contract'
             ? selectedContractTemplateId
-            : sendType === 'power_of_attorney'
-              ? selectedPoaTemplateId
-              : undefined,
+            : sendType === 'checklist'
+              ? selectedChecklistTemplateId
+              : sendType === 'power_of_attorney'
+                ? selectedPoaTemplateId
+                : undefined,
         source: sendType as any,
         document_name: activeDocName,
         signers: activeSigners,
@@ -553,54 +580,13 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
           </CardContent>
         </Card>
 
-        {/* Seção 2: Outros documentos */}
-        <Card className="flex flex-col justify-between">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Upload className="h-4 w-4 text-primary" />
-              2. Outros Documentos (PDF)
-            </CardTitle>
-            <CardDescription>
-              Faça upload de qualquer arquivo em formato PDF da negociação para envio.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 flex-1">
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label>Selecionar Arquivo PDF</Label>
-                <Input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  onChange={handleFileChange}
-                />
-                {uploadedFile && (
-                  <p className="text-xs text-muted-foreground">
-                    Arquivo selecionado: {uploadedFile.name} (
-                    {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB)
-                  </p>
-                )}
-              </div>
-              <Button
-                variant="outline"
-                className="w-full border-primary/40 hover:bg-primary/5"
-                disabled={!uploadedFile}
-                onClick={() => prepareSendModal('upload')}
-              >
-                <Send className="h-4 w-4 mr-2 text-primary" />
-                Enviar PDF para Assinatura
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Seção 3: Contrato de Prestação */}
+        {/* Seção 2: Contrato de Prestação */}
         <Card className="flex flex-col justify-between border-primary/30 shadow-sm">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2 text-primary font-semibold">
                 <FileText className="h-4 w-4 text-primary" />
-                3. Contrato de Prestação de Serviços
+                2. Contrato de Prestação de Serviços
               </CardTitle>
               <a
                 href="/modelos-documentos"
@@ -672,7 +658,86 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
           </CardContent>
         </Card>
 
-        {/* Seção 4: Procuração para Concessionária (ATIVADA NA ETAPA C) */}
+        {/* Seção 3: Checklist Técnico (ETAPA D) */}
+        <Card className="flex flex-col justify-between border-purple-300 bg-purple-50/20 shadow-sm">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2 text-purple-900 font-semibold">
+                <ClipboardList className="h-4 w-4 text-purple-600" />
+                3. Checklist Técnico de Vistoria
+              </CardTitle>
+              <a
+                href="/modelos-documentos"
+                className="text-xs text-purple-800 hover:underline flex items-center gap-1 font-medium"
+              >
+                Modelos de Documentos <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+            <CardDescription>
+              Checklist preenchido automaticamente com dados do cliente, unidade geradora, kit
+              consolidado, estrutura e vistoria.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 flex-1">
+            {checklistTemplates.length === 0 ? (
+              <div className="text-sm text-muted-foreground border border-dashed rounded-lg p-4 text-center space-y-2 bg-white/70">
+                <p>Nenhum modelo de checklist técnico ativo encontrado.</p>
+                <a
+                  href="/modelos-documentos"
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-purple-800 hover:underline"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Criar Checklist no Menu Lateral
+                </a>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label>Modelo de Checklist</Label>
+                  <Select
+                    value={selectedChecklistTemplateId}
+                    onValueChange={setSelectedChecklistTemplateId}
+                  >
+                    <SelectTrigger className="bg-white">
+                      <SelectValue placeholder="Selecione o modelo de checklist" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {checklistTemplates.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    className="w-full text-xs bg-white"
+                    disabled={!selectedChecklistTemplateId}
+                    onClick={() => {
+                      setPreviewTemplateType('checklist')
+                      setIsPreviewContractModalOpen(true)
+                    }}
+                  >
+                    <Eye className="h-3.5 w-3.5 mr-1.5 text-purple-700" />
+                    Pré-visualizar
+                  </Button>
+                  <Button
+                    className="w-full text-xs bg-purple-600 hover:bg-purple-700 text-white"
+                    disabled={!selectedChecklistTemplateId}
+                    onClick={() => prepareSendModal('checklist')}
+                  >
+                    <Send className="h-3.5 w-3.5 mr-1.5" />
+                    Enviar Checklist
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Seção 4: Procuração para Concessionária */}
         <Card className="flex flex-col justify-between border-amber-300 bg-amber-50/20 shadow-sm">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -747,6 +812,47 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
             )}
           </CardContent>
         </Card>
+
+        {/* Seção 5: Outros documentos */}
+        <Card className="flex flex-col justify-between">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Upload className="h-4 w-4 text-primary" />
+              5. Outros Documentos (PDF)
+            </CardTitle>
+            <CardDescription>
+              Faça upload de qualquer arquivo em formato PDF da negociação para envio.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 flex-1">
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Selecionar Arquivo PDF</Label>
+                <Input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={handleFileChange}
+                />
+                {uploadedFile && (
+                  <p className="text-xs text-muted-foreground">
+                    Arquivo selecionado: {uploadedFile.name} (
+                    {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB)
+                  </p>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                className="w-full border-primary/40 hover:bg-primary/5"
+                disabled={!uploadedFile}
+                onClick={() => prepareSendModal('upload')}
+              >
+                <Send className="h-4 w-4 mr-2 text-primary" />
+                Enviar PDF para Assinatura
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Lista de Solicitações de Assinatura */}
@@ -794,9 +900,11 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                           ? 'Proposta'
                           : req.source === 'contract'
                             ? 'Contrato'
-                            : req.source === 'power_of_attorney'
-                              ? 'Procuração'
-                              : 'Arquivo'}
+                            : req.source === 'checklist'
+                              ? 'Checklist'
+                              : req.source === 'power_of_attorney'
+                                ? 'Procuração'
+                                : 'Arquivo'}
                       </Badge>
                     </div>
                     <div className="text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
@@ -1109,9 +1217,12 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
         <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0 overflow-hidden">
           {(() => {
             const isPoa = previewTemplateType === 'power_of_attorney'
-            const tpl = isPoa
-              ? poaTemplates.find((t) => t.id === selectedPoaTemplateId)
-              : contractTemplates.find((t) => t.id === selectedContractTemplateId)
+            const isChecklist = previewTemplateType === 'checklist'
+            const tpl = isChecklist
+              ? checklistTemplates.find((t) => t.id === selectedChecklistTemplateId)
+              : isPoa
+                ? poaTemplates.find((t) => t.id === selectedPoaTemplateId)
+                : contractTemplates.find((t) => t.id === selectedContractTemplateId)
 
             if (!tpl) return null
             const ctx = buildContractContextFromNegotiation(neg, proposals, companyRecord)
@@ -1182,9 +1293,11 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                   <Button
                     size="sm"
                     className={
-                      isPoa
-                        ? 'bg-amber-600 hover:bg-amber-700 text-white'
-                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                      isChecklist
+                        ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                        : isPoa
+                          ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                          : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                     }
                     onClick={() => {
                       setIsPreviewContractModalOpen(false)

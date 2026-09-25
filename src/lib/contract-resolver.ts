@@ -89,8 +89,14 @@ export function formatValueForContract(key: string, value: any): string {
     }
 
     // Percentual
-    if (k.includes('pct') || k.includes('porcentagem') || k.includes('taxa') || k.includes('tir')) {
-      return `${value.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}%`
+    if (
+      k.includes('pct') ||
+      k.includes('porcentagem') ||
+      k.includes('taxa') ||
+      k.includes('tir') ||
+      k.includes('cobertura')
+    ) {
+      return `${value.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 })}%`
     }
 
     // Múltiplo
@@ -133,6 +139,48 @@ export function buildContractContextFromNegotiation(
 
   const sizing = neg.sizing || {}
   const financial = activeProposal.snapshot_data?.financial || activeProposal || {}
+  const snapshotData = activeProposal.snapshot_data || {}
+  const pricingData = snapshotData.pricing_data || {}
+
+  // Extração inteligente de modelo de módulo e inversor dos dados gravados ou snapshot
+  let moduleModelName = ''
+  if (pricingData.rawModule) {
+    const brand = pricingData.rawModule.brand ? String(pricingData.rawModule.brand).trim() : ''
+    const name = pricingData.rawModule.name ? String(pricingData.rawModule.name).trim() : ''
+    const pwr = pricingData.rawModule.power ? `${pricingData.rawModule.power}W` : ''
+    moduleModelName = [brand, name, pwr].filter(Boolean).join(' ')
+  } else if (snapshotData.equipment?.modules) {
+    const mod = snapshotData.equipment.modules
+    moduleModelName = [mod.brand, mod.name, mod.power ? `${mod.power}W` : '']
+      .filter(Boolean)
+      .join(' ')
+  } else if (sizing.module_name || sizing.module_model) {
+    moduleModelName = sizing.module_name || sizing.module_model
+  }
+
+  let inverterModelName = ''
+  const invertersList =
+    pricingData.rawInverters || snapshotData.equipment?.inverters || sizing.inverters || []
+  if (Array.isArray(invertersList) && invertersList.length > 0) {
+    const firstInv = invertersList[0]
+    const brand = firstInv.brand ? String(firstInv.brand).trim() : ''
+    const name = firstInv.name ? String(firstInv.name).trim() : ''
+    const pwr = firstInv.power ? `${firstInv.power} kW` : ''
+    const count = invertersList.length > 1 ? ` (${invertersList.length}x)` : ''
+    inverterModelName = [brand, name, pwr].filter(Boolean).join(' ') + count
+  } else if (sizing.inverter_name || sizing.inverter_model) {
+    inverterModelName = sizing.inverter_name || sizing.inverter_model
+  }
+
+  const resolvedTension =
+    sizing.tension ||
+    sizing.voltage ||
+    sizing.network_voltage ||
+    financial.tariff_details?.voltage ||
+    '220V'
+
+  const resolvedInstallationType =
+    sizing.installation_type || sizing.installation_id || sizing.consumer_category || 'Residencial'
 
   const leadData: Record<string, any> = {
     name: lead.name || neg.lead_name || '',
@@ -147,13 +195,19 @@ export function buildContractContextFromNegotiation(
     number: lead.number || lead.numero || '',
   }
 
+  const proposalCodeDisplay =
+    activeProposal.proposal_code ||
+    (activeProposal.proposal_seq != null
+      ? `#${String(activeProposal.proposal_seq).padStart(4, '0')}`
+      : activeProposal.id
+        ? activeProposal.id.slice(0, 8).toUpperCase()
+        : neg.id.slice(0, 8).toUpperCase())
+
   const negotiationData: Record<string, any> = {
     id: neg.id,
     title: neg.title || '',
     consultant_name: owner.name || neg.consultant_name || '',
-    proposal_number: activeProposal.id
-      ? activeProposal.id.slice(0, 8).toUpperCase()
-      : neg.id.slice(0, 8).toUpperCase(),
+    proposal_number: proposalCodeDisplay,
     proposal_date: activeProposal.created
       ? new Date(activeProposal.created).toLocaleDateString('pt-BR')
       : new Date().toLocaleDateString('pt-BR'),
@@ -168,24 +222,34 @@ export function buildContractContextFromNegotiation(
     uc: neg.uc || lead.uc || '',
   }
 
+  const rawKwp =
+    sizing.kit_power_kwp || activeProposal.power || activeProposal.kwp || neg.total_power_kwp || 0
+
+  const rawConsumption =
+    sizing.avg_consumption || neg.avg_consumption || activeProposal.consumption || 0
+
+  const rawGeneration =
+    sizing.estimated_monthly_generation || activeProposal.estimated_monthly_generation || 0
+
+  const rawCoverage =
+    sizing.consumption_coverage_pct ||
+    (rawConsumption > 0 ? Number(((rawGeneration / rawConsumption) * 100).toFixed(1)) : 100)
+
   const sizingData: Record<string, any> = {
-    kit_power_kwp:
-      sizing.kit_power_kwp ||
-      activeProposal.power ||
-      activeProposal.kwp ||
-      neg.total_power_kwp ||
-      0,
-    avg_consumption:
-      sizing.avg_consumption || neg.avg_consumption || activeProposal.consumption || 0,
-    estimated_monthly_generation:
-      sizing.estimated_monthly_generation || activeProposal.estimated_monthly_generation || 0,
-    consumption_coverage_pct: sizing.consumption_coverage_pct || 100,
+    kit_power_kwp: rawKwp,
+    avg_consumption: rawConsumption,
+    estimated_monthly_generation: rawGeneration,
+    consumption_coverage_pct: rawCoverage,
     occupied_area_m2: sizing.occupied_area_m2 || 0,
     module_qty: sizing.module_qty || activeProposal.module_qty || 0,
     consumer_category: sizing.consumer_category || 'Residencial',
     concessionaire: sizing.concessionaire || neg.concessionaire || 'Concessionária Local',
     roof_type: sizing.roof_type || 'Fibrocimento',
     network_type: sizing.network_type || 'Bifásico',
+    tension: resolvedTension,
+    installation_type: resolvedInstallationType,
+    module_model: moduleModelName || 'Módulo Solar Fotovoltaico Homologado',
+    inverter_model: inverterModelName || 'Inversor Solar Homologado',
     simultaneity_factor: sizing.simultaneity_factor || 30,
     address_struct: {
       city: sizing.address_struct?.city || lead.city || '',
@@ -281,7 +345,12 @@ const DIRECT_CONTRACT_ALIASES: Record<string, string> = {
   unidade_consumidora: 'negotiation.uc',
   uc: 'negotiation.uc',
 
-  // Dimensionamento / Usina
+  // Negociação / Observações
+  observacoes: 'negotiation.notes',
+  observacao: 'negotiation.notes',
+  notas: 'negotiation.notes',
+
+  // Dimensionamento / Usina / Checklist Técnico
   potencia_kit: 'sizing.kit_power_kwp',
   potencia_sistema: 'sizing.kit_power_kwp',
   kwp: 'sizing.kit_power_kwp',
@@ -289,11 +358,27 @@ const DIRECT_CONTRACT_ALIASES: Record<string, string> = {
   consumo_mensal: 'sizing.avg_consumption',
   geracao_estimada: 'sizing.estimated_monthly_generation',
   geracao_mensal: 'sizing.estimated_monthly_generation',
+  cobertura_consumo: 'sizing.consumption_coverage_pct',
+  cobertura: 'sizing.consumption_coverage_pct',
   quantidade_modulos: 'sizing.module_qty',
   qtd_modulos: 'sizing.module_qty',
+  modelo_painel: 'sizing.module_model',
+  modelo_modulo: 'sizing.module_model',
+  modulo_modelo: 'sizing.module_model',
+  painel: 'sizing.module_model',
+  modelo_inversor: 'sizing.inverter_model',
+  inversor_modelo: 'sizing.inverter_model',
+  inversor: 'sizing.inverter_model',
+  area_ocupada: 'sizing.occupied_area_m2',
   concessionaria: 'sizing.concessionaire',
   tipo_telhado: 'sizing.roof_type',
+  estrutura_telhado: 'sizing.roof_type',
+  tipo_estrutura: 'sizing.roof_type',
   tipo_rede: 'sizing.network_type',
+  tensao_rede: 'sizing.tension',
+  tensao: 'sizing.tension',
+  tipo_instalacao: 'sizing.installation_type',
+  categoria_consumo: 'sizing.consumer_category',
   endereco_instalacao: 'sizing.address_struct.street',
   cidade_instalacao: 'sizing.address_struct.city',
   uf_instalacao: 'sizing.address_struct.state',

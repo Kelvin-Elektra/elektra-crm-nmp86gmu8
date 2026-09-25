@@ -27,6 +27,7 @@ import {
   ShieldAlert,
   ArrowLeft,
   AlertTriangle,
+  ClipboardList,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -72,7 +73,9 @@ export function DocumentTemplatesPage() {
 
   const [templates, setTemplates] = useState<ContractTemplateRecord[]>([])
   const [loading, setLoading] = useState(true)
-  const [filterType, setFilterType] = useState<'all' | 'contract' | 'power_of_attorney'>('all')
+  const [filterType, setFilterType] = useState<
+    'all' | 'contract' | 'power_of_attorney' | 'checklist'
+  >('all')
   const [searchQuery, setSearchQuery] = useState('')
 
   // Modal de edição / criação em tela ampla
@@ -163,9 +166,11 @@ export function DocumentTemplatesPage() {
       description: '',
       type,
       content:
-        type === 'power_of_attorney'
-          ? `# INSTRUMENTO DE PROCURAÇÃO\n\nOutorgante: {{cliente_nome}}, CPF/CNPJ: {{cliente_documento}}.\nOutorgada: {{empresa_nome}}, CNPJ: {{empresa_cnpj}}.\n\nFinalidade: Homologação na concessionária {{concessionaria}} para usina de {{potencia_kit}} kWp.\n\nLocal e data: {{cidade_instalacao}}, {{data_proposta}}.`
-          : `# CONTRATO DE PRESTAÇÃO DE SERVIÇOS\n\nContratante: {{cliente_nome}}, CPF/CNPJ: {{cliente_documento}}.\nContratada: {{empresa_nome}}, CNPJ: {{empresa_cnpj}}.\n\nValor total: {{proposta_valor}}.\n\nData: {{data_proposta}}.`,
+        type === 'checklist'
+          ? `# CHECKLIST TÉCNICO DE VISTORIA — SISTEMA FV\n\n**EMPRESA:** {{empresa_nome}} | CNPJ: {{empresa_cnpj}}\n**RESPONSÁVEL TÉCNICO:** {{consultor_nome}} | Data: {{data_proposta}} | Proposta: {{codigo_proposta}}\n\n### 1. DADOS DO CLIENTE\n- Nome: {{cliente_nome}}\n- CPF/CNPJ: {{cliente_documento}}\n- Telefone: {{cliente_telefone}} | E-mail: {{cliente_email}}\n- Endereço: {{cliente_endereco}}, nº {{cliente_numero}}, Bairro {{cliente_bairro}} - {{cliente_cidade}}/{{cliente_uf}}\n\n### 2. UNIDADE GERADORA / BENEFICIÁRIA\n- Unidade Consumidora (UC): {{unidade_consumidora}}\n- Concessionária: {{concessionaria}}\n- Endereço da Instalação: {{endereco_instalacao}}, {{cidade_instalacao}}/{{uf_instalacao}}\n- Tipo de Rede: {{tipo_rede}} | Tensão: {{tensao_rede}}\n- Categoria: {{categoria_consumo}}\n\n### 3. RESUMO DO KIT FOTOVOLTAICO\n- Potência Total: {{potencia_kit}} kWp\n- Consumo Médio: {{consumo_medio}} kWh/mês | Geração Estimada: {{geracao_estimada}} kWh/mês\n- Cobertura: {{cobertura_consumo}}%\n- Painéis: {{qtd_modulos}}x {{modelo_painel}}\n- Inversor: {{modelo_inversor}}\n\n### 4. ESTRUTURA DO TELHADO E VISTORIA\n- Tipo de Telhado / Estrutura: {{tipo_telhado}}\n- [ ] Condição das telhas e estrutura de sustentação\n- [ ] Espaço livre no Quadro Geral (QGD)\n- [ ] Aterramento elétrico conforme NBR 5410\n- [ ] Padrão de entrada homologado\n\n### 5. OBSERVAÇÕES\n{{observacoes}}\n\nDeclaro que as informações acima foram verificadas em campo.\n\n{{cidade_instalacao}}, {{data_proposta}}.\n\n___________________________________\n{{consultor_nome}}\nResponsável Técnico`
+          : type === 'power_of_attorney'
+            ? `# INSTRUMENTO DE PROCURAÇÃO\n\nOutorgante: {{cliente_nome}}, CPF/CNPJ: {{cliente_documento}}.\nOutorgada: {{empresa_nome}}, CNPJ: {{empresa_cnpj}}.\n\nFinalidade: Homologação na concessionária {{concessionaria}} para usina de {{potencia_kit}} kWp.\n\nLocal e data: {{cidade_instalacao}}, {{data_proposta}}.`
+            : `# CONTRATO DE PRESTAÇÃO DE SERVIÇOS\n\nContratante: {{cliente_nome}}, CPF/CNPJ: {{cliente_documento}}.\nContratada: {{empresa_nome}}, CNPJ: {{empresa_cnpj}}.\n\nValor total: {{proposta_valor}}.\n\nData: {{data_proposta}}.`,
       active: true,
     })
     setIsCreateChoiceOpen(false)
@@ -355,9 +360,11 @@ export function DocumentTemplatesPage() {
     const matchesType =
       filterType === 'all'
         ? true
-        : filterType === 'power_of_attorney'
-          ? t.type === 'power_of_attorney'
-          : t.type === 'contract' || !t.type
+        : filterType === 'checklist'
+          ? t.type === 'checklist'
+          : filterType === 'power_of_attorney'
+            ? t.type === 'power_of_attorney'
+            : t.type === 'contract' || !t.type
 
     const matchesSearch =
       !searchQuery.trim() ||
@@ -431,6 +438,9 @@ export function DocumentTemplatesPage() {
             <TabsTrigger value="power_of_attorney">
               Procurações ({templates.filter((t) => t.type === 'power_of_attorney').length})
             </TabsTrigger>
+            <TabsTrigger value="checklist">
+              Checklists ({templates.filter((t) => t.type === 'checklist').length})
+            </TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -469,6 +479,7 @@ export function DocumentTemplatesPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredTemplates.map((template) => {
             const isPoa = template.type === 'power_of_attorney'
+            const isChecklist = template.type === 'checklist'
             const fieldCount =
               template.placeholders?.length ||
               extractPlaceholdersFromTemplate(template.content).length
@@ -480,14 +491,16 @@ export function DocumentTemplatesPage() {
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
                     <Badge
-                      variant={isPoa ? 'secondary' : 'default'}
+                      variant={isPoa || isChecklist ? 'secondary' : 'default'}
                       className={
-                        isPoa
-                          ? 'bg-amber-100 text-amber-800 hover:bg-amber-100'
-                          : 'bg-blue-600 text-white'
+                        isChecklist
+                          ? 'bg-purple-100 text-purple-800 hover:bg-purple-100'
+                          : isPoa
+                            ? 'bg-amber-100 text-amber-800 hover:bg-amber-100'
+                            : 'bg-blue-600 text-white'
                       }
                     >
-                      {isPoa ? 'Procuração' : 'Contrato'}
+                      {isChecklist ? 'Checklist Técnico' : isPoa ? 'Procuração' : 'Contrato'}
                     </Badge>
                     <Badge
                       variant={template.active ? 'outline' : 'secondary'}
@@ -578,6 +591,24 @@ export function DocumentTemplatesPage() {
                 </h4>
                 <p className="text-xs text-slate-500 mt-1">
                   Modelo para homologação junto à concessionária de energia.
+                </p>
+              </div>
+            </button>
+
+            <button
+              onClick={() => handleStartCreateManual('checklist')}
+              className="flex items-start gap-4 p-4 rounded-lg border-2 border-slate-200 hover:border-purple-500 hover:bg-purple-50/40 transition-all text-left group"
+            >
+              <div className="p-2.5 rounded-md bg-purple-100 text-purple-700 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                <ClipboardList className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-medium text-slate-900 group-hover:text-purple-800">
+                  Escrever Checklist Técnico do Zero
+                </h4>
+                <p className="text-xs text-slate-500 mt-1">
+                  Checklist de vistoria técnica em campo com dados do kit, telhado e itens
+                  inspecionados.
                 </p>
               </div>
             </button>
@@ -692,6 +723,7 @@ export function DocumentTemplatesPage() {
                 <SelectContent>
                   <SelectItem value="contract">Contrato de Prestação de Serviços</SelectItem>
                   <SelectItem value="power_of_attorney">Procuração para Concessionária</SelectItem>
+                  <SelectItem value="checklist">Checklist Técnico de Vistoria</SelectItem>
                 </SelectContent>
               </Select>
             </div>

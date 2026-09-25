@@ -1,7 +1,7 @@
 import pb from '@/lib/pocketbase/client'
 import { extractPlaceholdersFromTemplate } from '@/lib/contract-resolver'
 
-export type TemplateDocType = 'contract' | 'power_of_attorney'
+export type TemplateDocType = 'contract' | 'power_of_attorney' | 'checklist'
 
 export interface ContractTemplateRecord {
   id: string
@@ -90,18 +90,14 @@ export async function extractDocxText(file: File): Promise<{ markdown: string; n
   const formData = new FormData()
   formData.append('file', file)
 
-  const res = await fetch('/backend/v1/documents/extract-text', {
-    method: 'POST',
-    headers: {
-      Authorization: pb.authStore.token ? `Bearer ${pb.authStore.token}` : '',
+  const data = await pb.send<{ markdown: string; name: string }>(
+    '/backend/v1/documents/extract-text',
+    {
+      method: 'POST',
+      body: formData,
     },
-    body: formData,
-  })
+  )
 
-  const data = await res.json()
-  if (!res.ok) {
-    throw new Error(data.message || 'Falha ao extrair texto do documento.')
-  }
   return data
 }
 

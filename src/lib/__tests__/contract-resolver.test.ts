@@ -82,6 +82,7 @@ describe('contract-resolver', () => {
     it('formata percentuais e múltiplos', () => {
       expect(formatValueForContract('tir_pct', 32.5)).toBe('32,5%')
       expect(formatValueForContract('multiplo_investimento', 8.14)).toBe('8,14x')
+      expect(formatValueForContract('cobertura_consumo', 110.8)).toBe('110,8%')
     })
 
     it('formata datas ISO para DD/MM/AAAA', () => {
@@ -115,6 +116,39 @@ describe('contract-resolver', () => {
       const resEmpresa = resolveSinglePlaceholder('empresa_cnpj', sampleContext)
       expect(resEmpresa.resolved).toBe(true)
       expect(resEmpresa.value).toBe('12.345.678/0001-99')
+
+      const resTelhado = resolveSinglePlaceholder('tipo_telhado', sampleContext)
+      expect(resTelhado.resolved).toBe(true)
+      expect(resTelhado.value).toBe('Metálico')
+    })
+
+    it('resolve aliases do Checklist Técnico (tensao, observacoes, cobertura, painel, inversor)', () => {
+      const contextWithChecklist: ContractContextData = {
+        ...sampleContext,
+        negotiation: {
+          ...sampleContext.negotiation,
+          notes: 'Cliente solicitou inversor na área de serviço.',
+        },
+        sizing: {
+          ...sampleContext.sizing,
+          tension: '220V',
+          module_model: 'Canadian Solar 550W',
+          inverter_model: 'Growatt 5kW',
+          consumption_coverage_pct: 110.8,
+        },
+      }
+
+      expect(resolveSinglePlaceholder('tensao_rede', contextWithChecklist).value).toBe('220V')
+      expect(resolveSinglePlaceholder('observacoes', contextWithChecklist).value).toBe(
+        'Cliente solicitou inversor na área de serviço.',
+      )
+      expect(resolveSinglePlaceholder('modelo_painel', contextWithChecklist).value).toBe(
+        'Canadian Solar 550W',
+      )
+      expect(resolveSinglePlaceholder('modelo_inversor', contextWithChecklist).value).toBe(
+        'Growatt 5kW',
+      )
+      expect(resolveSinglePlaceholder('cobertura_consumo', contextWithChecklist).value).toBe(110.8)
     })
 
     it('resolve dot-notation explícita', () => {

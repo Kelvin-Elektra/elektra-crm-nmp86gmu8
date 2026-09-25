@@ -146,8 +146,31 @@ export const CRM_FIELD_SECTIONS: CrmFieldSection[] = [
       { path: 'sizing.roof_type', label: 'Tipo de Telhado / Estrutura', section: 'sizing' },
       {
         path: 'sizing.network_type',
-        label: 'Tipo de Rede (Monofásico/Trifásico)',
+        label: 'Tipo de Rede (Monofásico/Bifásico/Trifásico)',
         section: 'sizing',
+      },
+      {
+        path: 'sizing.tension',
+        label: 'Tensão de Atendimento (127V / 220V / 380V)',
+        section: 'sizing',
+        description: 'Tensão elétrica da rede no local da instalação',
+      },
+      {
+        path: 'sizing.installation_type',
+        label: 'Tipo de Instalação (Residencial, Comercial, Rural, etc.)',
+        section: 'sizing',
+      },
+      {
+        path: 'sizing.module_model',
+        label: 'Modelo / Fabricante dos Módulos',
+        section: 'sizing',
+        description: 'Especificação do modelo e potência dos painéis fotovoltaicos',
+      },
+      {
+        path: 'sizing.inverter_model',
+        label: 'Modelo / Fabricante do Inversor',
+        section: 'sizing',
+        description: 'Especificação dos inversores selecionados no kit',
       },
       {
         path: 'sizing.simultaneity_factor',
