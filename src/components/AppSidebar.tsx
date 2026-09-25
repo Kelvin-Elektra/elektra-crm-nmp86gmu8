@@ -156,6 +156,23 @@ export function AppSidebar() {
             <SidebarMenuItem>
               <SidebarMenuButton
                 asChild
+                isActive={location.pathname === '/modelos-documentos'}
+                tooltip="Modelos de Documentos"
+                className="h-10 w-full transition-all duration-200"
+              >
+                <Link to="/modelos-documentos" className="flex items-center gap-3">
+                  <FileText className="!h-5 !w-5 shrink-0 text-primary" />
+                  <span className="font-medium group-data-[collapsible=icon]:hidden">
+                    Modelos de Documentos
+                  </span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+          {isAdmin && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
                 isActive={location.pathname === '/configuracoes-kit-pv'}
                 tooltip="Configurações do Kit PV"
                 className="h-10 w-full transition-all duration-200"

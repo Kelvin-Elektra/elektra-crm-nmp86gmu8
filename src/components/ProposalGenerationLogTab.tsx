@@ -336,7 +336,9 @@ export const ProposalGenerationLogTab: React.FC<ProposalGenerationLogTabProps> =
                         <span className="flex items-center gap-1 font-mono">
                           <Calendar className="h-3 w-3" /> {createdDate}
                         </span>
-                        <span className="font-mono text-slate-600">ID: {prop.id.slice(0, 8)}</span>
+                        <span className="font-mono font-semibold text-primary">
+                          {prop.proposal_code || `ID: ${prop.id.slice(0, 8)}`}
+                        </span>
                       </div>
                     </div>
                   )
@@ -355,6 +357,14 @@ export const ProposalGenerationLogTab: React.FC<ProposalGenerationLogTabProps> =
                   <div>
                     <CardTitle className="text-base flex items-center gap-2">
                       <span>Auditoria da Proposta</span>
+                      {selectedProposal.proposal_code && (
+                        <Badge
+                          variant="outline"
+                          className="font-mono text-primary border-primary/40 text-xs"
+                        >
+                          {selectedProposal.proposal_code}
+                        </Badge>
+                      )}
                       <code className="text-xs bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded font-mono">
                         {selectedProposal.id}
                       </code>

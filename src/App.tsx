@@ -22,6 +22,7 @@ import NegotiationDetail from './pages/NegotiationDetail'
 import NegotiationProposalPage from './pages/NegotiationProposalPage'
 import ProposalSettings from './pages/ProposalSettings'
 import PvKitSettings from './pages/PvKitSettings'
+import { DocumentTemplatesPage } from './pages/DocumentTemplatesPage'
 import { WhatsAppSupportButton } from './components/WhatsAppSupportButton'
 
 type SsoState =
@@ -185,6 +186,7 @@ const App = () => (
               <Route path="/negociacoes/:id" element={<NegotiationDetail />} />
               <Route path="/negociacoes/:id/proposta" element={<NegotiationProposalPage />} />
               <Route path="/propostas" element={<Proposals />} />
+              <Route path="/modelos-documentos" element={<DocumentTemplatesPage />} />
               <Route path="/configuracoes-kit-pv" element={<PvKitSettings />} />
               <Route path="/configuracoes-proposta" element={<ProposalSettings />} />
               <Route path="/configuracoes" element={<Settings />} />

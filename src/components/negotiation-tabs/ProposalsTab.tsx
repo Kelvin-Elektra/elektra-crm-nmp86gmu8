@@ -142,7 +142,15 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
                 <div className="flex justify-between items-center flex-wrap gap-2">
                   <div>
                     <CardTitle className="text-base flex items-center gap-2">
-                      {p.description || `Proposta #${p.id.slice(0, 5)}`}
+                      {p.proposal_code && (
+                        <Badge
+                          variant="outline"
+                          className="font-mono text-primary border-primary/40"
+                        >
+                          {p.proposal_code}
+                        </Badge>
+                      )}
+                      <span>{p.description || `Proposta #${p.id.slice(0, 5)}`}</span>
                     </CardTitle>
                     <CardDescription className="mt-1 flex items-center gap-4">
                       <span>Gerada em: {format(new Date(p.created), 'dd/MM/yyyy')}</span>

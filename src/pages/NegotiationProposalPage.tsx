@@ -181,7 +181,14 @@ export default function NegotiationProposalPage() {
               {lead.city || neg.city
                 ? ` • ${lead.city || neg.city}/${lead.state || neg.state || ''}`
                 : ''}
-              {activeProposal && ` • Proposta #${activeProposal.id.slice(0, 6)}`}
+              {activeProposal && (
+                <>
+                  {' • '}
+                  <span className="font-semibold text-primary">
+                    {activeProposal.proposal_code || `Proposta #${activeProposal.id.slice(0, 6)}`}
+                  </span>
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -238,7 +245,7 @@ export default function NegotiationProposalPage() {
               className="h-8 text-xs font-mono"
               onClick={() => setSelectedProposalId(p.id)}
             >
-              #{idx + 1} ({p.id.slice(0, 5)}) - {BRL.format(p.total_value || p.price || 0)}
+              {p.proposal_code || `#${idx + 1}`} - {BRL.format(p.total_value || p.price || 0)}
             </Button>
           ))}
         </div>
@@ -267,6 +274,11 @@ export default function NegotiationProposalPage() {
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-primary" />
+                    {activeProposal.proposal_code && (
+                      <Badge variant="outline" className="font-mono text-primary border-primary/40">
+                        {activeProposal.proposal_code}
+                      </Badge>
+                    )}
                     <span className="font-semibold text-sm">
                       {activeProposal.description || `Proposta #${activeProposal.id}`}
                     </span>

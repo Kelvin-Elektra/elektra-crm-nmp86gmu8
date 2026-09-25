@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-25T14:15:13.220Z",
+  "generatedAt": "2026-09-25T14:36:39.176Z",
   "collections": [
     {
       "name": "users",
@@ -191,6 +191,12 @@
         {
           "name": "signature_owner_email",
           "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "proposal_counter",
+          "type": "number",
           "required": false,
           "system": false
         }
@@ -573,6 +579,18 @@
         {
           "name": "view_url",
           "type": "url",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "proposal_seq",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "proposal_code",
+          "type": "text",
           "required": false,
           "system": false
         }
@@ -2118,7 +2136,7 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["proposal", "upload", "contract"]
+          "selectValues": ["proposal", "upload", "contract", "power_of_attorney"]
         },
         {
           "name": "document_name",
@@ -2215,9 +2233,9 @@
       "apiRules": {
         "list": "@request.auth.id != '' && company_id = @request.auth.company_id",
         "view": "@request.auth.id != '' && company_id = @request.auth.company_id",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != '' && company_id = @request.auth.company_id",
-        "delete": "@request.auth.id != '' && company_id = @request.auth.company_id"
+        "create": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'User_owner' || @request.auth.role_company = 'admin'))",
+        "update": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'User_owner' || @request.auth.role_company = 'admin'))",
+        "delete": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id && (@request.auth.role = 'User_owner' || @request.auth.role_company = 'admin'))"
       },
       "fields": [
         {
@@ -2270,6 +2288,13 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "type",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["contract", "power_of_attorney"]
         }
       ],
       "indexes": [

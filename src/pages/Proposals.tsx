@@ -55,10 +55,15 @@ export default function Proposals() {
                 <FileText className="h-6 w-6" />
               </div>
               <div>
-                <CardTitle className="text-base">
-                  {p.description}{' '}
+                <CardTitle className="text-base flex items-center gap-2">
+                  {p.proposal_code && (
+                    <Badge variant="outline" className="font-mono text-primary border-primary/40">
+                      {p.proposal_code}
+                    </Badge>
+                  )}
+                  <span>{p.description || 'Proposta Fotovoltaica'}</span>
                   <Badge
-                    className="ml-2"
+                    className="ml-1"
                     variant={
                       p.status === 'accepted'
                         ? 'default'
@@ -67,12 +72,16 @@ export default function Proposals() {
                           : 'secondary'
                     }
                   >
-                    {p.status}
+                    {p.status === 'accepted'
+                      ? 'Aceita'
+                      : p.status === 'denied'
+                        ? 'Recusada'
+                        : 'Pendente'}
                   </Badge>
                 </CardTitle>
                 <CardDescription>
                   Negociação: {p.expand?.negotiation_id?.title || 'Desconhecida'} •{' '}
-                  {p.payment_terms}
+                  {p.payment_terms || 'Condições padrão'}
                 </CardDescription>
               </div>
             </div>

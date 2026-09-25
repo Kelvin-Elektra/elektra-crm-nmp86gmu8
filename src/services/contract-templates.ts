@@ -1,9 +1,12 @@
 import pb from '@/lib/pocketbase/client'
 import { extractPlaceholdersFromTemplate } from '@/lib/contract-resolver'
 
+export type TemplateDocType = 'contract' | 'power_of_attorney'
+
 export interface ContractTemplateRecord {
   id: string
   company_id: string
+  type?: TemplateDocType
   name: string
   description?: string
   content: string
@@ -15,6 +18,7 @@ export interface ContractTemplateRecord {
 
 export interface CreateContractTemplateInput {
   company_id: string
+  type?: TemplateDocType
   name: string
   description?: string
   content: string
@@ -22,6 +26,7 @@ export interface CreateContractTemplateInput {
 }
 
 export interface UpdateContractTemplateInput {
+  type?: TemplateDocType
   name?: string
   description?: string
   content?: string
@@ -53,11 +58,19 @@ export async function getContractTemplates(companyId?: string): Promise<Contract
  */
 export async function getActiveContractTemplates(
   companyId?: string,
+  docType?: TemplateDocType,
 ): Promise<ContractTemplateRecord[]> {
   try {
     let filter = 'active = true'
     if (companyId) {
       filter += ` && company_id = '${companyId}'`
+    }
+    if (docType) {
+      if (docType === 'contract') {
+        filter += ` && (type = 'contract' || type = '' || type = null)`
+      } else {
+        filter += ` && type = '${docType}'`
+      }
     }
     const records = await pb.collection('contract_templates').getFullList<ContractTemplateRecord>({
       filter,
@@ -68,6 +81,28 @@ export async function getActiveContractTemplates(
     console.error('Erro ao buscar active contract_templates:', err)
     return []
   }
+}
+
+/**
+ * Envia um arquivo .docx para extração do texto no servidor via Skip Cloud Documents
+ */
+export async function extractDocxText(file: File): Promise<{ markdown: string; name: string }> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const res = await fetch('/backend/v1/documents/extract-text', {
+    method: 'POST',
+    headers: {
+      Authorization: pb.authStore.token ? `Bearer ${pb.authStore.token}` : '',
+    },
+    body: formData,
+  })
+
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(data.message || 'Falha ao extrair texto do documento.')
+  }
+  return data
 }
 
 /**
