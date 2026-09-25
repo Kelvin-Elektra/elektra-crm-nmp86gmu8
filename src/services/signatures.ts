@@ -7,7 +7,7 @@ export interface SignatureRequestRecord {
   negotiation_id: string
   proposal_id?: string
   contract_template_id?: string
-  source: 'proposal' | 'upload' | 'contract'
+  source: 'proposal' | 'upload' | 'contract' | 'power_of_attorney'
   document_name: string
   status: 'enviado' | 'aguardando' | 'assinado' | 'recusado' | 'cancelado'
   signers: SignerItem[]
@@ -30,7 +30,7 @@ export interface SendSignaturePayload {
   negotiation_id: string
   proposal_id?: string
   contract_template_id?: string
-  source: 'proposal' | 'upload' | 'contract'
+  source: 'proposal' | 'upload' | 'contract' | 'power_of_attorney'
   document_name: string
   signers: SignerItem[]
   pdf_base64?: string

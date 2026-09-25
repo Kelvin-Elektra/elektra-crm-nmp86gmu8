@@ -372,8 +372,8 @@ export function DocumentTemplatesPage() {
     const matchesSearch =
       !fieldSearch.trim() ||
       f.label.toLowerCase().includes(fieldSearch.toLowerCase()) ||
-      f.key.toLowerCase().includes(fieldSearch.toLowerCase()) ||
-      f.aliases.some((a) => a.toLowerCase().includes(fieldSearch.toLowerCase()))
+      f.path.toLowerCase().includes(fieldSearch.toLowerCase()) ||
+      (f.description || '').toLowerCase().includes(fieldSearch.toLowerCase())
 
     const matchesSection = activeCatalogTab === 'all' || f.section === activeCatalogTab
     return matchesSearch && matchesSection
@@ -808,8 +808,8 @@ export function DocumentTemplatesPage() {
               <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
                 {filteredFields.map((field) => (
                   <button
-                    key={field.key}
-                    onClick={() => insertFieldIntoEditor(field.key)}
+                    key={field.path}
+                    onClick={() => insertFieldIntoEditor(field.path)}
                     className="w-full text-left p-2 rounded border border-slate-100 hover:border-primary/40 hover:bg-primary/5 transition-colors group flex items-start justify-between gap-2"
                   >
                     <div className="min-w-0">
@@ -817,7 +817,7 @@ export function DocumentTemplatesPage() {
                         {field.label}
                       </div>
                       <div className="text-[10px] font-mono text-slate-400 truncate">
-                        {`{{${field.key}}}`}
+                        {`{{${field.path}}}`}
                       </div>
                     </div>
                     <Plus className="w-3.5 h-3.5 text-slate-400 group-hover:text-primary shrink-0 mt-0.5" />

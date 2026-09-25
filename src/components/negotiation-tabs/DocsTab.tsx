@@ -45,8 +45,8 @@ import {
   Settings as SettingsIcon,
   Eye,
   Copy,
-  ExternalLink,
 } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import {
@@ -68,6 +68,7 @@ interface DocsTabProps {
 }
 
 export function DocsTab({ neg, proposals }: DocsTabProps) {
+  const { user } = useAuth()
   const { toast } = useToast()
   const [signatureRequests, setSignatureRequests] = useState<SignatureRequestRecord[]>([])
   const [loadingList, setLoadingList] = useState(false)
