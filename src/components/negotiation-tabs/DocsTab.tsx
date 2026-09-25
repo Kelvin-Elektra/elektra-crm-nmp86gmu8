@@ -1,6 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { ContractTemplatesManagerModal } from '@/components/ContractTemplatesManagerModal'
+import { ContractTemplateRecord, getActiveContractTemplates } from '@/services/contract-templates'
+import {
+  buildContractContextFromNegotiation,
+  resolveContractPlaceholders,
+} from '@/lib/contract-resolver'
+import { generateContractPDF, pdfBlobToBase64, openContractPrintPreview } from '@/lib/contract-pdf'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -36,6 +43,7 @@ import {
   FileCheck,
   ShieldAlert,
   Settings as SettingsIcon,
+  Eye,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
@@ -77,9 +85,16 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Etapa B: Modelos de Contrato
+  const [contractTemplates, setContractTemplates] = useState<ContractTemplateRecord[]>([])
+  const [selectedContractTemplateId, setSelectedContractTemplateId] = useState<string>('')
+  const [isTemplatesManagerOpen, setIsTemplatesManagerOpen] = useState(false)
+  const [isPreviewContractModalOpen, setIsPreviewContractModalOpen] = useState(false)
+  const [companyRecord, setCompanyRecord] = useState<any>(null)
+
   // Modal de envio com ajuste de signatários
   const [isSendModalOpen, setIsSendModalOpen] = useState(false)
-  const [sendType, setSendType] = useState<'proposal' | 'upload'>('proposal')
+  const [sendType, setSendType] = useState<'proposal' | 'upload' | 'contract'>('proposal')
   const [activeDocName, setActiveDocName] = useState('')
   const [activeSigners, setActiveSigners] = useState<SignerItem[]>([])
   const [sendingSignature, setSendingSignature] = useState(false)
@@ -102,6 +117,7 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
     if (!neg?.company_id) return
     try {
       const comp = await pb.collection('companies').getOne(neg.company_id)
+      setCompanyRecord(comp)
       if (comp.signature_policy) {
         setCompanyPolicy(comp.signature_policy as SignaturePolicy)
       }
@@ -116,9 +132,23 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
     }
   }
 
+  const loadContractTemplates = async () => {
+    if (!neg?.company_id) return
+    try {
+      const tpls = await getActiveContractTemplates(neg.company_id)
+      setContractTemplates(tpls)
+      if (tpls.length > 0 && !selectedContractTemplateId) {
+        setSelectedContractTemplateId(tpls[0].id)
+      }
+    } catch (err) {
+      console.error('Erro ao carregar modelos de contrato:', err)
+    }
+  }
+
   useEffect(() => {
     loadRequests()
     loadCompanySettings()
+    loadContractTemplates()
     if (proposals.length > 0 && !selectedProposalId) {
       setSelectedProposalId(proposals[0].id)
     }
@@ -150,7 +180,7 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
   }
 
   // Prepara o formulário de envio com os signatários padrão
-  const prepareSendModal = (type: 'proposal' | 'upload') => {
+  const prepareSendModal = (type: 'proposal' | 'upload' | 'contract') => {
     setSendType(type)
 
     let docName = 'Documento.pdf'
@@ -159,6 +189,10 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
       docName = prop?.description
         ? `Proposta - ${prop.description}.pdf`
         : `Proposta - ${neg.title || 'FV'}.pdf`
+    } else if (type === 'contract') {
+      const tpl = contractTemplates.find((t) => t.id === selectedContractTemplateId)
+      const leadName = neg.expand?.lead_id?.name || neg.lead_name || 'Cliente'
+      docName = tpl ? `Contrato - ${tpl.name} - ${leadName}.pdf` : `Contrato - ${leadName}.pdf`
     } else {
       docName = uploadedFile ? uploadedFile.name : 'Documento Avulso.pdf'
     }
@@ -288,11 +322,44 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
         if (prop?.view_url) {
           pdfUrl = prop.view_url
         }
+      } else if (sendType === 'contract') {
+        // Gera o PDF a partir do modelo selecionado e dados da negociação
+        const tpl = contractTemplates.find((t) => t.id === selectedContractTemplateId)
+        if (!tpl) {
+          throw new Error('Selecione um modelo de contrato válido.')
+        }
+
+        const context = buildContractContextFromNegotiation(neg, proposals, companyRecord)
+        const resolution = resolveContractPlaceholders(tpl.content, context)
+
+        // Se houver placeholders não resolvidos, alertar o usuário mas permitir prosseguir se confirmado
+        if (resolution.unresolvedCount > 0) {
+          const confirmSendWithUnresolved = confirm(
+            `Atenção: este modelo contém ${resolution.unresolvedCount} variável(is) sem correspondência no CRM (${resolution.unresolvedKeys.join(
+              ', ',
+            )}). Deseja enviar o documento mesmo assim?`,
+          )
+          if (!confirmSendWithUnresolved) {
+            setSendingSignature(false)
+            return
+          }
+        }
+
+        const pdfBlob = generateContractPDF({
+          title: tpl.name,
+          content: resolution.resolvedContent,
+          companyName: companyRecord?.name || 'Elektra Solar',
+          clientName: context.lead?.name || '',
+          documentDate: new Date().toLocaleDateString('pt-BR'),
+        })
+
+        pdfBase64 = await pdfBlobToBase64(pdfBlob)
       }
 
       await sendSignatureRequest({
         negotiation_id: neg.id,
         proposal_id: sendType === 'proposal' ? selectedProposalId : undefined,
+        contract_template_id: sendType === 'contract' ? selectedContractTemplateId : undefined,
         source: sendType,
         document_name: activeDocName,
         signers: activeSigners,
@@ -487,28 +554,83 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
           </CardContent>
         </Card>
 
-        {/* Seção 3: Contrato (Placeholder elegante - Etapa B) */}
-        <Card className="opacity-80 border-dashed">
+        {/* Seção 3: Contrato de Prestação (ETAPA B ATIVADA) */}
+        <Card className="flex flex-col justify-between border-primary/30 shadow-sm">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2 text-muted-foreground">
-                <FileText className="h-4 w-4" />
-                3. Contrato de Prestação
+              <CardTitle className="text-base flex items-center gap-2 text-primary font-semibold">
+                <FileText className="h-4 w-4 text-primary" />
+                3. Contrato de Prestação de Serviços
               </CardTitle>
-              <Badge variant="secondary" className="text-xs">
-                Em breve (Etapa B)
-              </Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsTemplatesManagerOpen(true)}
+                className="text-xs h-7 gap-1 text-primary hover:text-primary hover:bg-primary/10"
+              >
+                <SettingsIcon className="h-3.5 w-3.5" /> Gerenciar Modelos
+              </Button>
             </div>
             <CardDescription>
-              Geração automatizada de contratos a partir de modelos personalizados com tags
-              dinâmicas e assinatura direta.
+              Gere minutas com placeholders automáticos {'{cliente_nome}'}, {'{valor_total}'} e
+              envie em PDF para a Assinafy.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">
-              Esta função permitirá configurar minutas padrão da sua empresa com preenchimento
-              automático de dados do cliente, sistema e condições de pagamento.
-            </p>
+          <CardContent className="space-y-4 flex-1">
+            {contractTemplates.length === 0 ? (
+              <div className="text-sm text-muted-foreground border border-dashed rounded-lg p-4 text-center space-y-2">
+                <p>Nenhum modelo de contrato ativo encontrado para esta empresa.</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsTemplatesManagerOpen(true)}
+                  className="text-xs gap-1.5"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Criar Primeiro Modelo
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label>Modelo de Contrato</Label>
+                  <Select
+                    value={selectedContractTemplateId}
+                    onValueChange={setSelectedContractTemplateId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Escolha o modelo de contrato" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {contractTemplates.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    className="w-full text-xs"
+                    disabled={!selectedContractTemplateId}
+                    onClick={() => setIsPreviewContractModalOpen(true)}
+                  >
+                    <Eye className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
+                    Pré-visualizar
+                  </Button>
+                  <Button
+                    className="w-full text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                    disabled={!selectedContractTemplateId}
+                    onClick={() => prepareSendModal('contract')}
+                  >
+                    <Send className="h-3.5 w-3.5 mr-1.5" />
+                    Enviar Contrato
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -579,7 +701,11 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                       <span className="font-medium text-sm">{req.document_name}</span>
                       {getStatusBadge(req.status)}
                       <Badge variant="outline" className="text-[11px] capitalize">
-                        {req.source === 'proposal' ? 'Proposta' : 'Arquivo'}
+                        {req.source === 'proposal'
+                          ? 'Proposta'
+                          : req.source === 'contract'
+                            ? 'Contrato'
+                            : 'Arquivo'}
                       </Badge>
                     </div>
                     <div className="text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
@@ -849,6 +975,115 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Gestão de Modelos de Contrato da Empresa */}
+      <ContractTemplatesManagerModal
+        isOpen={isTemplatesManagerOpen}
+        onClose={() => {
+          setIsTemplatesManagerOpen(false)
+          loadContractTemplates()
+        }}
+        companyId={neg?.company_id || ''}
+        sampleNegotiation={neg}
+        proposals={proposals}
+        companyRecord={companyRecord}
+        onTemplateSelected={(tpl) => {
+          setSelectedContractTemplateId(tpl.id)
+        }}
+      />
+
+      {/* Modal Rápido de Pré-Visualização do Contrato Preenchido */}
+      {selectedContractTemplateId && (
+        <Dialog open={isPreviewContractModalOpen} onOpenChange={setIsPreviewContractModalOpen}>
+          <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0 overflow-hidden">
+            <DialogHeader className="p-4 border-b bg-card shrink-0">
+              <div className="flex items-center justify-between">
+                <div>
+                  <DialogTitle className="text-base">
+                    Pré-visualização do Contrato Preenchido
+                  </DialogTitle>
+                  <DialogDescription className="text-xs">
+                    Dados mesclados dinamicamente com esta negociação.
+                  </DialogDescription>
+                </div>
+                {(() => {
+                  const tpl = contractTemplates.find((t) => t.id === selectedContractTemplateId)
+                  if (!tpl) return null
+                  const ctx = buildContractContextFromNegotiation(neg, proposals, companyRecord)
+                  const res = resolveContractPlaceholders(tpl.content, ctx)
+                  return (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openContractPrintPreview(res.resolvedContent, tpl.name)}
+                        className="text-xs h-8 gap-1.5"
+                      >
+                        <Download className="h-3.5 w-3.5" /> Versão Imprimível
+                      </Button>
+                    </div>
+                  )
+                })()}
+              </div>
+            </DialogHeader>
+
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
+              {(() => {
+                const tpl = contractTemplates.find((t) => t.id === selectedContractTemplateId)
+                if (!tpl) return null
+                const ctx = buildContractContextFromNegotiation(neg, proposals, companyRecord)
+                const res = resolveContractPlaceholders(tpl.content, ctx)
+                return (
+                  <div className="space-y-4 max-w-3xl mx-auto">
+                    {res.unresolvedCount > 0 ? (
+                      <div className="p-3 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                          <span>
+                            Atenção: há <strong>{res.unresolvedCount}</strong> placeholder(s) sem
+                            valor no CRM ({res.unresolvedKeys.join(', ')}).
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                        <span>Todos os placeholders foram preenchidos com sucesso pelo CRM!</span>
+                      </div>
+                    )}
+                    <div className="bg-white p-8 rounded-xl border shadow-sm">
+                      <div
+                        dangerouslySetInnerHTML={{ __html: res.htmlPreview }}
+                        className="prose prose-sm max-w-none font-sans text-slate-800"
+                      />
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
+
+            <DialogFooter className="p-3 border-t bg-card shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsPreviewContractModalOpen(false)}
+              >
+                Fechar
+              </Button>
+              <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => {
+                  setIsPreviewContractModalOpen(false)
+                  prepareSendModal('contract')
+                }}
+              >
+                <Send className="h-3.5 w-3.5 mr-1.5" /> Avançar para Envio
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }

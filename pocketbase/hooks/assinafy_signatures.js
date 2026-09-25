@@ -77,7 +77,8 @@ routerAdd(
 
       const negotiationId = body.negotiation_id
       const proposalId = body.proposal_id || null
-      const source = body.source || 'proposal' // 'proposal' | 'upload'
+      const contractTemplateId = body.contract_template_id || null
+      const source = body.source || 'proposal' // 'proposal' | 'upload' | 'contract'
       const documentName = (body.document_name || 'Documento.pdf').trim()
       const signers = Array.isArray(body.signers) ? body.signers : []
       const pdfBase64 = body.pdf_base64 || ''
@@ -344,6 +345,9 @@ routerAdd(
       newRecord.set('negotiation_id', negotiationId)
       if (proposalId) {
         newRecord.set('proposal_id', proposalId)
+      }
+      if (contractTemplateId) {
+        newRecord.set('contract_template_id', contractTemplateId)
       }
       newRecord.set('source', source)
       newRecord.set('document_name', documentName)

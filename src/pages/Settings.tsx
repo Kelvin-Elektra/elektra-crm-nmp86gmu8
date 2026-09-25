@@ -14,7 +14,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useAuth } from '@/contexts/AuthContext'
-import { Building2, User, Users, Plus, KeyRound, Edit2, Trash2 } from 'lucide-react'
+import { Building2, User, Users, Plus, KeyRound, Edit2, Trash2, FileText } from 'lucide-react'
+import { ContractTemplatesManagerModal } from '@/components/ContractTemplatesManagerModal'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
@@ -62,6 +63,9 @@ export default function Settings() {
   // Edit State
   const [editUserOpen, setEditUserOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<any>(null)
+
+  // Modal de Modelos de Contrato
+  const [isTemplatesManagerOpen, setIsTemplatesManagerOpen] = useState(false)
 
   const loadCompany = async () => {
     if (user?.company_id && user.company_id.trim() !== '') {
@@ -402,7 +406,18 @@ export default function Settings() {
                   <Separator className="my-4" />
 
                   <div className="space-y-4">
-                    <h4 className="font-semibold text-sm">Assinatura Digital (Assinafy)</h4>
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold text-sm">Assinatura Digital (Assinafy)</h4>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsTemplatesManagerOpen(true)}
+                        className="text-xs h-7 gap-1.5"
+                      >
+                        <FileText className="h-3.5 w-3.5 text-primary" /> Modelos de Contrato
+                      </Button>
+                    </div>
                     <div className="space-y-2">
                       <Label>Regra padrão de signatários</Label>
                       <Select
@@ -864,6 +879,14 @@ export default function Settings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {company?.id && (
+        <ContractTemplatesManagerModal
+          isOpen={isTemplatesManagerOpen}
+          onClose={() => setIsTemplatesManagerOpen(false)}
+          companyId={company.id}
+          companyRecord={company}
+        />
+      )}
     </div>
   )
 }
