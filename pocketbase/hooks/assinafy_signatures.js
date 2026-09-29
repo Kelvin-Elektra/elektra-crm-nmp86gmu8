@@ -1,8 +1,137 @@
 // Router: Assinafy signature management and webhook handling
 // Routes:
-// 1. POST /backend/v1/signatures/send — sends proposal or uploaded PDF to Assinafy and registers signature_request
-// 2. GET  /backend/v1/signatures/sync/:id — checks live document state on Assinafy and updates record
-// 3. POST /backend/v1/signatures/webhook — Assinafy webhook receiver (public, validates and updates signature_requests)
+// 1. GET  /backend/v1/signatures/status — checks Assinafy credentials, resolves and caches account_id automatically
+// 2. POST /backend/v1/signatures/send — sends proposal or uploaded PDF to Assinafy and registers signature_request
+// 3. GET  /backend/v1/signatures/sync/:id — checks live document state on Assinafy and updates record
+// 4. POST /backend/v1/signatures/webhook — Assinafy webhook receiver (idempotent, updates status, saves signed PDF)
+
+// Cache em memória para o account_id descoberto automaticamente
+let _cachedAssinafyAccountId = ''
+
+function resolveAssinafyConfig() {
+  let apiKey = ''
+  let accountId = ''
+  let baseUrl = 'https://sandbox.assinafy.com.br/v1'
+
+  try {
+    apiKey = $secrets.get('ASSINAFY_API_KEY') || ''
+  } catch (_) {}
+  if (!apiKey) {
+    try {
+      apiKey = $os.getenv('ASSINAFY_API_KEY') || ''
+    } catch (_) {}
+  }
+
+  try {
+    accountId = $secrets.get('ASSINAFY_ACCOUNT_ID') || ''
+  } catch (_) {}
+  if (!accountId) {
+    try {
+      accountId = $os.getenv('ASSINAFY_ACCOUNT_ID') || ''
+    } catch (_) {}
+  }
+  if (!accountId && _cachedAssinafyAccountId) {
+    accountId = _cachedAssinafyAccountId
+  }
+
+  let envBaseUrl = ''
+  try {
+    envBaseUrl = $secrets.get('ASSINAFY_BASE_URL') || ''
+  } catch (_) {}
+  if (!envBaseUrl) {
+    try {
+      envBaseUrl = $os.getenv('ASSINAFY_BASE_URL') || ''
+    } catch (_) {}
+  }
+  if (envBaseUrl) {
+    baseUrl = envBaseUrl.trim()
+  }
+  if (baseUrl.endsWith('/')) {
+    baseUrl = baseUrl.slice(0, -1)
+  }
+
+  // Se apiKey existe mas accountId não está configurado, tenta auto-descobrir via GET /accounts ou /workspaces
+  if (apiKey && !accountId) {
+    try {
+      const endpointsToTry = [baseUrl + '/accounts', baseUrl + '/workspaces']
+      for (let i = 0; i < endpointsToTry.length; i++) {
+        const testUrl = endpointsToTry[i]
+        const accountsRes = $http.send({
+          url: testUrl,
+          method: 'GET',
+          headers: {
+            'X-Api-Key': apiKey,
+          },
+          timeout: 15,
+        })
+
+        if (accountsRes.statusCode < 400 && accountsRes.json) {
+          const bodyData = accountsRes.json
+          // Assinafy envelope: { status, message, data: [...] | {...} }
+          const dataPayload = bodyData.data || bodyData
+          let foundId = ''
+
+          if (Array.isArray(dataPayload) && dataPayload.length > 0) {
+            // Se houver uma única conta ou várias, pega a primeira
+            foundId = dataPayload[0].id || dataPayload[0].account_id || ''
+          } else if (dataPayload && typeof dataPayload === 'object' && dataPayload.id) {
+            foundId = dataPayload.id
+          }
+
+          if (foundId) {
+            accountId = String(foundId)
+            _cachedAssinafyAccountId = accountId
+            $app
+              .logger()
+              .info('Assinafy account_id auto-descoberto com sucesso', 'account_id', accountId)
+            break
+          }
+        }
+      }
+    } catch (discErr) {
+      $app.logger().warn('Falha ao auto-descobrir account_id na Assinafy', 'error', String(discErr))
+    }
+  }
+
+  return { apiKey, accountId, baseUrl }
+}
+
+// Endpoint utilitário para checar status e testar conexão com Assinafy
+routerAdd(
+  'GET',
+  '/backend/v1/signatures/status',
+  (e) => {
+    try {
+      const user = e.auth
+      if (!user) {
+        return e.json(401, { message: 'Não autorizado.' })
+      }
+
+      const config = resolveAssinafyConfig()
+      const hasApiKey = !!config.apiKey
+      const hasAccountId = !!config.accountId
+      const configured = hasApiKey && hasAccountId
+
+      return e.json(200, {
+        configured,
+        has_api_key: hasApiKey,
+        has_account_id: hasAccountId,
+        account_id_cached: !!_cachedAssinafyAccountId,
+        base_url: config.baseUrl,
+        is_sandbox: config.baseUrl.includes('sandbox'),
+        webhook_url: 'https://crm.elektrasolucoes.tech/backend/v1/signatures/webhook',
+        message: configured
+          ? 'Integração de assinatura digital pronta para uso.'
+          : !hasApiKey
+            ? 'Chave de API não configurada no servidor.'
+            : 'Conta de trabalho (Workspace/Account ID) não encontrada automaticamente. Verifique no painel Assinafy em Minha Conta → Espaços de Trabalho.',
+      })
+    } catch (err) {
+      return e.json(500, { message: 'Erro ao verificar status da assinatura: ' + String(err) })
+    }
+  },
+  $apis.requireAuth(),
+)
 
 routerAdd(
   'POST',
@@ -19,50 +148,17 @@ routerAdd(
         return e.json(403, { message: 'Usuário não está vinculado a uma empresa.' })
       }
 
-      // 1. Obter segredos da Assinafy
-      let apiKey = ''
-      let accountId = ''
-      let baseUrl = 'https://sandbox.assinafy.com.br/v1'
+      // 1. Obter configuração da Assinafy com auto-descoberta e cache de account_id
+      const assinafyCfg = resolveAssinafyConfig()
+      const apiKey = assinafyCfg.apiKey
+      const accountId = assinafyCfg.accountId
+      const baseUrl = assinafyCfg.baseUrl
 
-      try {
-        apiKey = $secrets.get('ASSINAFY_API_KEY') || ''
-      } catch (_) {}
-      if (!apiKey) {
-        try {
-          apiKey = $os.getenv('ASSINAFY_API_KEY') || ''
-        } catch (_) {}
-      }
-
-      try {
-        accountId = $secrets.get('ASSINAFY_ACCOUNT_ID') || ''
-      } catch (_) {}
-      if (!accountId) {
-        try {
-          accountId = $os.getenv('ASSINAFY_ACCOUNT_ID') || ''
-        } catch (_) {}
-      }
-
-      let envBaseUrl = ''
-      try {
-        envBaseUrl = $secrets.get('ASSINAFY_BASE_URL') || ''
-      } catch (_) {}
-      if (!envBaseUrl) {
-        try {
-          envBaseUrl = $os.getenv('ASSINAFY_BASE_URL') || ''
-        } catch (_) {}
-      }
-      if (envBaseUrl) {
-        baseUrl = envBaseUrl.trim()
-      }
-      if (baseUrl.endsWith('/')) {
-        baseUrl = baseUrl.slice(0, -1)
-      }
-
-      // Se não configurado, responder erro amigável
+      // Se não configurado, responder erro amigável sem jargão técnico
       if (!apiKey || !accountId) {
         return e.json(400, {
-          message:
-            'A integração com a plataforma de assinatura digital ainda não está configurada pelo administrador do sistema. Contate o suporte.',
+          code: 'ASSINAFY_NOT_CONFIGURED',
+          message: 'Integração de assinatura sendo finalizada. Fale com o suporte.',
         })
       }
 
@@ -404,30 +500,12 @@ routerAdd(
         return e.json(200, { record: record })
       }
 
-      let apiKey = ''
-      try {
-        apiKey = $secrets.get('ASSINAFY_API_KEY') || ''
-      } catch (_) {}
-      if (!apiKey) {
-        try {
-          apiKey = $os.getenv('ASSINAFY_API_KEY') || ''
-        } catch (_) {}
-      }
-
-      let baseUrl = 'https://sandbox.assinafy.com.br/v1'
-      let envBase = ''
-      try {
-        envBase = $secrets.get('ASSINAFY_BASE_URL') || ''
-      } catch (_) {}
-      if (!envBase) {
-        try {
-          envBase = $os.getenv('ASSINAFY_BASE_URL') || ''
-        } catch (_) {}
-      }
-      if (envBase) baseUrl = envBase.trim().replace(/\/$/, '')
+      const assinafyCfg = resolveAssinafyConfig()
+      const apiKey = assinafyCfg.apiKey
+      const baseUrl = assinafyCfg.baseUrl
 
       if (!apiKey) {
-        return e.json(400, { message: 'ASSINAFY_API_KEY não configurada.' })
+        return e.json(400, { message: 'Chave de assinatura não configurada no servidor.' })
       }
 
       const docRes = $http.send({
@@ -539,27 +617,9 @@ routerAdd('POST', '/backend/v1/signatures/webhook', (e) => {
       }
     } else if (eventName === 'signer_signed_document') {
       // Verificar se todos assinaram ou buscar status do documento na API Assinafy
-      let apiKey = ''
-      try {
-        apiKey = $secrets.get('ASSINAFY_API_KEY') || ''
-      } catch (_) {}
-      if (!apiKey) {
-        try {
-          apiKey = $os.getenv('ASSINAFY_API_KEY') || ''
-        } catch (_) {}
-      }
-
-      let baseUrl = 'https://sandbox.assinafy.com.br/v1'
-      let envBase = ''
-      try {
-        envBase = $secrets.get('ASSINAFY_BASE_URL') || ''
-      } catch (_) {}
-      if (!envBase) {
-        try {
-          envBase = $os.getenv('ASSINAFY_BASE_URL') || ''
-        } catch (_) {}
-      }
-      if (envBase) baseUrl = envBase.trim().replace(/\/$/, '')
+      const assinafyCfg = resolveAssinafyConfig()
+      const apiKey = assinafyCfg.apiKey
+      const baseUrl = assinafyCfg.baseUrl
 
       if (apiKey) {
         try {
