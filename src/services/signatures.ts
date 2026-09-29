@@ -113,11 +113,10 @@ export async function sendSignatureRequest(
 
   const data = await res.json()
   if (!res.ok) {
-    if (
-      data.code === 'ASSINAFY_NOT_CONFIGURED' ||
-      /assinafy|account_id|api_key/i.test(data.message || '')
-    ) {
-      throw new Error('Integração de assinatura sendo finalizada. Fale com o suporte.')
+    if (data.code === 'ASSINAFY_NOT_CONFIGURED') {
+      throw new Error(
+        data.message || 'Integração de assinatura sendo finalizada. Fale com o suporte.',
+      )
     }
     throw new Error(data.message || 'Falha ao enviar documento para assinatura.')
   }

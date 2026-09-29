@@ -24,7 +24,7 @@ routerAdd(
       // Helper inline para resolver credenciais e auto-descobrir account_id
       let apiKey = ''
       let accountId = ''
-      let baseUrl = 'https://sandbox.assinafy.com.br/v1'
+      let baseUrl = 'https://api.assinafy.com.br/v1'
 
       try {
         apiKey = $secrets.get('ASSINAFY_API_KEY') || ''
@@ -34,6 +34,7 @@ routerAdd(
           apiKey = $os.getenv('ASSINAFY_API_KEY') || ''
         } catch (_) {}
       }
+      if (apiKey) apiKey = apiKey.trim()
 
       try {
         accountId = $secrets.get('ASSINAFY_ACCOUNT_ID') || ''
@@ -43,6 +44,7 @@ routerAdd(
           accountId = $os.getenv('ASSINAFY_ACCOUNT_ID') || ''
         } catch (_) {}
       }
+      if (accountId) accountId = accountId.trim()
 
       let envBaseUrl = ''
       try {
@@ -60,51 +62,82 @@ routerAdd(
         baseUrl = baseUrl.slice(0, -1)
       }
 
-      // Se apiKey existe mas accountId não está configurado, tenta auto-descobrir via GET /accounts ou /workspaces
-      let discoveredAccountId = ''
-      if (apiKey && !accountId) {
-        try {
-          const endpointsToTry = [baseUrl + '/accounts', baseUrl + '/workspaces']
-          for (let i = 0; i < endpointsToTry.length; i++) {
-            const testUrl = endpointsToTry[i]
-            const accountsRes = $http.send({
-              url: testUrl,
-              method: 'GET',
-              headers: {
-                'X-Api-Key': apiKey,
-                Accept: 'application/json',
-              },
-              timeout: 15,
-            })
-
-            if (accountsRes.statusCode < 400 && accountsRes.json) {
-              const bodyData = accountsRes.json
-              const dataPayload = bodyData.data || bodyData
-              let foundId = ''
-
-              if (Array.isArray(dataPayload) && dataPayload.length > 0) {
-                foundId = dataPayload[0].id || dataPayload[0].account_id || ''
-              } else if (dataPayload && typeof dataPayload === 'object' && dataPayload.id) {
-                foundId = dataPayload.id
-              }
-
-              if (foundId) {
-                discoveredAccountId = String(foundId)
-                accountId = discoveredAccountId
-                $app
-                  .logger()
-                  .info('Assinafy account_id auto-descoberto com sucesso', 'account_id', accountId)
-                break
-              }
-            }
-          }
-        } catch (discErr) {
-          $app
-            .logger()
-            .warn('Falha ao auto-descobrir account_id na Assinafy', 'error', String(discErr))
-        }
+      let candidateBaseUrls = [baseUrl]
+      if (baseUrl.includes('sandbox')) {
+        candidateBaseUrls.push('https://api.assinafy.com.br/v1')
+      } else {
+        candidateBaseUrls.push('https://sandbox.assinafy.com.br/v1')
       }
 
+      let discoveredAccountId = ''
+      let lastDiscoveryError = null
+
+      if (apiKey && !accountId) {
+        for (let b = 0; b < candidateBaseUrls.length && !accountId; b++) {
+          const currentBase = candidateBaseUrls[b]
+          const endpointsToTry = [currentBase + '/accounts', currentBase + '/workspaces']
+
+          for (let i = 0; i < endpointsToTry.length; i++) {
+            const testUrl = endpointsToTry[i]
+            try {
+              const accountsRes = $http.send({
+                url: testUrl,
+                method: 'GET',
+                headers: {
+                  'X-Api-Key': apiKey,
+                  Accept: 'application/json',
+                },
+                timeout: 15,
+              })
+
+              if (accountsRes.statusCode < 400 && accountsRes.json) {
+                const bodyData = accountsRes.json
+                const dataPayload = bodyData.data || bodyData
+                let foundId = ''
+
+                if (Array.isArray(dataPayload) && dataPayload.length > 0) {
+                  foundId = dataPayload[0].id || dataPayload[0].account_id || ''
+                } else if (dataPayload && typeof dataPayload === 'object' && dataPayload.id) {
+                  foundId = dataPayload.id
+                }
+
+                if (foundId) {
+                  discoveredAccountId = String(foundId)
+                  accountId = discoveredAccountId
+                  baseUrl = currentBase
+                  $app
+                    .logger()
+                    .info(
+                      'Assinafy account_id auto-descoberto com sucesso',
+                      'account_id',
+                      accountId,
+                      'base_url',
+                      baseUrl,
+                    )
+                  break
+                }
+              } else {
+                lastDiscoveryError = {
+                  url: testUrl,
+                  status: accountsRes.statusCode,
+                  body: accountsRes.json || accountsRes.body,
+                }
+                $app.logger().warn('Tentativa de auto-descoberta Assinafy não teve sucesso', {
+                  url: testUrl,
+                  status: accountsRes.statusCode,
+                  body: accountsRes.json || accountsRes.body,
+                })
+              }
+            } catch (discErr) {
+              lastDiscoveryError = { url: testUrl, error: String(discErr) }
+              $app.logger().warn('Erro ao chamar Assinafy para auto-descoberta', {
+                url: testUrl,
+                error: String(discErr),
+              })
+            }
+          }
+        }
+      }
       const hasApiKey = !!apiKey
       const hasAccountId = !!accountId
       const configured = hasApiKey && hasAccountId
@@ -150,7 +183,7 @@ routerAdd(
       // 1. Obter configuração da Assinafy inline
       let apiKey = ''
       let accountId = ''
-      let baseUrl = 'https://sandbox.assinafy.com.br/v1'
+      let baseUrl = 'https://api.assinafy.com.br/v1'
 
       try {
         apiKey = $secrets.get('ASSINAFY_API_KEY') || ''
@@ -160,6 +193,7 @@ routerAdd(
           apiKey = $os.getenv('ASSINAFY_API_KEY') || ''
         } catch (_) {}
       }
+      if (apiKey) apiKey = apiKey.trim()
 
       try {
         accountId = $secrets.get('ASSINAFY_ACCOUNT_ID') || ''
@@ -169,6 +203,7 @@ routerAdd(
           accountId = $os.getenv('ASSINAFY_ACCOUNT_ID') || ''
         } catch (_) {}
       }
+      if (accountId) accountId = accountId.trim()
 
       let envBaseUrl = ''
       try {
@@ -186,58 +221,108 @@ routerAdd(
         baseUrl = baseUrl.slice(0, -1)
       }
 
+      if (!apiKey) {
+        $app.logger().error('Tentativa de envio sem ASSINAFY_API_KEY configurada')
+        return e.json(400, {
+          code: 'ASSINAFY_NOT_CONFIGURED',
+          message:
+            'Chave de integração da assinatura não configurada no servidor. Contate o suporte.',
+        })
+      }
+
+      let candidateBaseUrls = [baseUrl]
+      if (baseUrl.includes('sandbox')) {
+        candidateBaseUrls.push('https://api.assinafy.com.br/v1')
+      } else {
+        candidateBaseUrls.push('https://sandbox.assinafy.com.br/v1')
+      }
+
+      let lastDiscoveryDetails = null
+
       // Auto-descoberta se necessário
-      if (apiKey && !accountId) {
-        try {
-          const endpointsToTry = [baseUrl + '/accounts', baseUrl + '/workspaces']
+      if (!accountId) {
+        for (let b = 0; b < candidateBaseUrls.length && !accountId; b++) {
+          const currentBase = candidateBaseUrls[b]
+          const endpointsToTry = [currentBase + '/accounts', currentBase + '/workspaces']
+
           for (let i = 0; i < endpointsToTry.length; i++) {
             const testUrl = endpointsToTry[i]
-            const accountsRes = $http.send({
-              url: testUrl,
-              method: 'GET',
-              headers: {
-                'X-Api-Key': apiKey,
-                Accept: 'application/json',
-              },
-              timeout: 15,
-            })
+            try {
+              const accountsRes = $http.send({
+                url: testUrl,
+                method: 'GET',
+                headers: {
+                  'X-Api-Key': apiKey,
+                  Accept: 'application/json',
+                },
+                timeout: 15,
+              })
 
-            if (accountsRes.statusCode < 400 && accountsRes.json) {
-              const bodyData = accountsRes.json
-              const dataPayload = bodyData.data || bodyData
-              let foundId = ''
+              if (accountsRes.statusCode < 400 && accountsRes.json) {
+                const bodyData = accountsRes.json
+                const dataPayload = bodyData.data || bodyData
+                let foundId = ''
 
-              if (Array.isArray(dataPayload) && dataPayload.length > 0) {
-                foundId = dataPayload[0].id || dataPayload[0].account_id || ''
-              } else if (dataPayload && typeof dataPayload === 'object' && dataPayload.id) {
-                foundId = dataPayload.id
-              }
+                if (Array.isArray(dataPayload) && dataPayload.length > 0) {
+                  foundId = dataPayload[0].id || dataPayload[0].account_id || ''
+                } else if (dataPayload && typeof dataPayload === 'object' && dataPayload.id) {
+                  foundId = dataPayload.id
+                }
 
-              if (foundId) {
-                accountId = String(foundId)
+                if (foundId) {
+                  accountId = String(foundId)
+                  baseUrl = currentBase
+                  $app
+                    .logger()
+                    .info(
+                      'Assinafy account_id auto-descoberto com sucesso no envio',
+                      'account_id',
+                      accountId,
+                      'base_url',
+                      baseUrl,
+                    )
+                  break
+                }
+              } else {
+                lastDiscoveryDetails = {
+                  url: testUrl,
+                  status: accountsRes.statusCode,
+                  body: accountsRes.json || accountsRes.body,
+                }
                 $app
                   .logger()
-                  .info(
-                    'Assinafy account_id auto-descoberto com sucesso no envio',
-                    'account_id',
-                    accountId,
-                  )
-                break
+                  .warn('Tentativa de auto-descoberta Assinafy não teve sucesso no envio', {
+                    url: testUrl,
+                    status: accountsRes.statusCode,
+                    body: accountsRes.json || accountsRes.body,
+                  })
               }
+            } catch (discErr) {
+              lastDiscoveryDetails = { url: testUrl, error: String(discErr) }
+              $app.logger().warn('Erro de rede ao auto-descobrir account_id na Assinafy', {
+                url: testUrl,
+                error: String(discErr),
+              })
             }
           }
-        } catch (discErr) {
-          $app
-            .logger()
-            .warn('Falha ao auto-descobrir account_id na Assinafy', 'error', String(discErr))
         }
       }
 
-      // Se não configurado, responder erro amigável sem jargão técnico (regra da Tarefa 1)
-      if (!apiKey || !accountId) {
-        return e.json(400, {
-          code: 'ASSINAFY_NOT_CONFIGURED',
-          message: 'Integração de assinatura sendo finalizada. Fale com o suporte.',
+      if (!accountId) {
+        $app.logger().error('Falha ao identificar conta na plataforma de assinatura', {
+          lastDetails: lastDiscoveryDetails,
+        })
+        let userMsg =
+          'Não foi possível localizar sua conta na plataforma de assinatura. Verifique sua chave de API ou contate o suporte.'
+        if (lastDiscoveryDetails && lastDiscoveryDetails.status === 401) {
+          userMsg =
+            'A chave de API cadastrada foi recusada pela plataforma de assinatura. Verifique se a chave é válida e está ativa.'
+        } else if (lastDiscoveryDetails && lastDiscoveryDetails.status === 403) {
+          userMsg = 'Acesso não permitido com a chave cadastrada na plataforma de assinatura.'
+        }
+        return e.json(502, {
+          code: 'ASSINAFY_ACCOUNT_RESOLUTION_FAILED',
+          message: userMsg,
         })
       }
 
@@ -573,7 +658,7 @@ routerAdd(
       }
 
       let apiKey = ''
-      let baseUrl = 'https://sandbox.assinafy.com.br/v1'
+      let baseUrl = 'https://api.assinafy.com.br/v1'
 
       try {
         apiKey = $secrets.get('ASSINAFY_API_KEY') || ''
@@ -583,6 +668,7 @@ routerAdd(
           apiKey = $os.getenv('ASSINAFY_API_KEY') || ''
         } catch (_) {}
       }
+      if (apiKey) apiKey = apiKey.trim()
 
       let envBaseUrl = ''
       try {
@@ -698,7 +784,7 @@ routerAdd('POST', '/backend/v1/signatures/webhook', (e) => {
 
     // Configuração para consultar status oficial na Assinafy antes de atualizar (regra da Tarefa 1)
     let apiKey = ''
-    let baseUrl = 'https://sandbox.assinafy.com.br/v1'
+    let baseUrl = 'https://api.assinafy.com.br/v1'
 
     try {
       apiKey = $secrets.get('ASSINAFY_API_KEY') || ''
@@ -708,6 +794,7 @@ routerAdd('POST', '/backend/v1/signatures/webhook', (e) => {
         apiKey = $os.getenv('ASSINAFY_API_KEY') || ''
       } catch (_) {}
     }
+    if (apiKey) apiKey = apiKey.trim()
 
     let envBaseUrl = ''
     try {
