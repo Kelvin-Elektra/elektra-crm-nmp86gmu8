@@ -52,6 +52,19 @@ import {
   ContractContextData,
 } from '@/lib/contract-resolver'
 import { CRM_FIELD_SECTIONS, CrmFieldDefinition } from '@/lib/dynamic-mapping'
+import {
+  formatSignerSummary,
+  checkboxesToPolicy,
+  policyToCheckboxes,
+  SignerCheckboxesState,
+} from '@/lib/signature-utils'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
+import { Checkbox } from '@/components/ui/checkbox'
 import { openContractPrintPreview } from '@/lib/contract-pdf'
 
 interface ContractTemplatesManagerModalProps {
@@ -85,6 +98,11 @@ export const ContractTemplatesManagerModal: React.FC<ContractTemplatesManagerMod
   const [formContent, setFormContent] = useState('')
   const [formActive, setFormActive] = useState(true)
   const [formSignaturePolicy, setFormSignaturePolicy] = useState<string>('inherit')
+  const [signerCheckboxes, setSignerCheckboxes] = useState<SignerCheckboxesState>({
+    client: false,
+    representative: false,
+    owner: false,
+  })
   const [saving, setSaving] = useState(false)
 
   // Preview dinâmico com negociação real
@@ -142,17 +160,30 @@ O valor total do investimento é de {{valor_total}}, a ser pago via {{forma_paga
     )
     setFormActive(true)
     setFormSignaturePolicy('inherit')
+    setSignerCheckboxes({ client: false, representative: false, owner: false })
     setIsEditing(true)
   }
 
   const handleStartEdit = (tpl: ContractTemplateRecord) => {
     setSelectedTemplate(tpl)
+    const pol = (tpl.signature_policy as string) || 'inherit'
     setFormName(tpl.name)
     setFormDescription(tpl.description || '')
     setFormContent(tpl.content)
     setFormActive(tpl.active)
-    setFormSignaturePolicy((tpl.signature_policy as string) || 'inherit')
+    setFormSignaturePolicy(pol)
+    setSignerCheckboxes(policyToCheckboxes(pol))
     setIsEditing(true)
+  }
+
+  const handleToggleSignerCheckbox = (key: keyof SignerCheckboxesState, checked: boolean) => {
+    const nextState: SignerCheckboxesState = {
+      ...signerCheckboxes,
+      [key]: checked,
+    }
+    setSignerCheckboxes(nextState)
+    const nextPolicy = checkboxesToPolicy(nextState)
+    setFormSignaturePolicy(nextPolicy)
   }
 
   const handleSaveTemplate = async () => {
@@ -176,13 +207,16 @@ O valor total do investimento é de {{valor_total}}, a ser pago via {{forma_paga
 
     setSaving(true)
     try {
+      const policyValue = checkboxesToPolicy(signerCheckboxes)
+      const policyForBackend = policyValue === 'inherit' ? '' : policyValue
+
       if (selectedTemplate) {
         const updated = await updateContractTemplate(selectedTemplate.id, {
           name: formName,
           description: formDescription,
           content: formContent,
           active: formActive,
-          signature_policy: formSignaturePolicy === 'inherit' ? '' : (formSignaturePolicy as any),
+          signature_policy: policyForBackend as any,
         })
         toast({ title: 'Modelo atualizado com sucesso!' })
         setSelectedTemplate(updated)
@@ -193,7 +227,7 @@ O valor total do investimento é de {{valor_total}}, a ser pago via {{forma_paga
           description: formDescription,
           content: formContent,
           active: formActive,
-          signature_policy: formSignaturePolicy === 'inherit' ? '' : (formSignaturePolicy as any),
+          signature_policy: policyForBackend as any,
         })
         toast({ title: 'Modelo criado com sucesso!' })
         setSelectedTemplate(created)
@@ -451,24 +485,62 @@ O valor total do investimento é de {{valor_total}}, a ser pago via {{forma_paga
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Signatários Padrão deste Modelo</Label>
-                      <Select value={formSignaturePolicy} onValueChange={setFormSignaturePolicy}>
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="inherit">
-                            Herdar configuração global da empresa
-                          </SelectItem>
-                          <SelectItem value="client_only">Apenas o Cliente</SelectItem>
-                          <SelectItem value="client_rep">
-                            Cliente + Representante Comercial
-                          </SelectItem>
-                          <SelectItem value="client_owner">Cliente + Dono da Empresa</SelectItem>
-                          <SelectItem value="client_rep_owner">
-                            Cliente + Representante + Dono da Empresa
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Accordion
+                        type="single"
+                        collapsible
+                        className="w-full border rounded-md bg-slate-50/50"
+                      >
+                        <AccordionItem value="signers-modal" className="border-b-0">
+                          <AccordionTrigger className="px-3 py-1.5 text-xs hover:no-underline font-normal text-slate-700 data-[state=open]:border-b">
+                            <div className="flex items-center justify-between w-full pr-2 text-left">
+                              <span className="font-medium truncate max-w-[200px]">
+                                {formatSignerSummary(signerCheckboxes)}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-normal shrink-0 ml-1">
+                                {!signerCheckboxes.client &&
+                                !signerCheckboxes.representative &&
+                                !signerCheckboxes.owner
+                                  ? '(Herdar da empresa)'
+                                  : '(Personalizado)'}
+                              </span>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent className="p-3 pt-2 space-y-2 bg-white rounded-b-md">
+                            <p className="text-[11px] text-slate-500 pb-1 border-b">
+                              Marque quem deve assinar. Nenhum marcado = herdar da empresa.
+                            </p>
+                            <div className="space-y-2 pt-1">
+                              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 hover:text-slate-900">
+                                <Checkbox
+                                  checked={signerCheckboxes.client}
+                                  onCheckedChange={(checked) =>
+                                    handleToggleSignerCheckbox('client', !!checked)
+                                  }
+                                />
+                                <span>Cliente</span>
+                              </label>
+                              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 hover:text-slate-900">
+                                <Checkbox
+                                  checked={signerCheckboxes.representative}
+                                  onCheckedChange={(checked) =>
+                                    handleToggleSignerCheckbox('representative', !!checked)
+                                  }
+                                />
+                                <span>Representante (da empresa)</span>
+                              </label>
+                              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 hover:text-slate-900">
+                                <Checkbox
+                                  checked={signerCheckboxes.owner}
+                                  onCheckedChange={(checked) =>
+                                    handleToggleSignerCheckbox('owner', !!checked)
+                                  }
+                                />
+                                <span>Dono da empresa</span>
+                              </label>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
                     </div>
                   </div>
 

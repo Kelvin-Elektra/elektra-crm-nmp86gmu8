@@ -11,6 +11,19 @@ import {
   extractDocxText,
 } from '@/services/contract-templates'
 import { CRM_FIELD_SECTIONS, ALL_CRM_FIELDS } from '@/lib/dynamic-mapping'
+import {
+  formatSignerSummary,
+  checkboxesToPolicy,
+  policyToCheckboxes,
+  SignerCheckboxesState,
+} from '@/lib/signature-utils'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
+import { Checkbox } from '@/components/ui/checkbox'
 import { extractPlaceholdersFromTemplate, simpleMarkdownToHtml } from '@/lib/contract-resolver'
 import {
   FileText,
@@ -87,7 +100,15 @@ export function DocumentTemplatesPage() {
     type: TemplateDocType
     content: string
     active: boolean
-    signature_policy: 'inherit' | 'client_only' | 'client_rep' | 'client_owner' | 'client_rep_owner'
+    signature_policy:
+      | 'inherit'
+      | 'client_only'
+      | 'client_rep'
+      | 'client_owner'
+      | 'client_rep_owner'
+      | 'rep_only'
+      | 'owner_only'
+      | 'rep_owner'
   }>({
     name: '',
     description: '',
@@ -95,6 +116,13 @@ export function DocumentTemplatesPage() {
     content: '',
     active: true,
     signature_policy: 'inherit',
+  })
+
+  // Estado interno dos checkboxes de signatários padrão do template no editor
+  const [signerCheckboxes, setSignerCheckboxes] = useState<SignerCheckboxesState>({
+    client: false,
+    representative: false,
+    owner: false,
   })
 
   // Modal de escolha do modo de criação: manual ou upload de documento
@@ -163,6 +191,7 @@ export function DocumentTemplatesPage() {
 
   const handleStartCreateManual = (type: TemplateDocType = 'contract') => {
     setEditingTemplate(null)
+    setSignerCheckboxes({ client: false, representative: false, owner: false })
     setFormData({
       name: '',
       description: '',
@@ -223,6 +252,7 @@ export function DocumentTemplatesPage() {
       const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ')
 
       setEditingTemplate(null)
+      setSignerCheckboxes({ client: false, representative: false, owner: false })
       setFormData({
         name: baseName || 'Novo Modelo de Documento',
         description: `Importado a partir do arquivo ${file.name}`,
@@ -251,16 +281,31 @@ export function DocumentTemplatesPage() {
 
   const handleEdit = (tmpl: ContractTemplateRecord) => {
     setEditingTemplate(tmpl)
+    const initialPolicy = (tmpl.signature_policy as any) || 'inherit'
+    setSignerCheckboxes(policyToCheckboxes(initialPolicy))
     setFormData({
       name: tmpl.name,
       description: tmpl.description || '',
       type: tmpl.type || 'contract',
       content: tmpl.content,
       active: tmpl.active,
-      signature_policy: (tmpl.signature_policy as any) || 'inherit',
+      signature_policy: initialPolicy,
     })
     setIsEditorOpen(true)
     setEditorMode('write')
+  }
+
+  const handleToggleSignerCheckbox = (key: keyof SignerCheckboxesState, checked: boolean) => {
+    const nextState: SignerCheckboxesState = {
+      ...signerCheckboxes,
+      [key]: checked,
+    }
+    setSignerCheckboxes(nextState)
+    const nextPolicy = checkboxesToPolicy(nextState)
+    setFormData((prev) => ({
+      ...prev,
+      signature_policy: nextPolicy,
+    }))
   }
 
   const handleSave = async () => {
@@ -284,6 +329,10 @@ export function DocumentTemplatesPage() {
 
     setSaving(true)
     try {
+      // Computa a política exata a partir dos 3 checkboxes (ou inherit se nenhum marcado)
+      const policyValue = checkboxesToPolicy(signerCheckboxes)
+      const policyForBackend = policyValue === 'inherit' ? '' : policyValue
+
       if (editingTemplate) {
         await updateContractTemplate(editingTemplate.id, {
           name: formData.name,
@@ -291,8 +340,7 @@ export function DocumentTemplatesPage() {
           type: formData.type,
           content: formData.content,
           active: formData.active,
-          signature_policy:
-            formData.signature_policy === 'inherit' ? '' : formData.signature_policy,
+          signature_policy: policyForBackend,
         })
         toast({ title: 'Modelo atualizado com sucesso!' })
       } else {
@@ -303,8 +351,7 @@ export function DocumentTemplatesPage() {
           type: formData.type,
           content: formData.content,
           active: formData.active,
-          signature_policy:
-            formData.signature_policy === 'inherit' ? '' : formData.signature_policy,
+          signature_policy: policyForBackend,
         })
         toast({ title: 'Modelo criado com sucesso!' })
       }
@@ -529,6 +576,13 @@ export function DocumentTemplatesPage() {
                 </CardHeader>
                 <CardContent className="pt-0 space-y-4">
                   <div className="text-xs text-slate-500 flex items-center justify-between border-t pt-2">
+                    <span>Signatários:</span>
+                    <span className="font-medium text-slate-700 text-right truncate max-w-[180px]">
+                      {formatSignerSummary(template.signature_policy)}
+                    </span>
+                  </div>
+
+                  <div className="text-xs text-slate-500 flex items-center justify-between">
                     <span>Campos automáticos:</span>
                     <span className="font-semibold text-slate-700">{fieldCount} campos</span>
                   </div>
@@ -708,8 +762,8 @@ export function DocumentTemplatesPage() {
           </div>
 
           {/* Dados Gerais do Modelo */}
-          <div className="px-6 py-3 border-b bg-white grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 shrink-0 text-sm">
-            <div className="sm:col-span-2">
+          <div className="px-6 py-3 border-b bg-white grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 shrink-0 text-sm items-start">
+            <div className="sm:col-span-2 lg:col-span-4">
               <Label className="text-xs text-slate-600">Nome do Modelo *</Label>
               <Input
                 placeholder="Ex: Contrato de Instalação Fotovoltaica Residencial"
@@ -718,7 +772,7 @@ export function DocumentTemplatesPage() {
                 className="h-8 mt-1"
               />
             </div>
-            <div>
+            <div className="lg:col-span-2">
               <Label className="text-xs text-slate-600">Tipo de Documento</Label>
               <Select
                 value={formData.type}
@@ -736,29 +790,72 @@ export function DocumentTemplatesPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label className="text-xs text-slate-600">Signatários Padrão</Label>
-              <Select
-                value={formData.signature_policy}
-                onValueChange={(v: any) =>
-                  setFormData((prev) => ({ ...prev, signature_policy: v }))
-                }
+
+            {/* Campo Accordion Expandir/Recolher com Checkboxes para Signatários Padrão */}
+            <div className="lg:col-span-4">
+              <Label className="text-xs text-slate-600 block mb-1">
+                Signatários Padrão deste Documento
+              </Label>
+              <Accordion
+                type="single"
+                collapsible
+                className="w-full border rounded-md bg-slate-50/50"
               >
-                <SelectTrigger className="h-8 mt-1 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="inherit">Herdar configuração global da empresa</SelectItem>
-                  <SelectItem value="client_only">Apenas o Cliente</SelectItem>
-                  <SelectItem value="client_rep">Cliente + Representante Comercial</SelectItem>
-                  <SelectItem value="client_owner">Cliente + Dono da Empresa</SelectItem>
-                  <SelectItem value="client_rep_owner">
-                    Cliente + Representante + Dono da Empresa
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+                <AccordionItem value="signers" className="border-b-0">
+                  <AccordionTrigger className="px-3 py-1.5 text-xs hover:no-underline font-normal text-slate-700 data-[state=open]:border-b">
+                    <div className="flex items-center justify-between w-full pr-2 text-left">
+                      <span className="font-medium truncate max-w-[220px]">
+                        {formatSignerSummary(signerCheckboxes)}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-normal shrink-0 ml-1">
+                        {!signerCheckboxes.client &&
+                        !signerCheckboxes.representative &&
+                        !signerCheckboxes.owner
+                          ? '(Padrão da empresa)'
+                          : '(Personalizado)'}
+                      </span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="p-3 pt-2 space-y-2 bg-white rounded-b-md">
+                    <p className="text-[11px] text-slate-500 pb-1 border-b">
+                      Marque quem deve assinar este documento. Se nenhum for marcado, será usada a
+                      configuração global da empresa.
+                    </p>
+                    <div className="space-y-2 pt-1">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 hover:text-slate-900">
+                        <Checkbox
+                          checked={signerCheckboxes.client}
+                          onCheckedChange={(checked) =>
+                            handleToggleSignerCheckbox('client', !!checked)
+                          }
+                        />
+                        <span>Cliente</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 hover:text-slate-900">
+                        <Checkbox
+                          checked={signerCheckboxes.representative}
+                          onCheckedChange={(checked) =>
+                            handleToggleSignerCheckbox('representative', !!checked)
+                          }
+                        />
+                        <span>Representante (da empresa)</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 hover:text-slate-900">
+                        <Checkbox
+                          checked={signerCheckboxes.owner}
+                          onCheckedChange={(checked) =>
+                            handleToggleSignerCheckbox('owner', !!checked)
+                          }
+                        />
+                        <span>Dono da empresa</span>
+                      </label>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </div>
-            <div>
+
+            <div className="lg:col-span-2">
               <Label className="text-xs text-slate-600">Status</Label>
               <Select
                 value={formData.active ? 'active' : 'inactive'}

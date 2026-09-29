@@ -9,6 +9,9 @@ export type TemplateSignaturePolicy =
   | 'client_rep'
   | 'client_owner'
   | 'client_rep_owner'
+  | 'rep_only'
+  | 'owner_only'
+  | 'rep_owner'
 
 export interface ContractTemplateRecord {
   id: string
@@ -19,7 +22,15 @@ export interface ContractTemplateRecord {
   content: string
   placeholders?: string[]
   active: boolean
-  signature_policy?: 'client_only' | 'client_rep' | 'client_owner' | 'client_rep_owner' | ''
+  signature_policy?:
+    | 'client_only'
+    | 'client_rep'
+    | 'client_owner'
+    | 'client_rep_owner'
+    | 'rep_only'
+    | 'owner_only'
+    | 'rep_owner'
+    | ''
   created: string
   updated: string
 }
@@ -31,7 +42,15 @@ export interface CreateContractTemplateInput {
   description?: string
   content: string
   active?: boolean
-  signature_policy?: 'client_only' | 'client_rep' | 'client_owner' | 'client_rep_owner' | ''
+  signature_policy?:
+    | 'client_only'
+    | 'client_rep'
+    | 'client_owner'
+    | 'client_rep_owner'
+    | 'rep_only'
+    | 'owner_only'
+    | 'rep_owner'
+    | ''
 }
 
 export interface UpdateContractTemplateInput {
@@ -40,7 +59,15 @@ export interface UpdateContractTemplateInput {
   description?: string
   content?: string
   active?: boolean
-  signature_policy?: 'client_only' | 'client_rep' | 'client_owner' | 'client_rep_owner' | ''
+  signature_policy?:
+    | 'client_only'
+    | 'client_rep'
+    | 'client_owner'
+    | 'client_rep_owner'
+    | 'rep_only'
+    | 'owner_only'
+    | 'rep_owner'
+    | ''
 }
 
 /**

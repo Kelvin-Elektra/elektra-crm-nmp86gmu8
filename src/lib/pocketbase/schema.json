@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-29T15:02:34.835Z",
+  "generatedAt": "2026-09-29T15:21:17.435Z",
   "collections": [
     {
       "name": "users",
@@ -2301,7 +2301,15 @@
           "type": "select",
           "required": false,
           "system": false,
-          "selectValues": ["client_only", "client_rep", "client_owner", "client_rep_owner"]
+          "selectValues": [
+            "client_only",
+            "client_rep",
+            "client_owner",
+            "client_rep_owner",
+            "rep_only",
+            "owner_only",
+            "rep_owner"
+          ]
         }
       ],
       "indexes": [
