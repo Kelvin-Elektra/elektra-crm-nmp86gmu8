@@ -374,53 +374,104 @@ routerAdd(
         }
       }
 
-      // 3. Obter bytes do PDF
-      let pdfBytes = null
+      // 3. Obter bytes ou string binária do PDF
+      let pdfBinary = null // string com caracteres byte 0..255 (binary string)
+      let pdfByteNumbers = null // array de números [0..255]
 
-      // Diagnóstico detalhado de pdf_base64 e outros campos recebidos
-      $app.logger().info('Dados recebidos no envio para assinatura', {
-        has_pdf_base64: !!pdfBase64,
-        pdf_base64_len: pdfBase64 ? pdfBase64.length : 0,
-        pdf_base64_preview: pdfBase64 ? pdfBase64.substring(0, 30) : '',
-        has_security_base64Decode: !!($security && $security.base64Decode),
-        has_Buffer: typeof Buffer !== 'undefined',
-        has_atob: typeof atob !== 'undefined',
-        has_toBytes: typeof toBytes !== 'undefined',
-      })
+      // Helper inline para decodificar base64 em puro JavaScript (compatível com Goja/JSVM sem atob/Buffer/$security)
+      const decodeBase64ToBytes = (inputStr) => {
+        const b64chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+        // Remove espaços, quebras de linha e padding
+        let s = String(inputStr || '').replace(/\s+/g, '')
+        const comma = s.indexOf(',')
+        if (comma !== -1) {
+          s = s.substring(comma + 1)
+        }
+        while (s.length % 4 !== 0) {
+          s += '='
+        }
+        const b64lookup = {}
+        for (let idx = 0; idx < b64chars.length; idx++) {
+          b64lookup[b64chars.charAt(idx)] = idx
+        }
+        b64lookup['-'] = 62 // base64url '-'
+        b64lookup['_'] = 63 // base64url '_'
+
+        const resultBytes = []
+        let binaryStr = ''
+
+        for (let i = 0; i < s.length; i += 4) {
+          const c0 = s.charAt(i)
+          const c1 = s.charAt(i + 1)
+          const c2 = s.charAt(i + 2)
+          const c3 = s.charAt(i + 3)
+
+          const e0 = b64lookup[c0]
+          const e1 = b64lookup[c1]
+          const e2 = c2 === '=' ? undefined : b64lookup[c2]
+          const e3 = c3 === '=' ? undefined : b64lookup[c3]
+
+          if (e0 === undefined || e1 === undefined) {
+            break
+          }
+
+          const b0 = (e0 << 2) | (e1 >> 4)
+          resultBytes.push(b0)
+          binaryStr += String.fromCharCode(b0)
+
+          if (e2 !== undefined) {
+            const b1 = ((e1 & 15) << 4) | (e2 >> 2)
+            resultBytes.push(b1)
+            binaryStr += String.fromCharCode(b1)
+
+            if (e3 !== undefined) {
+              const b2 = ((e2 & 3) << 6) | e3
+              resultBytes.push(b2)
+              binaryStr += String.fromCharCode(b2)
+            }
+          }
+        }
+
+        return { bytes: resultBytes, binaryStr: binaryStr }
+      }
 
       if (pdfBase64) {
         try {
-          let rawB64 = pdfBase64
-          const commaIdx = rawB64.indexOf(',')
-          if (commaIdx !== -1) {
-            rawB64 = rawB64.substring(commaIdx + 1)
-          }
-          if ($security && typeof $security.base64Decode === 'function') {
-            pdfBytes = $security.base64Decode(rawB64)
-          } else {
-            $app.logger().warn('$security.base64Decode não existe!')
+          const decoded = decodeBase64ToBytes(pdfBase64)
+          if (decoded && decoded.bytes && decoded.bytes.length > 0) {
+            pdfByteNumbers = decoded.bytes
+            pdfBinary = decoded.binaryStr
           }
         } catch (decErr) {
-          $app.logger().warn('Erro ao decodificar pdf_base64', 'error', String(decErr))
+          $app.logger().warn('Erro ao decodificar pdf_base64 em JS puro', 'error', String(decErr))
         }
       }
 
-      if (!pdfBytes && pdfUrl) {
+      if ((!pdfBinary || pdfBinary.length === 0) && pdfUrl) {
         try {
           const downloadRes = $http.send({
             url: pdfUrl,
             method: 'GET',
             timeout: 30,
           })
-          if (downloadRes.statusCode === 200 && downloadRes.body) {
-            pdfBytes = downloadRes.raw || downloadRes.body
+          if (downloadRes.statusCode === 200) {
+            if (downloadRes.raw && typeof downloadRes.raw === 'string') {
+              pdfBinary = downloadRes.raw
+            } else if (Array.isArray(downloadRes.body) && downloadRes.body.length > 0) {
+              pdfByteNumbers = downloadRes.body
+              let bin = ''
+              for (let k = 0; k < downloadRes.body.length; k++) {
+                bin += String.fromCharCode(downloadRes.body[k] & 0xff)
+              }
+              pdfBinary = bin
+            }
           }
         } catch (fetchErr) {
           $app.logger().warn('Erro ao baixar PDF via pdf_url', 'error', String(fetchErr))
         }
       }
 
-      if (!pdfBytes && proposalId) {
+      if ((!pdfBinary || pdfBinary.length === 0) && proposalId) {
         try {
           const propRec = $app.findFirstRecordByFilter(
             'proposals',
@@ -434,8 +485,17 @@ routerAdd(
                 method: 'GET',
                 timeout: 30,
               })
-              if (downloadRes.statusCode === 200 && downloadRes.body) {
-                pdfBytes = downloadRes.raw || downloadRes.body
+              if (downloadRes.statusCode === 200) {
+                if (downloadRes.raw && typeof downloadRes.raw === 'string') {
+                  pdfBinary = downloadRes.raw
+                } else if (Array.isArray(downloadRes.body) && downloadRes.body.length > 0) {
+                  pdfByteNumbers = downloadRes.body
+                  let bin = ''
+                  for (let k = 0; k < downloadRes.body.length; k++) {
+                    bin += String.fromCharCode(downloadRes.body[k] & 0xff)
+                  }
+                  pdfBinary = bin
+                }
               }
             }
           }
@@ -444,7 +504,13 @@ routerAdd(
         }
       }
 
-      if (!pdfBytes) {
+      if (!pdfBinary || pdfBinary.length === 0) {
+        $app.logger().warn('Nenhum dado de PDF pôde ser obtido', {
+          had_pdf_base64: !!pdfBase64,
+          pdf_base64_length: pdfBase64 ? pdfBase64.length : 0,
+          had_pdf_url: !!pdfUrl,
+          had_proposal_id: !!proposalId,
+        })
         return e.json(400, {
           message:
             'Não foi possível obter o arquivo PDF para envio. Forneça o arquivo diretamente na tela.',
@@ -454,38 +520,84 @@ routerAdd(
       // 4. Enviar documento à Assinafy: POST /v1/accounts/{accountId}/documents (multipart/form-data)
       const uploadUrl = baseUrl + '/accounts/' + accountId + '/documents'
       let uploadRes = null
-      try {
-        const boundary = '----AssinafyBoundary' + $security.randomString(16)
-        let safeDocName = documentName.replace(/["\r\n]/g, '_')
-        if (!safeDocName.toLowerCase().endsWith('.pdf')) {
-          safeDocName += '.pdf'
+      let safeDocName = documentName.replace(/["\r\n]/g, '_')
+      if (!safeDocName.toLowerCase().endsWith('.pdf')) {
+        safeDocName += '.pdf'
+      }
+
+      // Tentativa 1: Via FormData oficial do PocketBase JSVM (v0.22.4+ / v0.36) se disponível
+      let sentViaFormData = false
+      if (
+        typeof FormData !== 'undefined' &&
+        typeof $filesystem !== 'undefined' &&
+        typeof $filesystem.fileFromBytes === 'function'
+      ) {
+        try {
+          const formData = new FormData()
+          // $filesystem.fileFromBytes aceita string ou number[]
+          const filePayload =
+            pdfByteNumbers && pdfByteNumbers.length > 0 ? pdfByteNumbers : pdfBinary
+          const pbFile = $filesystem.fileFromBytes(filePayload, safeDocName)
+          formData.append('file', pbFile)
+
+          uploadRes = $http.send({
+            url: uploadUrl,
+            method: 'POST',
+            headers: {
+              'X-Api-Key': apiKey,
+            },
+            body: formData,
+            timeout: 45,
+          })
+          sentViaFormData = true
+        } catch (fdErr) {
+          $app
+            .logger()
+            .warn(
+              'Tentativa via FormData falhou, tentando fallback multipart manual',
+              'error',
+              String(fdErr),
+            )
         }
+      }
 
-        const partHeader =
-          '--' +
-          boundary +
-          '\r\n' +
-          'Content-Disposition: form-data; name="file"; filename="' +
-          safeDocName +
-          '"\r\n' +
-          'Content-Type: application/pdf\r\n\r\n'
-        const partFooter = '\r\n--' + boundary + '--\r\n'
+      // Tentativa 2: Fallback com boundary manual caso FormData não esteja disponível ou tenha falhado
+      if (!sentViaFormData || !uploadRes) {
+        try {
+          const boundary = '----AssinafyBoundary' + $security.randomString(16)
+          const partHeader =
+            '--' +
+            boundary +
+            '\r\n' +
+            'Content-Disposition: form-data; name="file"; filename="' +
+            safeDocName +
+            '"\r\n' +
+            'Content-Type: application/pdf\r\n\r\n'
+          const partFooter = '\r\n--' + boundary + '--\r\n'
 
-        uploadRes = $http.send({
-          url: uploadUrl,
-          method: 'POST',
-          headers: {
-            'X-Api-Key': apiKey,
-            'Content-Type': 'multipart/form-data; boundary=' + boundary,
-          },
-          body: partHeader + pdfBytes + partFooter,
-          timeout: 45,
-        })
-      } catch (upErr) {
-        $app.logger().error('Falha na chamada de upload Assinafy', 'error', String(upErr))
-        return e.json(502, {
-          message: 'Falha na comunicação com o serviço de assinatura. Tente novamente mais tarde.',
-        })
+          uploadRes = $http.send({
+            url: uploadUrl,
+            method: 'POST',
+            headers: {
+              'X-Api-Key': apiKey,
+              'Content-Type': 'multipart/form-data; boundary=' + boundary,
+            },
+            body: partHeader + pdfBinary + partFooter,
+            timeout: 45,
+          })
+        } catch (upErr) {
+          $app
+            .logger()
+            .error(
+              'Falha na chamada de upload Assinafy via fallback manual',
+              'error',
+              String(upErr),
+            )
+          return e.json(502, {
+            message:
+              'Falha na comunicação com o serviço de assinatura. Tente novamente mais tarde.',
+          })
+        }
       }
 
       if (uploadRes.statusCode >= 400) {
