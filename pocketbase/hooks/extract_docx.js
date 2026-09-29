@@ -33,7 +33,25 @@ routerAdd(
       try {
         // Uso da API nativa do Skip Cloud para extração fiel de documento para Markdown
         const docResult = $documents.toMarkdown(file)
-        const markdown = docResult && docResult.markdown ? docResult.markdown : ''
+        let markdown = docResult && docResult.markdown ? docResult.markdown : ''
+
+        // Sanitização de resíduos de Office/HTML cru (ex: tags <o:p>, <w:...>, <div>, <span> de exportações do Word)
+        if (markdown) {
+          markdown = markdown
+            .replace(
+              /<\/?(html|body|div|span|p|o:[a-z0-9_-]+|w:[a-z0-9_-]+|m:[a-z0-9_-]+|v:[a-z0-9_-]+)[^>]*>/gi,
+              '',
+            )
+            .replace(/&nbsp;/gi, ' ')
+            .replace(/&amp;/gi, '&')
+            .replace(/&lt;/gi, '<')
+            .replace(/&gt;/gi, '>')
+            .replace(/&quot;/gi, '"')
+            .replace(/\r\n/g, '\n')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim()
+        }
+
         return e.json(200, {
           markdown: markdown,
           name: file.name,

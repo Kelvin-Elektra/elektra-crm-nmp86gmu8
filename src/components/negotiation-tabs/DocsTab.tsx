@@ -236,8 +236,26 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
     const lead = neg.expand?.lead_id || {}
     const rep = neg.expand?.owner_id || {}
 
+    // Resolução em cascata dos signatários padrão:
+    // 1. Política do modelo selecionado (se houver e não for vazia)
+    // 2. Política global da empresa (companyPolicy)
+    // 3. 'client_only' (fallback seguro)
+    let selectedTemplateForPolicy: any = null
+    if (type === 'contract') {
+      selectedTemplateForPolicy = contractTemplates.find((t) => t.id === selectedContractTemplateId)
+    } else if (type === 'power_of_attorney') {
+      selectedTemplateForPolicy = poaTemplates.find((t) => t.id === selectedPoaTemplateId)
+    } else if (type === 'checklist') {
+      selectedTemplateForPolicy = checklistTemplates.find(
+        (t) => t.id === selectedChecklistTemplateId,
+      )
+    }
+
+    const templatePolicy = selectedTemplateForPolicy?.signature_policy
+    const effectivePolicy = templatePolicy || companyPolicy || 'client_only'
+
     const defaultSigners = buildDefaultSigners({
-      policy: companyPolicy,
+      policy: effectivePolicy,
       lead: {
         name: lead.name || neg.lead_name || 'Cliente',
         email: lead.email || '',

@@ -303,11 +303,16 @@ export async function pdfBlobToBase64(blob: Blob): Promise<string> {
  * Abre janela de impressão ou pré-visualização HTML formatada
  */
 export function openContractPrintPreview(
-  htmlContent: string,
+  textContentOrMarkdown: string,
   title: string = 'Contrato de Prestação',
 ) {
   const printWindow = window.open('', '_blank', 'width=800,height=900')
   if (!printWindow) return
+
+  // Limpa eventuais tags visuais <span ...> ou <mark ...> residuais para impressão limpa
+  const cleanedText = textContentOrMarkdown
+    .replace(/<span[^>]*>(.*?)<\/span>/gi, '$1')
+    .replace(/<mark[^>]*>(.*?)<\/mark>/gi, '$1')
 
   const doc = printWindow.document
   doc.open()
@@ -358,7 +363,7 @@ export function openContractPrintPreview(
     </head>
     <body>
       <button class="print-btn" onclick="window.print()">Imprimir / Salvar PDF</button>
-      <div>${simpleMarkdownToHtml(htmlContent)}</div>
+      <div>${simpleMarkdownToHtml(cleanedText)}</div>
     </body>
     </html>
   `)

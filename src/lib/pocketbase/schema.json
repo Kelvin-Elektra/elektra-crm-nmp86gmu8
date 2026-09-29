@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-29T14:51:41.894Z",
+  "generatedAt": "2026-09-29T15:02:34.835Z",
   "collections": [
     {
       "name": "users",
@@ -2295,6 +2295,13 @@
           "required": false,
           "system": false,
           "selectValues": ["contract", "power_of_attorney", "checklist"]
+        },
+        {
+          "name": "signature_policy",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["client_only", "client_rep", "client_owner", "client_rep_owner"]
         }
       ],
       "indexes": [

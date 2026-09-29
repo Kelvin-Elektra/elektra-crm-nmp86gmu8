@@ -84,6 +84,7 @@ export const ContractTemplatesManagerModal: React.FC<ContractTemplatesManagerMod
   const [formDescription, setFormDescription] = useState('')
   const [formContent, setFormContent] = useState('')
   const [formActive, setFormActive] = useState(true)
+  const [formSignaturePolicy, setFormSignaturePolicy] = useState<string>('inherit')
   const [saving, setSaving] = useState(false)
 
   // Preview dinâmico com negociação real
@@ -140,6 +141,7 @@ O valor total do investimento é de {{valor_total}}, a ser pago via {{forma_paga
 `,
     )
     setFormActive(true)
+    setFormSignaturePolicy('inherit')
     setIsEditing(true)
   }
 
@@ -149,6 +151,7 @@ O valor total do investimento é de {{valor_total}}, a ser pago via {{forma_paga
     setFormDescription(tpl.description || '')
     setFormContent(tpl.content)
     setFormActive(tpl.active)
+    setFormSignaturePolicy((tpl.signature_policy as string) || 'inherit')
     setIsEditing(true)
   }
 
@@ -179,6 +182,7 @@ O valor total do investimento é de {{valor_total}}, a ser pago via {{forma_paga
           description: formDescription,
           content: formContent,
           active: formActive,
+          signature_policy: formSignaturePolicy === 'inherit' ? '' : (formSignaturePolicy as any),
         })
         toast({ title: 'Modelo atualizado com sucesso!' })
         setSelectedTemplate(updated)
@@ -189,6 +193,7 @@ O valor total do investimento é de {{valor_total}}, a ser pago via {{forma_paga
           description: formDescription,
           content: formContent,
           active: formActive,
+          signature_policy: formSignaturePolicy === 'inherit' ? '' : (formSignaturePolicy as any),
         })
         toast({ title: 'Modelo criado com sucesso!' })
         setSelectedTemplate(created)
@@ -434,14 +439,37 @@ O valor total do investimento é de {{valor_total}}, a ser pago via {{forma_paga
                     </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <Label className="text-xs">Descrição / Finalidade</Label>
-                    <Input
-                      value={formDescription}
-                      onChange={(e) => setFormDescription(e.target.value)}
-                      placeholder="Ex: Utilizado para clientes residenciais até 15 kWp"
-                      className="h-8 text-xs"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Descrição / Finalidade</Label>
+                      <Input
+                        value={formDescription}
+                        onChange={(e) => setFormDescription(e.target.value)}
+                        placeholder="Ex: Utilizado para clientes residenciais até 15 kWp"
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Signatários Padrão deste Modelo</Label>
+                      <Select value={formSignaturePolicy} onValueChange={setFormSignaturePolicy}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="inherit">
+                            Herdar configuração global da empresa
+                          </SelectItem>
+                          <SelectItem value="client_only">Apenas o Cliente</SelectItem>
+                          <SelectItem value="client_rep">
+                            Cliente + Representante Comercial
+                          </SelectItem>
+                          <SelectItem value="client_owner">Cliente + Dono da Empresa</SelectItem>
+                          <SelectItem value="client_rep_owner">
+                            Cliente + Representante + Dono da Empresa
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
                   <div className="flex-1 flex flex-col space-y-1.5 min-h-[350px]">

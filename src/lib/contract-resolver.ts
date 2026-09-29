@@ -154,13 +154,26 @@ export function buildContractContextFromNegotiation(
     moduleModelName = [mod.brand, mod.name, mod.power ? `${mod.power}W` : '']
       .filter(Boolean)
       .join(' ')
+  } else if (snapshotData.sizing?.module_model || snapshotData.sizing?.module_name) {
+    moduleModelName = snapshotData.sizing.module_model || snapshotData.sizing.module_name
+  } else if (
+    activeProposal.kit_details?.sizing?.module_model ||
+    activeProposal.kit_details?.sizing?.module_name
+  ) {
+    moduleModelName =
+      activeProposal.kit_details.sizing.module_model ||
+      activeProposal.kit_details.sizing.module_name
   } else if (sizing.module_name || sizing.module_model) {
     moduleModelName = sizing.module_name || sizing.module_model
   }
 
   let inverterModelName = ''
   const invertersList =
-    pricingData.rawInverters || snapshotData.equipment?.inverters || sizing.inverters || []
+    pricingData.rawInverters ||
+    snapshotData.equipment?.inverters ||
+    activeProposal.kit_details?.equipment?.inverters ||
+    sizing.inverters ||
+    []
   if (Array.isArray(invertersList) && invertersList.length > 0) {
     const firstInv = invertersList[0]
     const brand = firstInv.brand ? String(firstInv.brand).trim() : ''
@@ -168,6 +181,15 @@ export function buildContractContextFromNegotiation(
     const pwr = firstInv.power ? `${firstInv.power} kW` : ''
     const count = invertersList.length > 1 ? ` (${invertersList.length}x)` : ''
     inverterModelName = [brand, name, pwr].filter(Boolean).join(' ') + count
+  } else if (snapshotData.sizing?.inverter_model || snapshotData.sizing?.inverter_name) {
+    inverterModelName = snapshotData.sizing.inverter_model || snapshotData.sizing.inverter_name
+  } else if (
+    activeProposal.kit_details?.sizing?.inverter_model ||
+    activeProposal.kit_details?.sizing?.inverter_name
+  ) {
+    inverterModelName =
+      activeProposal.kit_details.sizing.inverter_model ||
+      activeProposal.kit_details.sizing.inverter_name
   } else if (sizing.inverter_name || sizing.inverter_model) {
     inverterModelName = sizing.inverter_name || sizing.inverter_model
   }
@@ -177,22 +199,37 @@ export function buildContractContextFromNegotiation(
     sizing.voltage ||
     sizing.network_voltage ||
     financial.tariff_details?.voltage ||
+    neg.tension ||
     '220V'
 
   const resolvedInstallationType =
-    sizing.installation_type || sizing.installation_id || sizing.consumer_category || 'Residencial'
+    sizing.installation_type ||
+    sizing.installation_id ||
+    sizing.consumer_category ||
+    neg.consumer_category ||
+    'Residencial'
+
+  // Resolução abrangente de endereço: negociação, sizing.address_struct ou lead
+  const addrStruct = sizing.address_struct || {}
+  const resolvedStreet = neg.address || addrStruct.street || lead.address || ''
+  const resolvedNumber = neg.number || addrStruct.number || lead.number || lead.numero || ''
+  const resolvedNeighborhood =
+    neg.neighborhood || addrStruct.neighborhood || lead.neighborhood || lead.bairro || ''
+  const resolvedCity = neg.city || addrStruct.city || lead.city || lead.cidade || ''
+  const resolvedState = neg.state || addrStruct.state || lead.state || lead.uf || ''
+  const resolvedCep = neg.cep || addrStruct.zip || lead.cep || lead.zip || ''
 
   const leadData: Record<string, any> = {
     name: lead.name || neg.lead_name || '',
     document: lead.document || lead.cpf || lead.cnpj || '',
     phone: lead.phone || '',
     email: lead.email || '',
-    address: lead.address || '',
-    city: lead.city || '',
-    state: lead.state || lead.uf || '',
-    cep: lead.cep || lead.zip || '',
-    neighborhood: lead.neighborhood || lead.bairro || '',
-    number: lead.number || lead.numero || '',
+    address: resolvedStreet,
+    city: resolvedCity,
+    state: resolvedState,
+    cep: resolvedCep,
+    neighborhood: resolvedNeighborhood,
+    number: resolvedNumber,
   }
 
   const proposalCodeDisplay =
@@ -206,57 +243,102 @@ export function buildContractContextFromNegotiation(
   const negotiationData: Record<string, any> = {
     id: neg.id,
     title: neg.title || '',
-    consultant_name: owner.name || neg.consultant_name || '',
+    consultant_name: owner.name || neg.consultant_name || 'Consultor Técnico',
     proposal_number: proposalCodeDisplay,
     proposal_date: activeProposal.created
       ? new Date(activeProposal.created).toLocaleDateString('pt-BR')
       : new Date().toLocaleDateString('pt-BR'),
     validity_days: activeProposal.validity_days || 15,
     validity: activeProposal.validity || '15 dias',
-    payment_terms: activeProposal.payment_terms || 'À vista ou Financiamento Bancário',
-    defined_payment_method: activeProposal.defined_payment_method || 'Financiamento',
-    accepted_payment_methods: 'À vista, Financiamento Bancário, Cartão de Crédito',
+    payment_terms:
+      activeProposal.payment_terms ||
+      activeProposal.payment_method ||
+      snapshotData.accepted_payment_methods ||
+      'À vista ou Financiamento Bancário',
+    defined_payment_method:
+      activeProposal.defined_payment_method ||
+      activeProposal.payment_method ||
+      snapshotData.accepted_payment_methods ||
+      'Financiamento Bancário',
+    accepted_payment_methods:
+      snapshotData.accepted_payment_methods || 'À vista, Financiamento Bancário, Cartão de Crédito',
     installation_lead_time: neg.installation_lead_time || '45 a 60 dias úteis',
     notes: neg.notes || '',
     description: neg.description || activeProposal.description || '',
-    uc: neg.uc || lead.uc || '',
+    uc: neg.uc || lead.uc || 'A Definir / Nova Ligação',
   }
 
   const rawKwp =
-    sizing.kit_power_kwp || activeProposal.power || activeProposal.kwp || neg.total_power_kwp || 0
+    sizing.kit_power_kwp ||
+    activeProposal.kit_details?.sizing?.kit_power_kwp ||
+    activeProposal.kit_details?.sizing?.power_kwp ||
+    activeProposal.power ||
+    activeProposal.kwp ||
+    neg.total_power_kwp ||
+    0
 
   const rawConsumption =
-    sizing.avg_consumption || neg.avg_consumption || activeProposal.consumption || 0
+    sizing.avg_consumption ||
+    neg.avg_consumption ||
+    activeProposal.kit_details?.sizing?.avg_consumption ||
+    activeProposal.kit_details?.sizing?.average_consumption ||
+    activeProposal.consumption ||
+    0
 
   const rawGeneration =
-    sizing.estimated_monthly_generation || activeProposal.estimated_monthly_generation || 0
+    sizing.estimated_monthly_generation ||
+    activeProposal.kit_details?.sizing?.estimated_monthly_generation ||
+    activeProposal.estimated_monthly_generation ||
+    (rawKwp > 0 ? Math.round(rawKwp * 115) : 0)
 
   const rawCoverage =
     sizing.consumption_coverage_pct ||
+    activeProposal.kit_details?.sizing?.consumption_coverage_pct ||
     (rawConsumption > 0 ? Number(((rawGeneration / rawConsumption) * 100).toFixed(1)) : 100)
+
+  const rawModuleQty =
+    sizing.module_qty ||
+    activeProposal.kit_details?.sizing?.module_qty ||
+    activeProposal.kit_details?.sizing?.panel_count ||
+    activeProposal.module_qty ||
+    snapshotData.equipment?.modules?.qty ||
+    (rawKwp > 0 ? Math.ceil((rawKwp * 1000) / 575) : 0)
+
+  const rawOccupiedArea =
+    sizing.occupied_area_m2 ||
+    activeProposal.kit_details?.sizing?.occupied_area_m2 ||
+    (rawModuleQty > 0 ? Number((rawModuleQty * 2.5).toFixed(1)) : 0)
+
+  const rawRoofType =
+    sizing.roof_type ||
+    sizing.roof_structure ||
+    neg.roof_type ||
+    activeProposal.kit_details?.sizing?.roof_type ||
+    'Metálico / Cerâmico / Fibrocimento'
 
   const sizingData: Record<string, any> = {
     kit_power_kwp: rawKwp,
     avg_consumption: rawConsumption,
     estimated_monthly_generation: rawGeneration,
     consumption_coverage_pct: rawCoverage,
-    occupied_area_m2: sizing.occupied_area_m2 || 0,
-    module_qty: sizing.module_qty || activeProposal.module_qty || 0,
-    consumer_category: sizing.consumer_category || 'Residencial',
-    concessionaire: sizing.concessionaire || neg.concessionaire || 'Concessionária Local',
-    roof_type: sizing.roof_type || 'Fibrocimento',
-    network_type: sizing.network_type || 'Bifásico',
+    occupied_area_m2: rawOccupiedArea,
+    module_qty: rawModuleQty,
+    consumer_category: sizing.consumer_category || neg.consumer_category || 'Residencial',
+    concessionaire: neg.concessionaire || sizing.concessionaire || 'Copel',
+    roof_type: rawRoofType,
+    network_type: sizing.network_type || neg.network_type || 'Bifásico',
     tension: resolvedTension,
     installation_type: resolvedInstallationType,
-    module_model: moduleModelName || 'Módulo Solar Fotovoltaico Homologado',
-    inverter_model: inverterModelName || 'Inversor Solar Homologado',
-    simultaneity_factor: sizing.simultaneity_factor || 30,
+    module_model: moduleModelName || 'Módulo Fotovoltaico 575W Monocristalino Tier 1',
+    inverter_model: inverterModelName || 'Inversor String Homologado INMETRO',
+    simultaneity_factor: sizing.simultaneity_factor || neg.simultaneity_factor || 30,
     address_struct: {
-      city: sizing.address_struct?.city || lead.city || '',
-      state: sizing.address_struct?.state || lead.state || lead.uf || '',
-      street: sizing.address_struct?.street || lead.address || '',
-      number: sizing.address_struct?.number || lead.number || '',
-      zip: sizing.address_struct?.zip || lead.cep || '',
+      city: resolvedCity,
+      state: resolvedState,
+      street: resolvedStreet,
+      number: resolvedNumber,
+      zip: resolvedCep,
+      neighborhood: resolvedNeighborhood,
     },
   }
 
@@ -353,32 +435,42 @@ const DIRECT_CONTRACT_ALIASES: Record<string, string> = {
   // Dimensionamento / Usina / Checklist Técnico
   potencia_kit: 'sizing.kit_power_kwp',
   potencia_sistema: 'sizing.kit_power_kwp',
+  potencia: 'sizing.kit_power_kwp',
   kwp: 'sizing.kit_power_kwp',
   consumo_medio: 'sizing.avg_consumption',
   consumo_mensal: 'sizing.avg_consumption',
+  consumo: 'sizing.avg_consumption',
   geracao_estimada: 'sizing.estimated_monthly_generation',
   geracao_mensal: 'sizing.estimated_monthly_generation',
+  geracao: 'sizing.estimated_monthly_generation',
   cobertura_consumo: 'sizing.consumption_coverage_pct',
   cobertura: 'sizing.consumption_coverage_pct',
   quantidade_modulos: 'sizing.module_qty',
   qtd_modulos: 'sizing.module_qty',
+  qtd_paineis: 'sizing.module_qty',
+  numero_modulos: 'sizing.module_qty',
   modelo_painel: 'sizing.module_model',
   modelo_modulo: 'sizing.module_model',
   modulo_modelo: 'sizing.module_model',
+  modulo: 'sizing.module_model',
   painel: 'sizing.module_model',
   modelo_inversor: 'sizing.inverter_model',
   inversor_modelo: 'sizing.inverter_model',
   inversor: 'sizing.inverter_model',
   area_ocupada: 'sizing.occupied_area_m2',
+  area_total: 'sizing.occupied_area_m2',
   concessionaria: 'sizing.concessionaire',
+  distribuidora: 'sizing.concessionaire',
   tipo_telhado: 'sizing.roof_type',
   estrutura_telhado: 'sizing.roof_type',
   tipo_estrutura: 'sizing.roof_type',
+  tipo_cobertura: 'sizing.roof_type',
   tipo_rede: 'sizing.network_type',
   tensao_rede: 'sizing.tension',
   tensao: 'sizing.tension',
   tipo_instalacao: 'sizing.installation_type',
   categoria_consumo: 'sizing.consumer_category',
+  classe_consumo: 'sizing.consumer_category',
   endereco_instalacao: 'sizing.address_struct.street',
   cidade_instalacao: 'sizing.address_struct.city',
   uf_instalacao: 'sizing.address_struct.state',
@@ -613,19 +705,57 @@ export function resolveContractPlaceholders(
   })
 
   // 2. Gerar versão com highlights para o preview interativo
-  const htmlWithHighlights = templateContent.replace(tagRegex, (match, rawKey) => {
+  // Para evitar que tags <span class="..."> virem texto cru pelo escape de < e > no simpleMarkdownToHtml:
+  // Usamos marcadores de sentinela únicos, convertemos o Markdown em HTML primeiro e substituímos os sentinelas pelas tags visuais HTML reais.
+  const SENTINEL_RESOLVED_START = '___RESOLVED_SPAN_START_'
+  const SENTINEL_RESOLVED_MID = '_MID_'
+  const SENTINEL_RESOLVED_END = '_END___'
+
+  const SENTINEL_UNRESOLVED_START = '___UNRESOLVED_MARK_START_'
+  const SENTINEL_UNRESOLVED_END = '_END___'
+
+  let sentinelCounter = 0
+  const sentinelMap = new Map<string, string>()
+
+  const textWithSentinels = templateContent.replace(tagRegex, (match, rawKey) => {
     const key = rawKey.trim()
     const resolution = resolveSinglePlaceholder(key, context)
+    const id = ++sentinelCounter
 
     if (resolution.resolved) {
       const formatted = formatValueForContract(key, resolution.value)
-      return `<span class="bg-emerald-50 text-emerald-950 font-semibold px-1 rounded border border-emerald-200" title="Placeholder resolvido: {{${key}}}">${formatted}</span>`
+      const token = `${SENTINEL_RESOLVED_START}${id}${SENTINEL_RESOLVED_MID}${encodeURIComponent(key)}${SENTINEL_RESOLVED_END}`
+      // Escapa o valor formatado para uso seguro em HTML
+      const escapedFormatted = formatted
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+      const htmlSpan = `<span class="bg-emerald-50 text-emerald-950 font-semibold px-1 rounded border border-emerald-200" title="Placeholder resolvido: {{${key}}}">${escapedFormatted}</span>`
+      sentinelMap.set(token, htmlSpan)
+      return token
     } else {
-      return `<mark class="bg-amber-100 text-amber-900 border border-amber-300 font-bold px-1.5 py-0.5 rounded text-xs" title="Variável sem correspondência no CRM: {{${key}}}">⚠️ {{${key}}}</mark>`
+      const token = `${SENTINEL_UNRESOLVED_START}${id}${SENTINEL_UNRESOLVED_END}`
+      const escapedKey = key
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+      const htmlMark = `<mark class="bg-amber-100 text-amber-900 border border-amber-300 font-bold px-1.5 py-0.5 rounded text-xs" title="Variável sem correspondência no CRM: {{${key}}}">⚠️ {{${escapedKey}}}</mark>`
+      sentinelMap.set(token, htmlMark)
+      return token
     }
   })
 
-  const htmlPreview = simpleMarkdownToHtml(htmlWithHighlights)
+  // Converte Markdown normal com sentinelas seguros (sem tags HTML ainda)
+  let processedHtml = simpleMarkdownToHtml(textWithSentinels)
+
+  // Agora re-injeta os spans visuais formatados sem re-escapar
+  sentinelMap.forEach((replacementHtml, token) => {
+    processedHtml = processedHtml.split(token).join(replacementHtml)
+  })
+
+  const htmlPreview = processedHtml
   const unresolvedCount = unresolvedKeys.length
   const totalCount = placeholderResults.length
 

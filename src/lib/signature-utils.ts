@@ -29,8 +29,8 @@ export interface BuildSignersParams {
 
 export const SIGNATURE_POLICY_LABELS: Record<SignaturePolicy, string> = {
   client_only: 'Apenas o Cliente',
-  client_rep: 'Representante + Cliente',
-  client_rep_owner: 'Representante + Cliente + Dono da Empresa',
+  client_rep: 'Cliente + Representante Comercial',
+  client_rep_owner: 'Cliente + Representante + Dono da Empresa',
   client_owner: 'Cliente + Dono da Empresa',
 }
 

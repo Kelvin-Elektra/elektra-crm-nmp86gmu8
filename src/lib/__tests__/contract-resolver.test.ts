@@ -233,5 +233,141 @@ TESTE QUEBRADO: {{placeholder_fantasma}}
       expect(ctx.company?.name).toBe('Sol Forte Engenharia')
       expect(ctx.financial?.total_investment).toBe(35000)
     })
+
+    it('resolve todos os campos dos modelos reais (Contrato, Procuração, Checklist)', () => {
+      // Mock realista baseado no caso 'kelvao amigao' da base de dados
+      const realNeg = {
+        id: 'aocqnjavc1z2bqt',
+        title: 'kelvin 3',
+        address: 'Travessa Primeiro de Maio, 55 - Industrial, Francisco Beltrão - PR, 85601-330',
+        number: '55',
+        neighborhood: 'Industrial',
+        city: 'Francisco Beltrão',
+        state: 'PR',
+        cep: '85601-330',
+        concessionaire: 'Copel',
+        consumer_category: 'Residencial',
+        avg_consumption: 1200,
+        uc: '212454',
+        expand: {
+          lead_id: {
+            id: 't2i9r8n2ck1y39l',
+            name: 'kelvao amigao',
+            document: '460.353.828-60',
+            phone: '(46) 99902-9158',
+            email: 'lead@kelvin.com',
+          },
+          owner_id: {
+            name: 'Consultor Carlos',
+          },
+        },
+        sizing: {
+          kit_power_kwp: 10.5,
+          avg_consumption: 1200,
+          estimated_monthly_generation: 1217,
+          consumption_coverage_pct: 101.4,
+          module_qty: 15,
+          roof_type: 'Fibrocimento',
+          network_type: 'Bifásico',
+          tension: '220V',
+          consumer_category: 'Residencial',
+          address_struct: {
+            street: 'Travessa Primeiro de Maio',
+            number: '55',
+            neighborhood: 'Industrial',
+            city: 'Francisco Beltrão',
+            state: 'PR',
+            zip: '85601-330',
+          },
+        },
+      }
+
+      const realProposals = [
+        {
+          id: '7gppdev36iivf12',
+          proposal_code: '#0024',
+          total_value: 8823.64,
+          created: '2026-09-15T17:45:06.976Z',
+          kit_details: {
+            sizing: {
+              kit_power_kwp: 10.5,
+              avg_consumption: 1200,
+              estimated_monthly_generation: 1217,
+              module_qty: 15,
+              module_model: 'Dah Solar 550W Tier 1',
+              inverter_model: 'Deye 10kW Híbrido',
+            },
+          },
+          snapshot_data: {
+            pricing_data: {
+              rawModule: { brand: 'Dah Solar', name: 'DHN-72X16', power: 550 },
+              rawInverters: [{ brand: 'Deye', name: 'SUN-10K-G', power: 10 }],
+            },
+          },
+        },
+      ]
+
+      const ctx = buildContractContextFromNegotiation(realNeg, realProposals, {
+        name: 'BrilhaSol Engenharia',
+        cnpj: '00.000.000/0001-12',
+        phone: '(46) 3524-0000',
+        email: 'contato@brilhasol.com.br',
+      })
+
+      // Testar resolução dos campos do Contrato Padrão
+      const contratoTemplate = `
+      {{empresa_nome}} {{empresa_cnpj}} {{empresa_telefone}} {{empresa_email}}
+      {{cliente_nome}} {{cliente_documento}} {{cliente_endereco}} {{cliente_numero}} {{cliente_bairro}} {{cliente_cep}} {{cliente_cidade}} {{cliente_uf}} {{cliente_telefone}} {{cliente_email}}
+      {{concessionaria}} {{potencia_kit}} {{consumo_medio}} {{geracao_estimada}}
+      {{endereco_instalacao}} {{cidade_instalacao}} {{uf_instalacao}} {{tipo_telhado}}
+      {{valor_total}} {{forma_pagamento}} {{condicoes_pagamento}} {{prazo_instalacao}} {{validade_dias}} {{codigo_proposta}} {{data_proposta}}
+      `
+      const resContrato = resolveContractPlaceholders(contratoTemplate, ctx)
+      expect(resContrato.unresolvedCount).toBe(0)
+      expect(resContrato.resolvedContent).toContain('kelvao amigao')
+      expect(resContrato.resolvedContent).toContain('460.353.828-60')
+      expect(resContrato.resolvedContent).toContain('10,5 kWp')
+      expect(resContrato.resolvedContent).toContain('1.200 kWh')
+      expect(resContrato.resolvedContent).toContain('1.217 kWh')
+
+      // Testar resolução dos campos da Procuração
+      const procuracaoTemplate = `
+      {{cliente_nome}} {{cliente_documento}} {{cliente_telefone}} {{cliente_email}}
+      {{cliente_endereco}} {{cliente_numero}} {{cliente_bairro}} {{cliente_cep}} {{cliente_cidade}} {{cliente_uf}}
+      {{empresa_nome}} {{empresa_cnpj}} {{empresa_telefone}} {{empresa_email}}
+      {{consultor_nome}} {{concessionaria}} {{potencia_kit}} {{unidade_consumidora}}
+      {{endereco_instalacao}} {{cidade_instalacao}} {{uf_instalacao}} {{data_proposta}}
+      `
+      const resProcuracao = resolveContractPlaceholders(procuracaoTemplate, ctx)
+      expect(resProcuracao.unresolvedCount).toBe(0)
+      expect(resProcuracao.resolvedContent).toContain('212454')
+      expect(resProcuracao.resolvedContent).toContain('Copel')
+
+      // Testar resolução dos campos do Checklist Técnico
+      const checklistTemplate = `
+      {{empresa_nome}} {{empresa_cnpj}} {{empresa_telefone}} {{empresa_email}} {{consultor_nome}} {{data_proposta}} {{codigo_proposta}}
+      {{cliente_nome}} {{cliente_documento}} {{cliente_telefone}} {{cliente_email}}
+      {{cliente_endereco}} {{cliente_numero}} {{cliente_bairro}} {{cliente_cep}} {{cliente_cidade}} {{cliente_uf}}
+      {{unidade_consumidora}} {{concessionaria}} {{endereco_instalacao}} {{cidade_instalacao}} {{uf_instalacao}}
+      {{tipo_rede}} {{tensao_rede}} {{categoria_consumo}} {{potencia_kit}} {{consumo_medio}} {{geracao_estimada}} {{cobertura_consumo}}
+      {{qtd_modulos}} {{modelo_painel}} {{modelo_inversor}} {{area_ocupada}} {{tipo_telhado}} {{observacoes}}
+      `
+      const resChecklist = resolveContractPlaceholders(checklistTemplate, ctx)
+      expect(resChecklist.unresolvedCount).toBe(0)
+      expect(resChecklist.resolvedContent).toContain('15')
+      expect(resChecklist.resolvedContent).toContain('Fibrocimento')
+      expect(resChecklist.resolvedContent).toContain('220V')
+      expect(resChecklist.resolvedContent).toContain('Residencial')
+    })
+
+    it('não exibe spans ou tags HTML brutas no preview', () => {
+      const template = 'O cliente {{cliente_nome}} contratou o sistema de {{potencia_kit}}.'
+      const res = resolveContractPlaceholders(template, sampleContext)
+
+      // htmlPreview deve conter tags HTML válidas de span e não entidades escapadas tipo &lt;span
+      expect(res.htmlPreview).toContain('<span class="bg-emerald-50')
+      expect(res.htmlPreview).not.toContain('&lt;span')
+      expect(res.htmlPreview).not.toContain('&lt;/span&gt;')
+    })
   })
 })

@@ -1,100 +1,14 @@
 // Router: Assinafy signature management and webhook handling
 // Routes:
-// 1. GET  /backend/v1/signatures/status — checks Assinafy credentials, resolves and caches account_id automatically
-// 2. POST /backend/v1/signatures/send — sends proposal or uploaded PDF to Assinafy and registers signature_request
+// 1. GET  /backend/v1/signatures/status — checks Assinafy credentials, auto-discovers account_id
+// 2. POST /backend/v1/signatures/send — sends proposal or document to Assinafy and registers signature_request
 // 3. GET  /backend/v1/signatures/sync/:id — checks live document state on Assinafy and updates record
 // 4. POST /backend/v1/signatures/webhook — Assinafy webhook receiver (idempotent, updates status, saves signed PDF)
-
-// Cache em memória para o account_id descoberto automaticamente
-let _cachedAssinafyAccountId = ''
-
-function resolveAssinafyConfig() {
-  let apiKey = ''
-  let accountId = ''
-  let baseUrl = 'https://sandbox.assinafy.com.br/v1'
-
-  try {
-    apiKey = $secrets.get('ASSINAFY_API_KEY') || ''
-  } catch (_) {}
-  if (!apiKey) {
-    try {
-      apiKey = $os.getenv('ASSINAFY_API_KEY') || ''
-    } catch (_) {}
-  }
-
-  try {
-    accountId = $secrets.get('ASSINAFY_ACCOUNT_ID') || ''
-  } catch (_) {}
-  if (!accountId) {
-    try {
-      accountId = $os.getenv('ASSINAFY_ACCOUNT_ID') || ''
-    } catch (_) {}
-  }
-  if (!accountId && _cachedAssinafyAccountId) {
-    accountId = _cachedAssinafyAccountId
-  }
-
-  let envBaseUrl = ''
-  try {
-    envBaseUrl = $secrets.get('ASSINAFY_BASE_URL') || ''
-  } catch (_) {}
-  if (!envBaseUrl) {
-    try {
-      envBaseUrl = $os.getenv('ASSINAFY_BASE_URL') || ''
-    } catch (_) {}
-  }
-  if (envBaseUrl) {
-    baseUrl = envBaseUrl.trim()
-  }
-  if (baseUrl.endsWith('/')) {
-    baseUrl = baseUrl.slice(0, -1)
-  }
-
-  // Se apiKey existe mas accountId não está configurado, tenta auto-descobrir via GET /accounts ou /workspaces
-  if (apiKey && !accountId) {
-    try {
-      const endpointsToTry = [baseUrl + '/accounts', baseUrl + '/workspaces']
-      for (let i = 0; i < endpointsToTry.length; i++) {
-        const testUrl = endpointsToTry[i]
-        const accountsRes = $http.send({
-          url: testUrl,
-          method: 'GET',
-          headers: {
-            'X-Api-Key': apiKey,
-          },
-          timeout: 15,
-        })
-
-        if (accountsRes.statusCode < 400 && accountsRes.json) {
-          const bodyData = accountsRes.json
-          // Assinafy envelope: { status, message, data: [...] | {...} }
-          const dataPayload = bodyData.data || bodyData
-          let foundId = ''
-
-          if (Array.isArray(dataPayload) && dataPayload.length > 0) {
-            // Se houver uma única conta ou várias, pega a primeira
-            foundId = dataPayload[0].id || dataPayload[0].account_id || ''
-          } else if (dataPayload && typeof dataPayload === 'object' && dataPayload.id) {
-            foundId = dataPayload.id
-          }
-
-          if (foundId) {
-            accountId = String(foundId)
-            _cachedAssinafyAccountId = accountId
-            $app
-              .logger()
-              .info('Assinafy account_id auto-descoberto com sucesso', 'account_id', accountId)
-            break
-          }
-        }
-      }
-    } catch (discErr) {
-      $app.logger().warn('Falha ao auto-descobrir account_id na Assinafy', 'error', String(discErr))
-    }
-  }
-
-  return { apiKey, accountId, baseUrl }
-}
+//
+// NOTE (PocketBase JSVM constraint): PocketBase runs callbacks in a separate VM pool.
+// Top-level variables and functions referenced inside callbacks cause deployment failure
+// ("Hook scoping error: top-level declarations [...] are referenced inside callbacks").
+// All helper logic MUST be declared inside each callback body.
 
 // Endpoint utilitário para checar status e testar conexão com Assinafy
 routerAdd(
@@ -107,24 +21,108 @@ routerAdd(
         return e.json(401, { message: 'Não autorizado.' })
       }
 
-      const config = resolveAssinafyConfig()
-      const hasApiKey = !!config.apiKey
-      const hasAccountId = !!config.accountId
+      // Helper inline para resolver credenciais e auto-descobrir account_id
+      let apiKey = ''
+      let accountId = ''
+      let baseUrl = 'https://sandbox.assinafy.com.br/v1'
+
+      try {
+        apiKey = $secrets.get('ASSINAFY_API_KEY') || ''
+      } catch (_) {}
+      if (!apiKey) {
+        try {
+          apiKey = $os.getenv('ASSINAFY_API_KEY') || ''
+        } catch (_) {}
+      }
+
+      try {
+        accountId = $secrets.get('ASSINAFY_ACCOUNT_ID') || ''
+      } catch (_) {}
+      if (!accountId) {
+        try {
+          accountId = $os.getenv('ASSINAFY_ACCOUNT_ID') || ''
+        } catch (_) {}
+      }
+
+      let envBaseUrl = ''
+      try {
+        envBaseUrl = $secrets.get('ASSINAFY_BASE_URL') || ''
+      } catch (_) {}
+      if (!envBaseUrl) {
+        try {
+          envBaseUrl = $os.getenv('ASSINAFY_BASE_URL') || ''
+        } catch (_) {}
+      }
+      if (envBaseUrl) {
+        baseUrl = envBaseUrl.trim()
+      }
+      if (baseUrl.endsWith('/')) {
+        baseUrl = baseUrl.slice(0, -1)
+      }
+
+      // Se apiKey existe mas accountId não está configurado, tenta auto-descobrir via GET /accounts ou /workspaces
+      let discoveredAccountId = ''
+      if (apiKey && !accountId) {
+        try {
+          const endpointsToTry = [baseUrl + '/accounts', baseUrl + '/workspaces']
+          for (let i = 0; i < endpointsToTry.length; i++) {
+            const testUrl = endpointsToTry[i]
+            const accountsRes = $http.send({
+              url: testUrl,
+              method: 'GET',
+              headers: {
+                'X-Api-Key': apiKey,
+                Accept: 'application/json',
+              },
+              timeout: 15,
+            })
+
+            if (accountsRes.statusCode < 400 && accountsRes.json) {
+              const bodyData = accountsRes.json
+              const dataPayload = bodyData.data || bodyData
+              let foundId = ''
+
+              if (Array.isArray(dataPayload) && dataPayload.length > 0) {
+                foundId = dataPayload[0].id || dataPayload[0].account_id || ''
+              } else if (dataPayload && typeof dataPayload === 'object' && dataPayload.id) {
+                foundId = dataPayload.id
+              }
+
+              if (foundId) {
+                discoveredAccountId = String(foundId)
+                accountId = discoveredAccountId
+                $app
+                  .logger()
+                  .info('Assinafy account_id auto-descoberto com sucesso', 'account_id', accountId)
+                break
+              }
+            }
+          }
+        } catch (discErr) {
+          $app
+            .logger()
+            .warn('Falha ao auto-descobrir account_id na Assinafy', 'error', String(discErr))
+        }
+      }
+
+      const hasApiKey = !!apiKey
+      const hasAccountId = !!accountId
       const configured = hasApiKey && hasAccountId
 
       return e.json(200, {
-        configured,
+        configured: configured,
         has_api_key: hasApiKey,
         has_account_id: hasAccountId,
-        account_id_cached: !!_cachedAssinafyAccountId,
-        base_url: config.baseUrl,
-        is_sandbox: config.baseUrl.includes('sandbox'),
+        account_id: accountId ? accountId.slice(0, 8) + '...' : null,
+        discovered_account_id: !!discoveredAccountId,
+        base_url: baseUrl,
+        is_sandbox: baseUrl.includes('sandbox'),
         webhook_url: 'https://crm.elektrasolucoes.tech/backend/v1/signatures/webhook',
         message: configured
           ? 'Integração de assinatura digital pronta para uso.'
           : !hasApiKey
             ? 'Chave de API não configurada no servidor.'
-            : 'Conta de trabalho (Workspace/Account ID) não encontrada automaticamente. Verifique no painel Assinafy em Minha Conta → Espaços de Trabalho.',
+            : 'Integração de assinatura sendo finalizada. Fale com o suporte.',
       })
     } catch (err) {
       return e.json(500, { message: 'Erro ao verificar status da assinatura: ' + String(err) })
@@ -133,6 +131,7 @@ routerAdd(
   $apis.requireAuth(),
 )
 
+// Endpoint de envio de documento para assinatura
 routerAdd(
   'POST',
   '/backend/v1/signatures/send',
@@ -148,13 +147,93 @@ routerAdd(
         return e.json(403, { message: 'Usuário não está vinculado a uma empresa.' })
       }
 
-      // 1. Obter configuração da Assinafy com auto-descoberta e cache de account_id
-      const assinafyCfg = resolveAssinafyConfig()
-      const apiKey = assinafyCfg.apiKey
-      const accountId = assinafyCfg.accountId
-      const baseUrl = assinafyCfg.baseUrl
+      // 1. Obter configuração da Assinafy inline
+      let apiKey = ''
+      let accountId = ''
+      let baseUrl = 'https://sandbox.assinafy.com.br/v1'
 
-      // Se não configurado, responder erro amigável sem jargão técnico
+      try {
+        apiKey = $secrets.get('ASSINAFY_API_KEY') || ''
+      } catch (_) {}
+      if (!apiKey) {
+        try {
+          apiKey = $os.getenv('ASSINAFY_API_KEY') || ''
+        } catch (_) {}
+      }
+
+      try {
+        accountId = $secrets.get('ASSINAFY_ACCOUNT_ID') || ''
+      } catch (_) {}
+      if (!accountId) {
+        try {
+          accountId = $os.getenv('ASSINAFY_ACCOUNT_ID') || ''
+        } catch (_) {}
+      }
+
+      let envBaseUrl = ''
+      try {
+        envBaseUrl = $secrets.get('ASSINAFY_BASE_URL') || ''
+      } catch (_) {}
+      if (!envBaseUrl) {
+        try {
+          envBaseUrl = $os.getenv('ASSINAFY_BASE_URL') || ''
+        } catch (_) {}
+      }
+      if (envBaseUrl) {
+        baseUrl = envBaseUrl.trim()
+      }
+      if (baseUrl.endsWith('/')) {
+        baseUrl = baseUrl.slice(0, -1)
+      }
+
+      // Auto-descoberta se necessário
+      if (apiKey && !accountId) {
+        try {
+          const endpointsToTry = [baseUrl + '/accounts', baseUrl + '/workspaces']
+          for (let i = 0; i < endpointsToTry.length; i++) {
+            const testUrl = endpointsToTry[i]
+            const accountsRes = $http.send({
+              url: testUrl,
+              method: 'GET',
+              headers: {
+                'X-Api-Key': apiKey,
+                Accept: 'application/json',
+              },
+              timeout: 15,
+            })
+
+            if (accountsRes.statusCode < 400 && accountsRes.json) {
+              const bodyData = accountsRes.json
+              const dataPayload = bodyData.data || bodyData
+              let foundId = ''
+
+              if (Array.isArray(dataPayload) && dataPayload.length > 0) {
+                foundId = dataPayload[0].id || dataPayload[0].account_id || ''
+              } else if (dataPayload && typeof dataPayload === 'object' && dataPayload.id) {
+                foundId = dataPayload.id
+              }
+
+              if (foundId) {
+                accountId = String(foundId)
+                $app
+                  .logger()
+                  .info(
+                    'Assinafy account_id auto-descoberto com sucesso no envio',
+                    'account_id',
+                    accountId,
+                  )
+                break
+              }
+            }
+          }
+        } catch (discErr) {
+          $app
+            .logger()
+            .warn('Falha ao auto-descobrir account_id na Assinafy', 'error', String(discErr))
+        }
+      }
+
+      // Se não configurado, responder erro amigável sem jargão técnico (regra da Tarefa 1)
       if (!apiKey || !accountId) {
         return e.json(400, {
           code: 'ASSINAFY_NOT_CONFIGURED',
@@ -174,7 +253,7 @@ routerAdd(
       const negotiationId = body.negotiation_id
       const proposalId = body.proposal_id || null
       const contractTemplateId = body.contract_template_id || null
-      const source = body.source || 'proposal' // 'proposal' | 'upload' | 'contract'
+      const source = body.source || 'proposal'
       const documentName = (body.document_name || 'Documento.pdf').trim()
       const signers = Array.isArray(body.signers) ? body.signers : []
       const pdfBase64 = body.pdf_base64 || ''
@@ -215,7 +294,6 @@ routerAdd(
 
       if (pdfBase64) {
         try {
-          // Limpar cabeçalho data:application/pdf;base64, se houver
           let rawB64 = pdfBase64
           const commaIdx = rawB64.indexOf(',')
           if (commaIdx !== -1) {
@@ -227,7 +305,6 @@ routerAdd(
         }
       }
 
-      // Se não veio via base64, tentar baixar da URL do PDF (ex: view_url da proposta ou URL direta)
       if (!pdfBytes && pdfUrl) {
         try {
           const downloadRes = $http.send({
@@ -243,7 +320,6 @@ routerAdd(
         }
       }
 
-      // Se ainda não temos bytes e a proposta foi indicada, tentar extrair a view_url da proposta
       if (!pdfBytes && proposalId) {
         try {
           const propRec = $app.findFirstRecordByFilter(
@@ -285,9 +361,6 @@ routerAdd(
           safeDocName += '.pdf'
         }
 
-        // Criar multipart payload
-        // Em Go/PocketBase $http.send aceita headers e body como string/bytes ou FormData
-        // Construímos a mensagem multipart manualmente para compatibilidade garantida
         const partHeader =
           '--' +
           boundary +
@@ -298,7 +371,6 @@ routerAdd(
           'Content-Type: application/pdf\r\n\r\n'
         const partFooter = '\r\n--' + boundary + '--\r\n'
 
-        // PocketBase permite envio de multipart com $http.send
         uploadRes = $http.send({
           url: uploadUrl,
           method: 'POST',
@@ -381,7 +453,7 @@ routerAdd(
             id: assinafySignerId,
             verification_method: 'Email',
             notification_methods: ['Email'],
-            step: 1, // Assinatura simultânea por padrão
+            step: 1,
           })
           s.assinafy_signer_id = assinafySignerId
         } else {
@@ -500,9 +572,33 @@ routerAdd(
         return e.json(200, { record: record })
       }
 
-      const assinafyCfg = resolveAssinafyConfig()
-      const apiKey = assinafyCfg.apiKey
-      const baseUrl = assinafyCfg.baseUrl
+      let apiKey = ''
+      let baseUrl = 'https://sandbox.assinafy.com.br/v1'
+
+      try {
+        apiKey = $secrets.get('ASSINAFY_API_KEY') || ''
+      } catch (_) {}
+      if (!apiKey) {
+        try {
+          apiKey = $os.getenv('ASSINAFY_API_KEY') || ''
+        } catch (_) {}
+      }
+
+      let envBaseUrl = ''
+      try {
+        envBaseUrl = $secrets.get('ASSINAFY_BASE_URL') || ''
+      } catch (_) {}
+      if (!envBaseUrl) {
+        try {
+          envBaseUrl = $os.getenv('ASSINAFY_BASE_URL') || ''
+        } catch (_) {}
+      }
+      if (envBaseUrl) {
+        baseUrl = envBaseUrl.trim()
+      }
+      if (baseUrl.endsWith('/')) {
+        baseUrl = baseUrl.slice(0, -1)
+      }
 
       if (!apiKey) {
         return e.json(400, { message: 'Chave de assinatura não configurada no servidor.' })
@@ -511,7 +607,10 @@ routerAdd(
       const docRes = $http.send({
         url: baseUrl + '/documents/' + assinafyDocId,
         method: 'GET',
-        headers: { 'X-Api-Key': apiKey },
+        headers: {
+          'X-Api-Key': apiKey,
+          Accept: 'application/json',
+        },
         timeout: 15,
       })
 
@@ -522,7 +621,9 @@ routerAdd(
         let updatedStatus = record.getString('status')
         if (docStatus === 'certificated') {
           updatedStatus = 'assinado'
-          record.set('signed_at', new Date().toISOString())
+          if (!record.getString('signed_at')) {
+            record.set('signed_at', new Date().toISOString())
+          }
         } else if (docStatus === 'rejected_by_signer' || docStatus === 'rejected_by_user') {
           updatedStatus = 'recusado'
         } else if (docStatus === 'expired') {
@@ -536,25 +637,11 @@ routerAdd(
           record.set('signing_url', docData.signing_url)
         }
 
-        // Se assinado e houver artefato original ou certificado, tentar anexar caso ainda não tenha
-        if (updatedStatus === 'assinado' && !record.getString('signed_pdf')) {
-          const artifacts = docData.artifacts || {}
-          const downloadUrl = artifacts.certificated || artifacts.pades || artifacts.original
-          if (downloadUrl) {
-            try {
-              const fileRes = $http.send({
-                url: downloadUrl,
-                method: 'GET',
-                headers: { 'X-Api-Key': apiKey },
-                timeout: 30,
-              })
-              if (fileRes.statusCode === 200 && fileRes.body) {
-                // Salvar arquivo binário
-                // Se PocketBase permitir upload de buffer, criar arquivo
-                // fallback para downloadUrl na signing_url ou no signing_urls do assignment
-              }
-            } catch (_) {}
-          }
+        // Se assinado, gravar URL do PDF certificado se disponível nos artefatos
+        const artifacts = docData.artifacts || {}
+        const certPdfUrl = artifacts.certificated || artifacts.pades || artifacts.original || ''
+        if (certPdfUrl && !record.getString('signing_url')) {
+          record.set('signing_url', certPdfUrl)
         }
 
         $app.save(record)
@@ -568,7 +655,7 @@ routerAdd(
   $apis.requireAuth(),
 )
 
-// Endpoint de Webhook da Assinafy: POST /backend/v1/signatures/webhook
+// Endpoint de Webhook da Assinafy: POST /backend/v1/signatures/webhook (idempotente)
 routerAdd('POST', '/backend/v1/signatures/webhook', (e) => {
   try {
     let body = {}
@@ -609,46 +696,105 @@ routerAdd('POST', '/backend/v1/signatures/webhook', (e) => {
       return e.json(200, { received: true, note: 'Registro não encontrado' })
     }
 
-    // Mapear eventos Assinafy:
-    // 'document_ready' | 'signer_signed_document' | 'signer_rejected_document' | 'user_rejected_document' | 'signature_requested' | 'document_processing_failed'
-    if (eventName === 'document_ready' || eventName === 'document_prepared') {
-      if (record.getString('status') === 'enviado') {
+    // Configuração para consultar status oficial na Assinafy antes de atualizar (regra da Tarefa 1)
+    let apiKey = ''
+    let baseUrl = 'https://sandbox.assinafy.com.br/v1'
+
+    try {
+      apiKey = $secrets.get('ASSINAFY_API_KEY') || ''
+    } catch (_) {}
+    if (!apiKey) {
+      try {
+        apiKey = $os.getenv('ASSINAFY_API_KEY') || ''
+      } catch (_) {}
+    }
+
+    let envBaseUrl = ''
+    try {
+      envBaseUrl = $secrets.get('ASSINAFY_BASE_URL') || ''
+    } catch (_) {}
+    if (!envBaseUrl) {
+      try {
+        envBaseUrl = $os.getenv('ASSINAFY_BASE_URL') || ''
+      } catch (_) {}
+    }
+    if (envBaseUrl) {
+      baseUrl = envBaseUrl.trim()
+    }
+    if (baseUrl.endsWith('/')) {
+      baseUrl = baseUrl.slice(0, -1)
+    }
+
+    // Consulta do status oficial do documento na Assinafy (idempotência e confirmação)
+    let officialDocData = null
+    if (apiKey) {
+      try {
+        const docRes = $http.send({
+          url: baseUrl + '/documents/' + assinafyDocId,
+          method: 'GET',
+          headers: {
+            'X-Api-Key': apiKey,
+            Accept: 'application/json',
+          },
+          timeout: 15,
+        })
+        if (docRes.statusCode < 400 && docRes.json && docRes.json.data) {
+          officialDocData = docRes.json.data
+        }
+      } catch (fetchErr) {
+        $app
+          .logger()
+          .warn(
+            'Erro ao consultar status oficial da Assinafy no webhook',
+            'error',
+            String(fetchErr),
+          )
+      }
+    }
+
+    // Atualização com base no status oficial (prioritário) ou evento
+    if (officialDocData) {
+      const docStatus = officialDocData.status || ''
+      const artifacts = officialDocData.artifacts || {}
+      const certPdfUrl = artifacts.certificated || artifacts.pades || artifacts.original || ''
+
+      if (docStatus === 'certificated') {
+        record.set('status', 'assinado')
+        if (!record.getString('signed_at')) {
+          record.set('signed_at', new Date().toISOString())
+        }
+      } else if (docStatus === 'rejected_by_signer' || docStatus === 'rejected_by_user') {
+        record.set('status', 'recusado')
+      } else if (docStatus === 'expired') {
+        record.set('status', 'cancelado')
+      } else if (docStatus === 'pending_signature') {
         record.set('status', 'aguardando')
       }
-    } else if (eventName === 'signer_signed_document') {
-      // Verificar se todos assinaram ou buscar status do documento na API Assinafy
-      const assinafyCfg = resolveAssinafyConfig()
-      const apiKey = assinafyCfg.apiKey
-      const baseUrl = assinafyCfg.baseUrl
 
-      if (apiKey) {
-        try {
-          const docRes = $http.send({
-            url: baseUrl + '/documents/' + assinafyDocId,
-            method: 'GET',
-            headers: { 'X-Api-Key': apiKey },
-            timeout: 15,
-          })
-          if (docRes.statusCode < 400 && docRes.json && docRes.json.data) {
-            const d = docRes.json.data
-            if (d.status === 'certificated') {
-              record.set('status', 'assinado')
-              record.set('signed_at', new Date().toISOString())
-            } else {
-              record.set('status', 'aguardando')
-            }
-          }
-        } catch (_) {}
-      } else {
-        record.set('status', 'assinado')
-        record.set('signed_at', new Date().toISOString())
+      if (certPdfUrl && !record.getString('signing_url')) {
+        record.set('signing_url', certPdfUrl)
       }
-    } else if (eventName === 'signer_rejected_document' || eventName === 'user_rejected_document') {
-      record.set('status', 'recusado')
-    } else if (eventName === 'document_processing_failed') {
-      record.set('status', 'cancelado')
-      const errMsg = (body.payload && body.payload.error_message) || 'Falha no processamento'
-      record.set('error_message', errMsg)
+    } else {
+      // Fallback para eventos diretos
+      if (eventName === 'document_ready' || eventName === 'document_prepared') {
+        if (record.getString('status') === 'enviado') {
+          record.set('status', 'aguardando')
+        }
+      } else if (eventName === 'signer_signed_document') {
+        record.set('status', 'assinado')
+        if (!record.getString('signed_at')) {
+          record.set('signed_at', new Date().toISOString())
+        }
+      } else if (
+        eventName === 'signer_rejected_document' ||
+        eventName === 'user_rejected_document'
+      ) {
+        record.set('status', 'recusado')
+      } else if (eventName === 'document_processing_failed') {
+        record.set('status', 'cancelado')
+        const errMsg = (body.payload && body.payload.error_message) || 'Falha no processamento'
+        record.set('error_message', errMsg)
+      }
     }
 
     $app.save(record)

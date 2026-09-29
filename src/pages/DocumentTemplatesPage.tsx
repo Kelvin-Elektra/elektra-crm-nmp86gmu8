@@ -87,12 +87,14 @@ export function DocumentTemplatesPage() {
     type: TemplateDocType
     content: string
     active: boolean
+    signature_policy: 'inherit' | 'client_only' | 'client_rep' | 'client_owner' | 'client_rep_owner'
   }>({
     name: '',
     description: '',
     type: 'contract',
     content: '',
     active: true,
+    signature_policy: 'inherit',
   })
 
   // Modal de escolha do modo de criação: manual ou upload de documento
@@ -172,6 +174,7 @@ export function DocumentTemplatesPage() {
             ? `# INSTRUMENTO DE PROCURAÇÃO\n\nOutorgante: {{cliente_nome}}, CPF/CNPJ: {{cliente_documento}}.\nOutorgada: {{empresa_nome}}, CNPJ: {{empresa_cnpj}}.\n\nFinalidade: Homologação na concessionária {{concessionaria}} para usina de {{potencia_kit}} kWp.\n\nLocal e data: {{cidade_instalacao}}, {{data_proposta}}.`
             : `# CONTRATO DE PRESTAÇÃO DE SERVIÇOS\n\nContratante: {{cliente_nome}}, CPF/CNPJ: {{cliente_documento}}.\nContratada: {{empresa_nome}}, CNPJ: {{empresa_cnpj}}.\n\nValor total: {{proposta_valor}}.\n\nData: {{data_proposta}}.`,
       active: true,
+      signature_policy: 'inherit',
     })
     setIsCreateChoiceOpen(false)
     setIsEditorOpen(true)
@@ -226,6 +229,7 @@ export function DocumentTemplatesPage() {
         type: 'contract',
         content: result.markdown || '',
         active: true,
+        signature_policy: 'inherit',
       })
       setIsEditorOpen(true)
       setEditorMode('write')
@@ -253,6 +257,7 @@ export function DocumentTemplatesPage() {
       type: tmpl.type || 'contract',
       content: tmpl.content,
       active: tmpl.active,
+      signature_policy: (tmpl.signature_policy as any) || 'inherit',
     })
     setIsEditorOpen(true)
     setEditorMode('write')
@@ -286,6 +291,8 @@ export function DocumentTemplatesPage() {
           type: formData.type,
           content: formData.content,
           active: formData.active,
+          signature_policy:
+            formData.signature_policy === 'inherit' ? '' : formData.signature_policy,
         })
         toast({ title: 'Modelo atualizado com sucesso!' })
       } else {
@@ -296,6 +303,8 @@ export function DocumentTemplatesPage() {
           type: formData.type,
           content: formData.content,
           active: formData.active,
+          signature_policy:
+            formData.signature_policy === 'inherit' ? '' : formData.signature_policy,
         })
         toast({ title: 'Modelo criado com sucesso!' })
       }
@@ -699,8 +708,8 @@ export function DocumentTemplatesPage() {
           </div>
 
           {/* Dados Gerais do Modelo */}
-          <div className="px-6 py-3 border-b bg-white grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0 text-sm">
-            <div className="md:col-span-2">
+          <div className="px-6 py-3 border-b bg-white grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 shrink-0 text-sm">
+            <div className="sm:col-span-2">
               <Label className="text-xs text-slate-600">Nome do Modelo *</Label>
               <Input
                 placeholder="Ex: Contrato de Instalação Fotovoltaica Residencial"
@@ -721,9 +730,31 @@ export function DocumentTemplatesPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="contract">Contrato de Prestação de Serviços</SelectItem>
-                  <SelectItem value="power_of_attorney">Procuração para Concessionária</SelectItem>
-                  <SelectItem value="checklist">Checklist Técnico de Vistoria</SelectItem>
+                  <SelectItem value="contract">Contrato de Prestação</SelectItem>
+                  <SelectItem value="power_of_attorney">Procuração Homologação</SelectItem>
+                  <SelectItem value="checklist">Checklist Técnico</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-slate-600">Signatários Padrão</Label>
+              <Select
+                value={formData.signature_policy}
+                onValueChange={(v: any) =>
+                  setFormData((prev) => ({ ...prev, signature_policy: v }))
+                }
+              >
+                <SelectTrigger className="h-8 mt-1 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="inherit">Herdar configuração global da empresa</SelectItem>
+                  <SelectItem value="client_only">Apenas o Cliente</SelectItem>
+                  <SelectItem value="client_rep">Cliente + Representante Comercial</SelectItem>
+                  <SelectItem value="client_owner">Cliente + Dono da Empresa</SelectItem>
+                  <SelectItem value="client_rep_owner">
+                    Cliente + Representante + Dono da Empresa
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -733,11 +764,11 @@ export function DocumentTemplatesPage() {
                 value={formData.active ? 'active' : 'inactive'}
                 onValueChange={(v) => setFormData((prev) => ({ ...prev, active: v === 'active' }))}
               >
-                <SelectTrigger className="h-8 mt-1">
+                <SelectTrigger className="h-8 mt-1 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="active">Ativo (visível nas negociações)</SelectItem>
+                  <SelectItem value="active">Ativo (visível)</SelectItem>
                   <SelectItem value="inactive">Inativo (oculto)</SelectItem>
                 </SelectContent>
               </Select>

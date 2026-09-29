@@ -3,6 +3,13 @@ import { extractPlaceholdersFromTemplate } from '@/lib/contract-resolver'
 
 export type TemplateDocType = 'contract' | 'power_of_attorney' | 'checklist'
 
+export type TemplateSignaturePolicy =
+  | 'inherit'
+  | 'client_only'
+  | 'client_rep'
+  | 'client_owner'
+  | 'client_rep_owner'
+
 export interface ContractTemplateRecord {
   id: string
   company_id: string
@@ -12,6 +19,7 @@ export interface ContractTemplateRecord {
   content: string
   placeholders?: string[]
   active: boolean
+  signature_policy?: 'client_only' | 'client_rep' | 'client_owner' | 'client_rep_owner' | ''
   created: string
   updated: string
 }
@@ -23,6 +31,7 @@ export interface CreateContractTemplateInput {
   description?: string
   content: string
   active?: boolean
+  signature_policy?: 'client_only' | 'client_rep' | 'client_owner' | 'client_rep_owner' | ''
 }
 
 export interface UpdateContractTemplateInput {
@@ -31,6 +40,7 @@ export interface UpdateContractTemplateInput {
   description?: string
   content?: string
   active?: boolean
+  signature_policy?: 'client_only' | 'client_rep' | 'client_owner' | 'client_rep_owner' | ''
 }
 
 /**
@@ -98,7 +108,24 @@ export async function extractDocxText(file: File): Promise<{ markdown: string; n
     },
   )
 
-  return data
+  // Sanitização adicional no frontend para garantir apenas Markdown limpo sem tags residuais de Office/HTML cru
+  let cleanMarkdown = data.markdown || ''
+  if (cleanMarkdown) {
+    cleanMarkdown = cleanMarkdown
+      .replace(
+        /<\/?(html|body|div|span|p|o:[a-z0-9_-]+|w:[a-z0-9_-]+|m:[a-z0-9_-]+|v:[a-z0-9_-]+)[^>]*>/gi,
+        '',
+      )
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/\r\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+  }
+
+  return {
+    ...data,
+    markdown: cleanMarkdown,
+  }
 }
 
 /**

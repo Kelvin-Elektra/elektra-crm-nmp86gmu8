@@ -59,6 +59,43 @@ export async function getSignatureRequestsByNegotiation(
 /**
  * Dispara o envio do documento e criação de solicitação de assinatura para a Assinafy via backend
  */
+export interface SignatureIntegrationStatus {
+  configured: boolean
+  has_api_key: boolean
+  has_account_id: boolean
+  account_id?: string | null
+  discovered_account_id?: boolean
+  base_url: string
+  is_sandbox: boolean
+  webhook_url: string
+  message: string
+}
+
+/**
+ * Consulta o status da integração de assinatura digital no backend
+ */
+export async function getSignatureIntegrationStatus(): Promise<SignatureIntegrationStatus> {
+  const token = pb.authStore.token
+  const baseUrl = pb.baseUrl
+
+  const res = await fetch(`${baseUrl}/backend/v1/signatures/status`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(data.message || 'Não foi possível verificar status da assinatura.')
+  }
+
+  return data
+}
+
+/**
+ * Dispara o envio do documento e criação de solicitação de assinatura para a Assinafy via backend
+ */
 export async function sendSignatureRequest(
   payload: SendSignaturePayload,
 ): Promise<{ success: boolean; record: SignatureRequestRecord; signing_url?: string }> {
@@ -76,6 +113,12 @@ export async function sendSignatureRequest(
 
   const data = await res.json()
   if (!res.ok) {
+    if (
+      data.code === 'ASSINAFY_NOT_CONFIGURED' ||
+      /assinafy|account_id|api_key/i.test(data.message || '')
+    ) {
+      throw new Error('Integração de assinatura sendo finalizada. Fale com o suporte.')
+    }
     throw new Error(data.message || 'Falha ao enviar documento para assinatura.')
   }
 
