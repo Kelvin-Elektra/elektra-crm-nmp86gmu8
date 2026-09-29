@@ -377,6 +377,17 @@ routerAdd(
       // 3. Obter bytes do PDF
       let pdfBytes = null
 
+      // Diagnóstico detalhado de pdf_base64 e outros campos recebidos
+      $app.logger().info('Dados recebidos no envio para assinatura', {
+        has_pdf_base64: !!pdfBase64,
+        pdf_base64_len: pdfBase64 ? pdfBase64.length : 0,
+        pdf_base64_preview: pdfBase64 ? pdfBase64.substring(0, 30) : '',
+        has_security_base64Decode: !!($security && $security.base64Decode),
+        has_Buffer: typeof Buffer !== 'undefined',
+        has_atob: typeof atob !== 'undefined',
+        has_toBytes: typeof toBytes !== 'undefined',
+      })
+
       if (pdfBase64) {
         try {
           let rawB64 = pdfBase64
@@ -384,7 +395,11 @@ routerAdd(
           if (commaIdx !== -1) {
             rawB64 = rawB64.substring(commaIdx + 1)
           }
-          pdfBytes = $security.base64Decode(rawB64)
+          if ($security && typeof $security.base64Decode === 'function') {
+            pdfBytes = $security.base64Decode(rawB64)
+          } else {
+            $app.logger().warn('$security.base64Decode não existe!')
+          }
         } catch (decErr) {
           $app.logger().warn('Erro ao decodificar pdf_base64', 'error', String(decErr))
         }
