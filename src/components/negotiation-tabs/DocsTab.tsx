@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { ContractTemplateRecord, getActiveContractTemplates } from '@/services/contract-templates'
 import {
@@ -46,6 +47,7 @@ import {
   Eye,
   Copy,
   ClipboardList,
+  Check,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/use-toast'
@@ -61,6 +63,8 @@ import {
   sendSignatureRequest,
   syncSignatureStatus,
   SignatureRequestRecord,
+  getOriginalDocumentUrl,
+  getSignedDocumentUrl,
 } from '@/services/signatures'
 
 interface DocsTabProps {
@@ -88,6 +92,17 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
   // Upload avulso de PDF
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Estado para visualizador de documento (PDF Original e Assinado)
+  const [viewingRequest, setViewingRequest] = useState<SignatureRequestRecord | null>(null)
+  const [viewingTab, setViewingTab] = useState<'original' | 'signed'>('original')
+
+  // Estado para visualização/download rápido de PDF gerado a partir de modelo antes do envio
+  const [generatedPdfBlob, setGeneratedPdfBlob] = useState<{
+    blob: Blob
+    url: string
+    title: string
+  } | null>(null)
 
   // Modelos de Contrato e Procuração
   const [contractTemplates, setContractTemplates] = useState<ContractTemplateRecord[]>([])
@@ -331,6 +346,82 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
     }
 
     setUploadedFile(file)
+  }
+
+  // Gera o Blob de PDF a partir do modelo selecionado e dados da negociação
+  const generatePdfForTemplate = (
+    type: 'contract' | 'power_of_attorney' | 'checklist',
+  ): { blob: Blob; title: string; filename: string } | null => {
+    const isPoa = type === 'power_of_attorney'
+    const isChecklist = type === 'checklist'
+    const tpl = isChecklist
+      ? checklistTemplates.find((t) => t.id === selectedChecklistTemplateId)
+      : isPoa
+        ? poaTemplates.find((t) => t.id === selectedPoaTemplateId)
+        : contractTemplates.find((t) => t.id === selectedContractTemplateId)
+
+    if (!tpl) {
+      toast({
+        variant: 'destructive',
+        title: 'Modelo não selecionado',
+        description: 'Selecione um modelo de documento antes de gerar o PDF.',
+      })
+      return null
+    }
+
+    const context = buildContractContextFromNegotiation(neg, proposals, companyRecord)
+    const resolution = resolveContractPlaceholders(tpl.content, context)
+    const leadName = neg.expand?.lead_id?.name || neg.lead_name || 'Cliente'
+
+    const blob = generateContractPDF({
+      title: tpl.name,
+      content: resolution.resolvedContent,
+      companyName: companyRecord?.name || 'Elektra Solar',
+      clientName: context.lead?.name || '',
+      documentDate: new Date().toLocaleDateString('pt-BR'),
+    })
+
+    const prefix = isChecklist ? 'Checklist Tecnico' : isPoa ? 'Procuracao' : 'Contrato'
+    const filename = `${prefix} - ${tpl.name} - ${leadName}.pdf`.replace(/[/\\?%*:|"<>]/g, '_')
+
+    return { blob, title: tpl.name, filename }
+  }
+
+  // Abre visualização do PDF gerado (modal viewer ou blob URL)
+  const handleOpenGeneratedPdfModal = (type: 'contract' | 'power_of_attorney' | 'checklist') => {
+    const gen = generatePdfForTemplate(type)
+    if (!gen) return
+    const url = URL.createObjectURL(gen.blob)
+    setGeneratedPdfBlob({ blob: gen.blob, url, title: gen.title })
+  }
+
+  // Baixa diretamente o PDF gerado
+  const handleDownloadGeneratedPdf = (type: 'contract' | 'power_of_attorney' | 'checklist') => {
+    const gen = generatePdfForTemplate(type)
+    if (!gen) return
+    const url = URL.createObjectURL(gen.blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = gen.filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+    toast({
+      title: 'Download iniciado',
+      description: `O arquivo ${gen.filename} foi salvo.`,
+    })
+  }
+
+  // Abre modal de visualização de solicitação com abas Original / Assinado
+  const handleOpenDocumentViewer = (request: SignatureRequestRecord) => {
+    setViewingRequest(request)
+    // Se estiver assinado e possuir arquivo assinado ou URL, abre direto na aba 'signed', senão 'original'
+    if (request.status === 'assinado' && (request.signed_pdf || request.signing_url)) {
+      setViewingTab('signed')
+    } else {
+      setViewingTab('original')
+    }
   }
 
   // Executa o envio para assinatura digital
@@ -585,14 +676,38 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button
-                  className="w-full"
-                  disabled={!selectedProposalId}
-                  onClick={() => prepareSendModal('proposal')}
-                >
-                  <Send className="h-4 w-4 mr-2" />
-                  Enviar Proposta para Assinatura
-                </Button>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    className="w-full text-xs"
+                    disabled={!selectedProposalId}
+                    onClick={() => {
+                      const prop = proposals.find((p) => p.id === selectedProposalId)
+                      const link = prop?.view_url || prop?.snapshot_data?.view_url
+                      if (link) {
+                        window.open(link, '_blank')
+                      } else {
+                        toast({
+                          title: 'Proposta selecionada',
+                          description:
+                            'Esta proposta não possui link de visualização gerado ainda.',
+                        })
+                      }
+                    }}
+                  >
+                    <Eye className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
+                    Ver Proposta
+                  </Button>
+                  <Button
+                    className="w-full text-xs"
+                    disabled={!selectedProposalId}
+                    onClick={() => prepareSendModal('proposal')}
+                  >
+                    <Send className="h-3.5 w-3.5 mr-1.5" />
+                    Enviar Proposta
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>
@@ -649,7 +764,7 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                   </Select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <Button
                     variant="outline"
                     className="w-full text-xs"
@@ -658,17 +773,28 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                       setPreviewTemplateType('contract')
                       setIsPreviewContractModalOpen(true)
                     }}
+                    title="Pré-visualizar minuta em tela"
                   >
-                    <Eye className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
-                    Pré-visualizar
+                    <Eye className="h-3.5 w-3.5 mr-1 text-blue-600" />
+                    Ver Minuta
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full text-xs"
+                    disabled={!selectedContractTemplateId}
+                    onClick={() => handleDownloadGeneratedPdf('contract')}
+                    title="Baixar PDF gerado antes de enviar"
+                  >
+                    <Download className="h-3.5 w-3.5 mr-1 text-slate-700" />
+                    Baixar PDF
                   </Button>
                   <Button
                     className="w-full text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                     disabled={!selectedContractTemplateId}
                     onClick={() => prepareSendModal('contract')}
                   >
-                    <Send className="h-3.5 w-3.5 mr-1.5" />
-                    Enviar Contrato
+                    <Send className="h-3.5 w-3.5 mr-1" />
+                    Enviar
                   </Button>
                 </div>
               </div>
@@ -728,7 +854,7 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                   </Select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <Button
                     variant="outline"
                     className="w-full text-xs bg-white"
@@ -737,17 +863,28 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                       setPreviewTemplateType('checklist')
                       setIsPreviewContractModalOpen(true)
                     }}
+                    title="Pré-visualizar checklist em tela"
                   >
-                    <Eye className="h-3.5 w-3.5 mr-1.5 text-purple-700" />
-                    Pré-visualizar
+                    <Eye className="h-3.5 w-3.5 mr-1 text-purple-700" />
+                    Ver Minuta
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full text-xs bg-white"
+                    disabled={!selectedChecklistTemplateId}
+                    onClick={() => handleDownloadGeneratedPdf('checklist')}
+                    title="Baixar PDF do checklist gerado"
+                  >
+                    <Download className="h-3.5 w-3.5 mr-1 text-purple-700" />
+                    Baixar PDF
                   </Button>
                   <Button
                     className="w-full text-xs bg-purple-600 hover:bg-purple-700 text-white"
                     disabled={!selectedChecklistTemplateId}
                     onClick={() => prepareSendModal('checklist')}
                   >
-                    <Send className="h-3.5 w-3.5 mr-1.5" />
-                    Enviar Checklist
+                    <Send className="h-3.5 w-3.5 mr-1" />
+                    Enviar
                   </Button>
                 </div>
               </div>
@@ -804,7 +941,7 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                   </Select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <Button
                     variant="outline"
                     className="w-full text-xs bg-white"
@@ -813,17 +950,28 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                       setPreviewTemplateType('power_of_attorney')
                       setIsPreviewContractModalOpen(true)
                     }}
+                    title="Pré-visualizar procuração em tela"
                   >
-                    <Eye className="h-3.5 w-3.5 mr-1.5 text-amber-700" />
-                    Pré-visualizar
+                    <Eye className="h-3.5 w-3.5 mr-1 text-amber-700" />
+                    Ver Minuta
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full text-xs bg-white"
+                    disabled={!selectedPoaTemplateId}
+                    onClick={() => handleDownloadGeneratedPdf('power_of_attorney')}
+                    title="Baixar PDF da procuração gerada"
+                  >
+                    <Download className="h-3.5 w-3.5 mr-1 text-amber-700" />
+                    Baixar PDF
                   </Button>
                   <Button
                     className="w-full text-xs bg-amber-600 hover:bg-amber-700 text-white"
                     disabled={!selectedPoaTemplateId}
                     onClick={() => prepareSendModal('power_of_attorney')}
                   >
-                    <Send className="h-3.5 w-3.5 mr-1.5" />
-                    Enviar Procuração
+                    <Send className="h-3.5 w-3.5 mr-1" />
+                    Enviar
                   </Button>
                 </div>
               </div>
@@ -859,15 +1007,30 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                   </p>
                 )}
               </div>
-              <Button
-                variant="outline"
-                className="w-full border-primary/40 hover:bg-primary/5"
-                disabled={!uploadedFile}
-                onClick={() => prepareSendModal('upload')}
-              >
-                <Send className="h-4 w-4 mr-2 text-primary" />
-                Enviar PDF para Assinatura
-              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  className="w-full text-xs"
+                  disabled={!uploadedFile}
+                  onClick={() => {
+                    if (!uploadedFile) return
+                    const url = URL.createObjectURL(uploadedFile)
+                    window.open(url, '_blank')
+                  }}
+                >
+                  <Eye className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
+                  Ver Arquivo
+                </Button>
+                <Button
+                  variant="default"
+                  className="w-full text-xs"
+                  disabled={!uploadedFile}
+                  onClick={() => prepareSendModal('upload')}
+                >
+                  <Send className="h-3.5 w-3.5 mr-1.5" />
+                  Enviar para Assinatura
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-29T15:52:44.108Z",
+  "generatedAt": "2026-09-30T03:21:24.219Z",
   "collections": [
     {
       "name": "users",
@@ -2219,6 +2219,12 @@
           "required": false,
           "system": false,
           "collectionRef": "contract_templates"
+        },
+        {
+          "name": "original_pdf",
+          "type": "file",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [

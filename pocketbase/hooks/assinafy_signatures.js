@@ -740,6 +740,24 @@ routerAdd(
         newRecord.set('signing_url', signingUrl)
       }
 
+      // Salvar o arquivo PDF original no registro para visualização e download posterior
+      try {
+        if (
+          typeof $filesystem !== 'undefined' &&
+          typeof $filesystem.fileFromBytes === 'function' &&
+          (pdfByteNumbers || pdfBinary)
+        ) {
+          const filePayload =
+            pdfByteNumbers && pdfByteNumbers.length > 0 ? pdfByteNumbers : pdfBinary
+          const originalPbFile = $filesystem.fileFromBytes(filePayload, safeDocName)
+          newRecord.set('original_pdf', originalPbFile)
+        }
+      } catch (attachOrigErr) {
+        $app
+          .logger()
+          .warn('Não foi possível anexar original_pdf ao registro', 'error', String(attachOrigErr))
+      }
+
       $app.save(newRecord)
 
       $app.logger().info('Solicitação de assinatura criada com sucesso', {
@@ -855,6 +873,22 @@ routerAdd(
         const certPdfUrl = artifacts.certificated || artifacts.pades || artifacts.original || ''
         if (certPdfUrl && !record.getString('signing_url')) {
           record.set('signing_url', certPdfUrl)
+        }
+
+        // Tenta baixar e anexar o PDF assinado diretamente no campo signed_pdf se ainda não tiver
+        if (docStatus === 'certificated' && certPdfUrl && !record.getString('signed_pdf')) {
+          try {
+            if (
+              typeof $filesystem !== 'undefined' &&
+              typeof $filesystem.fileFromURL === 'function'
+            ) {
+              record.set('signed_pdf', $filesystem.fileFromURL(certPdfUrl, 30))
+            }
+          } catch (dlErr) {
+            $app
+              .logger()
+              .warn('Erro ao baixar signed_pdf no sync', 'url', certPdfUrl, 'error', String(dlErr))
+          }
         }
 
         $app.save(record)
@@ -987,6 +1021,25 @@ routerAdd('POST', '/backend/v1/signatures/webhook', (e) => {
 
       if (certPdfUrl && !record.getString('signing_url')) {
         record.set('signing_url', certPdfUrl)
+      }
+
+      // Tenta baixar e anexar o PDF assinado no campo signed_pdf
+      if (docStatus === 'certificated' && certPdfUrl && !record.getString('signed_pdf')) {
+        try {
+          if (typeof $filesystem !== 'undefined' && typeof $filesystem.fileFromURL === 'function') {
+            record.set('signed_pdf', $filesystem.fileFromURL(certPdfUrl, 30))
+          }
+        } catch (dlErr) {
+          $app
+            .logger()
+            .warn(
+              'Erro ao baixar signed_pdf no webhook oficial',
+              'url',
+              certPdfUrl,
+              'error',
+              String(dlErr),
+            )
+        }
       }
     } else {
       // Fallback para eventos diretos

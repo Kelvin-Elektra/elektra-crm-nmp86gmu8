@@ -13,6 +13,7 @@ export interface SignatureRequestRecord {
   signers: SignerItem[]
   assinafy_document_id?: string
   assinafy_signer_ids?: string[]
+  original_pdf?: string
   signed_pdf?: string
   sent_at?: string
   signed_at?: string
@@ -23,6 +24,7 @@ export interface SignatureRequestRecord {
   expand?: {
     proposal_id?: any
     negotiation_id?: any
+    contract_template_id?: any
   }
 }
 
@@ -47,13 +49,43 @@ export async function getSignatureRequestsByNegotiation(
     const records = await pb.collection('signature_requests').getFullList<SignatureRequestRecord>({
       filter: `negotiation_id = '${negotiationId}'`,
       sort: '-created',
-      expand: 'proposal_id',
+      expand: 'proposal_id,contract_template_id',
     })
     return records
   } catch (err) {
     console.error('Erro ao buscar signature_requests:', err)
     return []
   }
+}
+
+/**
+ * Retorna a URL direta de visualização/download para o arquivo original do documento.
+ * Dá preferência ao arquivo original_pdf persistido no registro, depois à view_url da proposta.
+ */
+export function getOriginalDocumentUrl(record: SignatureRequestRecord): string | null {
+  if (record.original_pdf) {
+    return pb.files.getURL(record, record.original_pdf)
+  }
+  if (record.expand?.proposal_id?.view_url) {
+    return record.expand.proposal_id.view_url
+  }
+  return null
+}
+
+/**
+ * Retorna a URL do documento assinado (certificado).
+ * Dá preferência ao arquivo assinado baixado no PocketBase (signed_pdf),
+ * ou à URL externa certificada da plataforma caso o PDF físico ainda não tenha sido baixado.
+ */
+export function getSignedDocumentUrl(record: SignatureRequestRecord): string | null {
+  if (record.signed_pdf) {
+    return pb.files.getURL(record, record.signed_pdf)
+  }
+  // Se estiver marcado como assinado e o signing_url aponta para artefato ou página de certificado
+  if (record.status === 'assinado' && record.signing_url) {
+    return record.signing_url
+  }
+  return null
 }
 
 /**
