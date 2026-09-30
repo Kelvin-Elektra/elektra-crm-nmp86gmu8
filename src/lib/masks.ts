@@ -40,6 +40,16 @@ export const maskCEP = (value: string | undefined | null) => {
     .replace(/(-\d{3})\d+?$/, '$1')
 }
 
+export const maskCNPJ = (value: string | undefined | null) => {
+  if (!value) return ''
+  const v = value.replace(/\D/g, '').slice(0, 14)
+  return v
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\d{4})(\d{1,2})/, '$1-$2')
+}
+
 export const unmask = (value: string | undefined | null) => {
   if (!value) return ''
   return value.replace(/\D/g, '')

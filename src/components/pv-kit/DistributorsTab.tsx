@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Plus, Trash2, Pencil } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { maskCNPJ } from '@/lib/masks'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 import {
@@ -76,7 +77,7 @@ export function DistributorsTab() {
 
   const openEdit = (dist: any) => {
     setEditingDistributor(dist)
-    setEditForm({ name: dist.name || '', cnpj: dist.cnpj || '' })
+    setEditForm({ name: dist.name || '', cnpj: maskCNPJ(dist.cnpj || '') })
   }
 
   const handleEditSave = async (e: React.FormEvent) => {
@@ -138,7 +139,11 @@ export function DistributorsTab() {
           </div>
           <div className="flex-1 space-y-2">
             <Label>CNPJ</Label>
-            <Input value={form.cnpj} onChange={(e) => setForm({ ...form, cnpj: e.target.value })} />
+            <Input
+              placeholder="00.000.000/0000-00"
+              value={form.cnpj}
+              onChange={(e) => setForm({ ...form, cnpj: maskCNPJ(e.target.value) })}
+            />
           </div>
           <Button type="submit" disabled={loading}>
             <Plus className="w-4 h-4 mr-2" /> Adicionar
@@ -158,7 +163,7 @@ export function DistributorsTab() {
               {data.map((d) => (
                 <tr key={d.id} className="border-t">
                   <td className="p-3">{d.name}</td>
-                  <td className="p-3">{d.cnpj || '-'}</td>
+                  <td className="p-3">{d.cnpj ? maskCNPJ(d.cnpj) : '-'}</td>
                   <td className="p-3 text-right">
                     <Button
                       variant="ghost"
@@ -219,9 +224,10 @@ export function DistributorsTab() {
               <div className="space-y-2">
                 <Label>CNPJ</Label>
                 <Input
-                  value={editForm.cnpj}
-                  onChange={(e) => setEditForm({ ...editForm, cnpj: e.target.value })}
                   placeholder="00.000.000/0000-00"
+                  value={editForm.cnpj}
+                  onChange={(e) => setEditForm({ ...editForm, cnpj: maskCNPJ(e.target.value) })}
+                  className="bg-background"
                 />
               </div>
               <DialogFooter className="gap-2 pt-2">

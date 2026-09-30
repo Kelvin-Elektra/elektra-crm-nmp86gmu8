@@ -265,10 +265,12 @@ export function buildEquipmentsArray(params: {
     const extraSpec = mod?.frame ? `Frame: ${mod.frame}` : ''
     const spec = [powerStr, extraSpec].filter(Boolean).join(' · ') || 'Alta Eficiência'
 
-    const modWarranty = formatWarrantyYears(
-      mod?.warranty || mod?.notes?.match(/(\d+)\s*anos?/i)?.[0] || '25 anos',
-      '25 anos',
-    )
+    const rawModWarranty =
+      mod?.warranty_manufacturing ||
+      mod?.warranty ||
+      mod?.notes?.match(/(\d+)\s*anos?/i)?.[0] ||
+      '25 anos'
+    const modWarranty = formatWarrantyYears(rawModWarranty, '25 anos')
 
     items.push({
       item: itemName,

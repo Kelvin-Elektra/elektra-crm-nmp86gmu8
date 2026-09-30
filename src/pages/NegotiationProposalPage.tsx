@@ -23,7 +23,6 @@ import {
 } from 'lucide-react'
 import { useRealtime } from '@/hooks/use-realtime'
 import { FinancialAnalysisCard } from '@/components/negotiation-tabs/FinancialAnalysisCard'
-import { ProposalViewer } from '@/components/ProposalViewer'
 import { ProposalEditModal } from '@/components/negotiation-tabs/ProposalEditModal'
 import { ProposalCostModal } from '@/components/negotiation-tabs/ProposalCostModal'
 import { ProposalHistoryDialog } from '@/components/negotiation-tabs/ProposalHistoryDialog'
@@ -45,7 +44,6 @@ export default function NegotiationProposalPage() {
   const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null)
 
   // Modais de ação na proposta
-  const [viewerOpen, setViewerOpen] = useState<any>(null)
   const [editModalOpen, setEditModalOpen] = useState<any>(null)
   const [costModalOpen, setCostModalOpen] = useState<any>(null)
   const [historyOpen, setHistoryOpen] = useState<any>(null)
@@ -195,21 +193,21 @@ export default function NegotiationProposalPage() {
 
         {/* Ações da Proposta */}
         <div className="flex items-center gap-2 flex-wrap">
-          {viewUrl && (
+          {viewUrl ? (
             <Button
               variant="default"
               size="sm"
               onClick={() => window.open(viewUrl, '_blank')}
               className="gap-2 bg-primary shadow-sm"
             >
-              <ExternalLink className="h-4 w-4" /> Visualizar Documento Oficial
+              <ExternalLink className="h-4 w-4" /> Abrir no Gerador Externo
             </Button>
-          )}
-
-          {activeProposal && (
-            <Button variant="outline" size="sm" onClick={() => setViewerOpen(activeProposal)}>
-              Visualizar
-            </Button>
+          ) : (
+            activeProposal && (
+              <Badge variant="outline" className="text-muted-foreground text-xs py-1.5 px-3">
+                Proposta sem link do gerador externo
+              </Badge>
+            )
           )}
 
           {activeProposal && isAdmin && (
@@ -579,14 +577,6 @@ export default function NegotiationProposalPage() {
       </Tabs>
 
       {/* Modais de visualização e edição */}
-      {viewerOpen && (
-        <ProposalViewer
-          open={!!viewerOpen}
-          onOpenChange={(v: boolean) => !v && setViewerOpen(null)}
-          proposal={viewerOpen}
-          negotiation={neg}
-        />
-      )}
 
       {editModalOpen && (
         <ProposalEditModal

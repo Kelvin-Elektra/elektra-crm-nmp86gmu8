@@ -7,13 +7,13 @@ import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { Badge } from '@/components/ui/badge'
-import { ProposalViewer } from '@/components/ProposalViewer'
+import { useToast } from '@/hooks/use-toast'
 
 export default function Proposals() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const { toast } = useToast()
   const [proposals, setProposals] = useState<any[]>([])
-  const [selectedProposal, setSelectedProposal] = useState<any | null>(null)
 
   const load = async () => {
     const isStandardUser =
@@ -99,27 +99,39 @@ export default function Proposals() {
                     : 'R$ 0,00'}
               </span>
 
-              {p.generator_view_url ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.open(p.generator_view_url, '_blank')}
-                  title="Abrir proposta oficial"
-                  className="gap-1.5"
-                >
-                  <ExternalLink className="h-4 w-4" /> Visualizar
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedProposal(p)}
-                  title="Visualizar proposta"
-                  className="gap-1.5"
-                >
-                  <FileText className="h-4 w-4" /> Visualizar
-                </Button>
-              )}
+              {(() => {
+                const link = p.view_url || p.snapshot_data?.view_url || p.generator_view_url
+                if (link) {
+                  return (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(link, '_blank')}
+                      title="Abrir proposta no gerador externo"
+                      className="gap-1.5"
+                    >
+                      <ExternalLink className="h-4 w-4 text-primary" /> Abrir no Gerador
+                    </Button>
+                  )
+                }
+                return (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      toast({
+                        title: 'Link não disponível',
+                        description:
+                          'Esta proposta não possui link salvo do gerador externo. Gere uma nova proposta para abrir diretamente no gerador.',
+                      })
+                    }
+                    className="gap-1.5 text-muted-foreground"
+                    title="Sem link do gerador externo"
+                  >
+                    <ExternalLink className="h-4 w-4 opacity-50" /> Sem Link Externo
+                  </Button>
+                )
+              })()}
 
               {p.negotiation_id && (
                 <Button
@@ -136,15 +148,6 @@ export default function Proposals() {
           </Card>
         ))}
       </div>
-
-      {selectedProposal && (
-        <ProposalViewer
-          open={!!selectedProposal}
-          onOpenChange={(v: boolean) => !v && setSelectedProposal(null)}
-          proposal={selectedProposal}
-          negotiation={selectedProposal?.expand?.negotiation_id}
-        />
-      )}
     </div>
   )
 }

@@ -41,7 +41,7 @@ import {
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
-export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewer }: any) {
+export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
   const { user } = useAuth()
   const { toast } = useToast()
   const [step, setStep] = useState(1)

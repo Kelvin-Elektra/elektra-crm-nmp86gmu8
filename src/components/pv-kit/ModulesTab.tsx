@@ -35,6 +35,8 @@ export function ModulesTab() {
     width: '',
     price: '',
     warranty: '',
+    warranty_manufacturing: '',
+    warranty_linear: '',
     notes: '',
   }
   const [form, setForm] = useState(initialForm)
@@ -58,15 +60,32 @@ export function ModulesTab() {
     if (!user?.company_id || !form.distributor_id) return
     setLoading(true)
 
-    const warrantyNum = form.warranty
-      ? parseInt(String(form.warranty).replace(/\D/g, ''), 10)
+    const mfgNum = form.warranty_manufacturing
+      ? parseInt(String(form.warranty_manufacturing).replace(/\D/g, ''), 10)
       : null
+    const mfgText =
+      mfgNum !== null && !isNaN(mfgNum) ? `${mfgNum} anos` : form.warranty_manufacturing.trim()
+
+    const linearText = form.warranty_linear.trim()
+
+    // Composição consolidada amigável para templates e retrocompatibilidade
+    const consolidatedWarranty =
+      [mfgText ? `Fabricação: ${mfgText}` : '', linearText ? `Linear: ${linearText}` : '']
+        .filter(Boolean)
+        .join(' | ') ||
+      mfgText ||
+      linearText ||
+      form.warranty ||
+      ''
+
     const payload = {
       ...form,
       power: Number(form.power),
       height: form.height ? Number(form.height.replace(',', '.')) : null,
       width: form.width ? Number(form.width.replace(',', '.')) : null,
-      warranty: warrantyNum !== null && !isNaN(warrantyNum) ? `${warrantyNum} anos` : form.warranty,
+      warranty: consolidatedWarranty,
+      warranty_manufacturing: mfgText,
+      warranty_linear: linearText,
       price: form.price ? Number(form.price.replace(',', '.')) : null,
       company_id: user.company_id,
     }
@@ -89,6 +108,12 @@ export function ModulesTab() {
   }
 
   const handleEdit = (mod: any) => {
+    const rawMfg = mod.warranty_manufacturing || ''
+    const mfgDigits = rawMfg ? String(rawMfg).replace(/\D/g, '') : ''
+    // Se não tiver warranty_manufacturing mas tiver warranty antiga, usa como fallback
+    const fallbackMfg =
+      !rawMfg && mod.warranty ? String(mod.warranty).replace(/\D/g, '') || mod.warranty : ''
+
     setForm({
       name: mod.name,
       power: mod.power?.toString() || '',
@@ -96,7 +121,9 @@ export function ModulesTab() {
       distributor_id: mod.distributor_id,
       height: mod.height?.toString().replace('.', ',') || '',
       width: mod.width?.toString().replace('.', ',') || '',
-      warranty: mod.warranty ? String(mod.warranty).replace(/\D/g, '') || mod.warranty : '',
+      warranty: mod.warranty || '',
+      warranty_manufacturing: mfgDigits || rawMfg || fallbackMfg,
+      warranty_linear: mod.warranty_linear || '',
       price: mod.price?.toString().replace('.', ',') || '',
       notes: mod.notes || '',
     })
@@ -211,21 +238,30 @@ export function ModulesTab() {
             />
           </div>
           <div className="space-y-2">
-            <Label className="font-semibold">Garantia (anos)</Label>
+            <Label className="font-semibold text-xs text-slate-700">Garantia de fabricação</Label>
             <div className="relative">
               <Input
                 type="number"
                 min="0"
                 max="50"
-                placeholder="Ex: 25"
-                value={form.warranty}
-                onChange={(e) => setForm({ ...form, warranty: e.target.value })}
-                className="bg-background pr-14"
+                placeholder="Ex: 12"
+                value={form.warranty_manufacturing}
+                onChange={(e) => setForm({ ...form, warranty_manufacturing: e.target.value })}
+                className="bg-background pr-14 h-9 text-sm"
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
                 anos
               </span>
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="font-semibold text-xs text-slate-700">Garantia linear</Label>
+            <Input
+              placeholder="Ex: 84% em 25 anos"
+              value={form.warranty_linear}
+              onChange={(e) => setForm({ ...form, warranty_linear: e.target.value })}
+              className="bg-background h-9 text-sm"
+            />
           </div>
           <div className="space-y-2">
             <Label className="font-semibold">Preço</Label>
@@ -323,11 +359,32 @@ export function ModulesTab() {
                     {d.height && d.width ? (d.height * d.width).toFixed(2) : '-'}
                   </td>
                   <td className="p-3">
-                    {d.warranty
-                      ? String(d.warranty).toLowerCase().includes('ano')
-                        ? d.warranty
-                        : `${d.warranty} anos`
-                      : '-'}
+                    {d.warranty_manufacturing || d.warranty_linear ? (
+                      <div className="text-xs space-y-0.5">
+                        {d.warranty_manufacturing && (
+                          <div className="text-slate-700">
+                            <span className="text-muted-foreground font-normal">Fab:</span>{' '}
+                            {String(d.warranty_manufacturing).toLowerCase().includes('ano')
+                              ? d.warranty_manufacturing
+                              : `${d.warranty_manufacturing} anos`}
+                          </div>
+                        )}
+                        {d.warranty_linear && (
+                          <div className="text-slate-600">
+                            <span className="text-muted-foreground font-normal">Linear:</span>{' '}
+                            {d.warranty_linear}
+                          </div>
+                        )}
+                      </div>
+                    ) : d.warranty ? (
+                      <span className="text-xs text-slate-700">
+                        {String(d.warranty).toLowerCase().includes('ano')
+                          ? d.warranty
+                          : `${d.warranty} anos`}
+                      </span>
+                    ) : (
+                      '-'
+                    )}
                   </td>
                   <td className="p-3">
                     {d.price

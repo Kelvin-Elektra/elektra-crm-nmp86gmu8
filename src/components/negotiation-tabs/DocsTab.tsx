@@ -51,7 +51,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
-import { ProposalViewer } from '../ProposalViewer'
+
 import { buildDefaultSigners, SignaturePolicy, SignerItem } from '@/lib/signature-utils'
 import {
   getSignatureRequestsByNegotiation,
@@ -96,9 +96,6 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
     title: string
     filename: string
   } | null>(null)
-
-  // Estado para visualizador de proposta comercial
-  const [viewingProposal, setViewingProposal] = useState<any | null>(null)
 
   // Modelos de Contrato e Procuração
   const [contractTemplates, setContractTemplates] = useState<ContractTemplateRecord[]>([])
@@ -648,13 +645,17 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                       if (link) {
                         window.open(link, '_blank')
                       } else {
-                        setViewingProposal(prop)
+                        toast({
+                          title: 'Link não disponível',
+                          description:
+                            'Esta proposta não possui link salvo do gerador externo. Gere uma nova proposta para abrir diretamente no gerador.',
+                        })
                       }
                     }}
-                    title="Visualizar a proposta comercial selecionada"
+                    title="Abrir a proposta comercial no gerador externo"
                   >
-                    <Eye className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
-                    Ver Proposta
+                    <ExternalLink className="h-3.5 w-3.5 mr-1.5 text-primary" />
+                    Abrir no Gerador
                   </Button>
                   <Button
                     className="w-full text-xs"
@@ -1537,18 +1538,6 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
           )}
         </DialogContent>
       </Dialog>
-
-      {/* Visualizador de Proposta Comercial (ProposalViewer) */}
-      {viewingProposal && (
-        <ProposalViewer
-          open={!!viewingProposal}
-          onOpenChange={(open: boolean) => {
-            if (!open) setViewingProposal(null)
-          }}
-          proposal={viewingProposal}
-          negotiation={neg}
-        />
-      )}
 
       {/* Modal Visualizador de Documento Completo: Original vs Assinado */}
       <Dialog

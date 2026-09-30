@@ -29,7 +29,7 @@ import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { format } from 'date-fns'
-import { ProposalViewer } from '../ProposalViewer'
+
 import { ProposalCostModal } from './ProposalCostModal'
 import { ProposalWizardModal } from './ProposalWizardModal'
 import { ProposalEditModal } from './ProposalEditModal'
@@ -43,7 +43,6 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
   const { toast } = useToast()
   const isAdmin =
     user?.role === 'User_elektra' || user?.role_company === 'admin' || user?.role === 'User_owner'
-  const [viewerOpen, setViewerOpen] = useState<any>(null)
   const [costModalOpen, setCostModalOpen] = useState<any>(null)
   const [wizardOpen, setWizardOpen] = useState(false)
   const [closeSaleModal, setCloseSaleModal] = useState<any>(null)
@@ -178,21 +177,38 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
                   >
                     <FileText className="h-4 w-4" /> Detalhes & Financeiro
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const link = p.view_url || p.snapshot_data?.view_url
-                      if (link) {
-                        window.open(link, '_blank')
-                      } else {
-                        setViewerOpen(p)
-                      }
-                    }}
-                    title="Visualizar documento"
-                  >
-                    <Eye className="h-4 w-4 mr-1" /> Doc
-                  </Button>
+                  {(() => {
+                    const link = p.view_url || p.snapshot_data?.view_url
+                    if (link) {
+                      return (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(link, '_blank')}
+                          title="Abrir proposta no gerador externo"
+                        >
+                          <ExternalLink className="h-4 w-4 mr-1 text-primary" /> Abrir no Gerador
+                        </Button>
+                      )
+                    }
+                    return (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          toast({
+                            title: 'Link não disponível',
+                            description:
+                              'Esta proposta não possui link salvo do gerador externo. Gere uma nova proposta para abrir diretamente no gerador.',
+                          })
+                        }
+                        className="text-muted-foreground"
+                        title="Proposta sem link do gerador externo"
+                      >
+                        <ExternalLink className="h-4 w-4 mr-1 opacity-50" /> Sem Link Externo
+                      </Button>
+                    )
+                  })()}
                   {isAdmin && (
                     <Button
                       variant="outline"
@@ -262,16 +278,6 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
           onOpenChange={setWizardOpen}
           neg={neg}
           reload={reload}
-          openViewer={setViewerOpen}
-        />
-      )}
-
-      {viewerOpen && (
-        <ProposalViewer
-          open={!!viewerOpen}
-          onOpenChange={(v: boolean) => !v && setViewerOpen(null)}
-          proposal={viewerOpen}
-          negotiation={neg}
         />
       )}
 

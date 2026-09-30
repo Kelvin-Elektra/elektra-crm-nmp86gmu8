@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useAuth } from '@/contexts/AuthContext'
+import { maskCNPJ } from '@/lib/masks'
 import { Building2, User, FileText, Users, ExternalLink } from 'lucide-react'
 import {
   Table,
@@ -281,11 +282,11 @@ export default function Settings() {
                     <div className="space-y-2">
                       <Label>CNPJ</Label>
                       <Input
-                        value={company?.cnpj || ''}
-                        onChange={(e) => setCompany({ ...company, cnpj: e.target.value })}
-                        disabled={!isOwner}
+                        value={company?.cnpj ? maskCNPJ(company.cnpj) : ''}
+                        onChange={(e) => setCompany({ ...company, cnpj: maskCNPJ(e.target.value) })}
                         placeholder="00.000.000/0000-00"
-                      />
+                        className="bg-background"
+                      />{' '}
                     </div>
                     <div className="space-y-2">
                       <Label>E-mail da Empresa</Label>
