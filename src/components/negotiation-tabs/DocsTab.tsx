@@ -43,7 +43,6 @@ import {
   Trash2,
   FileCheck,
   ShieldAlert,
-  Settings as SettingsIcon,
   Eye,
   Copy,
   ClipboardList,
@@ -53,12 +52,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { ProposalViewer } from '../ProposalViewer'
-import {
-  buildDefaultSigners,
-  SignaturePolicy,
-  SIGNATURE_POLICY_LABELS,
-  SignerItem,
-} from '@/lib/signature-utils'
+import { buildDefaultSigners, SignaturePolicy, SignerItem } from '@/lib/signature-utils'
 import {
   getSignatureRequestsByNegotiation,
   sendSignatureRequest,
@@ -80,12 +74,9 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
   const [loadingList, setLoadingList] = useState(false)
   const [syncingId, setSyncingId] = useState<string | null>(null)
 
-  // Configuração de signatários da empresa
-  const [companyPolicy, setCompanyPolicy] = useState<SignaturePolicy>('client_only')
+  // Dados do dono/diretor da empresa para modelos com papel "dono"
   const [companyOwnerName, setCompanyOwnerName] = useState('')
   const [companyOwnerEmail, setCompanyOwnerEmail] = useState('')
-  const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false)
-  const [savingConfig, setSavingConfig] = useState(false)
 
   // Seleção de proposta para envio
   const [selectedProposalId, setSelectedProposalId] = useState<string>('')
@@ -150,9 +141,6 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
     try {
       const comp = await pb.collection('companies').getOne(neg.company_id)
       setCompanyRecord(comp)
-      if (comp.signature_policy) {
-        setCompanyPolicy(comp.signature_policy as SignaturePolicy)
-      }
       if (comp.signature_owner_name) {
         setCompanyOwnerName(comp.signature_owner_name)
       }
@@ -198,31 +186,6 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
     }
   }, [neg?.id, proposals])
 
-  const handleSaveCompanyConfig = async () => {
-    if (!neg?.company_id) return
-    setSavingConfig(true)
-    try {
-      await pb.collection('companies').update(neg.company_id, {
-        signature_policy: companyPolicy,
-        signature_owner_name: companyOwnerName,
-        signature_owner_email: companyOwnerEmail,
-      })
-      toast({
-        title: 'Configurações salvas',
-        description: 'Regra de signatários da empresa atualizada com sucesso.',
-      })
-      setIsConfigDialogOpen(false)
-    } catch (err: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao salvar',
-        description: err.message || 'Não foi possível salvar a configuração.',
-      })
-    } finally {
-      setSavingConfig(false)
-    }
-  }
-
   // Prepara o formulário de envio com os signatários padrão
   const prepareSendModal = (
     type: 'proposal' | 'upload' | 'contract' | 'power_of_attorney' | 'checklist',
@@ -256,10 +219,7 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
     const lead = neg.expand?.lead_id || {}
     const rep = neg.expand?.owner_id || {}
 
-    // Resolução em cascata dos signatários padrão:
-    // 1. Política do modelo selecionado (se houver e não for vazia)
-    // 2. Política global da empresa (companyPolicy)
-    // 3. 'client_only' (fallback seguro)
+    // Resolução dos signatários padrão a partir do modelo selecionado (fallback: 'client_only')
     let selectedTemplateForPolicy: any = null
     if (type === 'contract') {
       selectedTemplateForPolicy = contractTemplates.find((t) => t.id === selectedContractTemplateId)
@@ -271,8 +231,8 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
       )
     }
 
-    const templatePolicy = selectedTemplateForPolicy?.signature_policy
-    const effectivePolicy = templatePolicy || companyPolicy || 'client_only'
+    const effectivePolicy: SignaturePolicy =
+      (selectedTemplateForPolicy?.signature_policy as SignaturePolicy) || 'client_only'
 
     const defaultSigners = buildDefaultSigners({
       policy: effectivePolicy,
@@ -624,12 +584,6 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
           <p className="text-sm text-muted-foreground">
             Envio e controle de assinaturas com validade jurídica via plataforma digital.
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setIsConfigDialogOpen(true)}>
-            <SettingsIcon className="h-4 w-4 mr-1.5" />
-            Signatários Padrão ({SIGNATURE_POLICY_LABELS[companyPolicy]})
-          </Button>
         </div>
       </div>
 
@@ -1382,78 +1336,6 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                   Confirmar e Enviar
                 </>
               )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal de Configuração de Signatários da Empresa */}
-      <Dialog open={isConfigDialogOpen} onOpenChange={setIsConfigDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Configuração Global de Signatários</DialogTitle>
-            <DialogDescription>
-              Defina quem deve assinar os documentos desta empresa por padrão.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label>Quem deve assinar por padrão?</Label>
-              <Select
-                value={companyPolicy}
-                onValueChange={(val) => setCompanyPolicy(val as SignaturePolicy)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="client_only">Apenas o Cliente</SelectItem>
-                  <SelectItem value="client_rep">Representante + Cliente</SelectItem>
-                  <SelectItem value="client_rep_owner">
-                    Representante + Cliente + Dono da Empresa
-                  </SelectItem>
-                  <SelectItem value="client_owner">Cliente + Dono da Empresa</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {(companyPolicy === 'client_owner' || companyPolicy === 'client_rep_owner') && (
-              <div className="space-y-3 pt-2 border-t">
-                <p className="text-xs text-muted-foreground">
-                  Dados do Dono/Diretor da Empresa para assinatura:
-                </p>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Nome do Dono da Empresa</Label>
-                  <Input
-                    value={companyOwnerName}
-                    onChange={(e) => setCompanyOwnerName(e.target.value)}
-                    placeholder="Ex: Carlos Eduardo Silveira"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">E-mail do Dono da Empresa</Label>
-                  <Input
-                    type="email"
-                    value={companyOwnerEmail}
-                    onChange={(e) => setCompanyOwnerEmail(e.target.value)}
-                    placeholder="Ex: diretor@empresa.com.br"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsConfigDialogOpen(false)}
-              disabled={savingConfig}
-            >
-              Cancelar
-            </Button>
-            <Button onClick={handleSaveCompanyConfig} disabled={savingConfig}>
-              {savingConfig ? 'Salvando...' : 'Salvar Configuração'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -600,7 +600,7 @@ export const SEMANTIC_CONCEPTS: SemanticConceptDef[] = [
       'correio eletronico',
     ],
     keywords: ['email', 'mail'],
-    negativeKeywords: [],
+    negativeKeywords: ['empresa', 'company'],
   },
   {
     concept: 'address',

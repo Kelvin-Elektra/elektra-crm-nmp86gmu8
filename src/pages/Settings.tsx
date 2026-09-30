@@ -146,7 +146,7 @@ export default function Settings() {
       await pb.collection('companies').update(company.id, {
         name: company.name,
         cnpj: company.cnpj || '',
-        signature_policy: company.signature_policy || 'client_only',
+        email: company.email || '',
         signature_owner_name: company.signature_owner_name || '',
         signature_owner_email: company.signature_owner_email || '',
       })
@@ -392,14 +392,26 @@ export default function Settings() {
                       disabled={!isOwner}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>CNPJ</Label>
-                    <Input
-                      value={company?.cnpj || ''}
-                      onChange={(e) => setCompany({ ...company, cnpj: e.target.value })}
-                      disabled={!isOwner}
-                      placeholder="00.000.000/0000-00"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>CNPJ</Label>
+                      <Input
+                        value={company?.cnpj || ''}
+                        onChange={(e) => setCompany({ ...company, cnpj: e.target.value })}
+                        disabled={!isOwner}
+                        placeholder="00.000.000/0000-00"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>E-mail da Empresa</Label>
+                      <Input
+                        type="email"
+                        value={company?.email || ''}
+                        onChange={(e) => setCompany({ ...company, email: e.target.value })}
+                        disabled={!isOwner}
+                        placeholder="contato@empresa.com.br"
+                      />
+                    </div>
                   </div>
 
                   <Separator className="my-4" />
@@ -409,7 +421,8 @@ export default function Settings() {
                       <div>
                         <h4 className="font-semibold text-sm">Assinatura Digital de Documentos</h4>
                         <p className="text-xs text-muted-foreground">
-                          Configuração padrão de signatários e modelos da empresa.
+                          Dados do responsável pela empresa para modelos que exigem assinatura do
+                          proprietário/diretor.
                         </p>
                       </div>
                       <a
@@ -419,59 +432,32 @@ export default function Settings() {
                         <FileText className="h-3.5 w-3.5 text-primary" /> Modelos de Documentos
                       </a>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Regra padrão de signatários</Label>
-                      <Select
-                        value={company?.signature_policy || 'client_only'}
-                        onValueChange={(val) => setCompany({ ...company, signature_policy: val })}
-                        disabled={!isOwner}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="client_only">Apenas o Cliente</SelectItem>
-                          <SelectItem value="client_rep">Representante + Cliente</SelectItem>
-                          <SelectItem value="client_rep_owner">
-                            Representante + Cliente + Dono da Empresa
-                          </SelectItem>
-                          <SelectItem value="client_owner">Cliente + Dono da Empresa</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">
-                        Define quem deve constar por padrão nas solicitações de assinatura da
-                        empresa.
-                      </p>
-                    </div>
 
-                    {(company?.signature_policy === 'client_owner' ||
-                      company?.signature_policy === 'client_rep_owner') && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 rounded-lg border bg-muted/20">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Nome do Dono/Diretor da Empresa</Label>
-                          <Input
-                            value={company?.signature_owner_name || ''}
-                            onChange={(e) =>
-                              setCompany({ ...company, signature_owner_name: e.target.value })
-                            }
-                            disabled={!isOwner}
-                            placeholder="Nome para assinatura"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">E-mail do Dono/Diretor</Label>
-                          <Input
-                            type="email"
-                            value={company?.signature_owner_email || ''}
-                            onChange={(e) =>
-                              setCompany({ ...company, signature_owner_email: e.target.value })
-                            }
-                            disabled={!isOwner}
-                            placeholder="email@empresa.com.br"
-                          />
-                        </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 rounded-lg border bg-muted/20">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Nome do Dono/Diretor da Empresa</Label>
+                        <Input
+                          value={company?.signature_owner_name || ''}
+                          onChange={(e) =>
+                            setCompany({ ...company, signature_owner_name: e.target.value })
+                          }
+                          disabled={!isOwner}
+                          placeholder="Nome para assinatura"
+                        />
                       </div>
-                    )}
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">E-mail do Dono/Diretor</Label>
+                        <Input
+                          type="email"
+                          value={company?.signature_owner_email || ''}
+                          onChange={(e) =>
+                            setCompany({ ...company, signature_owner_email: e.target.value })
+                          }
+                          disabled={!isOwner}
+                          placeholder="email@empresa.com.br"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   {isOwner && (
