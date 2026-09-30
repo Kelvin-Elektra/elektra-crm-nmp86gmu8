@@ -52,6 +52,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
+import { ProposalViewer } from '../ProposalViewer'
 import {
   buildDefaultSigners,
   SignaturePolicy,
@@ -102,7 +103,11 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
     blob: Blob
     url: string
     title: string
+    filename: string
   } | null>(null)
+
+  // Estado para visualizador de proposta comercial
+  const [viewingProposal, setViewingProposal] = useState<any | null>(null)
 
   // Modelos de Contrato e Procuração
   const [contractTemplates, setContractTemplates] = useState<ContractTemplateRecord[]>([])
@@ -392,7 +397,7 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
     const gen = generatePdfForTemplate(type)
     if (!gen) return
     const url = URL.createObjectURL(gen.blob)
-    setGeneratedPdfBlob({ blob: gen.blob, url, title: gen.title })
+    setGeneratedPdfBlob({ blob: gen.blob, url, title: gen.title, filename: gen.filename })
   }
 
   // Baixa diretamente o PDF gerado
@@ -684,17 +689,15 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                     disabled={!selectedProposalId}
                     onClick={() => {
                       const prop = proposals.find((p) => p.id === selectedProposalId)
-                      const link = prop?.view_url || prop?.snapshot_data?.view_url
+                      if (!prop) return
+                      const link = prop.view_url || prop.snapshot_data?.view_url
                       if (link) {
                         window.open(link, '_blank')
                       } else {
-                        toast({
-                          title: 'Proposta selecionada',
-                          description:
-                            'Esta proposta não possui link de visualização gerado ainda.',
-                        })
+                        setViewingProposal(prop)
                       }
                     }}
+                    title="Visualizar a proposta comercial selecionada"
                   >
                     <Eye className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
                     Ver Proposta
@@ -763,8 +766,7 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                     </SelectContent>
                   </Select>
                 </div>
-
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   <Button
                     variant="outline"
                     className="w-full text-xs"
@@ -773,10 +775,20 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                       setPreviewTemplateType('contract')
                       setIsPreviewContractModalOpen(true)
                     }}
-                    title="Pré-visualizar minuta em tela"
+                    title="Pré-visualizar minuta e texto em tela"
                   >
                     <Eye className="h-3.5 w-3.5 mr-1 text-blue-600" />
                     Ver Minuta
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full text-xs"
+                    disabled={!selectedContractTemplateId}
+                    onClick={() => handleOpenGeneratedPdfModal('contract')}
+                    title="Visualizar o PDF diagramado com logotipo e cabeçalho"
+                  >
+                    <FileText className="h-3.5 w-3.5 mr-1 text-primary" />
+                    Ver PDF
                   </Button>
                   <Button
                     variant="outline"
@@ -796,7 +808,7 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                     <Send className="h-3.5 w-3.5 mr-1" />
                     Enviar
                   </Button>
-                </div>
+                </div>{' '}
               </div>
             )}
           </CardContent>
@@ -853,8 +865,7 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                     </SelectContent>
                   </Select>
                 </div>
-
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   <Button
                     variant="outline"
                     className="w-full text-xs bg-white"
@@ -867,6 +878,16 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                   >
                     <Eye className="h-3.5 w-3.5 mr-1 text-purple-700" />
                     Ver Minuta
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full text-xs bg-white"
+                    disabled={!selectedChecklistTemplateId}
+                    onClick={() => handleOpenGeneratedPdfModal('checklist')}
+                    title="Visualizar o PDF diagramado com logotipo e cabeçalho"
+                  >
+                    <ClipboardList className="h-3.5 w-3.5 mr-1 text-purple-700" />
+                    Ver PDF
                   </Button>
                   <Button
                     variant="outline"
@@ -886,7 +907,7 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                     <Send className="h-3.5 w-3.5 mr-1" />
                     Enviar
                   </Button>
-                </div>
+                </div>{' '}
               </div>
             )}
           </CardContent>
@@ -940,8 +961,7 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                     </SelectContent>
                   </Select>
                 </div>
-
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   <Button
                     variant="outline"
                     className="w-full text-xs bg-white"
@@ -954,6 +974,16 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                   >
                     <Eye className="h-3.5 w-3.5 mr-1 text-amber-700" />
                     Ver Minuta
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full text-xs bg-white"
+                    disabled={!selectedPoaTemplateId}
+                    onClick={() => handleOpenGeneratedPdfModal('power_of_attorney')}
+                    title="Visualizar o PDF diagramado com logotipo e cabeçalho"
+                  >
+                    <ShieldAlert className="h-3.5 w-3.5 mr-1 text-amber-700" />
+                    Ver PDF
                   </Button>
                   <Button
                     variant="outline"
@@ -973,7 +1003,7 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                     <Send className="h-3.5 w-3.5 mr-1" />
                     Enviar
                   </Button>
-                </div>
+                </div>{' '}
               </div>
             )}
           </CardContent>
@@ -1007,7 +1037,7 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                   </p>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <Button
                   variant="outline"
                   className="w-full text-xs"
@@ -1017,9 +1047,34 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                     const url = URL.createObjectURL(uploadedFile)
                     window.open(url, '_blank')
                   }}
+                  title="Abrir o arquivo PDF em nova aba"
                 >
-                  <Eye className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
+                  <Eye className="h-3.5 w-3.5 mr-1 text-blue-600" />
                   Ver Arquivo
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full text-xs"
+                  disabled={!uploadedFile}
+                  onClick={() => {
+                    if (!uploadedFile) return
+                    const url = URL.createObjectURL(uploadedFile)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = uploadedFile.name
+                    document.body.appendChild(a)
+                    a.click()
+                    document.body.removeChild(a)
+                    setTimeout(() => URL.revokeObjectURL(url), 1000)
+                    toast({
+                      title: 'Download iniciado',
+                      description: `O arquivo ${uploadedFile.name} foi salvo.`,
+                    })
+                  }}
+                  title="Baixar o arquivo PDF selecionado"
+                >
+                  <Download className="h-3.5 w-3.5 mr-1 text-slate-700" />
+                  Baixar PDF
                 </Button>
                 <Button
                   variant="default"
@@ -1027,10 +1082,10 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                   disabled={!uploadedFile}
                   onClick={() => prepareSendModal('upload')}
                 >
-                  <Send className="h-3.5 w-3.5 mr-1.5" />
-                  Enviar para Assinatura
+                  <Send className="h-3.5 w-3.5 mr-1" />
+                  Enviar
                 </Button>
-              </div>
+              </div>{' '}
             </div>
           </CardContent>
         </Card>
@@ -1191,6 +1246,17 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                       </Button>
                     )}
 
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs gap-1"
+                      onClick={() => handleOpenDocumentViewer(req)}
+                      title="Visualizar documento original e assinado"
+                    >
+                      <Eye className="h-3.5 w-3.5 text-blue-600" />
+                      Ver documento
+                    </Button>
+
                     {req.status === 'assinado' && req.signed_pdf && (
                       <Button variant="default" size="sm" asChild className="text-xs">
                         <a
@@ -1200,7 +1266,7 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                           download
                         >
                           <Download className="h-3.5 w-3.5 mr-1" />
-                          Baixar PDF Assinado
+                          Baixar Assinado
                         </a>
                       </Button>
                     )}
@@ -1422,14 +1488,24 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                         Campos preenchidos automaticamente com os dados desta negociação.
                       </DialogDescription>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openContractPrintPreview(res.resolvedContent, tpl.name)}
-                      className="text-xs h-8 gap-1.5"
-                    >
-                      <Download className="h-3.5 w-3.5" /> Versão Imprimível
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDownloadGeneratedPdf(previewTemplateType)}
+                        className="text-xs h-8 gap-1.5"
+                      >
+                        <Download className="h-3.5 w-3.5" /> Baixar PDF
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openContractPrintPreview(res.resolvedContent, tpl.name)}
+                        className="text-xs h-8 gap-1.5"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" /> Imprimir
+                      </Button>
+                    </div>
                   </div>
                 </DialogHeader>
 
@@ -1491,6 +1567,333 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
               </>
             )
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Visualizador de PDF Gerado a partir de Modelo (Pré-visualização em alta fidelidade) */}
+      <Dialog
+        open={!!generatedPdfBlob}
+        onOpenChange={(open) => {
+          if (!open && generatedPdfBlob) {
+            URL.revokeObjectURL(generatedPdfBlob.url)
+            setGeneratedPdfBlob(null)
+          }
+        }}
+      >
+        <DialogContent className="max-w-5xl w-[95vw] h-[92vh] flex flex-col p-0 overflow-hidden">
+          {generatedPdfBlob && (
+            <>
+              <DialogHeader className="p-4 border-b bg-card shrink-0">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <DialogTitle className="text-base font-semibold truncate max-w-md">
+                      {generatedPdfBlob.title}
+                    </DialogTitle>
+                    <DialogDescription className="text-xs">
+                      Documento em formato PDF gerado automaticamente com os dados da negociação.
+                    </DialogDescription>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs h-8 gap-1.5"
+                      onClick={() => window.open(generatedPdfBlob.url, '_blank')}
+                      title="Abrir PDF em nova aba"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Abrir em Nova Aba
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="text-xs h-8 gap-1.5 bg-primary text-primary-foreground"
+                      onClick={() => {
+                        const a = document.createElement('a')
+                        a.href = generatedPdfBlob.url
+                        a.download = generatedPdfBlob.filename
+                        document.body.appendChild(a)
+                        a.click()
+                        document.body.removeChild(a)
+                        toast({
+                          title: 'Download iniciado',
+                          description: `O arquivo ${generatedPdfBlob.filename} foi salvo.`,
+                        })
+                      }}
+                      title="Baixar arquivo PDF"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Baixar PDF
+                    </Button>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <div className="flex-1 bg-slate-900 relative overflow-hidden">
+                <iframe
+                  src={generatedPdfBlob.url}
+                  title={generatedPdfBlob.title}
+                  className="w-full h-full border-0 bg-white"
+                />
+              </div>
+
+              <DialogFooter className="p-3 border-t bg-card shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (generatedPdfBlob) {
+                      URL.revokeObjectURL(generatedPdfBlob.url)
+                    }
+                    setGeneratedPdfBlob(null)
+                  }}
+                >
+                  Fechar
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Visualizador de Proposta Comercial (ProposalViewer) */}
+      {viewingProposal && (
+        <ProposalViewer
+          open={!!viewingProposal}
+          onOpenChange={(open: boolean) => {
+            if (!open) setViewingProposal(null)
+          }}
+          proposal={viewingProposal}
+          negotiation={neg}
+        />
+      )}
+
+      {/* Modal Visualizador de Documento Completo: Original vs Assinado */}
+      <Dialog
+        open={!!viewingRequest}
+        onOpenChange={(open) => {
+          if (!open) {
+            setViewingRequest(null)
+          }
+        }}
+      >
+        <DialogContent className="max-w-5xl w-[95vw] h-[92vh] flex flex-col p-0 overflow-hidden">
+          {viewingRequest &&
+            (() => {
+              const originalUrl = getOriginalDocumentUrl(viewingRequest)
+              const signedUrl = getSignedDocumentUrl(viewingRequest)
+              const isAssinado =
+                viewingRequest.status === 'assinado' || Boolean(viewingRequest.signed_pdf)
+              const hasSigned = Boolean(signedUrl)
+              const activeUrl = viewingTab === 'signed' ? signedUrl : originalUrl
+              const docBaseName = viewingRequest.document_name.replace(/\.pdf$/i, '')
+              const currentFileName =
+                viewingTab === 'signed'
+                  ? `${docBaseName}_assinado.pdf`
+                  : `${docBaseName}_original.pdf`
+
+              const handleDownloadCurrent = async () => {
+                if (!activeUrl) return
+                try {
+                  // Tenta baixar via fetch blob para forçar download com nome limpo
+                  const res = await fetch(activeUrl)
+                  if (res.ok) {
+                    const blob = await res.blob()
+                    const blobUrl = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = blobUrl
+                    a.download = currentFileName
+                    document.body.appendChild(a)
+                    a.click()
+                    document.body.removeChild(a)
+                    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000)
+                    toast({
+                      title: 'Download iniciado',
+                      description: `O arquivo ${currentFileName} foi salvo.`,
+                    })
+                    return
+                  }
+                } catch {
+                  /* intentionally ignored */
+                }
+                // Fallback para abertura/download direto
+                const a = document.createElement('a')
+                a.href = activeUrl
+                a.download = currentFileName
+                a.target = '_blank'
+                a.rel = 'noopener noreferrer'
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+              }
+
+              return (
+                <>
+                  <DialogHeader className="p-4 border-b bg-card shrink-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <DialogTitle className="text-base font-semibold truncate max-w-md">
+                            {viewingRequest.document_name}
+                          </DialogTitle>
+                          {getStatusBadge(viewingRequest.status)}
+                        </div>
+                        <DialogDescription className="text-xs">
+                          {viewingRequest.signers && viewingRequest.signers.length > 0 ? (
+                            <>Signatários: {viewingRequest.signers.map((s) => s.name).join(', ')}</>
+                          ) : (
+                            'Visualização do documento em alta fidelidade'
+                          )}
+                        </DialogDescription>
+                      </div>
+
+                      {/* Botões de Ação do Header */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {activeUrl && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs h-8 gap-1.5"
+                              onClick={() => window.open(activeUrl, '_blank')}
+                              title="Abrir em nova aba"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              Abrir em Nova Aba
+                            </Button>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              className="text-xs h-8 gap-1.5 bg-primary text-primary-foreground"
+                              onClick={handleDownloadCurrent}
+                              title="Baixar a versão atualmente selecionada"
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                              Baixar {viewingTab === 'signed' ? 'Assinado' : 'Original'}
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Alternância de Abas: Original vs Assinado */}
+                    <div className="pt-2">
+                      <Tabs
+                        value={viewingTab}
+                        onValueChange={(v) => setViewingTab(v as 'original' | 'signed')}
+                        className="w-full"
+                      >
+                        <TabsList className="grid w-full max-w-xs grid-cols-2 h-9">
+                          <TabsTrigger value="original" className="text-xs gap-1.5">
+                            <FileText className="h-3.5 w-3.5" />
+                            Original
+                          </TabsTrigger>
+                          <TabsTrigger
+                            value="signed"
+                            disabled={!hasSigned}
+                            className="text-xs gap-1.5"
+                            title={
+                              hasSigned
+                                ? 'Visualizar versão assinada com certificado'
+                                : isAssinado
+                                  ? 'Documento assinado sendo processado'
+                                  : 'Disponível após a conclusão das assinaturas'
+                            }
+                          >
+                            <CheckCircle2
+                              className={`h-3.5 w-3.5 ${hasSigned ? 'text-emerald-600' : ''}`}
+                            />
+                            Assinado {hasSigned && '✓'}
+                          </TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                    </div>
+                  </DialogHeader>
+
+                  {/* Conteúdo do Visualizador de PDF */}
+                  <div className="flex-1 bg-slate-900 flex flex-col items-center justify-center relative overflow-hidden">
+                    {viewingTab === 'original' ? (
+                      originalUrl ? (
+                        <iframe
+                          src={originalUrl}
+                          title={`PDF Original - ${viewingRequest.document_name}`}
+                          className="w-full h-full border-0 bg-white"
+                        />
+                      ) : (
+                        <div className="p-8 text-center text-slate-300 max-w-md space-y-3">
+                          <AlertCircle className="h-10 w-10 text-amber-400 mx-auto" />
+                          <h4 className="font-semibold text-white">
+                            Arquivo original não armazenado
+                          </h4>
+                          <p className="text-xs text-slate-400">
+                            Este documento foi enviado antes da ativação do armazenamento de cópia
+                            original no sistema. Novas solicitações salvam o arquivo
+                            automaticamente.
+                          </p>
+                          {viewingRequest.signing_url && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="text-xs"
+                              onClick={() => window.open(viewingRequest.signing_url, '_blank')}
+                            >
+                              <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                              Acessar na plataforma de assinatura
+                            </Button>
+                          )}
+                        </div>
+                      )
+                    ) : hasSigned ? (
+                      <iframe
+                        src={signedUrl!}
+                        title={`PDF Assinado - ${viewingRequest.document_name}`}
+                        className="w-full h-full border-0 bg-white"
+                      />
+                    ) : (
+                      <div className="p-8 text-center text-slate-300 max-w-md space-y-3">
+                        <Clock className="h-10 w-10 text-amber-400 mx-auto" />
+                        <h4 className="font-semibold text-white">Documento ainda não assinado</h4>
+                        <p className="text-xs text-slate-400">
+                          A versão certificada estará disponível assim que todos os signatários
+                          concluírem suas assinaturas.
+                        </p>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => handleSyncStatus(viewingRequest.id)}
+                          disabled={syncingId === viewingRequest.id}
+                        >
+                          <RefreshCw
+                            className={`h-3.5 w-3.5 mr-1.5 ${
+                              syncingId === viewingRequest.id ? 'animate-spin' : ''
+                            }`}
+                          />
+                          Verificar Status Atualizado
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  <DialogFooter className="p-3 border-t bg-card shrink-0 flex items-center justify-between">
+                    <div className="text-xs text-muted-foreground flex items-center gap-3">
+                      <span>
+                        Modo: <strong>{viewingTab === 'signed' ? 'Assinado' : 'Original'}</strong>
+                      </span>
+                      {viewingRequest.signed_at && viewingTab === 'signed' && (
+                        <span className="text-emerald-600 font-medium">
+                          Concluído em:{' '}
+                          {new Date(viewingRequest.signed_at).toLocaleDateString('pt-BR')}
+                        </span>
+                      )}
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => setViewingRequest(null)}>
+                      Fechar
+                    </Button>
+                  </DialogFooter>
+                </>
+              )
+            })()}
         </DialogContent>
       </Dialog>
     </div>

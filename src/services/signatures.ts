@@ -64,7 +64,8 @@ export async function getSignatureRequestsByNegotiation(
  */
 export function getOriginalDocumentUrl(record: SignatureRequestRecord): string | null {
   if (record.original_pdf) {
-    return pb.files.getURL(record, record.original_pdf)
+    const token = pb.authStore.token
+    return pb.files.getURL(record, record.original_pdf, token ? { token } : undefined)
   }
   if (record.expand?.proposal_id?.view_url) {
     return record.expand.proposal_id.view_url
@@ -79,7 +80,8 @@ export function getOriginalDocumentUrl(record: SignatureRequestRecord): string |
  */
 export function getSignedDocumentUrl(record: SignatureRequestRecord): string | null {
   if (record.signed_pdf) {
-    return pb.files.getURL(record, record.signed_pdf)
+    const token = pb.authStore.token
+    return pb.files.getURL(record, record.signed_pdf, token ? { token } : undefined)
   }
   // Se estiver marcado como assinado e o signing_url aponta para artefato ou página de certificado
   if (record.status === 'assinado' && record.signing_url) {
