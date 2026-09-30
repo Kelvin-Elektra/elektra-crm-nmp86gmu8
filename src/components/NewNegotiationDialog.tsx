@@ -23,6 +23,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { maskCEP } from '@/lib/masks'
+import { normalizeCompanyLeadTimes, getDefaultLeadTime } from '@/types/lead-time'
 import { LocationCombobox } from '@/components/LocationCombobox'
 import { Search, UserPlus } from 'lucide-react'
 import { LeadDialog } from '@/components/LeadDialog'
@@ -236,7 +237,13 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
       if (user?.company_id) {
         try {
           const comp = await pb.collection('companies').getOne(user.company_id)
-          defaultLeadTime = comp?.installation_lead_time || ''
+          if (comp) {
+            const leadTimes = normalizeCompanyLeadTimes(
+              comp.installation_lead_times,
+              comp.installation_lead_time,
+            )
+            defaultLeadTime = getDefaultLeadTime(leadTimes) || comp.installation_lead_time || ''
+          }
         } catch {
           /* ignore */
         }

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -7,6 +7,13 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,6 +38,11 @@ import {
   buildCommercialConditionsArray,
 } from '@/lib/solar-calculations'
 import { Plus, Trash2 } from 'lucide-react'
+import {
+  CompanyLeadTimeItem,
+  normalizeCompanyLeadTimes,
+  getDefaultLeadTime,
+} from '@/types/lead-time'
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -78,12 +90,38 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
   const [installationLeadTime, setInstallationLeadTime] = useState(
     snapshot?.installation_lead_time || '',
   )
+  const [companyLeadTimes, setCompanyLeadTimes] = useState<CompanyLeadTimeItem[]>([])
   const [paymentMethods, setPaymentMethods] = useState<string[]>(
     parsePaymentMethods(snapshot?.accepted_payment_methods),
   )
   const [definedPaymentMethod, setDefinedPaymentMethod] = useState(
     snapshot?.defined_payment_method || '',
   )
+
+  useEffect(() => {
+    if (!open) return
+    const companyId = user?.company_id || proposal?.company_id
+    if (!companyId) return
+    pb.collection('companies')
+      .getOne(companyId)
+      .then((comp) => {
+        if (comp) {
+          const list = normalizeCompanyLeadTimes(
+            comp.installation_lead_times,
+            comp.installation_lead_time,
+          )
+          setCompanyLeadTimes(list)
+          // Se não havia prazo na proposta/snapshot, pré-seleciona o default da empresa
+          if (!snapshot?.installation_lead_time && !installationLeadTime) {
+            const def = getDefaultLeadTime(list)
+            if (def) setInstallationLeadTime(def)
+          }
+        }
+      })
+      .catch(() => {
+        /* ignore */
+      })
+  }, [open, user?.company_id, proposal?.company_id])
 
   const discountValue = subtotal * (discountPercent / 100)
   const finalTotal = subtotal - discountValue
@@ -439,11 +477,50 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           </div>
           <div className="space-y-2">
             <Label>Prazo de Instalação</Label>
-            <Input
-              placeholder="Ex: 30 dias"
-              value={installationLeadTime}
-              onChange={(e) => setInstallationLeadTime(e.target.value)}
-            />
+            {companyLeadTimes.length > 0 ? (
+              <div className="space-y-1.5">
+                <Select
+                  value={
+                    companyLeadTimes.some((lt) => lt.label === installationLeadTime)
+                      ? installationLeadTime
+                      : '__custom__'
+                  }
+                  onValueChange={(val) => {
+                    if (val !== '__custom__') {
+                      setInstallationLeadTime(val)
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o prazo de instalação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {companyLeadTimes.map((item) => (
+                      <SelectItem key={item.id} value={item.label}>
+                        {item.label} {item.is_default ? '(padrão)' : ''}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__custom__">Outro prazo personalizado...</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {(!companyLeadTimes.some((lt) => lt.label === installationLeadTime) ||
+                  installationLeadTime === '') && (
+                  <Input
+                    placeholder="Digite o prazo personalizado"
+                    value={installationLeadTime}
+                    onChange={(e) => setInstallationLeadTime(e.target.value)}
+                    className="text-sm mt-1.5"
+                  />
+                )}
+              </div>
+            ) : (
+              <Input
+                placeholder="Ex: 30 dias"
+                value={installationLeadTime}
+                onChange={(e) => setInstallationLeadTime(e.target.value)}
+              />
+            )}
           </div>
 
           <div className="space-y-2">

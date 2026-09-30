@@ -15,7 +15,21 @@ import {
 } from '@/components/ui/select'
 import { useAuth } from '@/contexts/AuthContext'
 import { maskCNPJ } from '@/lib/masks'
-import { Building2, User, FileText, Users, ExternalLink } from 'lucide-react'
+import {
+  Building2,
+  User,
+  FileText,
+  Users,
+  ExternalLink,
+  Plus,
+  Trash2,
+  CheckCircle2,
+} from 'lucide-react'
+import {
+  CompanyLeadTimeItem,
+  normalizeCompanyLeadTimes,
+  getDefaultLeadTime,
+} from '@/types/lead-time'
 import {
   Table,
   TableBody,
@@ -54,12 +68,19 @@ export default function Settings() {
     password: '',
     passwordConfirm: '',
   })
+  const [leadTimes, setLeadTimes] = useState<CompanyLeadTimeItem[]>([])
+  const [newLeadTimeText, setNewLeadTimeText] = useState('')
 
   const loadCompany = async () => {
     if (user?.company_id && user.company_id.trim() !== '') {
       try {
         const record = await pb.collection('companies').getOne(user.company_id)
         setCompany(record)
+        const normalized = normalizeCompanyLeadTimes(
+          record.installation_lead_times,
+          record.installation_lead_time,
+        )
+        setLeadTimes(normalized)
       } catch (err: any) {
         if (err.status !== 404) {
           toast({
@@ -130,18 +151,70 @@ export default function Settings() {
     }
   }
 
+  const handleAddLeadTime = () => {
+    const text = newLeadTimeText.trim()
+    if (!text) return
+    const isFirst = leadTimes.length === 0
+    const newItem: CompanyLeadTimeItem = {
+      id: `lt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      label: text,
+      is_default: isFirst,
+    }
+    setLeadTimes([...leadTimes, newItem])
+    setNewLeadTimeText('')
+  }
+
+  const handleRemoveLeadTime = (id: string) => {
+    const itemToRemove = leadTimes.find((i) => i.id === id)
+    const filtered = leadTimes.filter((i) => i.id !== id)
+    // Se o removido era o padrão e ainda restam itens, o primeiro vira padrão
+    if (itemToRemove?.is_default && filtered.length > 0) {
+      filtered[0].is_default = true
+    }
+    setLeadTimes(filtered)
+  }
+
+  const handleSetDefaultLeadTime = (id: string) => {
+    setLeadTimes(
+      leadTimes.map((item) => ({
+        ...item,
+        is_default: item.id === id,
+      })),
+    )
+  }
+
+  const handleLeadTimeLabelChange = (id: string, newLabel: string) => {
+    setLeadTimes(leadTimes.map((item) => (item.id === id ? { ...item, label: newLabel } : item)))
+  }
+
   const handleUpdateCompany = async () => {
     if (!company) return
     try {
-      await pb.collection('companies').update(company.id, {
+      // Limpar itens vazios
+      const cleanedLeadTimes = leadTimes
+        .map((i) => ({ ...i, label: i.label.trim() }))
+        .filter((i) => i.label !== '')
+
+      // Garante no máximo um default
+      const hasDefault = cleanedLeadTimes.some((i) => i.is_default)
+      if (!hasDefault && cleanedLeadTimes.length > 0) {
+        cleanedLeadTimes[0].is_default = true
+      }
+
+      const defaultTimeStr = getDefaultLeadTime(cleanedLeadTimes)
+
+      const updated = await pb.collection('companies').update(company.id, {
         name: company.name,
         cnpj: company.cnpj || '',
         email: company.email || '',
-        installation_lead_time: company.installation_lead_time || '',
+        installation_lead_time: defaultTimeStr,
+        installation_lead_times: cleanedLeadTimes,
         signature_owner_name: company.signature_owner_name || '',
         signature_owner_email: company.signature_owner_email || '',
       })
-      toast({ title: 'Dados da empresa atualizados!' })
+      setCompany(updated)
+      setLeadTimes(cleanedLeadTimes)
+      toast({ title: 'Dados da empresa atualizados com sucesso!' })
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Erro', description: err.message })
     }
@@ -300,18 +373,108 @@ export default function Settings() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Prazo Padrão de Instalação</Label>
-                    <Input
-                      value={company?.installation_lead_time || ''}
-                      onChange={(e) =>
-                        setCompany({ ...company, installation_lead_time: e.target.value })
-                      }
-                      disabled={!isOwner}
-                      placeholder="Ex: 30 a 45 dias úteis após aprovação"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Prazo padrão utilizado para inicializar novas negociações e propostas geradas.
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-sm font-semibold">Prazos de Instalação</Label>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Cadastre os prazos disponíveis e escolha qual será selecionado por padrão
+                          nas propostas.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Lista de prazos */}
+                    <div className="space-y-2">
+                      {leadTimes.length === 0 ? (
+                        <div className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
+                          Nenhum prazo cadastrado. Adicione prazos abaixo para facilitar a criação
+                          de propostas.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {leadTimes.map((item) => (
+                            <div
+                              key={item.id}
+                              className={`flex items-center gap-2 p-2.5 rounded-lg border transition-colors ${
+                                item.is_default
+                                  ? 'bg-primary/5 border-primary/30'
+                                  : 'bg-muted/20 border-border'
+                              }`}
+                            >
+                              <button
+                                type="button"
+                                disabled={!isOwner}
+                                onClick={() => handleSetDefaultLeadTime(item.id)}
+                                title={item.is_default ? 'Prazo padrão' : 'Marcar como padrão'}
+                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all shrink-0 ${
+                                  item.is_default
+                                    ? 'bg-primary text-primary-foreground shadow-xs'
+                                    : 'text-muted-foreground hover:text-foreground hover:bg-muted border border-border'
+                                } ${!isOwner ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
+                              >
+                                <CheckCircle2
+                                  className={`h-3.5 w-3.5 ${item.is_default ? 'text-primary-foreground' : 'text-muted-foreground'}`}
+                                />
+                                <span>{item.is_default ? 'Padrão' : 'Definir padrão'}</span>
+                              </button>
+
+                              <Input
+                                value={item.label}
+                                onChange={(e) => handleLeadTimeLabelChange(item.id, e.target.value)}
+                                disabled={!isOwner}
+                                placeholder="Ex: 30 a 45 dias úteis após aprovação"
+                                className="h-8 text-sm flex-1 bg-background"
+                              />
+
+                              {isOwner && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+                                  onClick={() => handleRemoveLeadTime(item.id)}
+                                  title="Remover prazo"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Adicionar novo prazo */}
+                      {isOwner && (
+                        <div className="flex gap-2 pt-1">
+                          <Input
+                            value={newLeadTimeText}
+                            onChange={(e) => setNewLeadTimeText(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                handleAddLeadTime()
+                              }
+                            }}
+                            placeholder="Ex: 30 dias após assinatura do contrato"
+                            className="text-sm h-9"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-9 px-3 gap-1 shrink-0"
+                            onClick={handleAddLeadTime}
+                            disabled={!newLeadTimeText.trim()}
+                          >
+                            <Plus className="h-4 w-4" /> Adicionar
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      O item marcado como padrão será sugerido automaticamente ao gerar novas
+                      propostas e negociações.
                     </p>
                   </div>
 

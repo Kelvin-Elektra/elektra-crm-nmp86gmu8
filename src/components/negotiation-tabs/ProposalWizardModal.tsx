@@ -12,7 +12,19 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { FileText, ArrowRight, ArrowLeft } from 'lucide-react'
+import {
+  CompanyLeadTimeItem,
+  normalizeCompanyLeadTimes,
+  getDefaultLeadTime,
+} from '@/types/lead-time'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { useAuth } from '@/contexts/AuthContext'
@@ -64,6 +76,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
   const [manualKitValue, setManualKitValue] = useState<number>(0)
   const [companyPaymentMethods, setCompanyPaymentMethods] = useState('')
   const [companyLeadTime, setCompanyLeadTime] = useState('')
+  const [companyLeadTimes, setCompanyLeadTimes] = useState<CompanyLeadTimeItem[]>([])
   const [installationLeadTime, setInstallationLeadTime] = useState('')
   const [acceptedPaymentMethods, setAcceptedPaymentMethods] = useState('')
   const [definedPaymentMethod, setDefinedPaymentMethod] = useState('')
@@ -186,35 +199,48 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
       setCompanyPaymentMethods(paymentMethodsStr)
       setAcceptedPaymentMethods(paymentMethodsStr)
 
-      // Prioridade do prazo de instalação padrão:
-      // 1. Negociação já possui installation_lead_time
-      // 2. Empresa possui installation_lead_time cadastrado
-      // 3. proposal_settings (default_lead_time_days / default_lead_time_text)
-      let defaultLeadTime = neg.installation_lead_time || ''
-      if (!defaultLeadTime && companyId) {
+      // Carregar lista de prazos da empresa
+      let availableLeadTimes: CompanyLeadTimeItem[] = []
+      let companyDefaultTime = ''
+      if (companyId) {
         try {
           const comp = await pb
             .collection('companies')
             .getOne(companyId)
             .catch(() => null)
-          if (comp?.installation_lead_time) {
-            defaultLeadTime = comp.installation_lead_time
+          if (comp) {
+            availableLeadTimes = normalizeCompanyLeadTimes(
+              comp.installation_lead_times,
+              comp.installation_lead_time,
+            )
+            companyDefaultTime =
+              getDefaultLeadTime(availableLeadTimes) || comp.installation_lead_time || ''
           }
         } catch {
           /* ignore */
         }
       }
-      if (!defaultLeadTime) {
+      setCompanyLeadTimes(availableLeadTimes)
+
+      // Prioridade do prazo de instalação:
+      // 1. Negociação já possui installation_lead_time
+      // 2. Item padrão dos prazos da empresa (ou campo legado)
+      // 3. proposal_settings (default_lead_time_days / default_lead_time_text)
+      let selectedLeadTime = neg.installation_lead_time || ''
+      if (!selectedLeadTime && companyDefaultTime) {
+        selectedLeadTime = companyDefaultTime
+      }
+      if (!selectedLeadTime) {
         const leadTimeDays = settings.default_lead_time_days
         const leadTimeText = settings.default_lead_time_text || ''
         if (leadTimeDays && Number(leadTimeDays) > 0) {
-          defaultLeadTime = `${leadTimeDays} dias ${leadTimeText}`.trim()
+          selectedLeadTime = `${leadTimeDays} dias ${leadTimeText}`.trim()
         } else {
-          defaultLeadTime = leadTimeText
+          selectedLeadTime = leadTimeText
         }
       }
-      setCompanyLeadTime(defaultLeadTime)
-      setInstallationLeadTime(defaultLeadTime)
+      setCompanyLeadTime(companyDefaultTime || selectedLeadTime)
+      setInstallationLeadTime(selectedLeadTime)
       const allCosts = await pb
         .collection('pv_costs')
         .getFullList({ filter: `company_id='${companyId}'` })
@@ -1047,11 +1073,51 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
             </div>
             <div className="space-y-2">
               <Label>Prazo de Instalação</Label>
-              <Input
-                placeholder="Ex: Até 30 dias após aprovação do projeto"
-                value={installationLeadTime}
-                onChange={(e) => setInstallationLeadTime(e.target.value)}
-              />
+              {companyLeadTimes.length > 0 ? (
+                <div className="space-y-1.5">
+                  <Select
+                    value={
+                      companyLeadTimes.some((lt) => lt.label === installationLeadTime)
+                        ? installationLeadTime
+                        : '__custom__'
+                    }
+                    onValueChange={(val) => {
+                      if (val !== '__custom__') {
+                        setInstallationLeadTime(val)
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o prazo de instalação" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companyLeadTimes.map((item) => (
+                        <SelectItem key={item.id} value={item.label}>
+                          {item.label} {item.is_default ? '(padrão)' : ''}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="__custom__">Outro prazo personalizado...</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {/* Se o valor atual for personalizado ou o usuário escolheu outro */}
+                  {(!companyLeadTimes.some((lt) => lt.label === installationLeadTime) ||
+                    installationLeadTime === '') && (
+                    <Input
+                      placeholder="Digite o prazo personalizado"
+                      value={installationLeadTime}
+                      onChange={(e) => setInstallationLeadTime(e.target.value)}
+                      className="text-sm mt-1.5"
+                    />
+                  )}
+                </div>
+              ) : (
+                <Input
+                  placeholder="Ex: Até 30 dias após aprovação do projeto"
+                  value={installationLeadTime}
+                  onChange={(e) => setInstallationLeadTime(e.target.value)}
+                />
+              )}
             </div>
             <div className="space-y-2">
               <Label>Formas de Pagamento Aceitas</Label>
