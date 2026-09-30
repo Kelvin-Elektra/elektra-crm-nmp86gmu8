@@ -1,15 +1,19 @@
 import { useState, useEffect } from 'react'
 import { Card, CardTitle, CardDescription } from '@/components/ui/card'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { FileText, Download, Send, CheckCircle, XCircle } from 'lucide-react'
+import { FileText, ExternalLink, ArrowRight } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { Badge } from '@/components/ui/badge'
+import { ProposalViewer } from '@/components/ProposalViewer'
 
 export default function Proposals() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [proposals, setProposals] = useState<any[]>([])
+  const [selectedProposal, setSelectedProposal] = useState<any | null>(null)
 
   const load = async () => {
     const isStandardUser =
@@ -87,17 +91,60 @@ export default function Proposals() {
             </div>
 
             <div className="flex items-center gap-2 p-4 w-full sm:w-auto justify-end border-t sm:border-t-0 mt-2 sm:mt-0">
-              <span className="font-bold mr-4">R$ {p.price?.toLocaleString('pt-BR')}</span>
-              <Button variant="ghost" size="icon" title="Baixar PDF">
-                <Download className="h-4 w-4" />
-              </Button>
-              <Button size="sm" className="ml-2">
-                <Send className="h-4 w-4 mr-2" /> Enviar
-              </Button>
+              <span className="font-bold mr-4">
+                {typeof p.total_value === 'number'
+                  ? p.total_value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                  : typeof p.price === 'number'
+                    ? p.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                    : 'R$ 0,00'}
+              </span>
+
+              {p.generator_view_url ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(p.generator_view_url, '_blank')}
+                  title="Abrir proposta oficial"
+                  className="gap-1.5"
+                >
+                  <ExternalLink className="h-4 w-4" /> Visualizar
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedProposal(p)}
+                  title="Visualizar proposta"
+                  className="gap-1.5"
+                >
+                  <FileText className="h-4 w-4" /> Visualizar
+                </Button>
+              )}
+
+              {p.negotiation_id && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => navigate(`/negociacoes/${p.negotiation_id}`)}
+                  title="Abrir Negociação"
+                  className="gap-1"
+                >
+                  Negociação <ArrowRight className="h-4 w-4 ml-1" />
+                </Button>
+              )}
             </div>
           </Card>
         ))}
       </div>
+
+      {selectedProposal && (
+        <ProposalViewer
+          open={!!selectedProposal}
+          onOpenChange={(v: boolean) => !v && setSelectedProposal(null)}
+          proposal={selectedProposal}
+          negotiation={selectedProposal?.expand?.negotiation_id}
+        />
+      )}
     </div>
   )
 }

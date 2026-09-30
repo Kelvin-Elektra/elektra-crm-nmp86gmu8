@@ -10,6 +10,7 @@ import {
 import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
@@ -136,15 +137,15 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
     }, 0)
   }, [costs, kitTotal, hasKitItems])
 
-  const handleCostChange = (idx: number, val: string) => {
+  const handleCostChange = (idx: number, val: number | null) => {
     const arr = [...costs]
-    arr[idx].value = Number(val) || 0
+    arr[idx].value = val || 0
     setCosts(arr)
   }
 
-  const handleKitItemChange = (idx: number, val: string) => {
+  const handleKitItemChange = (idx: number, val: number | null) => {
     const arr = [...kitItems]
-    arr[idx].total = Number(val) || 0
+    arr[idx].total = val || 0
     setKitItems(arr)
   }
 
@@ -282,15 +283,13 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
                           <td className="p-3 text-right">
                             <div className="flex items-center justify-end gap-1">
                               <span className="text-muted-foreground text-sm">R$</span>
-                              <Input
-                                type="number"
-                                value={
-                                  kitReadOnly ? kitTotal.toFixed(2) : c.value?.toFixed(2) || '0.00'
-                                }
-                                onChange={(e) => handleCostChange(idx, e.target.value)}
+                              <NumericInput
+                                value={kitReadOnly ? kitTotal : (c.value ?? 0)}
+                                onChangeValue={(val) => handleCostChange(idx, val)}
                                 readOnly={kitReadOnly}
+                                precision={2}
                                 className={cn(
-                                  'w-32 text-right font-medium',
+                                  'w-36 text-right font-medium',
                                   kitReadOnly && 'bg-muted cursor-not-allowed',
                                 )}
                               />
@@ -313,11 +312,11 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
                               <td className="p-3 text-right">
                                 <div className="flex items-center justify-end gap-1">
                                   <span className="text-muted-foreground text-xs">R$</span>
-                                  <Input
-                                    type="number"
-                                    value={item.total?.toFixed(2) || '0.00'}
-                                    onChange={(e) => handleKitItemChange(kIdx, e.target.value)}
-                                    className="w-32 text-right text-sm"
+                                  <NumericInput
+                                    value={item.total ?? 0}
+                                    onChangeValue={(val) => handleKitItemChange(kIdx, val)}
+                                    precision={2}
+                                    className="w-36 text-right text-sm"
                                   />
                                 </div>
                               </td>

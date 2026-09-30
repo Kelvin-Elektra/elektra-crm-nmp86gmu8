@@ -106,9 +106,17 @@ export function calculateFinancialProjection(params: {
   const currentMonthlyCost = avgConsumption * baseRate + publicLightingFee
   const icmsAmount = 0
 
-  const instantConsumption = avgConsumption * (simultaneityFactor / 100)
-  const remainingConsumption = avgConsumption - instantConsumption
-  const compensatedConsumption = Math.min(remainingConsumption, estMonthlyGen)
+  // Consumo simultâneo (instantâneo): consumo atendido imediatamente pela geração solar
+  // O consumo instantâneo abate diretamente da geração antes de qualquer injeção na rede.
+  const simultaneityRatio = Math.max(0, Math.min(100, simultaneityFactor)) / 100
+  const instantConsumption = Math.min(avgConsumption, estMonthlyGen) * simultaneityRatio
+  // Injeção líquida excedente enviada para a rede da distribuidora
+  const netInjectedEnergy = Math.max(0, estMonthlyGen - instantConsumption)
+  // Consumo residual que ainda precisa ser atendido pela rede
+  const remainingConsumption = Math.max(0, avgConsumption - instantConsumption)
+  // Energia compensada: o quanto da energia injetada abate o consumo restante da rede (alíquota Fio B incide aqui)
+  const compensatedConsumption = Math.min(remainingConsumption, netInjectedEnergy)
+  // Energia líquida faturada da rede que não foi coberta nem por simultaneidade nem por compensação
   const energyFromGrid = Math.max(0, remainingConsumption - compensatedConsumption)
 
   const teComponent = isTEExempt ? 0 : te * icmsFactor

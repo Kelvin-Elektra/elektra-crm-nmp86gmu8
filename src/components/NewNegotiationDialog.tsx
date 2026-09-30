@@ -24,7 +24,8 @@ import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { maskCEP } from '@/lib/masks'
 import { LocationCombobox } from '@/components/LocationCombobox'
-import { Search } from 'lucide-react'
+import { Search, UserPlus } from 'lucide-react'
+import { LeadDialog } from '@/components/LeadDialog'
 
 const NETWORK_TYPES = ['Monofásico', 'Bifásico', 'Trifásico', 'Monofásico rural']
 
@@ -38,6 +39,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
   const [tariffRules, setTariffRules] = useState<any[]>([])
   const [citiesForState, setCitiesForState] = useState<{ id: string; city: string }[]>([])
   const [isSearchingCep, setIsSearchingCep] = useState(false)
+  const [leadDialogOpen, setLeadDialogOpen] = useState(false)
 
   const [formData, setFormData] = useState({
     title: '',
@@ -229,6 +231,17 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
       const utilityName = utilities.find((u) => u.id === formData.utility_id)?.name || ''
       const fullAddress = `${formData.address}, ${formData.number} - ${formData.neighborhood}, ${formData.city} - ${formData.state}, ${formData.cep}`
 
+      // Buscar prazo padrão da empresa para inicializar a negociação
+      let defaultLeadTime = ''
+      if (user?.company_id) {
+        try {
+          const comp = await pb.collection('companies').getOne(user.company_id)
+          defaultLeadTime = comp?.installation_lead_time || ''
+        } catch {
+          /* ignore */
+        }
+      }
+
       const neg = await createNegotiation({
         company_id: user?.company_id,
         lead_id: formData.lead_id,
@@ -246,6 +259,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
         uc: formData.uc,
         avg_consumption: Number(formData.avg_consumption) || 0,
         owner_id: user?.id,
+        installation_lead_time: defaultLeadTime,
         tags: [],
         use_roof_faces: false,
         roof_faces_data: [],
@@ -312,24 +326,41 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
                   />
                 </div>
                 <div className="space-y-2 sm:col-span-4">
-                  <Label>Lead / Cliente</Label>
-                  <Select
-                    value={formData.lead_id}
-                    onValueChange={(val) => setFormData({ ...formData, lead_id: val })}
-                    required
-                    disabled={!!initialLeadId}
-                  >
-                    <SelectTrigger className={initialLeadId ? 'opacity-50 cursor-not-allowed' : ''}>
-                      <SelectValue placeholder="Selecione um lead..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {leads.map((l) => (
-                        <SelectItem key={l.id} value={l.id}>
-                          {l.name} - {l.document || l.phone}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center justify-between">
+                    <Label>Lead / Cliente</Label>
+                    {!initialLeadId && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setLeadDialogOpen(true)}
+                        className="h-6 px-2 text-xs text-primary gap-1"
+                      >
+                        <UserPlus className="h-3.5 w-3.5" />+ Novo Lead
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Select
+                      value={formData.lead_id}
+                      onValueChange={(val) => setFormData({ ...formData, lead_id: val })}
+                      required
+                      disabled={!!initialLeadId}
+                    >
+                      <SelectTrigger
+                        className={`flex-1 ${initialLeadId ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <SelectValue placeholder="Selecione um lead..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {leads.map((l) => (
+                          <SelectItem key={l.id} value={l.id}>
+                            {l.name} - {l.document || l.phone}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 <div className="col-span-4 border-t pt-2 mt-2">
@@ -476,6 +507,31 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
             <Button type="submit">Criar Negociação</Button>
           </div>
         </form>
+
+        {/* Modal de criação de novo lead integrado */}
+        {leadDialogOpen && (
+          <LeadDialog
+            open={leadDialogOpen}
+            onOpenChange={setLeadDialogOpen}
+            lead={null}
+            onSuccess={async (createdLead?: any) => {
+              const updatedLeads = await getLeads()
+              setLeads(updatedLeads)
+              if (createdLead?.id) {
+                setFormData((prev) => ({ ...prev, lead_id: createdLead.id }))
+              } else if (updatedLeads.length > 0) {
+                // Seleciona o lead mais recente se não veio o objeto direto
+                const newest = [...updatedLeads].sort(
+                  (a, b) => new Date(b.created).getTime() - new Date(a.created).getTime(),
+                )[0]
+                if (newest) {
+                  setFormData((prev) => ({ ...prev, lead_id: newest.id }))
+                }
+              }
+              setLeadDialogOpen(false)
+            }}
+          />
+        )}
       </DialogContent>
     </Dialog>
   )

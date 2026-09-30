@@ -11,6 +11,7 @@ import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 
@@ -28,9 +29,9 @@ export function AdminCostsModal({ open, onOpenChange, negId }: any) {
     }
   }, [open, negId])
 
-  const handleUpdate = (idx: number, field: string, val: string) => {
+  const handleUpdate = (idx: number, field: string, val: number | null) => {
     const arr = [...budgets]
-    arr[idx][field] = Number(val)
+    arr[idx][field] = val || 0
     if (field === 'cost' || field === 'margin') {
       arr[idx].price = arr[idx].cost * (1 + arr[idx].margin / 100)
     }
@@ -82,30 +83,27 @@ export function AdminCostsModal({ open, onOpenChange, negId }: any) {
                     <Label className="text-muted-foreground text-xs">Item</Label>
                     <p className="font-medium mt-1">{b.name}</p>
                   </div>
-                  <div className="w-24">
+                  <div className="w-28">
                     <Label>Custo (R$)</Label>
-                    <Input
-                      type="number"
+                    <NumericInput
                       value={b.cost}
-                      onChange={(e) => handleUpdate(idx, 'cost', e.target.value)}
+                      onChangeValue={(val) => handleUpdate(idx, 'cost', val)}
+                      precision={2}
+                      placeholder="0,00"
                     />
                   </div>
                   <div className="w-56">
                     <Label>Margem real (% sobre o valor da venda)</Label>
-                    <Input
-                      type="number"
+                    <NumericInput
                       value={b.margin}
-                      onChange={(e) => handleUpdate(idx, 'margin', e.target.value)}
+                      onChangeValue={(val) => handleUpdate(idx, 'margin', val)}
+                      precision={2}
+                      placeholder="0,00"
                     />
                   </div>
                   <div className="w-32">
                     <Label>Preço (R$)</Label>
-                    <Input
-                      type="number"
-                      value={b.price?.toFixed(2)}
-                      readOnly
-                      className="bg-muted"
-                    />
+                    <NumericInput value={b.price} readOnly precision={2} className="bg-muted" />
                   </div>
                 </div>
               ))}

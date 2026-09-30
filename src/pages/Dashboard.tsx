@@ -50,6 +50,7 @@ export default function Dashboard() {
   const [filter, setFilter] = useState('30d')
   const [monthYear, setMonthYear] = useState(format(new Date(), 'yyyy-MM'))
   const [users, setUsers] = useState<any[]>([])
+  const [activityScope, setActivityScope] = useState<'all' | 'mine'>('all')
 
   const [pickerDate, setPickerDate] = useState(new Date())
 
@@ -138,17 +139,23 @@ export default function Dashboard() {
     end = endOfDay(endOfMonth(d))
   }
 
+  const isAdminUser =
+    user?.role === 'User_elektra' ||
+    user?.role_company === 'admin' ||
+    user?.role === 'User_owner'
+
   const isOwner = (item: any) => {
-    if (
-      user?.role === 'User_elektra' ||
-      user?.role_company === 'admin' ||
-      user?.role === 'User_owner'
-    )
-      return true
+    if (isAdminUser) return true
     if (item.collectionName === 'proposals' || item.expand?.negotiation_id) {
       return item.expand?.negotiation_id?.owner_id === user?.id
     }
     return item.owner_id === user?.id
+  }
+
+  const matchesActivityScope = (userId?: string) => {
+    if (!isAdminUser) return true
+    if (activityScope === 'all') return true
+    return userId === user?.id
   }
 
   const inPeriod = (dateStr: string) => {
@@ -434,12 +441,44 @@ export default function Dashboard() {
         style={{ animationDelay: '700ms' }}
       >
         <Card className="col-span-1 lg:col-span-2 border-border/50 hover-lift">
-          <CardHeader>
-            <CardTitle>Atividade Recente</CardTitle>
-            <CardDescription>Acompanhe o que está acontecendo no seu funil</CardDescription>
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <CardTitle>Atividade Recente</CardTitle>
+              <CardDescription>Acompanhe o que está acontecendo no seu funil</CardDescription>
+            </div>
+            {isAdminUser && (
+              <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-lg border text-xs">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={activityScope === 'all' ? 'default' : 'ghost'}
+                  className="h-7 px-2.5 text-xs"
+                  onClick={() => setActivityScope('all')}
+                >
+                  Toda a empresa
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={activityScope === 'mine' ? 'default' : 'ghost'}
+                  className="h-7 px-2.5 text-xs"
+                  onClick={() => setActivityScope('mine')}
+                >
+                  Minhas atividades
+                </Button>
+              </div>
+            )}
           </CardHeader>
           <CardContent>
-            {activities.length === 0 ? (
+            {activities.filter((act) => matchesActivityScope(act.user)).length === 0 ? (
+              <div className="text-center p-6 text-muted-foreground">
+                Nenhuma atividade no período.
+              </div>
+            ) : (
+              <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                {activities
+                  .filter((act) => matchesActivityScope(act.user))
+                  .map((act) => (
               <div className="text-center p-6 text-muted-foreground">
                 Nenhuma atividade no período.
               </div>

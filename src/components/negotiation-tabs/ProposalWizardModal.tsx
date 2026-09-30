@@ -186,14 +186,35 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload, openViewe
       setCompanyPaymentMethods(paymentMethodsStr)
       setAcceptedPaymentMethods(paymentMethodsStr)
 
-      const leadTimeDays = settings.default_lead_time_days
-      const leadTimeText = settings.default_lead_time_text || ''
-      let leadTimeCombined = leadTimeText
-      if (leadTimeDays && Number(leadTimeDays) > 0) {
-        leadTimeCombined = `${leadTimeDays} dias ${leadTimeText}`.trim()
+      // Prioridade do prazo de instalação padrão:
+      // 1. Negociação já possui installation_lead_time
+      // 2. Empresa possui installation_lead_time cadastrado
+      // 3. proposal_settings (default_lead_time_days / default_lead_time_text)
+      let defaultLeadTime = neg.installation_lead_time || ''
+      if (!defaultLeadTime && companyId) {
+        try {
+          const comp = await pb
+            .collection('companies')
+            .getOne(companyId)
+            .catch(() => null)
+          if (comp?.installation_lead_time) {
+            defaultLeadTime = comp.installation_lead_time
+          }
+        } catch {
+          /* ignore */
+        }
       }
-      setCompanyLeadTime(leadTimeCombined)
-      setInstallationLeadTime(leadTimeCombined)
+      if (!defaultLeadTime) {
+        const leadTimeDays = settings.default_lead_time_days
+        const leadTimeText = settings.default_lead_time_text || ''
+        if (leadTimeDays && Number(leadTimeDays) > 0) {
+          defaultLeadTime = `${leadTimeDays} dias ${leadTimeText}`.trim()
+        } else {
+          defaultLeadTime = leadTimeText
+        }
+      }
+      setCompanyLeadTime(defaultLeadTime)
+      setInstallationLeadTime(defaultLeadTime)
       const allCosts = await pb
         .collection('pv_costs')
         .getFullList({ filter: `company_id='${companyId}'` })

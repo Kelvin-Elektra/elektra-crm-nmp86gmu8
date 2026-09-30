@@ -90,17 +90,18 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
         throw new Error('missing_context')
       }
 
+      let savedRecord: any = null
       if (lead) {
-        await updateLead(lead.id, formData)
+        savedRecord = await updateLead(lead.id, data)
       } else {
-        await createLead({
-          ...formData,
-          company_id: user?.company_id,
-          owner_id: user?.id,
+        savedRecord = await createLead({
+          ...data,
+          company_id: user.company_id,
+          owner_id: user.id,
         })
       }
       toast({ title: 'Sucesso', description: 'Lead salvo com sucesso!' })
-      onSuccess?.()
+      onSuccess?.(savedRecord)
       onOpenChange(false)
     } catch (err: any) {
       if (err.message === 'missing_context') {

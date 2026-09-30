@@ -34,6 +34,7 @@ export function ModulesTab() {
     height: '',
     width: '',
     price: '',
+    warranty: '',
     notes: '',
   }
   const [form, setForm] = useState(initialForm)
@@ -57,11 +58,15 @@ export function ModulesTab() {
     if (!user?.company_id || !form.distributor_id) return
     setLoading(true)
 
+    const warrantyNum = form.warranty
+      ? parseInt(String(form.warranty).replace(/\D/g, ''), 10)
+      : null
     const payload = {
       ...form,
       power: Number(form.power),
       height: form.height ? Number(form.height.replace(',', '.')) : null,
       width: form.width ? Number(form.width.replace(',', '.')) : null,
+      warranty: warrantyNum !== null && !isNaN(warrantyNum) ? `${warrantyNum} anos` : form.warranty,
       price: form.price ? Number(form.price.replace(',', '.')) : null,
       company_id: user.company_id,
     }
@@ -91,6 +96,7 @@ export function ModulesTab() {
       distributor_id: mod.distributor_id,
       height: mod.height?.toString().replace('.', ',') || '',
       width: mod.width?.toString().replace('.', ',') || '',
+      warranty: mod.warranty ? String(mod.warranty).replace(/\D/g, '') || mod.warranty : '',
       price: mod.price?.toString().replace('.', ',') || '',
       notes: mod.notes || '',
     })
@@ -205,6 +211,23 @@ export function ModulesTab() {
             />
           </div>
           <div className="space-y-2">
+            <Label className="font-semibold">Garantia (anos)</Label>
+            <div className="relative">
+              <Input
+                type="number"
+                min="0"
+                max="50"
+                placeholder="Ex: 25"
+                value={form.warranty}
+                onChange={(e) => setForm({ ...form, warranty: e.target.value })}
+                className="bg-background pr-14"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                anos
+              </span>
+            </div>
+          </div>
+          <div className="space-y-2">
             <Label className="font-semibold">Preço</Label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">
@@ -223,7 +246,7 @@ export function ModulesTab() {
               />
             </div>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 md:col-span-2">
             <Label className="font-semibold">Observações</Label>
             <Input
               value={form.notes}
@@ -283,6 +306,7 @@ export function ModulesTab() {
                 <th className="p-3 font-medium">Potência</th>
                 <th className="p-3 font-medium">Dimensões (m)</th>
                 <th className="p-3 font-medium">Área (m²)</th>
+                <th className="p-3 font-medium">Garantia</th>
                 <th className="p-3 font-medium">Preço</th>
                 <th className="p-3 font-medium">Distribuidora</th>
                 <th className="p-3 font-medium text-right">Ações</th>
@@ -297,6 +321,13 @@ export function ModulesTab() {
                   <td className="p-3">{d.height && d.width ? `${d.height}x${d.width}` : '-'}</td>
                   <td className="p-3">
                     {d.height && d.width ? (d.height * d.width).toFixed(2) : '-'}
+                  </td>
+                  <td className="p-3">
+                    {d.warranty
+                      ? String(d.warranty).toLowerCase().includes('ano')
+                        ? d.warranty
+                        : `${d.warranty} anos`
+                      : '-'}
                   </td>
                   <td className="p-3">
                     {d.price
@@ -316,7 +347,7 @@ export function ModulesTab() {
               ))}
               {filteredData.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="p-6 text-center text-muted-foreground">
+                  <td colSpan={9} className="p-6 text-center text-muted-foreground">
                     Nenhum módulo encontrado.
                   </td>
                 </tr>

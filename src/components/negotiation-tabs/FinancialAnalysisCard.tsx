@@ -481,8 +481,8 @@ export function FinancialAnalysisCard({
 
                 <div className="p-3 bg-slate-50 border-t text-[11px] text-muted-foreground flex items-center justify-between">
                   <span>
-                    ★ Marcos oficiais enviados no array savings_projection (1, 5, 10, 15, 20 e 25
-                    anos)
+                    ★ Projeção de economia acumulada ao longo da vida útil do sistema (1, 5, 10, 15,
+                    20 e 25 anos)
                   </span>
                   <span>Investimento considerado: {BRL.format(systemPrice)}</span>
                 </div>
@@ -615,6 +615,18 @@ export function FinancialAnalysisCard({
                     <Zap className="w-3 h-3" /> Fio B ({BRL.format(fioBBaseValue)}/kWh ×{' '}
                     {Math.round(projection.compensatedConsumption)} kWh ×{' '}
                     {(currentScalingFactor * 100).toFixed(0)}%)
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-3 w-3 text-muted-foreground hover:text-foreground cursor-pointer shrink-0 ml-1" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs text-xs">
+                          O valor cadastrado é a tarifa base integral. O sistema aplica a fração
+                          anual da Lei 14.300 (2026: 60%, 2027: 75%, 2028: 90%, 2029+: 100%) sobre a
+                          energia compensada.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </span>
                   <span className="font-medium">{BRL.format(projection.fioBCost)}</span>
                 </div>

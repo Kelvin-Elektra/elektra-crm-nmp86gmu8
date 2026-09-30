@@ -3,10 +3,19 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Pencil } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import { VisuallyHidden } from '@/components/ui/visually-hidden'
 
 export function DistributorsTab() {
   const { user } = useAuth()
@@ -14,6 +23,9 @@ export function DistributorsTab() {
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({ name: '', cnpj: '' })
+  const [editingDistributor, setEditingDistributor] = useState<any | null>(null)
+  const [editForm, setEditForm] = useState({ name: '', cnpj: '' })
+  const [editLoading, setEditLoading] = useState(false)
 
   const loadData = async () => {
     if (!user?.company_id) return
@@ -55,9 +67,56 @@ export function DistributorsTab() {
   const handleDelete = async (id: string) => {
     try {
       await pb.collection('pv_distributors').delete(id)
+      toast({ title: 'Sucesso', description: 'Distribuidora excluída.' })
       loadData()
     } catch (error) {
       toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível excluir.' })
+    }
+  }
+
+  const openEdit = (dist: any) => {
+    setEditingDistributor(dist)
+    setEditForm({ name: dist.name || '', cnpj: dist.cnpj || '' })
+  }
+
+  const handleEditSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingDistributor || !user?.company_id) return
+
+    const trimmedName = editForm.name.trim()
+    if (!trimmedName) {
+      return toast({ variant: 'destructive', title: 'Nome obrigatório' })
+    }
+
+    // Validação de unicidade por empresa (excluindo a própria que está sendo editada)
+    const exists = data.some(
+      (d) =>
+        d.id !== editingDistributor.id && d.name.trim().toLowerCase() === trimmedName.toLowerCase(),
+    )
+    if (exists) {
+      return toast({
+        variant: 'destructive',
+        title: `Já existe outra distribuidora com o nome "${trimmedName}".`,
+      })
+    }
+
+    setEditLoading(true)
+    try {
+      await pb.collection('pv_distributors').update(editingDistributor.id, {
+        name: trimmedName,
+        cnpj: editForm.cnpj.trim(),
+      })
+      toast({ title: 'Sucesso', description: 'Distribuidora atualizada com sucesso.' })
+      setEditingDistributor(null)
+      loadData()
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: err?.message || 'Falha ao atualizar a distribuidora.',
+      })
+    } finally {
+      setEditLoading(false)
     }
   }
 
@@ -101,7 +160,20 @@ export function DistributorsTab() {
                   <td className="p-3">{d.name}</td>
                   <td className="p-3">{d.cnpj || '-'}</td>
                   <td className="p-3 text-right">
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => openEdit(d)}
+                      title="Editar distribuidora"
+                    >
+                      <Pencil className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(d.id)}
+                      title="Excluir distribuidora"
+                    >
                       <Trash2 className="w-4 h-4 text-destructive" />
                     </Button>
                   </td>
@@ -118,6 +190,57 @@ export function DistributorsTab() {
           </table>
         </div>
       </CardContent>
+
+      {/* Modal de Edição de Distribuidora */}
+      {editingDistributor && (
+        <Dialog
+          open={!!editingDistributor}
+          onOpenChange={(open) => !open && setEditingDistributor(null)}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Editar Distribuidora</DialogTitle>
+              <VisuallyHidden>
+                <DialogDescription>
+                  Edite o nome e CNPJ da distribuidora homologada.
+                </DialogDescription>
+              </VisuallyHidden>
+            </DialogHeader>
+            <form onSubmit={handleEditSave} className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label>Nome da Distribuidora</Label>
+                <Input
+                  required
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  placeholder="Nome do fornecedor / distribuidora"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>CNPJ</Label>
+                <Input
+                  value={editForm.cnpj}
+                  onChange={(e) => setEditForm({ ...editForm, cnpj: e.target.value })}
+                  placeholder="00.000.000/0000-00"
+                />
+              </div>
+              <DialogFooter className="gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditingDistributor(null)}
+                  disabled={editLoading}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={editLoading}>
+                  {editLoading ? 'Salvando...' : 'Salvar Alterações'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
     </Card>
   )
 }

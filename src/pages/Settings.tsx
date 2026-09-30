@@ -14,27 +14,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useAuth } from '@/contexts/AuthContext'
-import { Building2, User, Users, Plus, KeyRound, Edit2, Trash2, FileText } from 'lucide-react'
+import { Building2, User, FileText } from 'lucide-react'
 
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
 
 export default function Settings() {
   const { user } = useAuth()
@@ -48,23 +32,6 @@ export default function Settings() {
     password: '',
     passwordConfirm: '',
   })
-
-  const [team, setTeam] = useState<any[]>([])
-
-  // Create / Reactivate State
-  const [newUserOpen, setNewUserOpen] = useState(false)
-  const [newUserForm, setNewUserForm] = useState({
-    name: '',
-    email: '',
-    password: '',
-    role_company: 'user',
-  })
-
-  // Edit State
-  const [editUserOpen, setEditUserOpen] = useState(false)
-  const [editingUser, setEditingUser] = useState<any>(null)
-
-  // Modal de Modelos de Contrato
 
   const loadCompany = async () => {
     if (user?.company_id && user.company_id.trim() !== '') {
@@ -97,23 +64,9 @@ export default function Settings() {
     }
   }
 
-  const loadTeam = async () => {
-    if ((user?.role === 'User_owner' || user?.role === 'User_elektra') && user?.company_id) {
-      try {
-        const records = await pb
-          .collection('users')
-          .getFullList({ filter: `company_id='${user.company_id}'`, sort: '-created' })
-        setTeam(records)
-      } catch {
-        /* intentionally ignored */
-      }
-    }
-  }
-
   useEffect(() => {
     loadCompany()
     loadSystemSettings()
-    loadTeam()
   }, [user?.company_id, user?.role])
 
   const handleUpdateProfilePassword = async (e: React.FormEvent) => {
@@ -147,115 +100,13 @@ export default function Settings() {
         name: company.name,
         cnpj: company.cnpj || '',
         email: company.email || '',
+        installation_lead_time: company.installation_lead_time || '',
         signature_owner_name: company.signature_owner_name || '',
         signature_owner_email: company.signature_owner_email || '',
       })
       toast({ title: 'Dados da empresa atualizados!' })
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Erro', description: err.message })
-    }
-  }
-
-  const handleCreateUser = async () => {
-    try {
-      const activeUsers = team.filter((u) => u.status === 'active').length
-      const maxUsers = company?.max_users || 5
-
-      const existingUser = await pb
-        .collection('users')
-        .getFirstListItem(`email='${newUserForm.email}'`)
-        .catch(() => null)
-
-      if (existingUser) {
-        if (existingUser.company_id !== user?.company_id) {
-          throw new Error('E-mail já está em uso por outra empresa no sistema.')
-        }
-        if (existingUser.status === 'active') {
-          throw new Error('Este usuário já está ativo na sua equipe.')
-        }
-        if (activeUsers >= maxUsers) {
-          throw new Error(
-            `Limite de usuários atingido (${maxUsers}). Mude de plano para adicionar mais.`,
-          )
-        }
-
-        // Reactivate soft-deleted user
-        await pb.collection('users').update(existingUser.id, {
-          status: 'active',
-          verified: false,
-          role_company: newUserForm.role_company,
-          name: newUserForm.name,
-        })
-        await pb.collection('users').requestVerification(newUserForm.email)
-        toast({ title: 'Usuário reativado e e-mail de verificação enviado!' })
-      } else {
-        if (activeUsers >= maxUsers) {
-          throw new Error(
-            `Limite de usuários atingido (${maxUsers}). Mude de plano para adicionar mais.`,
-          )
-        }
-        // Create new user
-        await pb.collection('users').create({
-          name: newUserForm.name,
-          email: newUserForm.email,
-          password: newUserForm.password,
-          passwordConfirm: newUserForm.password,
-          company_id: user?.company_id,
-          role: 'User',
-          role_company: newUserForm.role_company,
-          status: 'active',
-          verified: false,
-        })
-        await pb.collection('users').requestVerification(newUserForm.email)
-        toast({
-          title: 'Usuário criado com sucesso!',
-          description: 'Um e-mail de verificação foi enviado.',
-        })
-      }
-      setNewUserOpen(false)
-      setNewUserForm({ name: '', email: '', password: '', role_company: 'user' })
-      loadTeam()
-    } catch (err: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao adicionar usuário',
-        description: err.response?.message || err.message,
-      })
-    }
-  }
-
-  const handleUpdateUser = async () => {
-    try {
-      await pb.collection('users').update(editingUser.id, {
-        name: editingUser.name,
-        role_company: editingUser.role_company,
-      })
-      toast({ title: 'Usuário atualizado com sucesso!' })
-      setEditUserOpen(false)
-      setEditingUser(null)
-      loadTeam()
-    } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Erro', description: err.message })
-    }
-  }
-
-  const handleDeleteUser = async (userId: string) => {
-    if (!confirm('Tem certeza que deseja desativar este usuário? O acesso será revogado.')) return
-    try {
-      await pb.collection('users').update(userId, { status: 'inactive', verified: false })
-      toast({ title: 'Usuário desativado.' })
-      loadTeam()
-    } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Erro ao desativar', description: err.message })
-    }
-  }
-
-  const handleAdminReset = async (email: string) => {
-    try {
-      await pb.collection('users').requestPasswordReset(email)
-      toast({ title: 'Sucesso', description: 'E-mail de redefinição de senha enviado ao usuário.' })
-    } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Erro', description: err.response?.message })
     }
   }
 
@@ -290,14 +141,6 @@ export default function Settings() {
               >
                 <Building2 className="mr-2 h-4 w-4" /> Dados da Empresa
               </TabsTrigger>
-              {isOwner && (
-                <TabsTrigger
-                  value="team"
-                  className="w-full justify-start rounded-none border-l-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary transition-all hover:bg-muted/50"
-                >
-                  <Users className="mr-2 h-4 w-4" /> Equipe
-                </TabsTrigger>
-              )}
               {user?.role === 'User_elektra' && (
                 <TabsTrigger
                   value="system"
@@ -412,6 +255,21 @@ export default function Settings() {
                         placeholder="contato@empresa.com.br"
                       />
                     </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Prazo Padrão de Instalação</Label>
+                    <Input
+                      value={company?.installation_lead_time || ''}
+                      onChange={(e) =>
+                        setCompany({ ...company, installation_lead_time: e.target.value })
+                      }
+                      disabled={!isOwner}
+                      placeholder="Ex: 30 a 45 dias úteis após aprovação"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Prazo padrão utilizado para inicializar novas negociações e propostas geradas.
+                    </p>
                   </div>
 
                   <Separator className="my-4" />

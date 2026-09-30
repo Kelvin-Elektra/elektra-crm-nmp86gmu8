@@ -52,9 +52,23 @@ export function InvertersTab() {
     setForm({ ...form, [field]: clean })
   }
 
-  const parseNumber = (val: string) => (val ? Number(val.replace(',', '.')) : 0)
+  const parseNumber = (val: string) => {
+    if (!val || val.trim() === '') return 0
+    return Number(val.replace(/\./g, '').replace(',', '.')) || 0
+  }
   const formatNumber = (val: number | string | null | undefined) =>
     val !== null && val !== undefined ? val.toString().replace('.', ',') : ''
+
+  const formatWarrantyYears = (val: any) => {
+    if (!val && val !== 0) return '-'
+    const str = String(val).trim()
+    if (str.toLowerCase().includes('ano')) return str
+    const num = Number(str)
+    if (!isNaN(num)) {
+      return num === 1 ? '1 ano' : `${num} anos`
+    }
+    return str
+  }
 
   const loadData = async () => {
     if (!user?.company_id) return
@@ -80,11 +94,15 @@ export function InvertersTab() {
     if (!user?.company_id || !form.distributor_id) return
     setLoading(true)
 
+    const warrantyNum = form.warranty
+      ? parseInt(String(form.warranty).replace(/\D/g, ''), 10)
+      : null
     const payload = {
       ...form,
       power: parseNumber(form.power),
       overload: parseNumber(form.overload),
       price: form.price ? parseNumber(form.price) : null,
+      warranty: warrantyNum !== null && !isNaN(warrantyNum) ? `${warrantyNum} anos` : form.warranty,
       mppt: parseNumber(form.mppt),
       company_id: user.company_id,
     }
@@ -107,6 +125,7 @@ export function InvertersTab() {
   }
 
   const handleEdit = (inv: any) => {
+    const rawWarranty = inv.warranty ? String(inv.warranty).replace(/\D/g, '') : ''
     setForm({
       name: inv.name,
       power: formatNumber(inv.power),
@@ -114,7 +133,7 @@ export function InvertersTab() {
       distributor_id: inv.distributor_id,
       type: inv.type,
       voltage: inv.voltage || '',
-      warranty: inv.warranty || '',
+      warranty: rawWarranty || inv.warranty || '',
       obs: inv.obs || '',
       overload: formatNumber(inv.overload),
       price: formatNumber(inv.price),
@@ -247,13 +266,21 @@ export function InvertersTab() {
             />
           </div>
           <div className="space-y-2">
-            <Label className="font-semibold">Garantia</Label>
-            <Input
-              placeholder="Ex: 10 anos"
-              value={form.warranty}
-              onChange={(e) => setForm({ ...form, warranty: e.target.value })}
-              className="bg-background"
-            />
+            <Label className="font-semibold">Garantia (anos)</Label>
+            <div className="relative">
+              <Input
+                type="number"
+                min="0"
+                max="50"
+                placeholder="Ex: 10"
+                value={form.warranty}
+                onChange={(e) => setForm({ ...form, warranty: e.target.value })}
+                className="bg-background pr-14"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                anos
+              </span>
+            </div>
           </div>
           <div className="space-y-2">
             <Label className="font-semibold">Preço</Label>
@@ -388,7 +415,7 @@ export function InvertersTab() {
                     <td className="p-3">
                       {formatNumber(d.overload)}% / {formatNumber(d.mppt)}x
                     </td>
-                    <td className="p-3">{d.warranty || '-'}</td>
+                    <td className="p-3">{formatWarrantyYears(d.warranty)}</td>
                     <td className="p-3">
                       {d.price
                         ? `R$ ${d.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`

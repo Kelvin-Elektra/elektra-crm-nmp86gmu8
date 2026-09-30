@@ -16,7 +16,7 @@ import {
   deletePipelineStage,
 } from '@/services/db'
 import { useAuth } from '@/contexts/AuthContext'
-import { Trash2, Plus, ArrowUp, ArrowDown } from 'lucide-react'
+import { Trash2, Plus, ArrowUp, ArrowDown, Pencil, Check, X } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -34,6 +34,8 @@ export function StageManager({ open, onOpenChange }: any) {
   const { toast } = useToast()
   const [stages, setStages] = useState<any[]>([])
   const [newName, setNewName] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState('')
 
   const load = async () => setStages(await getPipelineStages())
   useEffect(() => {
@@ -56,11 +58,47 @@ export function StageManager({ open, onOpenChange }: any) {
   const handleDelete = async (id: string) => {
     try {
       await deletePipelineStage(id)
+      load()
     } catch (err: any) {
       toast({
         variant: 'destructive',
         title: 'Erro',
         description: 'Não foi possível excluir (pode estar em uso).',
+      })
+    }
+  }
+
+  const handleStartRename = (stage: any) => {
+    setEditingId(stage.id)
+    setEditingName(stage.name)
+  }
+
+  const handleCancelRename = () => {
+    setEditingId(null)
+    setEditingName('')
+  }
+
+  const handleSaveRename = async (stageId: string) => {
+    const trimmed = editingName.trim()
+    if (!trimmed) {
+      toast({
+        variant: 'destructive',
+        title: 'Nome inválido',
+        description: 'O nome do estágio não pode estar vazio.',
+      })
+      return
+    }
+    try {
+      await updatePipelineStage(stageId, { name: trimmed })
+      toast({ title: 'Sucesso', description: 'Estágio renomeado com sucesso.' })
+      setEditingId(null)
+      setEditingName('')
+      load()
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao renomear',
+        description: err?.message || 'Falha ao atualizar o nome do estágio.',
       })
     }
   }
@@ -162,32 +200,91 @@ export function StageManager({ open, onOpenChange }: any) {
               {stages.map((stage, i) => (
                 <div
                   key={stage.id}
-                  className="flex items-center justify-between p-2 border rounded bg-background"
+                  className="flex items-center justify-between p-2 border rounded bg-background gap-2"
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{stage.name}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleMove(i, 'up')}
-                      disabled={i === 0}
-                    >
-                      <ArrowUp className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleMove(i, 'down')}
-                      disabled={i === stages.length - 1}
-                    >
-                      <ArrowDown className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(stage.id)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
+                  {editingId === stage.id ? (
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <Input
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        className="h-8 text-sm"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveRename(stage.id)
+                          if (e.key === 'Escape') handleCancelRename()
+                        }}
+                      />
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 shrink-0"
+                        onClick={() => handleSaveRename(stage.id)}
+                        title="Salvar"
+                      >
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-muted-foreground hover:bg-muted shrink-0"
+                        onClick={handleCancelRename}
+                        title="Cancelar"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="text-sm font-medium truncate">{stage.name}</span>
+                        {stage.is_sale_stage && (
+                          <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-semibold shrink-0">
+                            Venda
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleStartRename(stage)}
+                          title="Renomear estágio"
+                          className="h-8 w-8"
+                        >
+                          <Pencil className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleMove(i, 'up')}
+                          disabled={i === 0}
+                          className="h-8 w-8"
+                          title="Mover para cima"
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleMove(i, 'down')}
+                          disabled={i === stages.length - 1}
+                          className="h-8 w-8"
+                          title="Mover para baixo"
+                        >
+                          <ArrowDown className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(stage.id)}
+                          className="h-8 w-8"
+                          title="Excluir estágio"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>

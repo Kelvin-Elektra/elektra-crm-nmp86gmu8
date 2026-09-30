@@ -208,7 +208,7 @@ export default function NegotiationProposalPage() {
 
           {activeProposal && (
             <Button variant="outline" size="sm" onClick={() => setViewerOpen(activeProposal)}>
-              Visualização Interna
+              Visualizar
             </Button>
           )}
 
@@ -365,12 +365,20 @@ export default function NegotiationProposalPage() {
                   <TrendingUp className="w-4 h-4 text-emerald-600" />
                 </div>
                 <div className="text-2xl font-bold text-emerald-600">
-                  {monthlySavings > 0 ? BRL.format(monthlySavings) : 'Calculando...'}
+                  {loading ? (
+                    <span className="text-sm font-normal text-muted-foreground">Calculando...</span>
+                  ) : estMonthlyGen > 0 || avgConsumption > 0 ? (
+                    BRL.format(monthlySavings)
+                  ) : (
+                    '—'
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {monthlySavings > 0
-                    ? `${BRL.format(monthlySavings * 12)}/ano`
-                    : 'Estimativa mensal'}
+                  {loading
+                    ? 'Aguarde...'
+                    : estMonthlyGen > 0 || avgConsumption > 0
+                      ? `${BRL.format(monthlySavings * 12)}/ano`
+                      : 'Sem dimensionamento'}
                 </p>
               </CardContent>
             </Card>
