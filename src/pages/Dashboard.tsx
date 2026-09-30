@@ -19,6 +19,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { ChevronLeft, ChevronRight, CalendarIcon, Terminal, Copy } from 'lucide-react'
 import { MetricCard } from '@/components/MetricCard'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import {
   DollarSign,
   LineChart,
@@ -51,6 +52,7 @@ export default function Dashboard() {
   const [monthYear, setMonthYear] = useState(format(new Date(), 'yyyy-MM'))
   const [users, setUsers] = useState<any[]>([])
   const [activityScope, setActivityScope] = useState<'all' | 'mine'>('all')
+  const [selectedActivityUserId, setSelectedActivityUserId] = useState<string>('all')
 
   const [pickerDate, setPickerDate] = useState(new Date())
 
@@ -151,9 +153,18 @@ export default function Dashboard() {
   }
 
   const matchesActivityScope = (userId?: string) => {
-    if (!isAdminUser) return true
-    if (activityScope === 'all') return true
-    return userId === user?.id
+    if (!isAdminUser) {
+      // Usuários comuns continuam vendo apenas suas próprias atividades
+      return userId === user?.id
+    }
+    if (activityScope === 'mine') {
+      return userId === user?.id
+    }
+    // Toda a empresa: se selecionou um colaborador específico
+    if (selectedActivityUserId !== 'all') {
+      return userId === selectedActivityUserId
+    }
+    return true
   }
 
   const inPeriod = (dateStr: string) => {
@@ -444,27 +455,54 @@ export default function Dashboard() {
               <CardTitle>Atividade Recente</CardTitle>
               <CardDescription>Acompanhe o que está acontecendo no seu funil</CardDescription>
             </div>
-            {isAdminUser && (
-              <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-lg border text-xs">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={activityScope === 'all' ? 'default' : 'ghost'}
-                  className="h-7 px-2.5 text-xs"
-                  onClick={() => setActivityScope('all')}
-                >
-                  Toda a empresa
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={activityScope === 'mine' ? 'default' : 'ghost'}
-                  className="h-7 px-2.5 text-xs"
-                  onClick={() => setActivityScope('mine')}
-                >
-                  Minhas atividades
-                </Button>
+            {isAdminUser ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-lg border text-xs">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={activityScope === 'all' ? 'default' : 'ghost'}
+                    className="h-7 px-2.5 text-xs"
+                    onClick={() => {
+                      setActivityScope('all')
+                      setSelectedActivityUserId('all')
+                    }}
+                  >
+                    Toda a empresa
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={activityScope === 'mine' ? 'default' : 'ghost'}
+                    className="h-7 px-2.5 text-xs"
+                    onClick={() => {
+                      setActivityScope('mine')
+                      setSelectedActivityUserId('all')
+                    }}
+                  >
+                    Minhas atividades
+                  </Button>
+                </div>
+                {activityScope === 'all' && users.length > 0 && (
+                  <Select value={selectedActivityUserId} onValueChange={setSelectedActivityUserId}>
+                    <SelectTrigger className="h-7 text-xs w-[180px] bg-background">
+                      <SelectValue placeholder="Todas as pessoas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as pessoas ({users.length})</SelectItem>
+                      {users.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.name || u.email || 'Usuário'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
+            ) : (
+              <Badge variant="outline" className="text-xs text-muted-foreground">
+                Suas atividades
+              </Badge>
             )}
           </CardHeader>
           <CardContent>

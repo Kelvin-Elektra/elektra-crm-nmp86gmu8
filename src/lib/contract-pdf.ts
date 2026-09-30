@@ -63,6 +63,13 @@ export function generateContractPDF(options: GenerateContractPdfOptions): Blob {
   const cleanContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
   const paragraphs = cleanContent.split(/\n\n+/)
 
+  // Estrutura de segmentos de texto em uma linha do PDF
+  interface LineSegment {
+    text: string
+    isBold: boolean
+    isPending?: boolean
+  }
+
   // Estrutura de linhas formatadas por página
   interface FormattedLine {
     text: string
@@ -70,6 +77,7 @@ export function generateContractPDF(options: GenerateContractPdfOptions): Blob {
     size: number
     spacingAfter: number
     isHeader?: boolean
+    segments?: LineSegment[]
   }
 
   const allLines: FormattedLine[] = []
@@ -141,21 +149,43 @@ export function generateContractPDF(options: GenerateContractPdfOptions): Blob {
       continue
     }
 
-    // Parágrafo regular (destacar visualmente campos pendentes no texto PDF sem quebrar a leitura)
-    // Se o parágrafo contiver campos não preenchidos (ex: {{campo}}), formata amigavelmente como [PENDENTE: CAMPO]
+    // Parágrafo regular (destacar visualmente campos pendentes no texto PDF com destaque amarelo claro e texto amigável)
+    // Substitui placeholders pendentes mantendo texto amigável sem jargões
     const formattedParagraph = trimmed
-      .replace(/\{\{([^{}]+)\}\}/g, (_, fieldName) => `[PENDENTE: ${fieldName.trim().toUpperCase()}]`)
+      .replace(
+        /\{\{([^{}]+)\}\}/g,
+        (_, fieldName) => `[CAMPO PENDENTE: ${fieldName.trim().toUpperCase()}]`,
+      )
       .replace(/\*\*/g, '')
       .replace(/\*/g, '')
     const wrappedLines = wrapText(formattedParagraph, 84)
 
     wrappedLines.forEach((wLine, idx) => {
-      allLines.push({
-        text: wLine,
-        isBold: false,
-        size: 9.5,
-        spacingAfter: idx === wrappedLines.length - 1 ? 12 : 4,
-      })
+      const hasPending = wLine.includes('[CAMPO PENDENTE:')
+      if (hasPending) {
+        // Quebra a linha em segmentos normais e pendentes
+        const parts = wLine.split(/(\[CAMPO PENDENTE: [^\]]+\])/g)
+        const segments: LineSegment[] = parts.filter(Boolean).map((part) => ({
+          text: part,
+          isBold: part.startsWith('[CAMPO PENDENTE:'),
+          isPending: part.startsWith('[CAMPO PENDENTE:'),
+        }))
+
+        allLines.push({
+          text: wLine,
+          isBold: false,
+          size: 9.5,
+          spacingAfter: idx === wrappedLines.length - 1 ? 12 : 4,
+          segments,
+        })
+      } else {
+        allLines.push({
+          text: wLine,
+          isBold: false,
+          size: 9.5,
+          spacingAfter: idx === wrappedLines.length - 1 ? 12 : 4,
+        })
+      }
     })
   }
 
@@ -249,9 +279,48 @@ export function generateContractPDF(options: GenerateContractPdfOptions): Blob {
     // Linhas do contrato nesta página
     const linesInThisPage = pagesOfLines[pIdx]
     for (const line of linesInThisPage) {
-      const font = line.isBold ? '/F2' : '/F1'
-      const sanitized = sanitizePdfString(line.text)
-      streamText += `${font} ${line.size} Tf\n1 0 0 1 ${marginLeft} ${textY} Tm\n(${sanitized}) Tj\n`
+      if (line.segments && line.segments.length > 0) {
+        // Renderiza linha com segmentos contendo destaque amarelo (fundo amarelo #FEF08A = 0.996 0.941 0.541 e texto escuro âmbar)
+        // 1 pt aprox = 0.52 da largura em Helvetica 9.5pt
+        const charWidthRatio = 0.52 * line.size
+        let currentX = marginLeft
+
+        // Primeiro passa desenhando as caixas de fundo amarelo onde houver pendências
+        let tempX = marginLeft
+        for (const seg of line.segments) {
+          const segClean = sanitizePdfString(seg.text)
+          const segWidth = segClean.length * charWidthRatio
+          if (seg.isPending) {
+            // Desenha retângulo preenchido amarelo claro (#fef08a)
+            // Em PDF: r g b rg (fill color), x y w h re f (rectangle fill)
+            const boxY = textY - 2
+            const boxH = line.size + 3
+            streamText += `q 0.996 0.941 0.541 rg ${tempX - 1} ${boxY} ${segWidth + 2} ${boxH} re f Q\n`
+          }
+          tempX += segWidth
+        }
+
+        // Em seguida, renderiza o texto dos segmentos na posição exata
+        currentX = marginLeft
+        for (const seg of line.segments) {
+          const segClean = sanitizePdfString(seg.text)
+          const segWidth = segClean.length * charWidthRatio
+          const font = seg.isBold ? '/F2' : '/F1'
+
+          if (seg.isPending) {
+            // Cor âmbar escura para texto de destaque (#854D0E = 0.522 0.302 0.055)
+            streamText += `q 0.522 0.302 0.055 rg ${font} ${line.size} Tf 1 0 0 1 ${currentX} ${textY} Tm (${segClean}) Tj Q\n`
+          } else {
+            // Cor padrão preta/cinza escuro
+            streamText += `q 0.1 0.1 0.1 rg ${font} ${line.size} Tf 1 0 0 1 ${currentX} ${textY} Tm (${segClean}) Tj Q\n`
+          }
+          currentX += segWidth
+        }
+      } else {
+        const font = line.isBold ? '/F2' : '/F1'
+        const sanitized = sanitizePdfString(line.text)
+        streamText += `${font} ${line.size} Tf\n1 0 0 1 ${marginLeft} ${textY} Tm\n(${sanitized}) Tj\n`
+      }
       textY -= line.size + line.spacingAfter
     }
 
@@ -316,7 +385,10 @@ export function openContractPrintPreview(
   // Converte placeholders {{campo}} em destaque amigável para impressão caso venham crus
   const highlightedMarkdown = textContentOrMarkdown
     .replace(/<mark[^>]*>(.*?)<\/mark>/gi, '<span class="field-pending">$1</span>')
-    .replace(/\{\{([^{}]+)\}\}/g, '<span class="field-pending">[Pendente: $1]</span>')
+    .replace(
+      /\{\{([^{}]+)\}\}/g,
+      '<span class="field-pending">[Campo pendente de preenchimento: $1]</span>',
+    )
 
   const doc = printWindow.document
   doc.open()

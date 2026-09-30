@@ -195,8 +195,8 @@ TESTE QUEBRADO: {{placeholder_fantasma}}
       expect(output.resolvedContent).toContain('5,5 kWp')
       // Placeholder quebrado permanece visível no texto resolvido e destacado no preview HTML
       expect(output.resolvedContent).toContain('{{placeholder_fantasma}}')
-      expect(output.htmlPreview).toContain('{{placeholder_fantasma}}')
-      expect(output.htmlPreview).toContain('Pendente:')
+      expect(output.htmlPreview).toContain('placeholder_fantasma')
+      expect(output.htmlPreview).toContain('Campo pendente de preenchimento:')
     })
   })
 

@@ -741,8 +741,8 @@ export function resolveContractPlaceholders(
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
-      // Destaque visual amarelo claro ("Pendente: CAMPO") para campos sem valor no CRM, sem quebrar o layout
-      const htmlMark = `<mark class="bg-amber-100 text-amber-900 border border-amber-300 font-medium px-1.5 py-0.5 rounded text-xs inline-flex items-center gap-1 shadow-sm" title="Campo pendente sem correspondência no CRM: {{${key}}}"><span class="font-bold text-amber-700">Pendente:</span> {{${escapedKey}}}</mark>`
+      // Destaque visual amarelo claro ("Campo pendente de preenchimento") para campos sem valor no CRM, sem quebrar o layout e sem jargões
+      const htmlMark = `<mark class="bg-amber-100 text-amber-900 border border-amber-300 font-medium px-1.5 py-0.5 rounded text-xs inline-flex items-center gap-1 shadow-sm" title="Campo pendente de preenchimento: ${escapedKey}"><span class="font-bold text-amber-700">Campo pendente de preenchimento:</span> [${escapedKey}]</mark>`
       sentinelMap.set(token, htmlMark)
       return token
     }

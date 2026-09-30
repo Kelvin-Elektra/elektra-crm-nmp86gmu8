@@ -29,4 +29,17 @@ describe('contract-pdf generator', () => {
     // Base64 válida não contém espaços ou quebras
     expect(b64).not.toMatch(/\s/)
   })
+
+  it('destaca campos pendentes com caixa amarela no PDF quando existirem placeholders não preenchidos', async () => {
+    const pdfBlob = generateContractPDF({
+      title: 'Contrato com Pendências',
+      content: 'Contratante: {{cliente_nome}} concorda com o valor de {{valor_total}}.',
+      companyName: 'Elektra Engenharia',
+    })
+
+    const text = await pdfBlob.text()
+    // Deve conter comando de cor amarela e o texto formatado como campo pendente
+    expect(text).toContain('0.996 0.941 0.541 rg')
+    expect(text).toContain('CAMPO PENDENTE')
+  })
 })
