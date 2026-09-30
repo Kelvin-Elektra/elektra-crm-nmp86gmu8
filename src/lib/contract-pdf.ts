@@ -141,9 +141,13 @@ export function generateContractPDF(options: GenerateContractPdfOptions): Blob {
       continue
     }
 
-    // Parágrafo regular (remover marcas de negrito para cálculo limpo)
-    const cleanParagraph = trimmed.replace(/\*\*/g, '').replace(/\*/g, '')
-    const wrappedLines = wrapText(cleanParagraph, 84)
+    // Parágrafo regular (destacar visualmente campos pendentes no texto PDF sem quebrar a leitura)
+    // Se o parágrafo contiver campos não preenchidos (ex: {{campo}}), formata amigavelmente como [PENDENTE: CAMPO]
+    const formattedParagraph = trimmed
+      .replace(/\{\{([^{}]+)\}\}/g, (_, fieldName) => `[PENDENTE: ${fieldName.trim().toUpperCase()}]`)
+      .replace(/\*\*/g, '')
+      .replace(/\*/g, '')
+    const wrappedLines = wrapText(formattedParagraph, 84)
 
     wrappedLines.forEach((wLine, idx) => {
       allLines.push({
@@ -309,10 +313,10 @@ export function openContractPrintPreview(
   const printWindow = window.open('', '_blank', 'width=800,height=900')
   if (!printWindow) return
 
-  // Limpa eventuais tags visuais <span ...> ou <mark ...> residuais para impressão limpa
-  const cleanedText = textContentOrMarkdown
-    .replace(/<span[^>]*>(.*?)<\/span>/gi, '$1')
-    .replace(/<mark[^>]*>(.*?)<\/mark>/gi, '$1')
+  // Converte placeholders {{campo}} em destaque amigável para impressão caso venham crus
+  const highlightedMarkdown = textContentOrMarkdown
+    .replace(/<mark[^>]*>(.*?)<\/mark>/gi, '<span class="field-pending">$1</span>')
+    .replace(/\{\{([^{}]+)\}\}/g, '<span class="field-pending">[Pendente: $1]</span>')
 
   const doc = printWindow.document
   doc.open()
@@ -342,6 +346,16 @@ export function openContractPrintPreview(
         hr { border: 0; border-top: 1px solid #cbd5e1; margin: 16px 0; }
         ul { margin: 8px 0 8px 20px; }
         li { font-size: 12.5px; margin-bottom: 4px; }
+        .field-pending {
+          background-color: #fef08a;
+          color: #854d0e;
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-weight: 600;
+          font-size: 11px;
+          border: 1px solid #fde047;
+          display: inline-block;
+        }
         .print-btn {
           position: fixed;
           top: 16px;
@@ -358,12 +372,17 @@ export function openContractPrintPreview(
         @media print {
           .print-btn { display: none; }
           body { padding: 0; }
+          .field-pending {
+            background-color: #fef9c3 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
         }
       </style>
     </head>
     <body>
       <button class="print-btn" onclick="window.print()">Imprimir / Salvar PDF</button>
-      <div>${simpleMarkdownToHtml(cleanedText)}</div>
+      <div>${simpleMarkdownToHtml(highlightedMarkdown)}</div>
     </body>
     </html>
   `)

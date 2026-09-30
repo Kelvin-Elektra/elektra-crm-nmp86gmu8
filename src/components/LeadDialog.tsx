@@ -92,10 +92,10 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
 
       let savedRecord: any = null
       if (lead) {
-        savedRecord = await updateLead(lead.id, data)
+        savedRecord = await updateLead(lead.id, formData)
       } else {
         savedRecord = await createLead({
-          ...data,
+          ...formData,
           company_id: user.company_id,
           owner_id: user.id,
         })

@@ -140,9 +140,7 @@ export default function Dashboard() {
   }
 
   const isAdminUser =
-    user?.role === 'User_elektra' ||
-    user?.role_company === 'admin' ||
-    user?.role === 'User_owner'
+    user?.role === 'User_elektra' || user?.role_company === 'admin' || user?.role === 'User_owner'
 
   const isOwner = (item: any) => {
     if (isAdminUser) return true
@@ -479,57 +477,52 @@ export default function Dashboard() {
                 {activities
                   .filter((act) => matchesActivityScope(act.user))
                   .map((act) => (
-              <div className="text-center p-6 text-muted-foreground">
-                Nenhuma atividade no período.
-              </div>
-            ) : (
-              <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
-                {activities.map((act) => (
-                  <div
-                    key={act.id}
-                    className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div
-                        className={cn(
-                          'h-10 w-10 rounded-full flex items-center justify-center',
-                          act.type === 'sale'
-                            ? 'bg-green-100 text-green-600'
-                            : act.type === 'proposal'
-                              ? 'bg-blue-100 text-blue-600'
-                              : 'bg-primary/10 text-primary',
-                        )}
-                      >
-                        {act.type === 'sale' ? (
-                          <ThumbsUp className="h-5 w-5" />
-                        ) : act.type === 'proposal' ? (
-                          <FileSignature className="h-5 w-5" />
-                        ) : (
-                          <Target className="h-5 w-5" />
-                        )}
+                    <div
+                      key={act.id}
+                      className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={cn(
+                            'h-10 w-10 rounded-full flex items-center justify-center',
+                            act.type === 'sale'
+                              ? 'bg-green-100 text-green-600'
+                              : act.type === 'proposal'
+                                ? 'bg-blue-100 text-blue-600'
+                                : 'bg-primary/10 text-primary',
+                          )}
+                        >
+                          {act.type === 'sale' ? (
+                            <ThumbsUp className="h-5 w-5" />
+                          ) : act.type === 'proposal' ? (
+                            <FileSignature className="h-5 w-5" />
+                          ) : (
+                            <Target className="h-5 w-5" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">{act.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {getUserName(act.user)} -{' '}
+                            {format(new Date(act.date), 'dd/MM/yyyy HH:mm')}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-sm">{act.title}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {getUserName(act.user)} - {format(new Date(act.date), 'dd/MM/yyyy HH:mm')}
-                        </p>
-                      </div>
+                      {act.val > 0 && (
+                        <div
+                          className={cn(
+                            'font-semibold text-sm',
+                            act.type === 'sale' ? 'text-green-600' : '',
+                          )}
+                        >
+                          {new Intl.NumberFormat('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL',
+                          }).format(act.val)}
+                        </div>
+                      )}
                     </div>
-                    {act.val > 0 && (
-                      <div
-                        className={cn(
-                          'font-semibold text-sm',
-                          act.type === 'sale' ? 'text-green-600' : '',
-                        )}
-                      >
-                        {new Intl.NumberFormat('pt-BR', {
-                          style: 'currency',
-                          currency: 'BRL',
-                        }).format(act.val)}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  ))}
               </div>
             )}
           </CardContent>

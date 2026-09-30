@@ -14,11 +14,30 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useAuth } from '@/contexts/AuthContext'
-import { Building2, User, FileText } from 'lucide-react'
+import { Building2, User, FileText, Users, ExternalLink } from 'lucide-react'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
 
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
+
+interface TeamMember {
+  id: string
+  name: string
+  email: string
+  role?: string
+  role_company?: string
+  status?: string
+  verified?: boolean
+}
 
 export default function Settings() {
   const { user } = useAuth()
@@ -26,6 +45,8 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState('profile')
   const [company, setCompany] = useState<any>(null)
   const [systemSettings, setSystemSettings] = useState<any>(null)
+  const [team, setTeam] = useState<TeamMember[]>([])
+  const [loadingTeam, setLoadingTeam] = useState(false)
 
   const [profilePassword, setProfilePassword] = useState({
     oldPassword: '',
@@ -51,22 +72,37 @@ export default function Settings() {
     }
   }
 
+  const loadTeam = async () => {
+    if (!user?.company_id) return
+    setLoadingTeam(true)
+    try {
+      const records = await pb.collection('users').getFullList<TeamMember>({
+        filter: `company_id = '${user.company_id}'`,
+        sort: 'name',
+      })
+      setTeam(records)
+    } catch {
+      setTeam([])
+    } finally {
+      setLoadingTeam(false)
+    }
+  }
+
   const loadSystemSettings = async () => {
-    if (user?.role === 'User_elektra') {
-      try {
-        const records = await pb.collection('system_settings').getFullList()
-        if (records.length > 0) {
-          setSystemSettings(records[0])
-        }
-      } catch {
-        /* intentionally ignored */
+    try {
+      const records = await pb.collection('system_settings').getFullList()
+      if (records.length > 0) {
+        setSystemSettings(records[0])
       }
+    } catch {
+      /* intentionally ignored */
     }
   }
 
   useEffect(() => {
     loadCompany()
     loadSystemSettings()
+    loadTeam()
   }, [user?.company_id, user?.role])
 
   const handleUpdateProfilePassword = async (e: React.FormEvent) => {
@@ -140,6 +176,12 @@ export default function Settings() {
                 className="w-full justify-start rounded-none border-l-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary transition-all hover:bg-muted/50"
               >
                 <Building2 className="mr-2 h-4 w-4" /> Dados da Empresa
+              </TabsTrigger>
+              <TabsTrigger
+                value="team"
+                className="w-full justify-start rounded-none border-l-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary transition-all hover:bg-muted/50"
+              >
+                <Users className="mr-2 h-4 w-4" /> Equipe
               </TabsTrigger>
               {user?.role === 'User_elektra' && (
                 <TabsTrigger
@@ -369,28 +411,39 @@ export default function Settings() {
 
           {activeTab === 'team' && isOwner && (
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+              <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <CardTitle>
+                  <CardTitle className="flex items-center gap-2">
                     Equipe
                     <span className="text-sm font-normal text-muted-foreground ml-2">
-                      (Ativos: {team.filter((u) => u.status === 'active').length} /{' '}
-                      {company?.max_users || 5})
+                      ({team.filter((u) => u.status !== 'inactive').length} membros ativos)
                     </span>
                   </CardTitle>
-                  <CardDescription>Gerencie os usuários da sua empresa.</CardDescription>
+                  <CardDescription>
+                    Visualização dos membros da sua equipe cadastrados na empresa.
+                  </CardDescription>
                 </div>
-                <Button
-                  onClick={() => setNewUserOpen(true)}
-                  size="sm"
-                  disabled={
-                    team.filter((u) => u.status === 'active').length >= (company?.max_users || 5)
-                  }
-                >
-                  <Plus className="mr-2 h-4 w-4" /> Adicionar Usuário
-                </Button>
+                {systemSettings?.hub_url && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 shrink-0"
+                    onClick={() => window.open(systemSettings.hub_url, '_blank')}
+                  >
+                    <span>Gerenciar equipe no HUB</span>
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </Button>
+                )}
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
+                <div className="bg-amber-500/10 border border-amber-500/20 text-amber-900 dark:text-amber-200 text-xs rounded-lg p-3">
+                  <p className="font-medium">Gestão centralizada pelo HUB</p>
+                  <p className="mt-0.5 text-muted-foreground">
+                    A inclusão, edição de permissões e remoção de membros são realizadas diretamente
+                    pelo HUB Elektra.
+                  </p>
+                </div>
+
                 <div className="border rounded-md overflow-hidden">
                   <Table>
                     <TableHeader className="bg-muted/50">
@@ -399,102 +452,81 @@ export default function Settings() {
                         <TableHead>Email</TableHead>
                         <TableHead>Perfil</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {team.map((member) => (
-                        <TableRow
-                          key={member.id}
-                          className={member.status === 'inactive' ? 'opacity-50 bg-slate-50' : ''}
-                        >
-                          <TableCell className="font-medium">{member.name}</TableCell>
-                          <TableCell>{member.email}</TableCell>
-                          <TableCell>
-                            {member.role_company === 'admin' ? (
-                              <Badge
-                                variant="outline"
-                                className="bg-blue-50 text-blue-700 hover:bg-blue-50"
-                              >
-                                Administrador
-                              </Badge>
-                            ) : (
-                              <Badge
-                                variant="outline"
-                                className="bg-slate-50 text-slate-700 hover:bg-slate-50"
-                              >
-                                Usuário
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {member.status === 'inactive' ? (
-                              <Badge
-                                variant="outline"
-                                className="bg-red-50 text-red-700 hover:bg-red-50"
-                              >
-                                Inativo
-                              </Badge>
-                            ) : member.verified ? (
-                              <Badge
-                                variant="outline"
-                                className="bg-green-50 text-green-700 hover:bg-green-50"
-                              >
-                                Verificado
-                              </Badge>
-                            ) : (
-                              <Badge
-                                variant="outline"
-                                className="bg-amber-50 text-amber-700 hover:bg-amber-50"
-                              >
-                                Pendente
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {member.status === 'active' && member.id !== user?.id && (
-                              <div className="flex justify-end gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleAdminReset(member.email)}
-                                  title="Enviar Redefinição de Senha"
-                                >
-                                  <KeyRound className="h-4 w-4 text-muted-foreground" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => {
-                                    setEditingUser(member)
-                                    setEditUserOpen(true)
-                                  }}
-                                  title="Editar"
-                                >
-                                  <Edit2 className="h-4 w-4 text-muted-foreground" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleDeleteUser(member.id)}
-                                  title="Desativar"
-                                >
-                                  <Trash2 className="h-4 w-4 text-red-500" />
-                                </Button>
-                              </div>
-                            )}
-                            {member.id === user?.id && (
-                              <span className="text-sm text-muted-foreground pr-4">Você</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {team.length === 0 && (
+                      {loadingTeam ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
-                            Nenhum usuário encontrado.
+                          <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">
+                            Carregando membros da equipe...
                           </TableCell>
                         </TableRow>
+                      ) : team.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">
+                            Nenhum membro encontrado.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        team.map((member) => (
+                          <TableRow
+                            key={member.id}
+                            className={member.status === 'inactive' ? 'opacity-50 bg-slate-50' : ''}
+                          >
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <span>{member.name || 'Sem nome'}</span>
+                                {member.id === user?.id && (
+                                  <Badge variant="secondary" className="text-[10px] py-0">
+                                    Você
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>{member.email}</TableCell>
+                            <TableCell>
+                              {member.role_company === 'admin' || member.role === 'User_owner' ? (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-blue-50 text-blue-700 hover:bg-blue-50 dark:bg-blue-950 dark:text-blue-300"
+                                >
+                                  Administrador
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-slate-50 text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300"
+                                >
+                                  Usuário
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {member.status === 'inactive' ? (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-red-50 text-red-700 hover:bg-red-50 dark:bg-red-950 dark:text-red-300"
+                                >
+                                  Inativo
+                                </Badge>
+                              ) : member.verified ? (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-green-50 text-green-700 hover:bg-green-50 dark:bg-green-950 dark:text-green-300"
+                                >
+                                  Ativo
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-amber-50 text-amber-700 hover:bg-amber-50 dark:bg-amber-950 dark:text-amber-300"
+                                >
+                                  Pendente
+                                </Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))
                       )}
                     </TableBody>
                   </Table>
@@ -628,102 +660,6 @@ export default function Settings() {
           )}
         </div>
       </div>
-
-      <Dialog open={newUserOpen} onOpenChange={setNewUserOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Novo Usuário</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Nome</Label>
-              <Input
-                value={newUserForm.name}
-                onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Email</Label>
-              <Input
-                type="email"
-                placeholder="seu-email@exemplo.com"
-                value={newUserForm.email}
-                onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Senha Inicial</Label>
-              <Input
-                type="password"
-                minLength={8}
-                value={newUserForm.password}
-                onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Perfil de Acesso</Label>
-              <Select
-                value={newUserForm.role_company}
-                onValueChange={(val) => setNewUserForm({ ...newUserForm, role_company: val })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="user">Usuário Padrão</SelectItem>
-                  <SelectItem value="admin">Administrador da Empresa</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNewUserOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleCreateUser}>Salvar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={editUserOpen} onOpenChange={setEditUserOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Editar Usuário</DialogTitle>
-          </DialogHeader>
-          {editingUser && (
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Nome</Label>
-                <Input
-                  value={editingUser.name}
-                  onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Perfil de Acesso</Label>
-                <Select
-                  value={editingUser.role_company}
-                  onValueChange={(val) => setEditingUser({ ...editingUser, role_company: val })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="user">Usuário Padrão</SelectItem>
-                    <SelectItem value="admin">Administrador da Empresa</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditUserOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleUpdateUser}>Salvar Alterações</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

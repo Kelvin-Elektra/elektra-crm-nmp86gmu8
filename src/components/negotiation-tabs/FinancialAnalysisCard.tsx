@@ -22,12 +22,14 @@ import {
   Clock,
   PiggyBank,
   Table,
+  HelpCircle,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { updateNegotiation } from '@/services/db'
 import pb from '@/lib/pocketbase/client'
 import { NumericInput } from '@/components/ui/numeric-input'

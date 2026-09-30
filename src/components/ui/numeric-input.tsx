@@ -6,7 +6,8 @@ interface NumericInputProps extends Omit<
   'value' | 'onChange'
 > {
   value: number | string | null | undefined
-  onChangeValue: (val: number | null) => void
+  onChangeValue?: (val: number | null) => void
+  onValueChange?: (val: any) => void
   precision?: number
 }
 
@@ -41,7 +42,10 @@ export function parsePtBrNumber(text: string): number | null {
 }
 
 export const NumericInput = React.forwardRef<HTMLInputElement, NumericInputProps>(
-  ({ value, onChangeValue, precision, className, placeholder, onBlur, ...rest }, ref) => {
+  (
+    { value, onChangeValue, onValueChange, precision, className, placeholder, onBlur, ...rest },
+    ref,
+  ) => {
     const [display, setDisplay] = React.useState<string>(() => {
       if (value === null || value === undefined || value === '') return ''
       return String(value).replace('.', ',')
@@ -66,7 +70,8 @@ export const NumericInput = React.forwardRef<HTMLInputElement, NumericInputProps
       const sanitized = raw.replace(/[^\d.,-]/g, '')
       setDisplay(sanitized)
       const parsed = parsePtBrNumber(sanitized)
-      onChangeValue(parsed)
+      onChangeValue?.(parsed)
+      onValueChange?.(parsed)
     }
 
     const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
