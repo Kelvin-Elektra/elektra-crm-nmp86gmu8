@@ -98,7 +98,7 @@ export default function Portal() {
 
   const bgUrl = settings?.login_background
     ? pb.files.getURL(settings, settings.login_background)
-    : 'https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?q=80&w=2072&auto=format&fit=crop'
+    : 'https://img.usecurling.com/p/2072/600?q=abstract'
 
   const logoUrl = settings?.logo ? pb.files.getURL(settings, settings.logo) : null
 
@@ -187,6 +187,15 @@ export default function Portal() {
                       className="text-muted-foreground hover:text-foreground"
                     >
                       Esqueceu sua senha?
+                    </Button>
+                    <Button
+                      variant="link"
+                      size="sm"
+                      type="button"
+                      onClick={() => navigate('/')}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      ← Voltar para o aviso do HUB
                     </Button>
                     {needsVerification && (
                       <Button

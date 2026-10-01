@@ -25,10 +25,17 @@ import pb from '@/lib/pocketbase/client'
 import { maskCEP } from '@/lib/masks'
 import { normalizeCompanyLeadTimes, getDefaultLeadTime } from '@/types/lead-time'
 import { LocationCombobox } from '@/components/LocationCombobox'
-import { Search, UserPlus } from 'lucide-react'
+import { Search, UserPlus, Info } from 'lucide-react'
 import { LeadDialog } from '@/components/LeadDialog'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import {
+  NETWORK_TYPES as ALL_NETWORK_TYPES,
+  PHASE_VOLTAGE_TOOLTIP,
+  LINE_VOLTAGE_TOOLTIP,
+  getVoltagesForNetwork,
+} from '@/types/electric-network'
 
-const NETWORK_TYPES = ['Monofásico', 'Bifásico', 'Trifásico', 'Monofásico rural']
+const CONSUMER_CLASSES = ['Residencial', 'Comercial', 'Industrial', 'Rural', 'Outros']
 
 export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLeadId }: any) {
   const { user } = useAuth()
@@ -38,6 +45,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
   const [stages, setStages] = useState<any[]>([])
   const [utilities, setUtilities] = useState<any[]>([])
   const [tariffRules, setTariffRules] = useState<any[]>([])
+  const [installations, setInstallations] = useState<any[]>([])
   const [citiesForState, setCitiesForState] = useState<{ id: string; city: string }[]>([])
   const [isSearchingCep, setIsSearchingCep] = useState(false)
   const [leadDialogOpen, setLeadDialogOpen] = useState(false)
@@ -45,6 +53,9 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
   const [formData, setFormData] = useState({
     title: '',
     lead_id: initialLeadId || '',
+    consumer_category: 'Residencial',
+    installation_id: '',
+    public_lighting_fee: '',
     cep: '',
     address: '',
     number: '',
@@ -55,6 +66,8 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
     utility_id: '',
     network_type: '',
     tension: '',
+    phase_voltage: '',
+    line_voltage: '',
     uc: '',
     avg_consumption: '',
   })
@@ -70,6 +83,18 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
         pb.collection('pv_tariff_rules')
           .getFullList({ filter: `company_id='${user.company_id}'` })
           .then(setTariffRules)
+        pb.collection('pv_installations')
+          .getFullList({ filter: `company_id='${user.company_id}'`, sort: 'name' })
+          .then((insts) => {
+            setInstallations(insts)
+            // Se houver tipos e ainda não tiver selecionado, seleciona o primeiro
+            if (insts.length > 0) {
+              setFormData((prev) =>
+                prev.installation_id ? prev : { ...prev, installation_id: insts[0].id },
+              )
+            }
+          })
+          .catch(() => {})
       }
       if (initialLeadId) setFormData((prev) => ({ ...prev, lead_id: initialLeadId }))
       else setFormData((prev) => ({ ...prev, lead_id: '' }))
@@ -197,30 +222,55 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
     'TO',
   ]
 
-  const availableNetworks = formData.utility_id
-    ? Array.from(
-        new Set(
-          tariffRules
-            .filter((r) => r.utility_id === formData.utility_id)
-            .map((r) => r.network_type)
-            .filter(Boolean),
-        ),
-      )
-    : []
-  const networkOptions = availableNetworks.length > 0 ? availableNetworks : NETWORK_TYPES
+  const selectedUtility = utilities.find((u) => u.id === formData.utility_id)
+
+  const networkOptions = ALL_NETWORK_TYPES
 
   const matchedRule =
     formData.utility_id && formData.network_type
       ? tariffRules.find(
+          (r) =>
+            r.utility_id === formData.utility_id &&
+            r.network_type === formData.network_type &&
+            (!formData.consumer_category || r.class === formData.consumer_category),
+        ) ||
+        tariffRules.find(
           (r) => r.utility_id === formData.utility_id && r.network_type === formData.network_type,
         )
       : null
 
+  // Sincroniza tensões quando concessionária ou tipo de rede mudam
   useEffect(() => {
-    if (matchedRule && matchedRule.voltage)
-      setFormData((prev) => ({ ...prev, tension: matchedRule.voltage }))
-    else setFormData((prev) => ({ ...prev, tension: '' }))
-  }, [matchedRule])
+    if (selectedUtility && formData.network_type) {
+      const configured = getVoltagesForNetwork(
+        selectedUtility.network_voltages,
+        formData.network_type,
+      )
+      const phase = configured.phase || ''
+      const line = configured.line || ''
+      let tensionStr = ''
+      if (phase && line) tensionStr = `${phase}V / ${line}V`
+      else if (line) tensionStr = `${line}V`
+      else if (phase) tensionStr = `${phase}V`
+      else if (matchedRule?.voltage) tensionStr = matchedRule.voltage
+
+      setFormData((prev) => ({
+        ...prev,
+        phase_voltage: phase,
+        line_voltage: line,
+        tension: tensionStr,
+      }))
+    } else if (matchedRule && matchedRule.voltage) {
+      setFormData((prev) => ({
+        ...prev,
+        tension: matchedRule.voltage,
+        phase_voltage: '',
+        line_voltage: '',
+      }))
+    } else {
+      setFormData((prev) => ({ ...prev, tension: '', phase_voltage: '', line_voltage: '' }))
+    }
+  }, [selectedUtility, formData.network_type, matchedRule])
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -264,6 +314,8 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
         number: formData.number,
         address: fullAddress,
         uc: formData.uc,
+        consumer_category: formData.consumer_category || 'Residencial',
+        public_lighting_fee: Number(formData.public_lighting_fee) || 0,
         avg_consumption: Number(formData.avg_consumption) || 0,
         owner_id: user?.id,
         installation_lead_time: defaultLeadTime,
@@ -271,8 +323,16 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
         use_roof_faces: false,
         roof_faces_data: [],
         sizing: {
+          installation_id: formData.installation_id,
+          installation_type: formData.installation_id,
+          consumer_category: formData.consumer_category || 'Residencial',
+          consumer_class: formData.consumer_category || 'Residencial',
           tension: formData.tension,
+          voltage: formData.tension,
+          phase_voltage: formData.phase_voltage,
+          line_voltage: formData.line_voltage,
           network_type: formData.network_type,
+          public_lighting_fee: Number(formData.public_lighting_fee) || 0,
           address_struct: {
             street: formData.address,
             number: formData.number,
@@ -290,6 +350,9 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
       setFormData({
         title: '',
         lead_id: '',
+        consumer_category: 'Residencial',
+        installation_id: installations[0]?.id || '',
+        public_lighting_fee: '',
         cep: '',
         address: '',
         number: '',
@@ -300,6 +363,8 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
         utility_id: '',
         network_type: '',
         tension: '',
+        phase_voltage: '',
+        line_voltage: '',
         uc: '',
         avg_consumption: '',
       })
@@ -368,6 +433,45 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+
+                {/* Classe e Tipo de Instalação (item 18 do backlog) */}
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Classe de Consumo</Label>
+                  <Select
+                    value={formData.consumer_category}
+                    onValueChange={(val) => setFormData({ ...formData, consumer_category: val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a classe..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CONSUMER_CLASSES.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Tipo de Instalação (Telhado/Estrutura)</Label>
+                  <Select
+                    value={formData.installation_id}
+                    onValueChange={(val) => setFormData({ ...formData, installation_id: val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a estrutura..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {installations.map((i) => (
+                        <SelectItem key={i.id} value={i.id}>
+                          {i.name} {i.purlin_type ? `(${i.purlin_type})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="col-span-4 border-t pt-2 mt-2">
@@ -505,6 +609,32 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
                     type="number"
                     value={formData.avg_consumption}
                     onChange={(e) => setFormData({ ...formData, avg_consumption: e.target.value })}
+                  />
+                </div>
+
+                {/* Iluminação Pública (item 22 do backlog) */}
+                <div className="space-y-2 sm:col-span-2">
+                  <div className="flex items-center gap-1">
+                    <Label>Taxa de Iluminação Pública (R$)</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs text-xs">
+                        Valor cobrado na fatura de energia da concessionária a título de
+                        contribuição de iluminação pública (CIP/COSIP).
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={formData.public_lighting_fee}
+                    onChange={(e) =>
+                      setFormData({ ...formData, public_lighting_fee: e.target.value })
+                    }
                   />
                 </div>
               </div>

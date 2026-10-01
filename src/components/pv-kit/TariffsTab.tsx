@@ -39,11 +39,18 @@ import {
   TableCell,
 } from '@/components/ui/table'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { Plus, Pencil, Trash2, Info, Building2, Search, CheckCircle2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Info, Building2, Search, CheckCircle2, Zap } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/use-toast'
 import { NumericInput } from '@/components/ui/numeric-input'
+import {
+  NOMINAL_VOLTAGES,
+  NETWORK_TYPES,
+  PHASE_VOLTAGE_TOOLTIP,
+  LINE_VOLTAGE_TOOLTIP,
+  UtilityNetworkVoltages,
+} from '@/types/electric-network'
 import { CONSUMER_CATEGORIES } from '@/lib/financial-analysis'
 
 const BASE_CONCESSIONAIRES: { state: string; name: string }[] = [
@@ -123,6 +130,16 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
   const [pendingDisableUtil, setPendingDisableUtil] = useState<any | null>(null)
   const [disabling, setDisabling] = useState(false)
   const [togglingNames, setTogglingNames] = useState<Record<string, boolean>>({})
+
+  // Edição de concessionária personalizada (item 5)
+  const [editingCustomUtil, setEditingCustomUtil] = useState<any | null>(null)
+  const [editCustomName, setEditCustomName] = useState('')
+  const [savingCustomEdit, setSavingCustomEdit] = useState(false)
+
+  // Configuração de tensões fase e linha por concessionária (item 1)
+  const [voltageModalUtil, setVoltageModalUtil] = useState<any | null>(null)
+  const [voltageModalMap, setVoltageModalMap] = useState<UtilityNetworkVoltages>({})
+  const [savingVoltages, setSavingVoltages] = useState(false)
 
   const loadData = async () => {
     if (!companyId) return
@@ -348,6 +365,86 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
   const updateForm = (field: string, value: any) =>
     setForm((prev: any) => ({ ...prev, [field]: value }))
 
+  // Abrir modal de edição de concessionária personalizada
+  const handleOpenEditCustom = (cu: any) => {
+    setEditingCustomUtil(cu)
+    setEditCustomName(cu.name || '')
+  }
+
+  const handleSaveCustomEdit = async () => {
+    const trimmed = editCustomName.trim()
+    if (!trimmed) {
+      toast({ variant: 'destructive', title: 'Nome obrigatório' })
+      return
+    }
+    if (!editingCustomUtil) return
+
+    setSavingCustomEdit(true)
+    try {
+      await pb.collection('pv_utilities').update(editingCustomUtil.id, { name: trimmed })
+      toast({ title: 'Concessionária atualizada', description: trimmed })
+      setEditingCustomUtil(null)
+      await loadData()
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao atualizar',
+        description: err.message,
+      })
+    } finally {
+      setSavingCustomEdit(false)
+    }
+  }
+
+  // Abrir modal de tensões de fase e linha por tipo de rede
+  const handleOpenVoltagesModal = (util: any) => {
+    setVoltageModalUtil(util)
+    const current = (util.network_voltages as UtilityNetworkVoltages) || {}
+    // Clona o estado atual garantindo objeto
+    const initialMap: UtilityNetworkVoltages = {}
+    for (const net of NETWORK_TYPES) {
+      initialMap[net] = {
+        phase: current[net]?.phase || '',
+        line: current[net]?.line || '',
+      }
+    }
+    setVoltageModalMap(initialMap)
+  }
+
+  const handleSaveVoltagesModal = async () => {
+    if (!voltageModalUtil) return
+    setSavingVoltages(true)
+    try {
+      await pb.collection('pv_utilities').update(voltageModalUtil.id, {
+        network_voltages: voltageModalMap,
+      })
+      toast({
+        title: 'Tensões salvas com sucesso',
+        description: `Configuração atualizada para ${voltageModalUtil.name}`,
+      })
+      setVoltageModalUtil(null)
+      await loadData()
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao salvar tensões',
+        description: err.message,
+      })
+    } finally {
+      setSavingVoltages(false)
+    }
+  }
+
+  const updateVoltageField = (net: string, field: 'phase' | 'line', value: string) => {
+    setVoltageModalMap((prev) => ({
+      ...prev,
+      [net]: {
+        ...prev[net],
+        [field]: value === 'none' ? '' : value,
+      },
+    }))
+  }
+
   return (
     <div className="space-y-6">
       {/* Bloco 1: Concessionárias Habilitadas da Empresa */}
@@ -405,48 +502,107 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
             </div>
           </div>
 
-          {/* Concessionárias Personalizadas (se houver) */}
-          {customUtilities.length > 0 && (
-            <div className="p-3 rounded-lg border bg-muted/20 space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Concessionárias / Cooperativas Personalizadas
+          {/* Concessionárias Personalizadas (UX aprimorada - item 5) */}
+          <div className="p-4 rounded-xl border bg-slate-50/70 dark:bg-slate-900/40 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-primary" />
+                  Concessionárias / Cooperativas Personalizadas
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Distribuidoras locais cadastradas pela sua empresa que não fazem parte da lista
+                  nacional.
+                </p>
+              </div>
+              <Badge variant="outline" className="text-xs font-normal">
+                {customUtilities.length}{' '}
+                {customUtilities.length === 1 ? 'cadastrada' : 'cadastradas'}
+              </Badge>
+            </div>
+
+            {customUtilities.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic py-2">
+                Nenhuma concessionária personalizada cadastrada. Use o campo acima para adicionar
+                uma cooperativa ou distribuidora local.
               </p>
-              <div className="flex flex-wrap gap-2">
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
                 {customUtilities.map((cu) => {
                   const ruleCount = rulesCountByUtility[cu.id] || 0
+                  const hasVoltages =
+                    cu.network_voltages && Object.keys(cu.network_voltages).length > 0
                   return (
                     <div
                       key={cu.id}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border bg-background text-sm shadow-sm"
+                      className="flex items-center justify-between gap-2 p-3 rounded-lg border bg-background shadow-xs hover:border-border transition-colors"
                     >
-                      <CheckCircle2 className="w-4 h-4 text-primary" />
-                      <span className="font-medium">{cu.name}</span>
-                      {ruleCount > 0 && (
-                        <span className="text-xs text-muted-foreground">
-                          ({ruleCount} {ruleCount === 1 ? 'tarifa' : 'tarifas'})
-                        </span>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                        onClick={() => handleToggleUtility(cu.name)}
-                        title="Desabilitar"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span className="font-medium text-sm truncate" title={cu.name}>
+                            {cu.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[11px] text-muted-foreground">
+                            {ruleCount} {ruleCount === 1 ? 'tarifa' : 'tarifas'}
+                          </span>
+                          {hasVoltages && (
+                            <span className="text-[10px] bg-primary/10 text-primary font-medium px-1.5 py-0.5 rounded">
+                              Tensões def.
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-primary"
+                          onClick={() => handleOpenVoltagesModal(cu)}
+                          title="Configurar Tensões de Fase e Linha"
+                        >
+                          <Zap className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          onClick={() => handleOpenEditCustom(cu)}
+                          title="Editar nome"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => handleToggleUtility(cu.name)}
+                          title="Remover"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   )
                 })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Grade de Concessionárias da Lista Base Canônica */}
           <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Distribuidoras Padrão (Brasil)
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Distribuidoras Padrão (Brasil)
+              </p>
+              <span className="text-xs text-muted-foreground">
+                Clique no ícone de raio <Zap className="w-3 h-3 inline text-primary mx-0.5" /> para
+                configurar as tensões fase e linha.
+              </span>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 max-h-80 overflow-y-auto p-1 border rounded-lg bg-background">
               {filteredBase.map((item) => {
                 const key = item.name.trim().toLowerCase()
@@ -454,11 +610,13 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
                 const isToggling = Boolean(togglingNames[item.name])
                 const utilRec = enabledMap.get(key)
                 const count = utilRec ? rulesCountByUtility[utilRec.id] || 0 : 0
+                const hasVoltages =
+                  utilRec?.network_voltages && Object.keys(utilRec.network_voltages).length > 0
 
                 return (
-                  <label
+                  <div
                     key={`${item.state}-${item.name}`}
-                    className={`flex items-start gap-2.5 p-2 rounded-md border text-sm cursor-pointer transition-colors ${
+                    className={`flex items-start gap-2.5 p-2 rounded-md border text-sm transition-colors ${
                       isEnabled
                         ? 'border-primary/50 bg-primary/5 text-foreground font-medium'
                         : 'border-border/60 hover:bg-muted/40 text-muted-foreground'
@@ -468,22 +626,48 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
                       checked={isEnabled}
                       disabled={isToggling}
                       onCheckedChange={() => handleToggleUtility(item.name)}
-                      className="mt-0.5"
+                      className="mt-0.5 cursor-pointer"
                     />
-                    <div className="flex-1 min-w-0">
+                    <div
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => !isToggling && handleToggleUtility(item.name)}
+                    >
                       <div className="flex items-center justify-between gap-1">
                         <span className="truncate">{item.name}</span>
                         <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
                           {item.state}
                         </span>
                       </div>
-                      {isEnabled && count > 0 && (
-                        <p className="text-[11px] text-muted-foreground font-normal">
-                          {count} {count === 1 ? 'tarifa associada' : 'tarifas associadas'}
-                        </p>
+                      {isEnabled && (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {count > 0 && (
+                            <span className="text-[11px] text-muted-foreground font-normal">
+                              {count} {count === 1 ? 'tarifa' : 'tarifas'}
+                            </span>
+                          )}
+                          {hasVoltages && (
+                            <span className="text-[9px] bg-primary/10 text-primary font-medium px-1 rounded">
+                              Tensões
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
-                  </label>
+                    {isEnabled && utilRec && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-primary shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleOpenVoltagesModal(utilRec)
+                        }}
+                        title="Configurar Tensões de Fase e Linha"
+                      >
+                        <Zap className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 )
               })}
             </div>
@@ -522,9 +706,10 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
                   <TableHead>ICMS</TableHead>
                   <TableHead>Isenção</TableHead>
                   <TableHead>Fio B</TableHead>
+                  <TableHead className="text-center">Tensões</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
-              </TableHeader>
+              </TableHeader>{' '}
               <TableBody>
                 {rules.map((rule) => (
                   <TableRow key={rule.id}>
@@ -537,6 +722,23 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
                       {ICMS_EXEMPTIONS.find((e) => e.value === rule.icms_exemption)?.label || '-'}
                     </TableCell>
                     <TableCell>{BRL.format(Number(rule.fio_b_value) || 0)}</TableCell>
+                    <TableCell className="text-center">
+                      {(() => {
+                        const u = utilities.find((x) => x.id === rule.utility_id)
+                        return (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs text-primary gap-1"
+                            onClick={() => u && handleOpenVoltagesModal(u)}
+                            disabled={!u}
+                          >
+                            <Zap className="w-3.5 h-3.5" />
+                            Configurar
+                          </Button>
+                        )
+                      })()}
+                    </TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm" onClick={() => handleEdit(rule)}>
                         <Pencil className="w-4 h-4" />
@@ -552,6 +754,175 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
           )}
         </CardContent>
       </Card>
+
+      {/* Modal de Edição de Concessionária Personalizada (item 5) */}
+      <Dialog
+        open={Boolean(editingCustomUtil)}
+        onOpenChange={(v) => {
+          if (!v) setEditingCustomUtil(null)
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar Concessionária Personalizada</DialogTitle>
+            <DialogDescription>
+              Altere o nome da cooperativa ou distribuidora de energia local.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Nome da Concessionária</Label>
+              <Input
+                value={editCustomName}
+                onChange={(e) => setEditCustomName(e.target.value)}
+                placeholder="Ex: Ceriluz, Creluz, etc."
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleSaveCustomEdit()
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={savingCustomEdit}
+              onClick={() => setEditingCustomUtil(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              disabled={savingCustomEdit || !editCustomName.trim()}
+              onClick={handleSaveCustomEdit}
+            >
+              {savingCustomEdit ? 'Salvando...' : 'Salvar Alterações'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Configuração de Tensões Fase e Linha por Concessionária (item 1) */}
+      <Dialog
+        open={Boolean(voltageModalUtil)}
+        onOpenChange={(v) => {
+          if (!v) setVoltageModalUtil(null)
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <div className="flex items-center gap-2">
+              <Zap className="w-5 h-5 text-primary" />
+              <DialogTitle>Tensões de Fase e Linha — {voltageModalUtil?.name}</DialogTitle>
+            </div>
+            <DialogDescription>
+              Configure para cada tipo de rede quais são as tensões nominais fase-neutro (fase) e
+              fase-fase (linha) adotadas por esta distribuidora.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-muted-foreground uppercase px-2 py-1 bg-muted/40 rounded-md">
+              <div className="col-span-4">Tipo de Rede</div>
+              <div className="col-span-4 flex items-center gap-1">
+                <span>Tensão de Fase</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs text-xs">
+                    {PHASE_VOLTAGE_TOOLTIP}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <div className="col-span-4 flex items-center gap-1">
+                <span>Tensão de Linha</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs text-xs">
+                    {LINE_VOLTAGE_TOOLTIP}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            </div>
+
+            <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+              {NETWORK_TYPES.map((net) => {
+                const currentPhase = voltageModalMap[net]?.phase || ''
+                const currentLine = voltageModalMap[net]?.line || ''
+                return (
+                  <div
+                    key={net}
+                    className="grid grid-cols-12 gap-2 items-center p-2 rounded-lg border bg-background hover:bg-muted/20 transition-colors"
+                  >
+                    <div className="col-span-4 font-medium text-sm">{net}</div>
+                    <div className="col-span-4">
+                      <Select
+                        value={currentPhase || 'none'}
+                        onValueChange={(val) => updateVoltageField(net, 'phase', val)}
+                      >
+                        <SelectTrigger className="h-8 text-xs bg-background">
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Não definida</SelectItem>
+                          {NOMINAL_VOLTAGES.map((v) => (
+                            <SelectItem key={`p-${v}`} value={v}>
+                              {v}V (Fase)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="col-span-4">
+                      <Select
+                        value={currentLine || 'none'}
+                        onValueChange={(val) => updateVoltageField(net, 'line', val)}
+                      >
+                        <SelectTrigger className="h-8 text-xs bg-background">
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Não definida</SelectItem>
+                          {NOMINAL_VOLTAGES.map((v) => (
+                            <SelectItem key={`l-${v}`} value={v}>
+                              {v}V (Linha)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="p-3 rounded-lg bg-muted/40 border text-xs text-muted-foreground space-y-1">
+              <p className="font-medium text-foreground">Exemplo comum:</p>
+              <p>Copel em rede Monofásico Rural: Tensão de fase 127V / Tensão de linha 254V.</p>
+              <p>
+                Rede Trifásica convencional: 127V / 220V ou 220V / 380V conforme a distribuidora.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={savingVoltages}
+              onClick={() => setVoltageModalUtil(null)}
+            >
+              Cancelar
+            </Button>
+            <Button disabled={savingVoltages} onClick={handleSaveVoltagesModal}>
+              {savingVoltages ? 'Salvando...' : 'Salvar Tensões'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Alerta de confirmação para desabilitar concessionária com tarifas */}
       <AlertDialog

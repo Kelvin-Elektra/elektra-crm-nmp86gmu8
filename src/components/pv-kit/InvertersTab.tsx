@@ -15,6 +15,9 @@ import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Badge } from '@/components/ui/badge'
+import { NOMINAL_VOLTAGES } from '@/types/electric-network'
 
 export function InvertersTab() {
   const { user } = useAuth()
@@ -34,7 +37,7 @@ export function InvertersTab() {
     brand: '',
     distributor_id: '',
     type: 'monofásico',
-    voltage: '',
+    voltages: [] as string[],
     warranty: '',
     obs: '',
     overload: '30',
@@ -97,9 +100,20 @@ export function InvertersTab() {
     const warrantyNum = form.warranty
       ? parseInt(String(form.warranty).replace(/\D/g, ''), 10)
       : null
+
+    // Manter campo legado 'voltage' preenchido para compatibilidade histórica (ex: "220V" ou "220V, 380V")
+    const legacyVoltage =
+      form.voltages.length > 0 ? form.voltages.map((v) => `${v}V`).join(', ') : ''
+
     const payload = {
-      ...form,
+      name: form.name,
       power: parseNumber(form.power),
+      brand: form.brand,
+      distributor_id: form.distributor_id,
+      type: form.type,
+      voltages: form.voltages,
+      voltage: legacyVoltage,
+      obs: form.obs,
       overload: parseNumber(form.overload),
       price: form.price ? parseNumber(form.price) : null,
       warranty: warrantyNum !== null && !isNaN(warrantyNum) ? `${warrantyNum} anos` : form.warranty,
@@ -126,13 +140,23 @@ export function InvertersTab() {
 
   const handleEdit = (inv: any) => {
     const rawWarranty = inv.warranty ? String(inv.warranty).replace(/\D/g, '') : ''
+
+    // Recupera voltages do array ou do campo legado textual
+    let initialVoltages: string[] = []
+    if (Array.isArray(inv.voltages) && inv.voltages.length > 0) {
+      initialVoltages = inv.voltages.map((v: any) => String(v).replace(/\D/g, '')).filter(Boolean)
+    } else if (inv.voltage) {
+      const nums = String(inv.voltage).match(/\d+/g) || []
+      initialVoltages = Array.from(new Set(nums))
+    }
+
     setForm({
       name: inv.name,
       power: formatNumber(inv.power),
       brand: inv.brand,
       distributor_id: inv.distributor_id,
       type: inv.type,
-      voltage: inv.voltage || '',
+      voltages: initialVoltages,
       warranty: rawWarranty || inv.warranty || '',
       obs: inv.obs || '',
       overload: formatNumber(inv.overload),
@@ -140,6 +164,24 @@ export function InvertersTab() {
       mppt: formatNumber(inv.mppt),
     })
     setEditingId(inv.id)
+  }
+
+  const toggleVoltage = (volt: string) => {
+    setForm((prev) => {
+      const exists = prev.voltages.includes(volt)
+      const next = exists ? prev.voltages.filter((v) => v !== volt) : [...prev.voltages, volt]
+      return { ...prev, voltages: next }
+    })
+  }
+
+  const formatInverterVoltages = (inv: any) => {
+    if (Array.isArray(inv.voltages) && inv.voltages.length > 0) {
+      return inv.voltages.map((v: any) => `${v}V`).join(' / ')
+    }
+    if (inv.voltage) {
+      return String(inv.voltage).includes('V') ? inv.voltage : `${inv.voltage}V`
+    }
+    return '-'
   }
 
   const handleDelete = async (id: string) => {
@@ -233,17 +275,37 @@ export function InvertersTab() {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <Label className="font-semibold">Tensão</Label>
-            <Select value={form.voltage} onValueChange={(v) => setForm({ ...form, voltage: v })}>
-              <SelectTrigger className="bg-background">
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="220V">220V</SelectItem>
-                <SelectItem value="380V">380V</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="space-y-2 md:col-span-2">
+            <div className="flex items-center justify-between">
+              <Label className="font-semibold">Tensões Nominais Aceitas</Label>
+              <span className="text-xs text-muted-foreground">
+                {form.voltages.length === 0
+                  ? 'Nenhuma selecionada'
+                  : `${form.voltages.length} ${form.voltages.length === 1 ? 'tensão' : 'tensões'}`}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2 p-2 rounded-lg border bg-background">
+              {NOMINAL_VOLTAGES.map((volt) => {
+                const checked = form.voltages.includes(volt)
+                return (
+                  <label
+                    key={volt}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs cursor-pointer transition-colors ${
+                      checked
+                        ? 'border-primary bg-primary/10 text-primary font-medium'
+                        : 'border-border/60 hover:bg-muted/40 text-muted-foreground'
+                    }`}
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={() => toggleVoltage(volt)}
+                      className="h-3.5 w-3.5"
+                    />
+                    <span>{volt}V</span>
+                  </label>
+                )
+              })}
+            </div>
           </div>
           <div className="space-y-2">
             <Label className="font-semibold">Overload Max (%)</Label>
@@ -409,8 +471,13 @@ export function InvertersTab() {
                     <td className="p-3 font-medium">{d.name}</td>
                     <td className="p-3">{d.brand}</td>
                     <td className="p-3">{formatNumber(d.power)} kW</td>
-                    <td className="p-3 capitalize">
-                      {d.type} {d.voltage && `(${d.voltage})`}
+                    <td className="p-3">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="capitalize">{d.type}</span>
+                        <span className="text-xs text-muted-foreground font-mono">
+                          {formatInverterVoltages(d)}
+                        </span>
+                      </div>
                     </td>
                     <td className="p-3">
                       {formatNumber(d.overload)}% / {formatNumber(d.mppt)}x

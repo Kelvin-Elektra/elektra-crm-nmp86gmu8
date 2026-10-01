@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import Layout from './components/Layout'
 import Portal from './pages/Portal'
+import HubWelcome from './pages/HubWelcome'
 import { SplashScreen } from './components/SplashScreen'
 import ResetPassword from './pages/ResetPassword'
 import VerifyEmail from './pages/VerifyEmail'
@@ -149,7 +150,7 @@ const RootRoute = () => {
   if (ssoToken) return <SsoLoginScreen ssoToken={ssoToken} />
 
   if (isAuthenticated) return <Navigate to="/dashboard" replace />
-  return <Portal />
+  return <HubWelcome />
 }
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -168,6 +169,7 @@ const App = () => (
           <WhatsAppSupportButton />
           <Routes>
             <Route path="/" element={<RootRoute />} />
+            <Route path="/login" element={<Portal />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/verify" element={<VerifyEmail />} />
             <Route path="/elektra-admin" element={<ElektraAdminLogin />} />

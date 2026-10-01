@@ -23,8 +23,8 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { updateNegotiation } from '@/services/db'
+import { NETWORK_TYPES, getVoltagesForNetwork } from '@/types/electric-network'
 
-const NETWORK_TYPES = ['Monofásico', 'Bifásico', 'Trifásico', 'Monofásico rural']
 const AVAILABLE_CLASSES = ['Residencial', 'Comercial', 'Industrial', 'Rural', 'Outros']
 
 export function UtilityCard({ neg, reload }: { neg: any; reload?: () => void }) {
@@ -43,6 +43,8 @@ export function UtilityCard({ neg, reload }: { neg: any; reload?: () => void }) 
     network_type: initialSizing.network_type || '',
     consumer_class: neg.consumer_category || initialSizing.consumer_class || '',
     tension: initialSizing.tension || '',
+    phase_voltage: initialSizing.phase_voltage || '',
+    line_voltage: initialSizing.line_voltage || '',
   })
 
   useEffect(() => {
@@ -61,6 +63,27 @@ export function UtilityCard({ neg, reload }: { neg: any; reload?: () => void }) 
 
   useEffect(() => {
     if (!open) return
+    const utilRec = utilities.find((u) => u.id === formData.utility_id)
+    if (utilRec && formData.network_type) {
+      const cfg = getVoltagesForNetwork(utilRec.network_voltages, formData.network_type)
+      const phase = cfg.phase || ''
+      const line = cfg.line || ''
+      let tensionStr = ''
+      if (phase && line) tensionStr = `${phase}V / ${line}V`
+      else if (line) tensionStr = `${line}V`
+      else if (phase) tensionStr = `${phase}V`
+
+      if (tensionStr) {
+        setFormData((prev) => ({
+          ...prev,
+          tension: tensionStr,
+          phase_voltage: phase,
+          line_voltage: line,
+        }))
+        return
+      }
+    }
+
     const matchedRule =
       tariffRules.find(
         (r) =>
@@ -72,8 +95,18 @@ export function UtilityCard({ neg, reload }: { neg: any; reload?: () => void }) 
         (r) => r.utility_id === formData.utility_id && r.network_type === formData.network_type,
       )
 
-    setFormData((prev) => ({ ...prev, tension: matchedRule?.voltage || '' }))
-  }, [formData.utility_id, formData.network_type, formData.consumer_class, tariffRules, open])
+    setFormData((prev) => ({
+      ...prev,
+      tension: matchedRule?.voltage || prev.tension || '',
+    }))
+  }, [
+    formData.utility_id,
+    formData.network_type,
+    formData.consumer_class,
+    tariffRules,
+    utilities,
+    open,
+  ])
 
   const handleSave = async () => {
     setLoading(true)
@@ -92,6 +125,9 @@ export function UtilityCard({ neg, reload }: { neg: any; reload?: () => void }) 
         network_type: formData.network_type,
         consumer_class: formData.consumer_class,
         tension: formData.tension,
+        voltage: formData.tension,
+        phase_voltage: formData.phase_voltage,
+        line_voltage: formData.line_voltage,
         tariff_snapshot: ruleSnapshot
           ? {
               te: ruleSnapshot.te,

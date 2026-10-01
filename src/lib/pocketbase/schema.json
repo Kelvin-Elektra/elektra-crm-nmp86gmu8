@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-30T22:25:37.622Z",
+  "generatedAt": "2026-10-01T13:16:04.026Z",
   "collections": [
     {
       "name": "users",
@@ -1196,6 +1196,12 @@
           "type": "number",
           "required": false,
           "system": false
+        },
+        {
+          "name": "voltages",
+          "type": "json",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": ["CREATE INDEX idx_pv_inverters_company ON pv_inverters (company_id)"]
@@ -1791,6 +1797,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "network_voltages",
+          "type": "json",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
