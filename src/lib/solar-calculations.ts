@@ -483,7 +483,7 @@ export interface DetailedProjectionParams {
  * 3. Tarifa reajustada ano a ano pelo percentual EDITÁVEL (composto):
  *    Tarifa(ano N) = Tarifa(ano 1) × (1 + reajuste)^(N - 1).
  * 4. Fio B escalonado pela cronologia da Lei 14.300 sobre o valor cadastrado na concessionária:
- *    2025/2026: 60%, 2027: 75%, 2028: 90%, 2029 em diante: 100%.
+ *    2025: 60%, 2026: 75%, 2027: 90%, 2028 em diante: 100%.
  * 5. Simultaneidade: consumo instantâneo abate da geração no mês/ano sem incidência de rede.
  * 6. Créditos acumulados de energia: excedentes transitam entre anos conforme regra de compensação da UC.
  */
@@ -534,11 +534,11 @@ export function calculateDetailed25YearsProjection(
     const yearTUSD = baseTUSD * tariffFactor
     const yearFioBBase = baseFioBValue * tariffFactor
 
-    // 3. Fio B da Lei 14.300 por ano civil
+    // 3. Fio B da Lei 14.300 por ano civil (um degrau por ano)
     let fioBPercent = 1.0
-    if (calendarYear <= 2026) fioBPercent = 0.6
-    else if (calendarYear === 2027) fioBPercent = 0.75
-    else if (calendarYear === 2028) fioBPercent = 0.9
+    if (calendarYear <= 2025) fioBPercent = 0.6
+    else if (calendarYear === 2026) fioBPercent = 0.75
+    else if (calendarYear === 2027) fioBPercent = 0.9
     else fioBPercent = 1.0
 
     const effectiveFioBRate = yearFioBBase * fioBPercent

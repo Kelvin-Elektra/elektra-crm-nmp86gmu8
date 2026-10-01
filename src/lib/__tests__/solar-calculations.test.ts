@@ -15,6 +15,7 @@ import {
   buildEquipmentsArray,
   buildCommercialConditionsArray,
 } from '../solar-calculations'
+import { getFioBScalingFactor, FIO_B_SCALING_FACTORS } from '../financial-analysis'
 
 describe('solar-calculations', () => {
   describe('calculateConsumptionCoverage', () => {
@@ -147,28 +148,61 @@ describe('solar-calculations', () => {
       expect(table[24].generationKwh).toBeCloseTo(6552 * Math.pow(0.995, 24), 0)
     })
 
-    it('deve aplicar a cronologia de Fio B corretamente (2026: 60%, 2027: 75%, 2028: 90%, 2029+: 100%)', () => {
-      const table = calculateYearlySavingsTable(defaultParams)
+    it('deve aplicar a cronologia de Fio B corretamente (2025: 60%, 2026: 75%, 2027: 90%, 2028+: 100%)', () => {
+      // Testes diretos na função getFioBScalingFactor e constantes do motor financeiro
+      expect(getFioBScalingFactor(2025)).toBe(0.6)
+      expect(getFioBScalingFactor(2026)).toBe(0.75)
+      expect(getFioBScalingFactor(2027)).toBe(0.9)
+      expect(getFioBScalingFactor(2028)).toBe(1.0)
+      expect(getFioBScalingFactor(2029)).toBe(1.0)
+      expect(getFioBScalingFactor(2035)).toBe(1.0)
 
-      // Ano 1 (2026): 60%
-      expect(table[0].calendarYear).toBe(2026)
-      expect(table[0].fioBPercent).toBe(60)
+      expect(FIO_B_SCALING_FACTORS[2025]).toBe(0.6)
+      expect(FIO_B_SCALING_FACTORS[2026]).toBe(0.75)
+      expect(FIO_B_SCALING_FACTORS[2027]).toBe(0.9)
+      // Teste com startYear = 2025 para validar todos os degraus da cronologia
+      const table2025 = calculateYearlySavingsTable({
+        ...defaultParams,
+        startYear: 2025,
+      })
 
-      // Ano 2 (2027): 75%
-      expect(table[1].calendarYear).toBe(2027)
-      expect(table[1].fioBPercent).toBe(75)
+      // Ano 1 (2025): 60%
+      expect(table2025[0].calendarYear).toBe(2025)
+      expect(table2025[0].fioBPercent).toBe(60)
 
-      // Ano 3 (2028): 90%
-      expect(table[2].calendarYear).toBe(2028)
-      expect(table[2].fioBPercent).toBe(90)
+      // Ano 2 (2026): 75%
+      expect(table2025[1].calendarYear).toBe(2026)
+      expect(table2025[1].fioBPercent).toBe(75)
+
+      // Ano 3 (2027): 90%
+      expect(table2025[2].calendarYear).toBe(2027)
+      expect(table2025[2].fioBPercent).toBe(90)
+
+      // Ano 4 (2028): 100%
+      expect(table2025[3].calendarYear).toBe(2028)
+      expect(table2025[3].fioBPercent).toBe(100)
+
+      // Ano 25 (2049): 100%
+      expect(table2025[24].calendarYear).toBe(2049)
+      expect(table2025[24].fioBPercent).toBe(100)
+
+      // Com startYear = 2026 (defaultParams)
+      const table2026 = calculateYearlySavingsTable(defaultParams)
+      // Ano 1 (2026): 75%
+      expect(table2026[0].calendarYear).toBe(2026)
+      expect(table2026[0].fioBPercent).toBe(75)
+
+      // Ano 2 (2027): 90%
+      expect(table2026[1].calendarYear).toBe(2027)
+      expect(table2026[1].fioBPercent).toBe(90)
+
+      // Ano 3 (2028): 100%
+      expect(table2026[2].calendarYear).toBe(2028)
+      expect(table2026[2].fioBPercent).toBe(100)
 
       // Ano 4 (2029): 100%
-      expect(table[3].calendarYear).toBe(2029)
-      expect(table[3].fioBPercent).toBe(100)
-
-      // Ano 25 (2050): 100%
-      expect(table[24].calendarYear).toBe(2050)
-      expect(table[24].fioBPercent).toBe(100)
+      expect(table2026[3].calendarYear).toBe(2029)
+      expect(table2026[3].fioBPercent).toBe(100)
     })
 
     it('deve acumular saldo de créditos na UC e transitar para anos seguintes', () => {

@@ -756,7 +756,7 @@ export function FinancialAnalysisCard({
                         </TooltipTrigger>
                         <TooltipContent className="max-w-xs text-xs">
                           O valor cadastrado é a tarifa base integral. O sistema aplica a fração
-                          anual da Lei 14.300 (2026: 60%, 2027: 75%, 2028: 90%, 2029+: 100%) sobre a
+                          anual da Lei 14.300 (2025: 60%, 2026: 75%, 2027: 90%, 2028+: 100%) sobre a
                           energia compensada.
                         </TooltipContent>
                       </Tooltip>

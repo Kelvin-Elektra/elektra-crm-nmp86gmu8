@@ -5,23 +5,22 @@ export const DEFAULT_TARIFF_RATE = 0.9
 
 export const FIO_B_SCALING_FACTORS: Record<number, number> = {
   2025: 0.6,
-  2026: 0.6, // Mantido 60% conforme Lei 14.300 / cronologia de transição
-  2027: 0.75,
-  2028: 0.9,
+  2026: 0.75,
+  2027: 0.9,
 }
 
 /**
- * Retorna o escalonamento do Fio B (Lei 14.300) por ano civil:
- * 2025/2026: 60%
- * 2027: 75%
- * 2028: 90%
- * 2029 em diante: 100%
+ * Retorna o escalonamento do Fio B (Lei 14.300) por ano civil (um degrau por ano):
+ * 2025: 60%
+ * 2026: 75%
+ * 2027: 90%
+ * 2028 em diante: 100%
  */
 export function getFioBScalingFactor(year?: number): number {
   const y = year || new Date().getFullYear()
-  if (y <= 2026) return 0.6
-  if (y === 2027) return 0.75
-  if (y === 2028) return 0.9
+  if (y <= 2025) return 0.6
+  if (y === 2026) return 0.75
+  if (y === 2027) return 0.9
   return 1.0
 }
 

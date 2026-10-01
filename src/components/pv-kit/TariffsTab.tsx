@@ -1046,7 +1046,7 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs">
                     Insira o valor integral do Fio B. O sistema aplica o escalonamento anual
-                    automaticamente (2026: 60%, 2027: 75%, 2028: 90%, 2029+: 100%).
+                    automaticamente (2025: 60%, 2026: 75%, 2027: 90%, 2028+: 100%).
                   </TooltipContent>
                 </Tooltip>
               </Label>
