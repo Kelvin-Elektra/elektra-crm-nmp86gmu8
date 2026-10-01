@@ -435,6 +435,7 @@ export interface YearlySavingsRow {
   year: number
   calendarYear?: number
   generationKwh: number
+  generation_kwh?: number
   consumptionKwh: number
   effectiveTariff: number
   fioBRate: number
@@ -586,6 +587,7 @@ export function calculateDetailed25YearsProjection(
       year: y,
       calendarYear,
       generationKwh: yearGeneration,
+      generation_kwh: yearGeneration,
       consumptionKwh: annualConsumption,
       effectiveTariff: Number(yearBaseRate.toFixed(4)),
       fioBRate: Number(effectiveFioBRate.toFixed(4)),
@@ -626,6 +628,7 @@ export function calculateYearlySavingsTable(
     rows.push({
       year: y,
       generationKwh: 0,
+      generation_kwh: 0,
       consumptionKwh: 0,
       effectiveTariff: 0,
       fioBRate: 0,

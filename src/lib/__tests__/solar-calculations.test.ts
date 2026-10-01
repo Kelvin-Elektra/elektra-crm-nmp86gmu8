@@ -139,6 +139,7 @@ describe('solar-calculations', () => {
       expect(table).toHaveLength(25)
       expect(table[0]).toHaveProperty('year', 1)
       expect(table[0]).toHaveProperty('generationKwh')
+      expect(table[0]).toHaveProperty('generation_kwh')
       expect(table[0]).toHaveProperty('consumptionKwh')
       expect(table[0]).toHaveProperty('effectiveTariff')
       expect(table[0]).toHaveProperty('costWithoutSolar')
@@ -155,19 +156,26 @@ describe('solar-calculations', () => {
       )
     })
 
-    it('deve manter geração constante para fins de ROI simplificado e exibir degradação acumulada', () => {
-      const table = calculateYearlySavingsTable(defaultParams)
+    it('deve calcular geração anual com degradação aplicada ano a ano', () => {
+      const table = calculateDetailed25YearsProjection(defaultParams)
       expect(table).toHaveLength(25)
 
-      // Geração é mantida constante no cálculo financeiro (conforme solicitado pelo usuário)
+      // Ano 1: geração cheia (100%) = 6552 kWh
       expect(table[0].generationKwh).toBe(6552)
-      expect(table[1].generationKwh).toBe(6552)
-      expect(table[24].generationKwh).toBe(6552)
+      expect(table[0].generation_kwh).toBe(6552)
 
-      // Coluna informativa de degradação acumulada
+      // Ano 2: degradação de 0.5% aplicada: 6552 * (1 - 0.005)^1 = 6519.24 -> 6519.2
+      expect(table[1].generationKwh).toBeCloseTo(6519.2, 1)
+      expect(table[1].generation_kwh).toBeCloseTo(6519.2, 1)
+
+      // Ano 25: degradação acumulada aplicada: 6552 * (1 - 0.005)^24 ≈ 5809.3
+      expect(table[24].generationKwh).toBeCloseTo(5809.3, 1)
+      expect(table[24].generation_kwh).toBeCloseTo(5809.3, 1)
+
+      // Coluna informativa de degradação acumulada mantida
       // Ano 1: 0%
       expect(table[0].cumulativeDegradationPct).toBe(0)
-      // Ano 2: 0.5% (1 - (1 - 0.005)^1) * 100 = 0.5%
+      // Ano 2: 0.5%
       expect(table[1].cumulativeDegradationPct).toBeCloseTo(0.5, 1)
       // Ano 25: (1 - 0.995^24) * 100 ≈ 11.3%
       expect(table[24].cumulativeDegradationPct).toBeCloseTo(11.3, 1)

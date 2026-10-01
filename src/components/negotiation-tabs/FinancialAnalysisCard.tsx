@@ -666,8 +666,8 @@ export function FinancialAnalysisCard({
                               {BRL.format(row.annualSavings)}
                             </td>
                             <td className="py-2 px-3 text-slate-700 font-mono">
-                              {row.generationKwh != null
-                                ? `${Math.round(row.generationKwh).toLocaleString('pt-BR')} kWh`
+                              {(row.generation_kwh ?? row.generationKwh) != null
+                                ? `${Math.round(row.generation_kwh ?? row.generationKwh).toLocaleString('pt-BR')} kWh`
                                 : '—'}
                             </td>
                             <td className="py-2 px-3 font-semibold text-emerald-800">
