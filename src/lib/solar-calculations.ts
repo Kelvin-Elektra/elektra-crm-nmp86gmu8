@@ -445,6 +445,7 @@ export interface YearlySavingsRow {
   cumulativeSavings: number
   balanceWithInvestment: number
   energyCreditsBalanceKwh?: number
+  cumulativeDegradationPct?: number
 }
 
 export interface SavingsProjectionMilestone {
@@ -479,13 +480,12 @@ export interface DetailedProjectionParams {
  *
  * Princípios definidos pelo usuário:
  * 1. Análise ESTÁTICA / Comercial: SEM correção a valor presente (sem VPN/VPL/desconto futuro).
- * 2. Ponto de partida: Geração estimada ano a ano aplicando depreciação anual dos módulos:
- *    Geração(ano N) = Geração(ano 1) × (1 - degradação)^(N - 1).
- *    (Estrutura aberta para suportar listas multi-módulos no futuro sem reescrita).
+ * 2. Geração constante para fins de retorno do investimento (ROI simplificado). A degradação física
+ *    do módulo é exibida como coluna meramente informativa, sem abater a geração no cálculo financeiro.
  * 3. Tarifa reajustada ano a ano pelo percentual EDITÁVEL (composto):
  *    Tarifa(ano N) = Tarifa(ano 1) × (1 + reajuste)^(N - 1).
  * 4. Fio B escalonado pela cronologia da Lei 14.300 sobre o valor cadastrado na concessionária:
- *    2025: 60%, 2026: 75%, 2027: 90%, 2028 em diante: 100%.
+ *    2025: 60%, 2026: 60%, 2027: 75%, 2028: 90%, 2029 em diante: 100%.
  * 5. Simultaneidade: consumo instantâneo abate da geração no mês/ano sem incidência de rede.
  * 6. Créditos acumulados de energia: excedentes transitam entre anos conforme regra de compensação da UC.
  */
@@ -525,9 +525,11 @@ export function calculateDetailed25YearsProjection(
   for (let y = 1; y <= years; y++) {
     const calendarYear = currentCalendarYear + (y - 1)
 
-    // 1. Degradação dos módulos: Ano 1 = 100%, Ano N = G1 * (1 - degradação)^(N-1)
+    // 1. Degradação acumulada apenas para exibição informativa (Ano 1 = 0%, Ano N = 1 - (1 - d)^(N-1))
+    // A geração para o cálculo financeiro permanece constante (análise simplificada solicitada pelo usuário)
     const degradationFactor = Math.pow(1 - degradationRate, y - 1)
-    const yearGeneration = Number((params.annualGenerationYear1Kwh * degradationFactor).toFixed(1))
+    const cumulativeDegradationPct = Number(((1 - degradationFactor) * 100).toFixed(1))
+    const yearGeneration = Number(params.annualGenerationYear1Kwh.toFixed(1))
 
     // 2. Reajuste anual composto da tarifa de energia
     const tariffFactor = Math.pow(1 + tariffAdjustmentRate, y - 1)
@@ -536,11 +538,12 @@ export function calculateDetailed25YearsProjection(
     const yearTUSD = baseTUSD * tariffFactor
     const yearFioBBase = baseFioBValue * tariffFactor
 
-    // 3. Fio B da Lei 14.300 por ano civil (um degrau por ano)
+    // 3. Fio B da Lei 14.300 por ano civil (cronologia definitiva):
+    // 2025: 60%, 2026: 60%, 2027: 75%, 2028: 90%, 2029+: 100%
     let fioBPercent = 1.0
-    if (calendarYear <= 2025) fioBPercent = 0.6
-    else if (calendarYear === 2026) fioBPercent = 0.75
-    else if (calendarYear === 2027) fioBPercent = 0.9
+    if (calendarYear <= 2026) fioBPercent = 0.6
+    else if (calendarYear === 2027) fioBPercent = 0.75
+    else if (calendarYear === 2028) fioBPercent = 0.9
     else fioBPercent = 1.0
 
     const effectiveFioBRate = yearFioBBase * fioBPercent
@@ -594,6 +597,7 @@ export function calculateDetailed25YearsProjection(
       cumulativeSavings: Number(cumulativeSavings.toFixed(2)),
       balanceWithInvestment: Number((cumulativeSavings - inv).toFixed(2)),
       energyCreditsBalanceKwh: Number(energyCreditsBalance.toFixed(1)),
+      cumulativeDegradationPct,
     })
   }
 
@@ -632,6 +636,7 @@ export function calculateYearlySavingsTable(
       annualSavings: Number(ann.toFixed(2)),
       cumulativeSavings: Number(accumulated.toFixed(2)),
       balanceWithInvestment: Number((accumulated - inv).toFixed(2)),
+      cumulativeDegradationPct: 0,
     })
   }
   return rows

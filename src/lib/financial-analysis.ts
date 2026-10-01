@@ -5,22 +5,24 @@ export const DEFAULT_TARIFF_RATE = 0.9
 
 export const FIO_B_SCALING_FACTORS: Record<number, number> = {
   2025: 0.6,
-  2026: 0.75,
-  2027: 0.9,
+  2026: 0.6,
+  2027: 0.75,
+  2028: 0.9,
 }
 
 /**
- * Retorna o escalonamento do Fio B (Lei 14.300) por ano civil (um degrau por ano):
+ * Retorna o escalonamento do Fio B (Lei 14.300) por ano civil (definição definitiva):
  * 2025: 60%
- * 2026: 75%
- * 2027: 90%
- * 2028 em diante: 100%
+ * 2026: 60%
+ * 2027: 75%
+ * 2028: 90%
+ * 2029 em diante: 100%
  */
 export function getFioBScalingFactor(year?: number): number {
   const y = year || new Date().getFullYear()
-  if (y <= 2025) return 0.6
-  if (y === 2026) return 0.75
-  if (y === 2027) return 0.9
+  if (y <= 2026) return 0.6
+  if (y === 2027) return 0.75
+  if (y === 2028) return 0.9
   return 1.0
 }
 
@@ -40,6 +42,8 @@ export interface TariffDetails {
   icms_rate: number
   icms_exemption: string
   fio_b_value: number
+  annual_tariff_adjustment?: number
+  utility_name?: string
   found?: boolean
 }
 
@@ -190,14 +194,46 @@ export async function fetchTariffDetails(
   if (!utilityId)
     return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0, found: true }
   try {
+    // Buscar também os dados da concessionária para obter annual_tariff_adjustment e nome
+    let utilRec: any = null
+    try {
+      utilRec = await pb.collection('pv_utilities').getOne(utilityId)
+    } catch {
+      /* intentionally ignored */
+    }
+
+    const utilTariffAdjustment =
+      utilRec?.annual_tariff_adjustment !== null && utilRec?.annual_tariff_adjustment !== undefined
+        ? Number(utilRec.annual_tariff_adjustment)
+        : undefined
+    const utilName = utilRec?.name
+
     const rules = await pb
       .collection('pv_tariff_rules')
       .getFullList({ filter: `utility_id='${utilityId}'` })
     if (rules.length === 0)
-      return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0, found: false }
+      return {
+        te: 0,
+        tusd: 0,
+        icms_rate: 0,
+        icms_exemption: 'none',
+        fio_b_value: Number(utilRec?.fio_b_value) || 0,
+        annual_tariff_adjustment: utilTariffAdjustment,
+        utility_name: utilName,
+        found: false,
+      }
 
     if (!consumerCategory) {
-      return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0, found: true }
+      return {
+        te: 0,
+        tusd: 0,
+        icms_rate: 0,
+        icms_exemption: 'none',
+        fio_b_value: Number(utilRec?.fio_b_value) || 0,
+        annual_tariff_adjustment: utilTariffAdjustment,
+        utility_name: utilName,
+        found: true,
+      }
     }
 
     const matched = rules.find((r) => r.class?.toLowerCase() === consumerCategory.toLowerCase())
@@ -206,17 +242,10 @@ export async function fetchTariffDetails(
       return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0, found: false }
     }
 
-    // Tenta obter o fio_b_value da regra tarifária ou da própria concessionária (pv_utilities)
+    // Tenta obter o fio_b_value da regra ou da concessionária
     let fioBVal = Number(matched.fio_b_value) || 0
-    if (!fioBVal && utilityId) {
-      try {
-        const utilRec = await pb.collection('pv_utilities').getOne(utilityId)
-        if (utilRec?.fio_b_value) {
-          fioBVal = Number(utilRec.fio_b_value) || 0
-        }
-      } catch {
-        /* intentionally ignored */
-      }
+    if (!fioBVal && utilRec?.fio_b_value) {
+      fioBVal = Number(utilRec.fio_b_value) || 0
     }
 
     return {
@@ -225,6 +254,8 @@ export async function fetchTariffDetails(
       icms_rate: Number(matched.icms_rate) || 0,
       icms_exemption: matched.icms_exemption || 'none',
       fio_b_value: fioBVal,
+      annual_tariff_adjustment: utilTariffAdjustment,
+      utility_name: utilName,
       found: true,
     }
   } catch {

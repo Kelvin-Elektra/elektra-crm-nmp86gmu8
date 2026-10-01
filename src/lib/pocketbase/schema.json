@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-01T21:00:52.863Z",
+  "generatedAt": "2026-10-01T21:33:23.172Z",
   "collections": [
     {
       "name": "users",
@@ -1836,6 +1836,12 @@
         },
         {
           "name": "fio_b_value",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "annual_tariff_adjustment",
           "type": "number",
           "required": false,
           "system": false

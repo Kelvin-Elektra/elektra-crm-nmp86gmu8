@@ -423,9 +423,11 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
           ? Number(neg.annual_tariff_adjustment)
           : neg.sizing?.annual_tariff_adjustment != null
             ? Number(neg.sizing?.annual_tariff_adjustment)
-            : pricingDetails?.settings?.default_tariff_adjustment != null
-              ? Number(pricingDetails.settings.default_tariff_adjustment)
-              : 0
+            : tariffDetails.annual_tariff_adjustment != null
+              ? Number(tariffDetails.annual_tariff_adjustment)
+              : pricingDetails?.settings?.default_tariff_adjustment != null
+                ? Number(pricingDetails.settings.default_tariff_adjustment)
+                : 0
 
       const annualDegradation =
         rawPricingData?.rawModule?.annual_degradation != null

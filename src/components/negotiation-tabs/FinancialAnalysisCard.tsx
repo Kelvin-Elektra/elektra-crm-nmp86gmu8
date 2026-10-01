@@ -112,16 +112,6 @@ export function FinancialAnalysisCard({
 
   useEffect(() => {
     if (!neg.company_id) return
-    // Buscar primeiro na companhia (reajuste global da empresa)
-    pb.collection('companies')
-      .getOne(neg.company_id)
-      .then((comp: any) => {
-        if (comp.annual_tariff_adjustment != null && annualTariffAdjustment === '') {
-          setAnnualTariffAdjustment(Number(comp.annual_tariff_adjustment))
-        }
-      })
-      .catch(() => {})
-
     pb.collection('proposal_settings')
       .getFirstListItem(`company_id='${neg.company_id}'`)
       .then((record: any) => {
@@ -130,9 +120,6 @@ export function FinancialAnalysisCard({
             ...DEFAULT_SIMULTANEITY_FACTORS,
             ...record.pricing.simultaneity_factors,
           })
-        }
-        if (record.default_tariff_adjustment != null && annualTariffAdjustment === '') {
-          setAnnualTariffAdjustment(record.default_tariff_adjustment)
         }
       })
       .catch(() => {})
@@ -158,11 +145,29 @@ export function FinancialAnalysisCard({
       const details = await fetchTariffDetails(neg.utility_id, cat)
       setTariffDetails(details)
       setTariffFound(details.found !== false)
+
+      // Se a negociação ainda não tem reajuste definido ou está em branco, preenche com o reajuste da concessionária
+      const existingNegAdj =
+        neg.annual_tariff_adjustment != null
+          ? Number(neg.annual_tariff_adjustment)
+          : neg.sizing?.annual_tariff_adjustment != null
+            ? Number(neg.sizing?.annual_tariff_adjustment)
+            : null
+
+      if (existingNegAdj !== null) {
+        setAnnualTariffAdjustment(existingNegAdj)
+      } else if (
+        details.annual_tariff_adjustment !== undefined &&
+        details.annual_tariff_adjustment !== null
+      ) {
+        setAnnualTariffAdjustment(Number(details.annual_tariff_adjustment))
+      }
+
       const price = await fetchLatestProposalPrice(neg.id)
       setSystemPrice(price || (Number(neg.sizing?.kit_power_kwp) || 0) * 4000)
     }
     loadData()
-  }, [neg.id, neg.utility_id])
+  }, [neg.id, neg.utility_id, neg.annual_tariff_adjustment, neg.sizing?.annual_tariff_adjustment])
 
   const negKey = JSON.stringify(neg.sizing || {})
   useEffect(() => {
@@ -177,15 +182,16 @@ export function FinancialAnalysisCard({
     )
     setPublicLightingFee(neg.public_lighting_fee != null ? neg.public_lighting_fee : 0)
     if (neg.annual_tariff_adjustment != null) {
-      setAnnualTariffAdjustment(neg.annual_tariff_adjustment)
+      setAnnualTariffAdjustment(Number(neg.annual_tariff_adjustment))
     } else if (neg.sizing?.annual_tariff_adjustment != null) {
-      setAnnualTariffAdjustment(neg.sizing?.annual_tariff_adjustment)
+      setAnnualTariffAdjustment(Number(neg.sizing?.annual_tariff_adjustment))
     }
   }, [
     neg.consumer_category,
     neg.simultaneity_factor,
     neg.public_lighting_fee,
     neg.annual_tariff_adjustment,
+    neg.sizing?.annual_tariff_adjustment,
     negKey,
   ])
 
@@ -364,49 +370,45 @@ export function FinancialAnalysisCard({
             <p className="text-xs text-muted-foreground">Outras taxas mensais fixas</p>
           </div>
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <Label>Reajuste Tarifário Anual (%)</Label>
-                {!isAdmin && (
-                  <Badge variant="outline" className="text-[10px] font-normal py-0">
-                    Padrão da empresa
-                  </Badge>
-                )}
+            <div className="flex items-center justify-between gap-1">
+              <div className="flex items-center gap-1 min-w-0">
+                <Label className="truncate">Reajuste Anual (%)</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground cursor-pointer shrink-0" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs text-xs">
+                      Reajuste anual da tarifa da concessionária. Puxado automaticamente da
+                      concessionária da proposta e aplicado ano a ano na tarifa e no Fio B.
+                      {isAdmin ? ' Como administrador, você pode editar para esta negociação.' : ''}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <HelpCircle className="h-3 w-3 text-muted-foreground cursor-pointer" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs text-xs">
-                    Percentual médio de reajuste tarifário anual da concessionária. Aplicado ano a
-                    ano sobre a tarifa de energia e sobre o Fio B.{' '}
-                    {isAdmin
-                      ? 'Você pode ajustar o valor para esta proposta.'
-                      : 'Definido globalmente pelo administrador da sua empresa.'}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              {!isAdmin && (
+                <Badge variant="outline" className="text-[10px] font-normal py-0 shrink-0">
+                  Concessionária
+                </Badge>
+              )}
             </div>
             {isAdmin ? (
               <NumericInput
                 value={annualTariffAdjustment}
                 onValueChange={handleAdjustmentChange}
                 onBlur={handleAdjustmentBlur}
-                placeholder="Ex: 5"
+                placeholder="Ex: 8"
               />
             ) : (
               <div className="h-10 px-3 py-2 rounded-md border bg-muted/40 text-sm font-medium flex items-center justify-between text-muted-foreground">
-                <span>
-                  {annualTariffAdjustment !== '' ? `${annualTariffAdjustment}%` : 'Não definido'}
-                </span>
+                <span>{annualTariffAdjustment !== '' ? `${annualTariffAdjustment}%` : '0%'}</span>
                 <span className="text-[11px] text-muted-foreground">Somente leitura</span>
               </div>
             )}
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground truncate">
               {isAdmin
-                ? 'Pré-preenchido com o valor global da empresa'
-                : 'Visualização da taxa definida pela empresa'}
+                ? 'Puxado da concessionária (editável)'
+                : 'Definido no cadastro da concessionária'}
             </p>
           </div>
         </div>
@@ -580,6 +582,9 @@ export function FinancialAnalysisCard({
                         <th className="py-2.5 px-3 font-semibold text-emerald-800">
                           Economia do Ano
                         </th>
+                        <th className="py-2.5 px-3 text-muted-foreground font-normal">
+                          Degrad. Acumulada
+                        </th>
                         <th className="py-2.5 px-3 text-emerald-800">Economia Acumulada</th>
                         <th className="py-2.5 px-3 text-right">Saldo do Investimento</th>
                       </tr>
@@ -616,6 +621,11 @@ export function FinancialAnalysisCard({
                             <td className="py-2 px-3 font-medium text-emerald-700">
                               {BRL.format(row.annualSavings)}
                             </td>
+                            <td className="py-2 px-3 text-muted-foreground font-mono">
+                              {row.cumulativeDegradationPct != null
+                                ? `${row.cumulativeDegradationPct.toFixed(1)}%`
+                                : '0.0%'}
+                            </td>
                             <td className="py-2 px-3 font-semibold text-emerald-800">
                               {BRL.format(row.cumulativeSavings)}
                             </td>
@@ -638,7 +648,7 @@ export function FinancialAnalysisCard({
                 <div className="p-3 bg-slate-50 border-t text-[11px] text-muted-foreground flex items-center justify-between flex-wrap gap-2">
                   <span>
                     ★ Economia do ano = Custo sem solar − Custo com solar (com reajuste tarifário
-                    anual e degradação física do módulo).
+                    anual).
                   </span>
                   <span>Investimento considerado: {BRL.format(systemPrice)}</span>
                 </div>
@@ -778,8 +788,8 @@ export function FinancialAnalysisCard({
                         </TooltipTrigger>
                         <TooltipContent className="max-w-xs text-xs">
                           O valor cadastrado é a tarifa base integral. O sistema aplica a fração
-                          anual da Lei 14.300 (2025: 60%, 2026: 75%, 2027: 90%, 2028+: 100%) sobre a
-                          energia compensada.
+                          anual da Lei 14.300 (2025: 60%, 2026: 60%, 2027: 75%, 2028: 90%, 2029+:
+                          100%) sobre a energia compensada.
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>

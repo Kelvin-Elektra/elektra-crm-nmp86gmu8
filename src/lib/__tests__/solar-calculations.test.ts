@@ -155,33 +155,38 @@ describe('solar-calculations', () => {
       )
     })
 
-    it('deve calcular geração decrescente com a taxa de degradação anual dos módulos', () => {
+    it('deve manter geração constante para fins de ROI simplificado e exibir degradação acumulada', () => {
       const table = calculateYearlySavingsTable(defaultParams)
       expect(table).toHaveLength(25)
 
-      // Ano 1: geração cheia 6552
+      // Geração é mantida constante no cálculo financeiro (conforme solicitado pelo usuário)
       expect(table[0].generationKwh).toBe(6552)
+      expect(table[1].generationKwh).toBe(6552)
+      expect(table[24].generationKwh).toBe(6552)
 
-      // Ano 2: 6552 * (1 - 0.005)^1 = 6519.24 -> ~6519.2
-      expect(table[1].generationKwh).toBe(6519.2)
-
-      // Ano 25: 6552 * (1 - 0.005)^24 = ~5808.9
-      expect(table[24].generationKwh).toBeLessThan(table[0].generationKwh)
-      expect(table[24].generationKwh).toBeCloseTo(6552 * Math.pow(0.995, 24), 0)
+      // Coluna informativa de degradação acumulada
+      // Ano 1: 0%
+      expect(table[0].cumulativeDegradationPct).toBe(0)
+      // Ano 2: 0.5% (1 - (1 - 0.005)^1) * 100 = 0.5%
+      expect(table[1].cumulativeDegradationPct).toBeCloseTo(0.5, 1)
+      // Ano 25: (1 - 0.995^24) * 100 ≈ 11.3%
+      expect(table[24].cumulativeDegradationPct).toBeCloseTo(11.3, 1)
     })
 
-    it('deve aplicar a cronologia de Fio B corretamente (2025: 60%, 2026: 75%, 2027: 90%, 2028+: 100%)', () => {
+    it('deve aplicar a cronologia de Fio B corretamente (2025: 60%, 2026: 60%, 2027: 75%, 2028: 90%, 2029+: 100%)', () => {
       // Testes diretos na função getFioBScalingFactor e constantes do motor financeiro
       expect(getFioBScalingFactor(2025)).toBe(0.6)
-      expect(getFioBScalingFactor(2026)).toBe(0.75)
-      expect(getFioBScalingFactor(2027)).toBe(0.9)
-      expect(getFioBScalingFactor(2028)).toBe(1.0)
+      expect(getFioBScalingFactor(2026)).toBe(0.6)
+      expect(getFioBScalingFactor(2027)).toBe(0.75)
+      expect(getFioBScalingFactor(2028)).toBe(0.9)
       expect(getFioBScalingFactor(2029)).toBe(1.0)
       expect(getFioBScalingFactor(2035)).toBe(1.0)
 
       expect(FIO_B_SCALING_FACTORS[2025]).toBe(0.6)
-      expect(FIO_B_SCALING_FACTORS[2026]).toBe(0.75)
-      expect(FIO_B_SCALING_FACTORS[2027]).toBe(0.9)
+      expect(FIO_B_SCALING_FACTORS[2026]).toBe(0.6)
+      expect(FIO_B_SCALING_FACTORS[2027]).toBe(0.75)
+      expect(FIO_B_SCALING_FACTORS[2028]).toBe(0.9)
+
       // Teste com startYear = 2025 para validar todos os degraus da cronologia
       const table2025 = calculateYearlySavingsTable({
         ...defaultParams,
@@ -192,17 +197,21 @@ describe('solar-calculations', () => {
       expect(table2025[0].calendarYear).toBe(2025)
       expect(table2025[0].fioBPercent).toBe(60)
 
-      // Ano 2 (2026): 75%
+      // Ano 2 (2026): 60%
       expect(table2025[1].calendarYear).toBe(2026)
-      expect(table2025[1].fioBPercent).toBe(75)
+      expect(table2025[1].fioBPercent).toBe(60)
 
-      // Ano 3 (2027): 90%
+      // Ano 3 (2027): 75%
       expect(table2025[2].calendarYear).toBe(2027)
-      expect(table2025[2].fioBPercent).toBe(90)
+      expect(table2025[2].fioBPercent).toBe(75)
 
-      // Ano 4 (2028): 100%
+      // Ano 4 (2028): 90%
       expect(table2025[3].calendarYear).toBe(2028)
-      expect(table2025[3].fioBPercent).toBe(100)
+      expect(table2025[3].fioBPercent).toBe(90)
+
+      // Ano 5 (2029): 100%
+      expect(table2025[4].calendarYear).toBe(2029)
+      expect(table2025[4].fioBPercent).toBe(100)
 
       // Ano 25 (2049): 100%
       expect(table2025[24].calendarYear).toBe(2049)
@@ -210,17 +219,17 @@ describe('solar-calculations', () => {
 
       // Com startYear = 2026 (defaultParams)
       const table2026 = calculateYearlySavingsTable(defaultParams)
-      // Ano 1 (2026): 75%
+      // Ano 1 (2026): 60%
       expect(table2026[0].calendarYear).toBe(2026)
-      expect(table2026[0].fioBPercent).toBe(75)
+      expect(table2026[0].fioBPercent).toBe(60)
 
-      // Ano 2 (2027): 90%
+      // Ano 2 (2027): 75%
       expect(table2026[1].calendarYear).toBe(2027)
-      expect(table2026[1].fioBPercent).toBe(90)
+      expect(table2026[1].fioBPercent).toBe(75)
 
-      // Ano 3 (2028): 100%
+      // Ano 3 (2028): 90%
       expect(table2026[2].calendarYear).toBe(2028)
-      expect(table2026[2].fioBPercent).toBe(100)
+      expect(table2026[2].fioBPercent).toBe(90)
 
       // Ano 4 (2029): 100%
       expect(table2026[3].calendarYear).toBe(2029)
