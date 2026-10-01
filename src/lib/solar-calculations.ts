@@ -525,11 +525,10 @@ export function calculateDetailed25YearsProjection(
   for (let y = 1; y <= years; y++) {
     const calendarYear = currentCalendarYear + (y - 1)
 
-    // 1. Degradação acumulada apenas para exibição informativa (Ano 1 = 0%, Ano N = 1 - (1 - d)^(N-1))
-    // A geração para o cálculo financeiro permanece constante (análise simplificada solicitada pelo usuário)
+    // 1. Degradação acumulada e geração anual com degradação aplicada (Ano 1 = 100% de geração, Ano N = Geração Ano 1 * (1 - d)^(N-1))
     const degradationFactor = Math.pow(1 - degradationRate, y - 1)
     const cumulativeDegradationPct = Number(((1 - degradationFactor) * 100).toFixed(1))
-    const yearGeneration = Number(params.annualGenerationYear1Kwh.toFixed(1))
+    const yearGeneration = Number((params.annualGenerationYear1Kwh * degradationFactor).toFixed(1))
 
     // 2. Reajuste anual composto da tarifa de energia
     const tariffFactor = Math.pow(1 + tariffAdjustmentRate, y - 1)

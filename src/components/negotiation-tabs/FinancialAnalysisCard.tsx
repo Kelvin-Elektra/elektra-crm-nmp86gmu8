@@ -89,13 +89,30 @@ export function FinancialAnalysisCard({
   const [publicLightingFee, setPublicLightingFee] = useState(
     neg.public_lighting_fee != null ? neg.public_lighting_fee : 0,
   )
-  const [annualTariffAdjustment, setAnnualTariffAdjustment] = useState<number | ''>(
-    neg.annual_tariff_adjustment != null
-      ? neg.annual_tariff_adjustment
-      : neg.sizing?.annual_tariff_adjustment != null
-        ? neg.sizing?.annual_tariff_adjustment
-        : '',
-  )
+  const [annualTariffAdjustment, setAnnualTariffAdjustment] = useState<number | ''>(() => {
+    if (
+      neg.annual_tariff_adjustment !== null &&
+      neg.annual_tariff_adjustment !== undefined &&
+      neg.annual_tariff_adjustment !== ''
+    ) {
+      return Number(neg.annual_tariff_adjustment)
+    }
+    if (
+      neg.sizing?.annual_tariff_adjustment !== null &&
+      neg.sizing?.annual_tariff_adjustment !== undefined &&
+      neg.sizing?.annual_tariff_adjustment !== ''
+    ) {
+      return Number(neg.sizing?.annual_tariff_adjustment)
+    }
+    if (
+      neg.expand?.utility_id?.annual_tariff_adjustment !== null &&
+      neg.expand?.utility_id?.annual_tariff_adjustment !== undefined &&
+      !isNaN(Number(neg.expand?.utility_id?.annual_tariff_adjustment))
+    ) {
+      return Number(neg.expand.utility_id.annual_tariff_adjustment)
+    }
+    return ''
+  })
   const [annualDegradation, setAnnualDegradation] = useState<number>(0.5)
   const [tariffDetails, setTariffDetails] = useState<TariffDetails>({
     te: 0,
@@ -146,21 +163,31 @@ export function FinancialAnalysisCard({
       setTariffDetails(details)
       setTariffFound(details.found !== false)
 
-      // Se a negociação ainda não tem reajuste definido ou está em branco, preenche com o reajuste da concessionária
-      const existingNegAdj =
-        neg.annual_tariff_adjustment != null
-          ? Number(neg.annual_tariff_adjustment)
-          : neg.sizing?.annual_tariff_adjustment != null
-            ? Number(neg.sizing?.annual_tariff_adjustment)
-            : null
+      // Prioridade obrigatória:
+      // (a) valor salvo na negociação
+      // (b) pv_utilities.annual_tariff_adjustment da concessionária da negociação
+      // (c) vazio/0 — NUNCA 1% fixo
+      const hasNegAdj =
+        neg.annual_tariff_adjustment !== null &&
+        neg.annual_tariff_adjustment !== undefined &&
+        neg.annual_tariff_adjustment !== ''
+      const hasSizingAdj =
+        neg.sizing?.annual_tariff_adjustment !== null &&
+        neg.sizing?.annual_tariff_adjustment !== undefined &&
+        neg.sizing?.annual_tariff_adjustment !== ''
 
-      if (existingNegAdj !== null) {
-        setAnnualTariffAdjustment(existingNegAdj)
+      if (hasNegAdj) {
+        setAnnualTariffAdjustment(Number(neg.annual_tariff_adjustment))
       } else if (
         details.annual_tariff_adjustment !== undefined &&
-        details.annual_tariff_adjustment !== null
+        details.annual_tariff_adjustment !== null &&
+        !isNaN(Number(details.annual_tariff_adjustment))
       ) {
         setAnnualTariffAdjustment(Number(details.annual_tariff_adjustment))
+      } else if (hasSizingAdj) {
+        setAnnualTariffAdjustment(Number(neg.sizing?.annual_tariff_adjustment))
+      } else {
+        setAnnualTariffAdjustment('')
       }
 
       const price = await fetchLatestProposalPrice(neg.id)
@@ -181,10 +208,27 @@ export function FinancialAnalysisCard({
             30,
     )
     setPublicLightingFee(neg.public_lighting_fee != null ? neg.public_lighting_fee : 0)
-    if (neg.annual_tariff_adjustment != null) {
+    const hasNegAdj =
+      neg.annual_tariff_adjustment !== null &&
+      neg.annual_tariff_adjustment !== undefined &&
+      neg.annual_tariff_adjustment !== ''
+    const hasSizingAdj =
+      neg.sizing?.annual_tariff_adjustment !== null &&
+      neg.sizing?.annual_tariff_adjustment !== undefined &&
+      neg.sizing?.annual_tariff_adjustment !== ''
+
+    if (hasNegAdj) {
       setAnnualTariffAdjustment(Number(neg.annual_tariff_adjustment))
-    } else if (neg.sizing?.annual_tariff_adjustment != null) {
+    } else if (
+      tariffDetails.annual_tariff_adjustment !== undefined &&
+      tariffDetails.annual_tariff_adjustment !== null &&
+      !isNaN(Number(tariffDetails.annual_tariff_adjustment))
+    ) {
+      setAnnualTariffAdjustment(Number(tariffDetails.annual_tariff_adjustment))
+    } else if (hasSizingAdj) {
       setAnnualTariffAdjustment(Number(neg.sizing?.annual_tariff_adjustment))
+    } else {
+      setAnnualTariffAdjustment('')
     }
   }, [
     neg.consumer_category,
@@ -583,7 +627,7 @@ export function FinancialAnalysisCard({
                           Economia do Ano
                         </th>
                         <th className="py-2.5 px-3 text-muted-foreground font-normal">
-                          Degrad. Acumulada
+                          Geração Anual (kWh)
                         </th>
                         <th className="py-2.5 px-3 text-emerald-800">Economia Acumulada</th>
                         <th className="py-2.5 px-3 text-right">Saldo do Investimento</th>
@@ -621,10 +665,10 @@ export function FinancialAnalysisCard({
                             <td className="py-2 px-3 font-medium text-emerald-700">
                               {BRL.format(row.annualSavings)}
                             </td>
-                            <td className="py-2 px-3 text-muted-foreground font-mono">
-                              {row.cumulativeDegradationPct != null
-                                ? `${row.cumulativeDegradationPct.toFixed(1)}%`
-                                : '0.0%'}
+                            <td className="py-2 px-3 text-slate-700 font-mono">
+                              {row.generationKwh != null
+                                ? `${Math.round(row.generationKwh).toLocaleString('pt-BR')} kWh`
+                                : '—'}
                             </td>
                             <td className="py-2 px-3 font-semibold text-emerald-800">
                               {BRL.format(row.cumulativeSavings)}

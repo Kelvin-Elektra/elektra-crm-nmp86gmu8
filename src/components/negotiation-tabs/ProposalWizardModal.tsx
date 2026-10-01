@@ -419,16 +419,19 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
       )
       const tariffDetails = await fetchTariffDetails(neg.utility_id, consumerCategory)
       const annualTariffAdjustment =
-        neg.annual_tariff_adjustment != null
+        neg.annual_tariff_adjustment !== null &&
+        neg.annual_tariff_adjustment !== undefined &&
+        neg.annual_tariff_adjustment !== ''
           ? Number(neg.annual_tariff_adjustment)
-          : neg.sizing?.annual_tariff_adjustment != null
+          : neg.sizing?.annual_tariff_adjustment !== null &&
+              neg.sizing?.annual_tariff_adjustment !== undefined &&
+              neg.sizing?.annual_tariff_adjustment !== ''
             ? Number(neg.sizing?.annual_tariff_adjustment)
-            : tariffDetails.annual_tariff_adjustment != null
+            : tariffDetails.annual_tariff_adjustment !== null &&
+                tariffDetails.annual_tariff_adjustment !== undefined &&
+                !isNaN(Number(tariffDetails.annual_tariff_adjustment))
               ? Number(tariffDetails.annual_tariff_adjustment)
-              : pricingDetails?.settings?.default_tariff_adjustment != null
-                ? Number(pricingDetails.settings.default_tariff_adjustment)
-                : 0
-
+              : 0
       const annualDegradation =
         rawPricingData?.rawModule?.annual_degradation != null
           ? Number(rawPricingData.rawModule.annual_degradation)
