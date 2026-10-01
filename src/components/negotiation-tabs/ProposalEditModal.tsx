@@ -299,14 +299,16 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           const co2AvoidedTon = calculateCo2Avoided(estGen)
 
           // Projeção Detalhada 25 anos com degradação e reajuste anual de tarifas
-          // Preservar valores já congelados no snapshot se existirem
+          // Preservar valores já congelados no snapshot se existirem; se não existirem, prioridade: negociação > concessionária > 0
           const prevCalcSnap = proposal.calc_snapshot || updatedSnapshot.calc_snapshot || {}
           const annualTariffAdjustment =
             prevCalcSnap.annual_tariff_adjustment != null
               ? Number(prevCalcSnap.annual_tariff_adjustment)
-              : fp?.annual_tariff_adjustment != null
-                ? Number(fp.annual_tariff_adjustment)
-                : Number(rawSizing.annual_tariff_adjustment) || 0
+              : fp?.tariffDetails?.annual_tariff_adjustment != null
+                ? Number(fp.tariffDetails.annual_tariff_adjustment)
+                : fp?.annual_tariff_adjustment != null
+                  ? Number(fp.annual_tariff_adjustment)
+                  : Number(rawSizing.annual_tariff_adjustment) || 0
           const annualDegradation =
             prevCalcSnap.annual_degradation != null
               ? Number(prevCalcSnap.annual_degradation)
