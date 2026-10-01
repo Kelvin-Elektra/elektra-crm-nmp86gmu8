@@ -299,14 +299,20 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           const co2AvoidedTon = calculateCo2Avoided(estGen)
 
           // Projeção Detalhada 25 anos com degradação e reajuste anual de tarifas
+          // Preservar valores já congelados no snapshot se existirem
+          const prevCalcSnap = proposal.calc_snapshot || updatedSnapshot.calc_snapshot || {}
           const annualTariffAdjustment =
-            fp?.annual_tariff_adjustment != null
-              ? Number(fp.annual_tariff_adjustment)
-              : Number(rawSizing.annual_tariff_adjustment) || 0
+            prevCalcSnap.annual_tariff_adjustment != null
+              ? Number(prevCalcSnap.annual_tariff_adjustment)
+              : fp?.annual_tariff_adjustment != null
+                ? Number(fp.annual_tariff_adjustment)
+                : Number(rawSizing.annual_tariff_adjustment) || 0
           const annualDegradation =
-            fp?.annual_degradation != null
-              ? Number(fp.annual_degradation)
-              : Number(updatedSnapshot.pricing_data?.rawModule?.annual_degradation) || 0.5
+            prevCalcSnap.annual_degradation != null
+              ? Number(prevCalcSnap.annual_degradation)
+              : fp?.annual_degradation != null
+                ? Number(fp.annual_degradation)
+                : Number(updatedSnapshot.pricing_data?.rawModule?.annual_degradation) || 0.5
 
           const detailedProjectionTable = calculateDetailed25YearsProjection({
             annualConsumptionKwh: avgCons * 12,
@@ -334,6 +340,22 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           const tirPct = calculateTir(finalTotal, annualSavingsVal, 25)
           const savingsProjection = generateSavingsProjection(detailedProjectionTable)
 
+          const calcSnapshot = {
+            ...prevCalcSnap,
+            frozen_at: prevCalcSnap.frozen_at || new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            annual_degradation: annualDegradation,
+            annual_tariff_adjustment: annualTariffAdjustment,
+            simultaneity_factor: Number(rawSizing.simultaneity_factor) || 30,
+            tariff_details: fp?.tariffDetails || prevCalcSnap.tariff_details || {},
+            total_investment: finalTotal,
+            savings_projection_table: detailedProjectionTable,
+            savings_25_years: savings25YearsVal,
+            payback_years: paybackYearsVal,
+            tir_pct: tirPct,
+            investment_multiple: investmentMultiple,
+          }
+
           const financialPayload = {
             total_investment: finalTotal,
             investment: finalTotal,
@@ -360,7 +382,10 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
             tariff_details: fp?.tariffDetails || {},
             savings_projection: savingsProjection,
             savings_projection_table: detailedProjectionTable,
+            calc_snapshot: calcSnapshot,
           }
+
+          updatedSnapshot.calc_snapshot = calcSnapshot
           // Obter schemas dinâmicos se possível para filtrar o fixed_data e enriquecer semanticamente
           let templateFields: any[] | undefined = undefined
           let dynamicSchema: any = undefined
@@ -414,6 +439,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
         notes: notes,
         validity_date: validityDate ? new Date(validityDate).toISOString() : null,
         snapshot_data: updatedSnapshot,
+        calc_snapshot: updatedSnapshot.calc_snapshot || null,
         external_id: proposal.id,
         ...(updatedViewUrl ? { view_url: updatedViewUrl } : {}),
       })

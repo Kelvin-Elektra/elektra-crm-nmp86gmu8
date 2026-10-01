@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-01T15:01:21.912Z",
+  "generatedAt": "2026-10-01T21:00:52.863Z",
   "collections": [
     {
       "name": "users",
@@ -209,6 +209,12 @@
         {
           "name": "installation_lead_times",
           "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "annual_tariff_adjustment",
+          "type": "number",
           "required": false,
           "system": false
         }
@@ -609,6 +615,12 @@
         {
           "name": "proposal_code",
           "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "calc_snapshot",
+          "type": "json",
           "required": false,
           "system": false
         }

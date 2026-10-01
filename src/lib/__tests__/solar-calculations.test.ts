@@ -7,6 +7,7 @@ import {
   calculateTir,
   calculateSavings25Years,
   calculateYearlySavingsTable,
+  calculateDetailed25YearsProjection,
   generateSavingsProjection,
   extractValidityDays,
   formatProposalDate,
@@ -133,6 +134,27 @@ describe('solar-calculations', () => {
       startYear: 2026,
     }
 
+    it('deve gerar 25 linhas com todas as propriedades esperadas e colunas comparativas', () => {
+      const table = calculateDetailed25YearsProjection(defaultParams)
+      expect(table).toHaveLength(25)
+      expect(table[0]).toHaveProperty('year', 1)
+      expect(table[0]).toHaveProperty('generationKwh')
+      expect(table[0]).toHaveProperty('consumptionKwh')
+      expect(table[0]).toHaveProperty('effectiveTariff')
+      expect(table[0]).toHaveProperty('costWithoutSolar')
+      expect(table[0]).toHaveProperty('costWithSolar')
+      expect(table[0]).toHaveProperty('annualSavings')
+      expect(table[0]).toHaveProperty('cumulativeSavings')
+      expect(table[0]).toHaveProperty('balanceWithInvestment')
+      expect(table[24]).toHaveProperty('year', 25)
+
+      // Economia do ano = Custo sem solar - Custo com solar
+      expect(table[0].annualSavings).toBeCloseTo(
+        Math.max(0, table[0].costWithoutSolar - table[0].costWithSolar),
+        1,
+      )
+    })
+
     it('deve calcular geração decrescente com a taxa de degradação anual dos módulos', () => {
       const table = calculateYearlySavingsTable(defaultParams)
       expect(table).toHaveLength(25)
@@ -203,6 +225,26 @@ describe('solar-calculations', () => {
       // Ano 4 (2029): 100%
       expect(table2026[3].calendarYear).toBe(2029)
       expect(table2026[3].fioBPercent).toBe(100)
+    })
+
+    it('deve calcular a mecânica comparativa Sem Solar x Com Solar x Economia ano a ano com inflação energética', () => {
+      const table = calculateDetailed25YearsProjection(defaultParams)
+
+      // Ano 1 vs Ano 2: tarifas e custos sem solar devem subir pela inflação energética (6%)
+      expect(table[1].effectiveTariff).toBeGreaterThan(table[0].effectiveTariff)
+      expect(table[1].costWithoutSolar).toBeGreaterThan(table[0].costWithoutSolar)
+
+      // Custo com solar é menor que custo sem solar
+      expect(table[0].costWithSolar).toBeLessThan(table[0].costWithoutSolar)
+      expect(table[1].costWithSolar).toBeLessThan(table[1].costWithoutSolar)
+
+      // Economia ano a ano deve bater com a diferença
+      table.forEach((row) => {
+        expect(row.annualSavings).toBeCloseTo(
+          Math.max(0, row.costWithoutSolar - row.costWithSolar),
+          1,
+        )
+      })
     })
 
     it('deve acumular saldo de créditos na UC e transitar para anos seguintes', () => {

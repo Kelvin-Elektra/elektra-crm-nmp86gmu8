@@ -39,7 +39,17 @@ import {
   TableCell,
 } from '@/components/ui/table'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { Plus, Pencil, Trash2, Info, Building2, Search, CheckCircle2, Zap } from 'lucide-react'
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Info,
+  Building2,
+  Search,
+  CheckCircle2,
+  Zap,
+  TrendingUp,
+} from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/use-toast'
@@ -141,6 +151,11 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
   const [voltageModalMap, setVoltageModalMap] = useState<UtilityNetworkVoltages>({})
   const [savingVoltages, setSavingVoltages] = useState(false)
 
+  // Reajuste tarifário anual médio da companhia
+  const [tariffAdjustmentModalOpen, setTariffAdjustmentModalOpen] = useState(false)
+  const [companyTariffAdjustment, setCompanyTariffAdjustment] = useState<number>(0)
+  const [savingTariffAdjustment, setSavingTariffAdjustment] = useState(false)
+
   const loadData = async () => {
     if (!companyId) return
     setLoading(true)
@@ -155,6 +170,14 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
         expand: 'utility_id',
       })
       setRules(tariffRules)
+
+      // Carregar reajuste tarifário anual da companhia
+      try {
+        const comp = await pb.collection('companies').getOne(companyId)
+        setCompanyTariffAdjustment(Number(comp.annual_tariff_adjustment) || 0)
+      } catch (e) {
+        console.warn('Não foi possível carregar reajuste tarifário da companhia:', e)
+      }
     } catch (err: any) {
       console.error('Erro ao carregar dados de tarifas/concessionárias:', err)
     } finally {
@@ -445,6 +468,43 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
     }))
   }
 
+  const handleSaveCompanyTariffAdjustment = async () => {
+    if (!companyId) return
+    setSavingTariffAdjustment(true)
+    try {
+      await pb.collection('companies').update(companyId, {
+        annual_tariff_adjustment: Number(companyTariffAdjustment) || 0,
+      })
+      // Sincronizar também com proposal_settings caso exista para manter coerência
+      try {
+        const setting = await pb
+          .collection('proposal_settings')
+          .getFirstListItem(`company_id='${companyId}'`)
+        if (setting) {
+          await pb.collection('proposal_settings').update(setting.id, {
+            default_tariff_adjustment: Number(companyTariffAdjustment) || 0,
+          })
+        }
+      } catch {
+        /* intentionally ignored */
+      }
+
+      toast({
+        title: 'Reajuste tarifário salvo',
+        description: `Reajuste médio de ${companyTariffAdjustment}% configurado para a empresa.`,
+      })
+      setTariffAdjustmentModalOpen(false)
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao salvar reajuste',
+        description: err.message,
+      })
+    } finally {
+      setSavingTariffAdjustment(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Bloco 1: Concessionárias Habilitadas da Empresa */}
@@ -560,6 +620,15 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-amber-500"
+                          onClick={() => setTariffAdjustmentModalOpen(true)}
+                          title="Reajuste Tarifário Anual Médio (%)"
+                        >
+                          <TrendingUp className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-primary"
                           onClick={() => handleOpenVoltagesModal(cu)}
                           title="Configurar Tensões de Fase e Linha"
@@ -600,7 +669,8 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
               </p>
               <span className="text-xs text-muted-foreground">
                 Clique no ícone de raio <Zap className="w-3 h-3 inline text-primary mx-0.5" /> para
-                configurar as tensões fase e linha.
+                tensões ou no ícone <TrendingUp className="w-3 h-3 inline text-amber-500 mx-0.5" />{' '}
+                para reajuste anual.
               </span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 max-h-80 overflow-y-auto p-1 border rounded-lg bg-background">
@@ -654,18 +724,32 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
                       )}
                     </div>
                     {isEnabled && utilRec && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-muted-foreground hover:text-primary shrink-0"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleOpenVoltagesModal(utilRec)
-                        }}
-                        title="Configurar Tensões de Fase e Linha"
-                      >
-                        <Zap className="w-3.5 h-3.5" />
-                      </Button>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-amber-500"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setTariffAdjustmentModalOpen(true)
+                          }}
+                          title="Reajuste Tarifário Anual Médio (%)"
+                        >
+                          <TrendingUp className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-primary"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleOpenVoltagesModal(utilRec)
+                          }}
+                          title="Configurar Tensões de Fase e Linha"
+                        >
+                          <Zap className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                     )}
                   </div>
                 )
@@ -726,16 +810,28 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
                       {(() => {
                         const u = utilities.find((x) => x.id === rule.utility_id)
                         return (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-xs text-primary gap-1"
-                            onClick={() => u && handleOpenVoltagesModal(u)}
-                            disabled={!u}
-                          >
-                            <Zap className="w-3.5 h-3.5" />
-                            Configurar
-                          </Button>
+                          <div className="inline-flex items-center justify-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs text-amber-600 hover:text-amber-700 gap-1"
+                              onClick={() => setTariffAdjustmentModalOpen(true)}
+                              title="Reajuste Tarifário Anual Médio (%)"
+                            >
+                              <TrendingUp className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Reajuste</span>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs text-primary gap-1"
+                              onClick={() => u && handleOpenVoltagesModal(u)}
+                              disabled={!u}
+                            >
+                              <Zap className="w-3.5 h-3.5" />
+                              Tensões
+                            </Button>
+                          </div>
                         )
                       })()}
                     </TableCell>
@@ -957,6 +1053,59 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Modal de Configuração do Reajuste Tarifário Anual Médio da Empresa */}
+      <Dialog open={tariffAdjustmentModalOpen} onOpenChange={setTariffAdjustmentModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-amber-500" />
+              <DialogTitle>Reajuste Tarifário Anual Médio</DialogTitle>
+            </div>
+            <DialogDescription>
+              Percentual médio de reajuste anual da tarifa de energia elétrica aplicado pela
+              distribuidora. Esse índice é utilizado como base global para projeções financeiras das
+              propostas.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Reajuste Tarifário Anual Médio (%)</Label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  value={companyTariffAdjustment}
+                  onChange={(e) => setCompanyTariffAdjustment(Number(e.target.value) || 0)}
+                  placeholder="Ex: 6.5"
+                  className="pr-8"
+                />
+                <span className="absolute right-3 top-2.5 text-xs text-muted-foreground font-semibold">
+                  %
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                O valor configurado aqui será sugerido automaticamente como ponto de partida nas
+                novas propostas da empresa.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={savingTariffAdjustment}
+              onClick={() => setTariffAdjustmentModalOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button disabled={savingTariffAdjustment} onClick={handleSaveCompanyTariffAdjustment}>
+              {savingTariffAdjustment ? 'Salvando...' : 'Salvar Reajuste'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal de Criação / Edição de Tarifa */}
       <Dialog open={open} onOpenChange={setOpen}>

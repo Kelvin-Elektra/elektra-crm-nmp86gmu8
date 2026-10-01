@@ -724,6 +724,29 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
       const tirPct = calculateTir(finalPrice, annualSavingsVal, 25)
       const savingsProjection = generateSavingsProjection(detailedProjectionTable)
 
+      const calcSnapshot = {
+        frozen_at: new Date().toISOString(),
+        annual_degradation: annualDegradation,
+        annual_tariff_adjustment: annualTariffAdjustment,
+        simultaneity_factor: simultaneityFactor,
+        tariff_details: tariffDetails || {},
+        fio_b_value: Number(tariffDetails?.fio_b_value) || 0,
+        te: Number(tariffDetails?.te) || 0,
+        tusd: Number(tariffDetails?.tusd) || 0,
+        icms_rate: Number(tariffDetails?.icms_rate) || 0,
+        public_lighting_fee: Number(neg.public_lighting_fee) || 0,
+        estimated_monthly_generation_kwh: estMonthlyGenRough,
+        annual_generation_kwh: estMonthlyGenRough * 12,
+        avg_monthly_consumption_kwh: avgConsumptionVal,
+        annual_consumption_kwh: avgConsumptionVal * 12,
+        total_investment: finalPrice,
+        savings_projection_table: detailedProjectionTable,
+        savings_25_years: savings25YearsVal,
+        payback_years: paybackYearsVal,
+        tir_pct: tirPct,
+        investment_multiple: investmentMultiple,
+      }
+
       const financialPayload = {
         total_investment: finalPrice,
         investment: finalPrice,
@@ -750,6 +773,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
         tariff_details: tariffDetails || {},
         savings_projection: savingsProjection,
         savings_projection_table: detailedProjectionTable,
+        calc_snapshot: calcSnapshot,
         equipments: equipmentsList,
         commercial_conditions: commercialConditions,
       }
@@ -832,6 +856,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
         kit_details: JSON.stringify(enrichedSnapshotData),
         cost_breakdown: cost_breakdown,
         snapshot_data: enrichedSnapshotData,
+        calc_snapshot: calcSnapshot,
       }
 
       const rec = await pb.collection('proposals').create(proposalDataToCreate)
@@ -891,8 +916,10 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
         snapshot_data: {
           ...enrichedSnapshotData,
           view_url: viewUrl,
+          calc_snapshot: calcSnapshot,
           generator_proposal_id: generatorResult.id || null,
         },
+        calc_snapshot: calcSnapshot,
       })
 
       toast({ title: 'Proposta gerada com sucesso' })

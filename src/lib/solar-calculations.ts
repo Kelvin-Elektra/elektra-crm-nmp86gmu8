@@ -439,6 +439,8 @@ export interface YearlySavingsRow {
   effectiveTariff: number
   fioBRate: number
   fioBPercent: number
+  costWithoutSolar: number
+  costWithSolar: number
   annualSavings: number
   cumulativeSavings: number
   balanceWithInvestment: number
@@ -586,6 +588,8 @@ export function calculateDetailed25YearsProjection(
       effectiveTariff: Number(yearBaseRate.toFixed(4)),
       fioBRate: Number(effectiveFioBRate.toFixed(4)),
       fioBPercent: Number((fioBPercent * 100).toFixed(0)),
+      costWithoutSolar: Number(costWithoutSolar.toFixed(2)),
+      costWithSolar: Number(costWithSolar.toFixed(2)),
       annualSavings: Number(annualSavings.toFixed(2)),
       cumulativeSavings: Number(cumulativeSavings.toFixed(2)),
       balanceWithInvestment: Number((cumulativeSavings - inv).toFixed(2)),
@@ -623,6 +627,8 @@ export function calculateYearlySavingsTable(
       effectiveTariff: 0,
       fioBRate: 0,
       fioBPercent: 100,
+      costWithoutSolar: Number(ann.toFixed(2)),
+      costWithSolar: 0,
       annualSavings: Number(ann.toFixed(2)),
       cumulativeSavings: Number(accumulated.toFixed(2)),
       balanceWithInvestment: Number((accumulated - inv).toFixed(2)),

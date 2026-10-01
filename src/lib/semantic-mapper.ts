@@ -462,6 +462,22 @@ export const SEMANTIC_CONCEPTS: SemanticConceptDef[] = [
     negativeKeywords: [],
   },
   {
+    concept: 'savings_projection_table',
+    targetCategory: 'financial',
+    targetField: 'savings_projection_table',
+    synonyms: [
+      'savings projection table',
+      'yearly savings table',
+      'tabela projecao economia',
+      'tabela economia ano a ano',
+      'tabela comparativa ano a ano',
+      'tabela economia 25 anos',
+      'tabela sem solar com solar',
+    ],
+    keywords: ['tabela', 'table', 'projection_table'],
+    negativeKeywords: [],
+  },
+  {
     concept: 'annual_savings',
     targetCategory: 'financial',
     targetField: 'annual_savings',

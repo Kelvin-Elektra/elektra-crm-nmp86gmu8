@@ -28,7 +28,6 @@ import {
 import {
   Save,
   FileImage,
-  BarChart,
   Layers,
   GripVertical,
   Trash2,
@@ -85,7 +84,6 @@ export default function ProposalSettings() {
   const [formValidationErrors, setFormValidationErrors] = useState<Record<string, string>>({})
   const [activatingTemplateId, setActivatingTemplateId] = useState<string | null>(null)
 
-  const [indicators, setIndicators] = useState({ inflation: '5', interest: '1' })
   const [pagesLayout, setPagesLayout] = useState<{ id: string; elements: string[] }[]>([])
   const [simultaneityFactors, setSimultaneityFactors] = useState<Record<string, string>>({
     Residencial: '30',
@@ -158,7 +156,7 @@ export default function ProposalSettings() {
         if (record.active_template_id || record.template) {
           setActiveTemplate(record.active_template_id || record.template)
         }
-        if (record.indicators) setIndicators(record.indicators as any)
+
         if (record.branding) setFixedData(record.branding as any)
         if (record.templates_config && typeof record.templates_config === 'object') {
           setTemplatesConfig(record.templates_config as Record<string, Record<string, any>>)
@@ -434,7 +432,7 @@ export default function ProposalSettings() {
       const data = {
         company_id: user.company_id,
         active_template_id: activeTemplate,
-        indicators,
+
         templates_config: templatesConfig,
         pages_layout: pagesLayout,
         pricing: {
@@ -590,9 +588,6 @@ export default function ProposalSettings() {
         <TabsList className="flex flex-wrap w-full h-auto gap-2 p-1 bg-muted/50 rounded-xl justify-start">
           <TabsTrigger value="templates" className="py-2.5 rounded-lg flex-1 sm:flex-none">
             <FileImage className="mr-2 h-4 w-4" /> Templates e Design
-          </TabsTrigger>
-          <TabsTrigger value="indicadores" className="py-2.5 rounded-lg flex-1 sm:flex-none">
-            <BarChart className="mr-2 h-4 w-4" /> Indicadores
           </TabsTrigger>
           <TabsTrigger value="simultaneidade" className="py-2.5 rounded-lg flex-1 sm:flex-none">
             <Percent className="mr-2 h-4 w-4" /> Simultaneidade
@@ -854,32 +849,6 @@ export default function ProposalSettings() {
               </div>
             </div>
           )}
-        </TabsContent>
-
-        <TabsContent value="indicadores" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Indicadores Econômicos</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 max-w-md">
-              <div className="space-y-2">
-                <Label>Inflação Energética Anual (%)</Label>
-                <Input
-                  value={indicators.inflation}
-                  onChange={(e) => setIndicators({ ...indicators, inflation: e.target.value })}
-                  type="number"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Taxa de Juros de Oportunidade (%)</Label>
-                <Input
-                  value={indicators.interest}
-                  onChange={(e) => setIndicators({ ...indicators, interest: e.target.value })}
-                  type="number"
-                />
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="simultaneidade" className="mt-6">

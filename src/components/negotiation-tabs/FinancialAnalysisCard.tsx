@@ -24,6 +24,7 @@ import {
   Table,
   HelpCircle,
 } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/use-toast'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -70,7 +71,9 @@ export function FinancialAnalysisCard({
   estMonthlyGen: number
   reload: () => void
 }) {
+  const { user } = useAuth()
   const { toast } = useToast()
+  const isAdmin = user?.role === 'admin'
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [consumerCategory, setConsumerCategory] = useState(
     neg.consumer_category || neg.sizing?.consumer_category || '',
@@ -109,6 +112,16 @@ export function FinancialAnalysisCard({
 
   useEffect(() => {
     if (!neg.company_id) return
+    // Buscar primeiro na companhia (reajuste global da empresa)
+    pb.collection('companies')
+      .getOne(neg.company_id)
+      .then((comp: any) => {
+        if (comp.annual_tariff_adjustment != null && annualTariffAdjustment === '') {
+          setAnnualTariffAdjustment(Number(comp.annual_tariff_adjustment))
+        }
+      })
+      .catch(() => {})
+
     pb.collection('proposal_settings')
       .getFirstListItem(`company_id='${neg.company_id}'`)
       .then((record: any) => {
@@ -352,30 +365,48 @@ export function FinancialAnalysisCard({
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label>Reajuste Tarifário Anual (%)</Label>
+              <div className="flex items-center gap-1.5">
+                <Label>Reajuste Tarifário Anual (%)</Label>
+                {!isAdmin && (
+                  <Badge variant="outline" className="text-[10px] font-normal py-0">
+                    Padrão da empresa
+                  </Badge>
+                )}
+              </div>
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <HelpCircle className="h-3 w-3 text-muted-foreground cursor-pointer" />
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs text-xs">
-                    Reajuste médio esperado ao ano na tarifa de energia (sem valor padrão
-                    pré-fixado). A projeção de 25 anos aplica essa correção composta sobre as
-                    tarifas anuais sem trazer a valor presente.
+                    Percentual médio de reajuste tarifário anual da concessionária. Aplicado ano a
+                    ano sobre a tarifa de energia e sobre o Fio B.{' '}
+                    {isAdmin
+                      ? 'Você pode ajustar o valor para esta proposta.'
+                      : 'Definido globalmente pelo administrador da sua empresa.'}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </div>
-            <NumericInput
-              value={annualTariffAdjustment}
-              onValueChange={handleAdjustmentChange}
-              onBlur={handleAdjustmentBlur}
-              placeholder="Ex: 5"
-            />
+            {isAdmin ? (
+              <NumericInput
+                value={annualTariffAdjustment}
+                onValueChange={handleAdjustmentChange}
+                onBlur={handleAdjustmentBlur}
+                placeholder="Ex: 5"
+              />
+            ) : (
+              <div className="h-10 px-3 py-2 rounded-md border bg-muted/40 text-sm font-medium flex items-center justify-between text-muted-foreground">
+                <span>
+                  {annualTariffAdjustment !== '' ? `${annualTariffAdjustment}%` : 'Não definido'}
+                </span>
+                <span className="text-[11px] text-muted-foreground">Somente leitura</span>
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">
-              {annualDegradation > 0
-                ? `Degradação do módulo: ${String(annualDegradation).replace('.', ',')}% a.a.`
-                : 'Defina a taxa de reajuste anual'}
+              {isAdmin
+                ? 'Pré-preenchido com o valor global da empresa'
+                : 'Visualização da taxa definida pela empresa'}
             </p>
           </div>
         </div>
@@ -525,13 +556,13 @@ export function FinancialAnalysisCard({
                 </div>
               </div>
 
-              {/* Tabela Ano a Ano (1 a 25) */}
+              {/* Tabela Ano a Ano Comparativa: Sem Solar x Com Solar x Economia */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
+                <div className="p-4 border-b bg-slate-50 flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <Table className="w-4 h-4 text-primary" />
                     <h4 className="font-semibold text-sm text-foreground">
-                      Tabela Ano a Ano de Economia (Ano 1 ao Ano 25)
+                      Projeção Comparativa Anual (Sem Solar × Com Solar × Economia)
                     </h4>
                   </div>
                   <Badge variant="outline" className="text-xs font-mono">
@@ -539,16 +570,18 @@ export function FinancialAnalysisCard({
                   </Badge>
                 </div>
 
-                <div className="max-h-[360px] overflow-y-auto">
+                <div className="max-h-[380px] overflow-y-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="sticky top-0 bg-slate-100 z-10 border-b text-slate-700 font-semibold">
                       <tr>
                         <th className="py-2.5 px-3 w-20">Ano</th>
-                        <th className="py-2.5 px-3">Geração</th>
-                        <th className="py-2.5 px-3">Tarifa / Fio B</th>
-                        <th className="py-2.5 px-3">Economia Anual</th>
-                        <th className="py-2.5 px-3">Economia Acumulada</th>
-                        <th className="py-2.5 px-3 text-right">Saldo Líquido</th>
+                        <th className="py-2.5 px-3">Custo Sem Solar</th>
+                        <th className="py-2.5 px-3">Custo Com Solar</th>
+                        <th className="py-2.5 px-3 font-semibold text-emerald-800">
+                          Economia do Ano
+                        </th>
+                        <th className="py-2.5 px-3 text-emerald-800">Economia Acumulada</th>
+                        <th className="py-2.5 px-3 text-right">Saldo do Investimento</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -563,7 +596,7 @@ export function FinancialAnalysisCard({
                               isMilestone ? 'bg-primary/5 font-medium' : 'hover:bg-slate-50',
                             )}
                           >
-                            <td className="py-2 px-3 font-mono font-medium">
+                            <td className="py-2 px-3 font-mono font-medium whitespace-nowrap">
                               Ano {row.year}
                               {row.calendarYear ? (
                                 <span className="text-muted-foreground text-[10px] ml-1">
@@ -574,27 +607,16 @@ export function FinancialAnalysisCard({
                                 <span className="ml-1 text-[10px] text-primary font-bold">★</span>
                               )}
                             </td>
-                            <td className="py-2 px-3 text-slate-700 font-mono">
-                              {row.generationKwh > 0
-                                ? `${Math.round(row.generationKwh).toLocaleString('pt-BR')} kWh`
-                                : '—'}
+                            <td className="py-2 px-3 text-slate-700">
+                              {BRL.format(row.costWithoutSolar || 0)}
                             </td>
                             <td className="py-2 px-3 text-slate-600">
-                              {row.effectiveTariff > 0 ? (
-                                <span>
-                                  {BRL.format(row.effectiveTariff)}{' '}
-                                  <span className="text-[10px] text-muted-foreground">
-                                    (Fio B {row.fioBPercent}%)
-                                  </span>
-                                </span>
-                              ) : (
-                                '—'
-                              )}
+                              {BRL.format(row.costWithSolar || 0)}
                             </td>
-                            <td className="py-2 px-3 font-medium text-slate-800">
+                            <td className="py-2 px-3 font-medium text-emerald-700">
                               {BRL.format(row.annualSavings)}
                             </td>
-                            <td className="py-2 px-3 font-semibold text-emerald-700">
+                            <td className="py-2 px-3 font-semibold text-emerald-800">
                               {BRL.format(row.cumulativeSavings)}
                             </td>
                             <td
@@ -613,10 +635,10 @@ export function FinancialAnalysisCard({
                   </table>
                 </div>
 
-                <div className="p-3 bg-slate-50 border-t text-[11px] text-muted-foreground flex items-center justify-between">
+                <div className="p-3 bg-slate-50 border-t text-[11px] text-muted-foreground flex items-center justify-between flex-wrap gap-2">
                   <span>
-                    ★ Projeção de economia acumulada ao longo da vida útil do sistema (1, 5, 10, 15,
-                    20 e 25 anos)
+                    ★ Economia do ano = Custo sem solar − Custo com solar (com reajuste tarifário
+                    anual e degradação física do módulo).
                   </span>
                   <span>Investimento considerado: {BRL.format(systemPrice)}</span>
                 </div>
