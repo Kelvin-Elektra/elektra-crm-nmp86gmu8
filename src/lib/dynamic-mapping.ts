@@ -229,11 +229,30 @@ export const CRM_FIELD_SECTIONS: CrmFieldSection[] = [
         section: 'financial',
       },
       {
+        path: 'financial.annual_tariff_adjustment',
+        label: 'Reajuste Tarifário Anual (%)',
+        section: 'financial',
+        description: 'Percentual de reajuste anual composto da tarifa de energia',
+      },
+      {
+        path: 'financial.annual_degradation',
+        label: 'Degradação Anual dos Módulos (%)',
+        section: 'financial',
+        description: 'Perda anual de eficiência do módulo fotovoltaico (% a.a.)',
+      },
+      {
         path: 'financial.savings_projection',
         label: 'Projeção de Economia (6 marcos: Anos 1, 5, 10, 15, 20 e 25)',
         section: 'financial',
         type: 'array',
         description: 'Array com marcos de economia para gráficos e tabelas do template',
+      },
+      {
+        path: 'financial.savings_projection_table',
+        label: 'Tabela Completa de Projeção (Ano 1 a 25)',
+        section: 'financial',
+        type: 'array',
+        description: 'Tabela detalhada ano a ano com geração, tarifa, Fio B e economia líquida',
       },
       {
         path: 'financial.investment_multiple',

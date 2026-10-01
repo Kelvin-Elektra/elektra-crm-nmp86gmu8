@@ -112,6 +112,88 @@ describe('solar-calculations', () => {
     })
   })
 
+  describe('Onda 3: calculateDetailed25YearsProjection (Projeção Financeira Realista)', () => {
+    const defaultParams = {
+      annualConsumptionKwh: 500 * 12, // 6000 kWh/ano
+      annualGenerationYear1Kwh: 546 * 12, // 6552 kWh/ano
+      annualDegradationPct: 0.5, // 0.5% ao ano
+      annualTariffAdjustmentPct: 5.0, // 5% ao ano
+      simultaneityFactor: 30, // 30% simultâneo
+      tariffDetails: {
+        te: 0.35,
+        tusd: 0.45,
+        icms_rate: 18,
+        icms_exemption: 'both',
+        fio_b_value: 0.22,
+      },
+      publicLightingFeeMonthly: 20,
+      totalInvestment: 9169.17,
+      years: 25,
+      startYear: 2026,
+    }
+
+    it('deve calcular geração decrescente com a taxa de degradação anual dos módulos', () => {
+      const table = calculateYearlySavingsTable(defaultParams)
+      expect(table).toHaveLength(25)
+
+      // Ano 1: geração cheia 6552
+      expect(table[0].generationKwh).toBe(6552)
+
+      // Ano 2: 6552 * (1 - 0.005)^1 = 6519.24 -> ~6519.2
+      expect(table[1].generationKwh).toBe(6519.2)
+
+      // Ano 25: 6552 * (1 - 0.005)^24 = ~5808.9
+      expect(table[24].generationKwh).toBeLessThan(table[0].generationKwh)
+      expect(table[24].generationKwh).toBeCloseTo(6552 * Math.pow(0.995, 24), 0)
+    })
+
+    it('deve aplicar a cronologia de Fio B corretamente (2026: 60%, 2027: 75%, 2028: 90%, 2029+: 100%)', () => {
+      const table = calculateYearlySavingsTable(defaultParams)
+
+      // Ano 1 (2026): 60%
+      expect(table[0].calendarYear).toBe(2026)
+      expect(table[0].fioBPercent).toBe(60)
+
+      // Ano 2 (2027): 75%
+      expect(table[1].calendarYear).toBe(2027)
+      expect(table[1].fioBPercent).toBe(75)
+
+      // Ano 3 (2028): 90%
+      expect(table[2].calendarYear).toBe(2028)
+      expect(table[2].fioBPercent).toBe(90)
+
+      // Ano 4 (2029): 100%
+      expect(table[3].calendarYear).toBe(2029)
+      expect(table[3].fioBPercent).toBe(100)
+
+      // Ano 25 (2050): 100%
+      expect(table[24].calendarYear).toBe(2050)
+      expect(table[24].fioBPercent).toBe(100)
+    })
+
+    it('deve acumular saldo de créditos na UC e transitar para anos seguintes', () => {
+      const table = calculateYearlySavingsTable(defaultParams)
+      // Como a geração anual é maior que o consumo anual, acumula créditos
+      expect(table[0].energyCreditsBalanceKwh).toBeGreaterThan(0)
+    })
+
+    it('deve calcular payback e retorno acumulado estático (sem desconto a valor presente)', () => {
+      const table = calculateYearlySavingsTable(defaultParams)
+      expect(table[0].balanceWithInvestment).toBeLessThan(0)
+      // Payback ocorre nos primeiros anos (por volta do ano 3)
+      const paybackRow = table.find((r) => r.balanceWithInvestment >= 0)
+      expect(paybackRow).toBeDefined()
+      expect(paybackRow!.year).toBeLessThanOrEqual(4)
+
+      // No ano 25 o acumulado é a soma direta ano a ano sem VPN
+      let manualSum = 0
+      table.forEach((r) => {
+        manualSum += r.annualSavings
+      })
+      expect(table[24].cumulativeSavings).toBeCloseTo(manualSum, 1)
+    })
+  })
+
   describe('calculateYearlySavingsTable e generateSavingsProjection com números reais do usuário', () => {
     // Caso real: consumo 500, geração 546, investimento R$ 9.169,17, economia mensal R$ 344,53, economia anual ~R$ 4.134,36
     const annualSavings = 4134.36

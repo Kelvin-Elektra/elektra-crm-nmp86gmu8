@@ -44,6 +44,7 @@ import {
   calculateTir,
   calculateSavings25Years,
   generateSavingsProjection,
+  calculateDetailed25YearsProjection,
   extractValidityDays,
   formatProposalDate,
   extractEstimatedMonthlyGeneration,
@@ -417,6 +418,20 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
         Number(neg.sizing?.kit_power_kwp),
       )
       const tariffDetails = await fetchTariffDetails(neg.utility_id, consumerCategory)
+      const annualTariffAdjustment =
+        neg.annual_tariff_adjustment != null
+          ? Number(neg.annual_tariff_adjustment)
+          : neg.sizing?.annual_tariff_adjustment != null
+            ? Number(neg.sizing?.annual_tariff_adjustment)
+            : pricingDetails?.settings?.default_tariff_adjustment != null
+              ? Number(pricingDetails.settings.default_tariff_adjustment)
+              : 0
+
+      const annualDegradation =
+        rawPricingData?.rawModule?.annual_degradation != null
+          ? Number(rawPricingData.rawModule.annual_degradation)
+          : 0.5
+
       const financialProjection = calculateFinancialProjection({
         avgConsumption: neg.avg_consumption || Number(neg.sizing?.avg_consumption) || 0,
         estMonthlyGen: estMonthlyGenRough,
@@ -674,6 +689,28 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
       if (resolvedTension) sizingPayload.tension = resolvedTension
       sizingPayload.equipments = equipmentsList
 
+      const annualSavingsVal = Number(financialProjection?.annualSavings) || 0
+      const monthlySavingsVal = Number(financialProjection?.monthlySavings) || 0
+      const co2AvoidedTon = calculateCo2Avoided(estMonthlyGenRough)
+
+      // Projeção Detalhada 25 anos com degradação do módulo e reajuste da tarifa
+      const detailedProjectionTable = calculateDetailed25YearsProjection({
+        annualConsumptionKwh: avgConsumptionVal * 12,
+        annualGenerationYear1Kwh: estMonthlyGenRough * 12,
+        annualDegradationPct: annualDegradation,
+        annualTariffAdjustmentPct: annualTariffAdjustment,
+        simultaneityFactor,
+        tariffDetails,
+        publicLightingFeeMonthly: neg.public_lighting_fee || 0,
+        totalInvestment: finalPrice,
+        years: 25,
+      })
+
+      const savings25YearsVal =
+        detailedProjectionTable.length > 0
+          ? detailedProjectionTable[detailedProjectionTable.length - 1].cumulativeSavings
+          : annualSavingsVal * 25
+
       const paybackYearsVal =
         financialProjection?.roiYears != null
           ? Number(
@@ -683,13 +720,9 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
               ).toFixed(1),
             )
           : 0
-      const annualSavingsVal = Number(financialProjection?.annualSavings) || 0
-      const savings25YearsVal = annualSavingsVal * 25
-      const monthlySavingsVal = Number(financialProjection?.monthlySavings) || 0
-      const co2AvoidedTon = calculateCo2Avoided(estMonthlyGenRough)
       const investmentMultiple = calculateInvestmentMultiple(savings25YearsVal, finalPrice)
       const tirPct = calculateTir(finalPrice, annualSavingsVal, 25)
-      const savingsProjection = generateSavingsProjection(annualSavingsVal)
+      const savingsProjection = generateSavingsProjection(detailedProjectionTable)
 
       const financialPayload = {
         total_investment: finalPrice,
@@ -709,11 +742,14 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
         yearly_savings: annualSavingsVal,
         savings_25_years: savings25YearsVal,
         total_savings_25y: savings25YearsVal,
+        annual_tariff_adjustment: annualTariffAdjustment,
+        annual_degradation: annualDegradation,
         investment_multiple: investmentMultiple,
         tir_pct: tirPct,
         co2_avoided_ton: co2AvoidedTon,
         tariff_details: tariffDetails || {},
         savings_projection: savingsProjection,
+        savings_projection_table: detailedProjectionTable,
         equipments: equipmentsList,
         commercial_conditions: commercialConditions,
       }

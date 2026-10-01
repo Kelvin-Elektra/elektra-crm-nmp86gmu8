@@ -433,9 +433,16 @@ export function buildCommercialConditionsArray(params: {
 
 export interface YearlySavingsRow {
   year: number
+  calendarYear?: number
+  generationKwh: number
+  consumptionKwh: number
+  effectiveTariff: number
+  fioBRate: number
+  fioBPercent: number
   annualSavings: number
   cumulativeSavings: number
   balanceWithInvestment: number
+  energyCreditsBalanceKwh?: number
 }
 
 export interface SavingsProjectionMilestone {
@@ -445,16 +452,164 @@ export interface SavingsProjectionMilestone {
   cumulativeSavings: number
 }
 
+export interface DetailedProjectionParams {
+  annualSavingsYear1?: number
+  annualConsumptionKwh: number
+  annualGenerationYear1Kwh: number
+  annualDegradationPct: number // % ex: 0.5 para 0.5% a.a.
+  annualTariffAdjustmentPct: number // % ex: 5 para 5% a.a.
+  simultaneityFactor: number // % ex: 30
+  tariffDetails: {
+    te: number
+    tusd: number
+    icms_rate: number
+    icms_exemption: string
+    fio_b_value: number
+  }
+  publicLightingFeeMonthly?: number
+  totalInvestment?: number
+  years?: number
+  startYear?: number
+}
+
+/**
+ * 6b. Motor de Projeção Financeira de 25 Anos (Onda 3)
+ *
+ * Princípios definidos pelo usuário:
+ * 1. Análise ESTÁTICA / Comercial: SEM correção a valor presente (sem VPN/VPL/desconto futuro).
+ * 2. Ponto de partida: Geração estimada ano a ano aplicando depreciação anual dos módulos:
+ *    Geração(ano N) = Geração(ano 1) × (1 - degradação)^(N - 1).
+ *    (Estrutura aberta para suportar listas multi-módulos no futuro sem reescrita).
+ * 3. Tarifa reajustada ano a ano pelo percentual EDITÁVEL (composto):
+ *    Tarifa(ano N) = Tarifa(ano 1) × (1 + reajuste)^(N - 1).
+ * 4. Fio B escalonado pela cronologia da Lei 14.300 sobre o valor cadastrado na concessionária:
+ *    2025/2026: 60%, 2027: 75%, 2028: 90%, 2029 em diante: 100%.
+ * 5. Simultaneidade: consumo instantâneo abate da geração no mês/ano sem incidência de rede.
+ * 6. Créditos acumulados de energia: excedentes transitam entre anos conforme regra de compensação da UC.
+ */
+export function calculateDetailed25YearsProjection(
+  params: DetailedProjectionParams,
+): YearlySavingsRow[] {
+  const years = params.years || 25
+  const currentCalendarYear = params.startYear || new Date().getFullYear()
+  const inv = Number(params.totalInvestment) || 0
+
+  const degradationRate = Math.max(0, Number(params.annualDegradationPct) || 0) / 100
+  const tariffAdjustmentRate = Math.max(0, Number(params.annualTariffAdjustmentPct) || 0) / 100
+  const simultaneityRatio = Math.max(0, Math.min(100, Number(params.simultaneityFactor) || 0)) / 100
+  const annualConsumption = Math.max(0, Number(params.annualConsumptionKwh) || 0)
+  const monthlyPublicLighting = Number(params.publicLightingFeeMonthly) || 0
+  const annualPublicLighting = monthlyPublicLighting * 12
+
+  const td = params.tariffDetails || {
+    te: 0,
+    tusd: 0,
+    icms_rate: 0,
+    icms_exemption: 'none',
+    fio_b_value: 0.22,
+  }
+  const baseTE = Number(td.te) || 0
+  const baseTUSD = Number(td.tusd) || 0
+  const baseRate = baseTE + baseTUSD
+  const icmsFactor = (Number(td.icms_rate) || 0) / 100
+  const isTEExempt = td.icms_exemption === 'te' || td.icms_exemption === 'both'
+  const isTUSDExempt = td.icms_exemption === 'tusd' || td.icms_exemption === 'both'
+  const baseFioBValue = Number(td.fio_b_value) || 0.22
+
+  const rows: YearlySavingsRow[] = []
+  let cumulativeSavings = 0
+  let energyCreditsBalance = 0 // Saldo acumulado na UC (kWh)
+
+  for (let y = 1; y <= years; y++) {
+    const calendarYear = currentCalendarYear + (y - 1)
+
+    // 1. Degradação dos módulos: Ano 1 = 100%, Ano N = G1 * (1 - degradação)^(N-1)
+    const degradationFactor = Math.pow(1 - degradationRate, y - 1)
+    const yearGeneration = Number((params.annualGenerationYear1Kwh * degradationFactor).toFixed(1))
+
+    // 2. Reajuste anual composto da tarifa de energia
+    const tariffFactor = Math.pow(1 + tariffAdjustmentRate, y - 1)
+    const yearBaseRate = baseRate * tariffFactor
+    const yearTE = baseTE * tariffFactor
+    const yearTUSD = baseTUSD * tariffFactor
+    const yearFioBBase = baseFioBValue * tariffFactor
+
+    // 3. Fio B da Lei 14.300 por ano civil
+    let fioBPercent = 1.0
+    if (calendarYear <= 2026) fioBPercent = 0.6
+    else if (calendarYear === 2027) fioBPercent = 0.75
+    else if (calendarYear === 2028) fioBPercent = 0.9
+    else fioBPercent = 1.0
+
+    const effectiveFioBRate = yearFioBBase * fioBPercent
+
+    // 4. Balanço de energia partindo da GERAÇÃO:
+    // a) Autoconsumo simultâneo (abate direto na geração sem passar pela rede)
+    const instantConsumption = Math.min(annualConsumption, yearGeneration) * simultaneityRatio
+    // b) Injeção excedente gerada enviada à rede
+    const netInjected = Math.max(0, yearGeneration - instantConsumption)
+    // c) Consumo que precisa ser suprido pela rede
+    const remainingConsumption = Math.max(0, annualConsumption - instantConsumption)
+    // d) Energia total disponível para compensação = injeção do ano + créditos acumulados na UC
+    const totalAvailableToCompensate = netInjected + energyCreditsBalance
+    // e) Energia compensada no ano
+    const compensatedConsumption = Math.min(remainingConsumption, totalAvailableToCompensate)
+    // f) Novo saldo de créditos que transita para o ano seguinte
+    energyCreditsBalance = Math.max(0, totalAvailableToCompensate - compensatedConsumption)
+    // g) Energia residual faturada da rede integralmente
+    const energyFromGrid = Math.max(0, remainingConsumption - compensatedConsumption)
+
+    // 5. Custos da conta com e sem solar:
+    // Conta sem solar (fatura de referência no ano N com reajuste da tarifa)
+    const costWithoutSolar = annualConsumption * yearBaseRate + annualPublicLighting
+
+    // Componentes de ICMS sobre a energia compensada
+    const teComponent = isTEExempt ? 0 : yearTE * icmsFactor
+    const tusdComponent = isTUSDExempt ? 0 : yearTUSD * icmsFactor
+    const compensatedCost = compensatedConsumption * (teComponent + tusdComponent)
+    // Custo de Fio B sobre a energia compensada
+    const fioBCost = compensatedConsumption * effectiveFioBRate
+    // Custo de energia comprada da rede
+    const gridEnergyCost = energyFromGrid * yearBaseRate
+
+    const costWithSolar = compensatedCost + fioBCost + gridEnergyCost + annualPublicLighting
+
+    // Economia anual no ano N
+    const annualSavings = Math.max(0, costWithoutSolar - costWithSolar)
+    cumulativeSavings += annualSavings
+
+    rows.push({
+      year: y,
+      calendarYear,
+      generationKwh: yearGeneration,
+      consumptionKwh: annualConsumption,
+      effectiveTariff: Number(yearBaseRate.toFixed(4)),
+      fioBRate: Number(effectiveFioBRate.toFixed(4)),
+      fioBPercent: Number((fioBPercent * 100).toFixed(0)),
+      annualSavings: Number(annualSavings.toFixed(2)),
+      cumulativeSavings: Number(cumulativeSavings.toFixed(2)),
+      balanceWithInvestment: Number((cumulativeSavings - inv).toFixed(2)),
+      energyCreditsBalanceKwh: Number(energyCreditsBalance.toFixed(1)),
+    })
+  }
+
+  return rows
+}
+
 /**
  * 6b. Gera a tabela financeira ano a ano (Ano 1 até Ano 25)
- * Fonte da verdade dos cálculos de economia acumulada e retorno do investimento.
+ * Suporta assinatura simplificada (retrocompatível) e detalhada com degradação/reajuste.
  */
 export function calculateYearlySavingsTable(
-  annualSavings: number,
+  annualSavingsOrParams: number | DetailedProjectionParams,
   totalInvestment: number = 0,
   years: number = 25,
 ): YearlySavingsRow[] {
-  const ann = Number(annualSavings) || 0
+  if (typeof annualSavingsOrParams === 'object' && annualSavingsOrParams !== null) {
+    return calculateDetailed25YearsProjection(annualSavingsOrParams)
+  }
+
+  const ann = Number(annualSavingsOrParams) || 0
   const inv = Number(totalInvestment) || 0
   const rows: YearlySavingsRow[] = []
 
@@ -463,6 +618,11 @@ export function calculateYearlySavingsTable(
     accumulated += ann
     rows.push({
       year: y,
+      generationKwh: 0,
+      consumptionKwh: 0,
+      effectiveTariff: 0,
+      fioBRate: 0,
+      fioBPercent: 100,
       annualSavings: Number(ann.toFixed(2)),
       cumulativeSavings: Number(accumulated.toFixed(2)),
       balanceWithInvestment: Number((accumulated - inv).toFixed(2)),
@@ -475,11 +635,27 @@ export function calculateYearlySavingsTable(
  * 6c. Array savings_projection com os 6 marcos oficiais (Anos 1, 5, 10, 15, 20 e 25)
  * Utilizado diretamente pelos templates do Gerador (ex: Template 2).
  */
+/**
+ * 6c. Array savings_projection com marcos oficiais
+ * Suporta cálculo a partir de YearlySavingsRow[] ou valor anual simples (retrocompatível).
+ */
 export function generateSavingsProjection(
-  annualSavings: number,
+  annualSavingsOrTable: number | YearlySavingsRow[],
   milestones: number[] = [1, 5, 10, 15, 20, 25],
 ): SavingsProjectionMilestone[] {
-  const ann = Number(annualSavings) || 0
+  if (Array.isArray(annualSavingsOrTable)) {
+    return milestones.map((mYear) => {
+      const row = annualSavingsOrTable.find((r) => r.year === mYear)
+      return {
+        year: mYear,
+        label: `Ano ${mYear}`,
+        annualSavings: row ? row.annualSavings : 0,
+        cumulativeSavings: row ? row.cumulativeSavings : 0,
+      }
+    })
+  }
+
+  const ann = Number(annualSavingsOrTable) || 0
   return milestones.map((year) => ({
     year,
     label: `Ano ${year}`,

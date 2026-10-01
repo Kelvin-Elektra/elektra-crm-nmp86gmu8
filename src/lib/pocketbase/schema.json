@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-01T13:16:04.026Z",
+  "generatedAt": "2026-10-01T15:01:21.912Z",
   "collections": [
     {
       "name": "users",
@@ -459,6 +459,12 @@
         },
         {
           "name": "public_lighting_fee",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "annual_tariff_adjustment",
           "type": "number",
           "required": false,
           "system": false
@@ -929,6 +935,12 @@
           "type": "json",
           "required": false,
           "system": false
+        },
+        {
+          "name": "default_tariff_adjustment",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []
@@ -1091,6 +1103,12 @@
         {
           "name": "warranty_linear",
           "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "annual_degradation",
+          "type": "number",
           "required": false,
           "system": false
         }
@@ -1801,6 +1819,12 @@
         {
           "name": "network_voltages",
           "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "fio_b_value",
+          "type": "number",
           "required": false,
           "system": false
         }

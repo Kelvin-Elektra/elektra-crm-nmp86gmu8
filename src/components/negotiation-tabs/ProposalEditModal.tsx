@@ -31,6 +31,8 @@ import {
   calculateCo2Avoided,
   calculateInvestmentMultiple,
   calculateTir,
+  calculateDetailed25YearsProjection,
+  generateSavingsProjection,
   extractValidityDays,
   formatProposalDate,
   extractEstimatedMonthlyGeneration,
@@ -294,10 +296,43 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
               : Number(fp?.paybackYears) || 0
           const monthlySav = Number(fp?.monthlySavings) || 0
           const annualSavingsVal = Number(fp?.annualSavings) || monthlySav * 12
-          const savings25YearsVal = Number(fp?.savings25Years) || annualSavingsVal * 25
           const co2AvoidedTon = calculateCo2Avoided(estGen)
+
+          // Projeção Detalhada 25 anos com degradação e reajuste anual de tarifas
+          const annualTariffAdjustment =
+            fp?.annual_tariff_adjustment != null
+              ? Number(fp.annual_tariff_adjustment)
+              : Number(rawSizing.annual_tariff_adjustment) || 0
+          const annualDegradation =
+            fp?.annual_degradation != null
+              ? Number(fp.annual_degradation)
+              : Number(updatedSnapshot.pricing_data?.rawModule?.annual_degradation) || 0.5
+
+          const detailedProjectionTable = calculateDetailed25YearsProjection({
+            annualConsumptionKwh: avgCons * 12,
+            annualGenerationYear1Kwh: estGen * 12,
+            annualDegradationPct: annualDegradation,
+            annualTariffAdjustmentPct: annualTariffAdjustment,
+            simultaneityFactor: Number(rawSizing.simultaneity_factor) || 30,
+            tariffDetails: fp?.tariffDetails || {
+              te: 0,
+              tusd: 0,
+              icms_rate: 0,
+              icms_exemption: 'none',
+              fio_b_value: 0.22,
+            },
+            publicLightingFeeMonthly: Number(fp?.publicLightingFee) || 0,
+            totalInvestment: finalTotal,
+            years: 25,
+          })
+
+          const savings25YearsVal =
+            detailedProjectionTable.length > 0
+              ? detailedProjectionTable[detailedProjectionTable.length - 1].cumulativeSavings
+              : Number(fp?.savings25Years) || annualSavingsVal * 25
           const investmentMultiple = calculateInvestmentMultiple(savings25YearsVal, finalTotal)
           const tirPct = calculateTir(finalTotal, annualSavingsVal, 25)
+          const savingsProjection = generateSavingsProjection(detailedProjectionTable)
 
           const financialPayload = {
             total_investment: finalTotal,
@@ -317,10 +352,14 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
             yearly_savings: annualSavingsVal,
             savings_25_years: savings25YearsVal,
             total_savings_25y: savings25YearsVal,
+            annual_tariff_adjustment: annualTariffAdjustment,
+            annual_degradation: annualDegradation,
             investment_multiple: investmentMultiple,
             tir_pct: tirPct,
             co2_avoided_ton: co2AvoidedTon,
             tariff_details: fp?.tariffDetails || {},
+            savings_projection: savingsProjection,
+            savings_projection_table: detailedProjectionTable,
           }
           // Obter schemas dinâmicos se possível para filtrar o fixed_data e enriquecer semanticamente
           let templateFields: any[] | undefined = undefined

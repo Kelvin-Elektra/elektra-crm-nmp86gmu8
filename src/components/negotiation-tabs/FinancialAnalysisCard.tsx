@@ -46,6 +46,7 @@ import {
 } from '@/lib/financial-analysis'
 import {
   calculateYearlySavingsTable,
+  calculateDetailed25YearsProjection,
   calculateTir,
   calculateInvestmentMultiple,
   calculateSavings25Years,
@@ -85,6 +86,14 @@ export function FinancialAnalysisCard({
   const [publicLightingFee, setPublicLightingFee] = useState(
     neg.public_lighting_fee != null ? neg.public_lighting_fee : 0,
   )
+  const [annualTariffAdjustment, setAnnualTariffAdjustment] = useState<number | ''>(
+    neg.annual_tariff_adjustment != null
+      ? neg.annual_tariff_adjustment
+      : neg.sizing?.annual_tariff_adjustment != null
+        ? neg.sizing?.annual_tariff_adjustment
+        : '',
+  )
+  const [annualDegradation, setAnnualDegradation] = useState<number>(0.5)
   const [tariffDetails, setTariffDetails] = useState<TariffDetails>({
     te: 0,
     tusd: 0,
@@ -102,16 +111,33 @@ export function FinancialAnalysisCard({
     if (!neg.company_id) return
     pb.collection('proposal_settings')
       .getFirstListItem(`company_id='${neg.company_id}'`)
-      .then((record) => {
+      .then((record: any) => {
         if (record.pricing?.simultaneity_factors) {
           setDefaultFactors({
             ...DEFAULT_SIMULTANEITY_FACTORS,
             ...record.pricing.simultaneity_factors,
           })
         }
+        if (record.default_tariff_adjustment != null && annualTariffAdjustment === '') {
+          setAnnualTariffAdjustment(record.default_tariff_adjustment)
+        }
       })
       .catch(() => {})
   }, [neg.company_id])
+
+  // Buscar a taxa de degradação do módulo selecionado no dimensionamento (pv_modules)
+  useEffect(() => {
+    const moduleId = neg.sizing?.module_id || neg.sizing?.selected_module_id
+    if (!moduleId) return
+    pb.collection('pv_modules')
+      .getOne(moduleId)
+      .then((m: any) => {
+        if (m.annual_degradation !== null && m.annual_degradation !== undefined) {
+          setAnnualDegradation(Number(m.annual_degradation) || 0.5)
+        }
+      })
+      .catch(() => {})
+  }, [neg.sizing?.module_id, neg.sizing?.selected_module_id])
 
   useEffect(() => {
     const loadData = async () => {
@@ -137,7 +163,18 @@ export function FinancialAnalysisCard({
             30,
     )
     setPublicLightingFee(neg.public_lighting_fee != null ? neg.public_lighting_fee : 0)
-  }, [neg.consumer_category, neg.simultaneity_factor, neg.public_lighting_fee, negKey])
+    if (neg.annual_tariff_adjustment != null) {
+      setAnnualTariffAdjustment(neg.annual_tariff_adjustment)
+    } else if (neg.sizing?.annual_tariff_adjustment != null) {
+      setAnnualTariffAdjustment(neg.sizing?.annual_tariff_adjustment)
+    }
+  }, [
+    neg.consumer_category,
+    neg.simultaneity_factor,
+    neg.public_lighting_fee,
+    neg.annual_tariff_adjustment,
+    negKey,
+  ])
 
   const handleCategoryChange = (category: string) => {
     setConsumerCategory(category)
@@ -166,13 +203,38 @@ export function FinancialAnalysisCard({
     saveFinancialData(consumerCategory, simultaneityFactor, publicLightingFee)
   }
 
-  const saveFinancialData = async (category: string, factor: number, lightingFee: number) => {
+  const handleAdjustmentChange = (val: number | '') => {
+    setAnnualTariffAdjustment(val)
+  }
+
+  const handleAdjustmentBlur = () => {
+    saveFinancialData(
+      consumerCategory,
+      simultaneityFactor,
+      publicLightingFee,
+      annualTariffAdjustment,
+    )
+  }
+
+  const saveFinancialData = async (
+    category: string,
+    factor: number,
+    lightingFee: number,
+    adjustment?: number | '',
+  ) => {
     try {
+      const adjVal = adjustment === '' || adjustment === undefined ? null : Number(adjustment)
       await updateNegotiation(neg.id, {
         consumer_category: category,
         simultaneity_factor: factor,
         public_lighting_fee: lightingFee,
-        sizing: { ...neg.sizing, consumer_category: category, simultaneity_factor: factor },
+        annual_tariff_adjustment: adjVal,
+        sizing: {
+          ...neg.sizing,
+          consumer_category: category,
+          simultaneity_factor: factor,
+          annual_tariff_adjustment: adjVal,
+        },
       })
       toast({ description: 'Dados financeiros salvos' })
       reload()
@@ -206,9 +268,27 @@ export function FinancialAnalysisCard({
     }
   }, [hasFinancialData])
 
-  const yearlySavingsTable = calculateYearlySavingsTable(annualSavings, systemPrice, 25)
+  // Projeção Detalhada de 25 Anos com Degradação dos Módulos e Reajuste Anual da Tarifa
+  const adjPct = annualTariffAdjustment === '' ? 0 : Number(annualTariffAdjustment) || 0
+  const yearlySavingsTable = calculateDetailed25YearsProjection({
+    annualConsumptionKwh: avgConsumption * 12,
+    annualGenerationYear1Kwh: estMonthlyGen * 12,
+    annualDegradationPct: annualDegradation,
+    annualTariffAdjustmentPct: adjPct,
+    simultaneityFactor,
+    tariffDetails,
+    publicLightingFeeMonthly: publicLightingFee,
+    totalInvestment: systemPrice,
+    years: 25,
+  })
+
+  // Economia total em 25 anos obtida pela projeção real composta
+  const totalSavings25 =
+    yearlySavingsTable.length > 0
+      ? yearlySavingsTable[yearlySavingsTable.length - 1].cumulativeSavings
+      : calculateSavings25Years(annualSavings)
+
   const tirPercent = calculateTir(systemPrice, annualSavings, 25)
-  const totalSavings25 = calculateSavings25Years(annualSavings)
   const investmentMultiple = calculateInvestmentMultiple(totalSavings25, systemPrice)
 
   const roiLabel =
@@ -234,7 +314,7 @@ export function FinancialAnalysisCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="space-y-2">
             <Label>Categoria do Consumidor</Label>
             <Select value={consumerCategory} onValueChange={handleCategoryChange}>
@@ -269,6 +349,34 @@ export function FinancialAnalysisCard({
               placeholder="0.00"
             />
             <p className="text-xs text-muted-foreground">Outras taxas mensais fixas</p>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Reajuste Tarifário Anual (%)</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="h-3 w-3 text-muted-foreground cursor-pointer" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs text-xs">
+                    Reajuste médio esperado ao ano na tarifa de energia (sem valor padrão
+                    pré-fixado). A projeção de 25 anos aplica essa correção composta sobre as
+                    tarifas anuais sem trazer a valor presente.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <NumericInput
+              value={annualTariffAdjustment}
+              onValueChange={handleAdjustmentChange}
+              onBlur={handleAdjustmentBlur}
+              placeholder="Ex: 5"
+            />
+            <p className="text-xs text-muted-foreground">
+              {annualDegradation > 0
+                ? `Degradação do módulo: ${String(annualDegradation).replace('.', ',')}% a.a.`
+                : 'Defina a taxa de reajuste anual'}
+            </p>
           </div>
         </div>
 
@@ -435,10 +543,12 @@ export function FinancialAnalysisCard({
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="sticky top-0 bg-slate-100 z-10 border-b text-slate-700 font-semibold">
                       <tr>
-                        <th className="py-2.5 px-4 w-20">Ano</th>
-                        <th className="py-2.5 px-4">Economia do Ano</th>
-                        <th className="py-2.5 px-4">Economia Acumulada</th>
-                        <th className="py-2.5 px-4 text-right">Saldo após Investimento</th>
+                        <th className="py-2.5 px-3 w-20">Ano</th>
+                        <th className="py-2.5 px-3">Geração</th>
+                        <th className="py-2.5 px-3">Tarifa / Fio B</th>
+                        <th className="py-2.5 px-3">Economia Anual</th>
+                        <th className="py-2.5 px-3">Economia Acumulada</th>
+                        <th className="py-2.5 px-3 text-right">Saldo Líquido</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -453,21 +563,43 @@ export function FinancialAnalysisCard({
                               isMilestone ? 'bg-primary/5 font-medium' : 'hover:bg-slate-50',
                             )}
                           >
-                            <td className="py-2 px-4 font-mono font-medium">
+                            <td className="py-2 px-3 font-mono font-medium">
                               Ano {row.year}
+                              {row.calendarYear ? (
+                                <span className="text-muted-foreground text-[10px] ml-1">
+                                  ({row.calendarYear})
+                                </span>
+                              ) : null}
                               {isMilestone && (
                                 <span className="ml-1 text-[10px] text-primary font-bold">★</span>
                               )}
                             </td>
-                            <td className="py-2 px-4 text-slate-700">
+                            <td className="py-2 px-3 text-slate-700 font-mono">
+                              {row.generationKwh > 0
+                                ? `${Math.round(row.generationKwh).toLocaleString('pt-BR')} kWh`
+                                : '—'}
+                            </td>
+                            <td className="py-2 px-3 text-slate-600">
+                              {row.effectiveTariff > 0 ? (
+                                <span>
+                                  {BRL.format(row.effectiveTariff)}{' '}
+                                  <span className="text-[10px] text-muted-foreground">
+                                    (Fio B {row.fioBPercent}%)
+                                  </span>
+                                </span>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                            <td className="py-2 px-3 font-medium text-slate-800">
                               {BRL.format(row.annualSavings)}
                             </td>
-                            <td className="py-2 px-4 font-semibold text-emerald-700">
+                            <td className="py-2 px-3 font-semibold text-emerald-700">
                               {BRL.format(row.cumulativeSavings)}
                             </td>
                             <td
                               className={cn(
-                                'py-2 px-4 text-right font-mono font-semibold',
+                                'py-2 px-3 text-right font-mono font-semibold',
                                 isPaybackAchieved ? 'text-emerald-600' : 'text-slate-500',
                               )}
                             >

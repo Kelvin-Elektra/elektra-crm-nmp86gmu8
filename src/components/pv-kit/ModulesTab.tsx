@@ -37,6 +37,7 @@ export function ModulesTab() {
     warranty: '',
     warranty_manufacturing: '',
     warranty_linear: '',
+    annual_degradation: '',
     notes: '',
   }
   const [form, setForm] = useState(initialForm)
@@ -86,6 +87,9 @@ export function ModulesTab() {
       warranty: consolidatedWarranty,
       warranty_manufacturing: mfgText,
       warranty_linear: linearText,
+      annual_degradation: form.annual_degradation
+        ? Number(form.annual_degradation.replace(',', '.'))
+        : null,
       price: form.price ? Number(form.price.replace(',', '.')) : null,
       company_id: user.company_id,
     }
@@ -124,6 +128,10 @@ export function ModulesTab() {
       warranty: mod.warranty || '',
       warranty_manufacturing: mfgDigits || rawMfg || fallbackMfg,
       warranty_linear: mod.warranty_linear || '',
+      annual_degradation:
+        mod.annual_degradation !== null && mod.annual_degradation !== undefined
+          ? mod.annual_degradation.toString().replace('.', ',')
+          : '',
       price: mod.price?.toString().replace('.', ',') || '',
       notes: mod.notes || '',
     })
@@ -264,6 +272,25 @@ export function ModulesTab() {
             />
           </div>
           <div className="space-y-2">
+            <Label className="font-semibold text-xs text-slate-700">Degradação anual</Label>
+            <div className="relative">
+              <Input
+                placeholder="Ex: 0,5"
+                value={form.annual_degradation}
+                onChange={(e) => {
+                  let val = e.target.value.replace(/[^\d,]/g, '')
+                  const parts = val.split(',')
+                  if (parts.length > 2) val = parts[0] + ',' + parts.slice(1).join('')
+                  setForm({ ...form, annual_degradation: val })
+                }}
+                className="bg-background pr-12 h-9 text-sm"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                % a.a.
+              </span>
+            </div>
+          </div>
+          <div className="space-y-2">
             <Label className="font-semibold">Preço</Label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">
@@ -343,6 +370,7 @@ export function ModulesTab() {
                 <th className="p-3 font-medium">Dimensões (m)</th>
                 <th className="p-3 font-medium">Área (m²)</th>
                 <th className="p-3 font-medium">Garantia</th>
+                <th className="p-3 font-medium">Degradação</th>
                 <th className="p-3 font-medium">Preço</th>
                 <th className="p-3 font-medium">Distribuidora</th>
                 <th className="p-3 font-medium text-right">Ações</th>
@@ -387,6 +415,15 @@ export function ModulesTab() {
                     )}
                   </td>
                   <td className="p-3">
+                    {d.annual_degradation !== null && d.annual_degradation !== undefined ? (
+                      <span className="text-xs font-medium text-slate-700">
+                        {String(d.annual_degradation).replace('.', ',')} % a.a.
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">0,5 % a.a. (padrão)</span>
+                    )}
+                  </td>
+                  <td className="p-3">
                     {d.price
                       ? `R$ ${d.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
                       : '-'}
@@ -404,7 +441,7 @@ export function ModulesTab() {
               ))}
               {filteredData.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="p-6 text-center text-muted-foreground">
+                  <td colSpan={10} className="p-6 text-center text-muted-foreground">
                     Nenhum módulo encontrado.
                   </td>
                 </tr>

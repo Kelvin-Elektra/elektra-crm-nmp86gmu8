@@ -4,11 +4,19 @@ export const FIO_B_DEFAULT_RATE = 0.22
 export const DEFAULT_TARIFF_RATE = 0.9
 
 export const FIO_B_SCALING_FACTORS: Record<number, number> = {
-  2026: 0.6,
+  2025: 0.6,
+  2026: 0.6, // Mantido 60% conforme Lei 14.300 / cronologia de transição
   2027: 0.75,
   2028: 0.9,
 }
 
+/**
+ * Retorna o escalonamento do Fio B (Lei 14.300) por ano civil:
+ * 2025/2026: 60%
+ * 2027: 75%
+ * 2028: 90%
+ * 2029 em diante: 100%
+ */
 export function getFioBScalingFactor(year?: number): number {
   const y = year || new Date().getFullYear()
   if (y <= 2026) return 0.6
@@ -86,6 +94,8 @@ export function calculateFinancialProjection(params: {
   tariffDetails: TariffDetails
   systemPrice: number
   publicLightingFee: number
+  year?: number
+  annualTariffAdjustment?: number
 }): FinancialProjection {
   const {
     avgConsumption,
@@ -94,6 +104,7 @@ export function calculateFinancialProjection(params: {
     tariffDetails,
     systemPrice,
     publicLightingFee,
+    year,
   } = params
 
   const { te, tusd, icms_rate, icms_exemption, fio_b_value } = tariffDetails
@@ -106,33 +117,42 @@ export function calculateFinancialProjection(params: {
   const currentMonthlyCost = avgConsumption * baseRate + publicLightingFee
   const icmsAmount = 0
 
-  // Consumo simultâneo (instantâneo): consumo atendido imediatamente pela geração solar
-  // O consumo instantâneo abate diretamente da geração antes de qualquer injeção na rede.
+  // PONTO DE PARTIDA: Energia gerada estimada do sistema
+  // 1. Simultaneidade: consumo atendido instantaneamente pela geração solar abate direto da geração
   const simultaneityRatio = Math.max(0, Math.min(100, simultaneityFactor)) / 100
   const instantConsumption = Math.min(avgConsumption, estMonthlyGen) * simultaneityRatio
-  // Injeção líquida excedente enviada para a rede da distribuidora
+
+  // 2. Injeção excedente na rede da concessionária
   const netInjectedEnergy = Math.max(0, estMonthlyGen - instantConsumption)
-  // Consumo residual que ainda precisa ser atendido pela rede
+
+  // 3. Consumo que ainda depende de suprimento da rede
   const remainingConsumption = Math.max(0, avgConsumption - instantConsumption)
-  // Energia compensada: o quanto da energia injetada abate o consumo restante da rede (alíquota Fio B incide aqui)
+
+  // 4. Energia compensada (regras da Lei 14.300 incidem exclusivamente sobre a energia compensada)
   const compensatedConsumption = Math.min(remainingConsumption, netInjectedEnergy)
-  // Energia líquida faturada da rede que não foi coberta nem por simultaneidade nem por compensação
+
+  // 5. Energia residual comprada da rede integralmente
   const energyFromGrid = Math.max(0, remainingConsumption - compensatedConsumption)
 
+  // Encargos de ICMS TE e TUSD sobre o consumo compensado
   const teComponent = isTEExempt ? 0 : te * icmsFactor
   const tusdComponent = isTUSDExempt ? 0 : tusd * icmsFactor
   const chargeableRate = teComponent + tusdComponent
   const compensatedEnergyCost = compensatedConsumption * chargeableRate
 
-  const fioBScalingFactor = getFioBScalingFactor()
+  // Fio B escalonado pelo ano civil
+  const fioBScalingFactor = getFioBScalingFactor(year)
   const fioBBaseValue = fio_b_value || FIO_B_DEFAULT_RATE
   const fioBEffectiveRate = fioBBaseValue * fioBScalingFactor
   const fioBCost = compensatedConsumption * fioBEffectiveRate
 
+  // Custo da energia não coberta nem por simultaneidade nem por compensação
   const gridEnergyCost = energyFromGrid * baseRate
 
+  // Fatura mensal após a instalação solar
   const futureMonthlyBill = compensatedEnergyCost + fioBCost + gridEnergyCost + publicLightingFee
 
+  // Economia mensal e anual partindo da geração efetiva
   const monthlySavings = Math.max(0, currentMonthlyCost - futureMonthlyBill)
   const roiMonths = monthlySavings > 0 ? systemPrice / monthlySavings : 0
   const roiYears = Math.floor(roiMonths / 12)
@@ -187,12 +207,25 @@ export async function fetchTariffDetails(
       return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0, found: false }
     }
 
+    // Tenta obter o fio_b_value da regra tarifária ou da própria concessionária (pv_utilities)
+    let fioBVal = Number(matched.fio_b_value) || 0
+    if (!fioBVal && utilityId) {
+      try {
+        const utilRec = await pb.collection('pv_utilities').getOne(utilityId)
+        if (utilRec?.fio_b_value) {
+          fioBVal = Number(utilRec.fio_b_value) || 0
+        }
+      } catch {
+        /* intentionally ignored */
+      }
+    }
+
     return {
       te: Number(matched.te) || 0,
       tusd: Number(matched.tusd) || 0,
       icms_rate: Number(matched.icms_rate) || 0,
       icms_exemption: matched.icms_exemption || 'none',
-      fio_b_value: Number(matched.fio_b_value) || 0,
+      fio_b_value: fioBVal,
       found: true,
     }
   } catch {
