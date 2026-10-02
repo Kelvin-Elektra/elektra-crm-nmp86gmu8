@@ -43,25 +43,12 @@ import { useToast } from '@/hooks/use-toast'
 import {
   calculateImmediateModuleRecommendation,
   calculateOccupiedArea,
+  calculateSystemMonthlyGeneration,
+  RoofFaceItem,
+  OrientationLossRule,
 } from '@/lib/solar-calculations'
 import { getVoltagesForNetwork } from '@/types/electric-network'
 import { InverterSelectorWithFilter, SelectedInverterItem } from './InverterSelectorWithFilter'
-
-const MONTH_LABELS = [
-  'Jan',
-  'Fev',
-  'Mar',
-  'Abr',
-  'Mai',
-  'Jun',
-  'Jul',
-  'Ago',
-  'Set',
-  'Out',
-  'Nov',
-  'Dez',
-]
-const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
 export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
   const navigate = useNavigate()
@@ -112,9 +99,7 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
   // Faces de telhado
   const [useRoofFaces, setUseRoofFaces] = useState<boolean>(Boolean(neg.use_roof_faces))
   const [roofFaces, setRoofFaces] = useState<any[]>(
-    Array.isArray(neg.roof_faces_data) && neg.roof_faces_data.length > 0
-      ? neg.roof_faces_data
-      : [{ orientation: 'Norte', modules: '' }],
+    Array.isArray(neg.roof_faces_data) ? neg.roof_faces_data : [],
   )
 
   // Loading do salvamento
@@ -148,7 +133,13 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
         setModules(mods)
         setInverters(invs)
         setUtilities(utils)
-        if (eff) setEfficiencyRule(eff)
+        if (eff) {
+          setEfficiencyRule(eff)
+          // Se as perdas nominais da negociação ainda não tiverem sido salvas especificamente
+          if (sizing.losses === undefined && eff.nominal_loss !== undefined) {
+            setLosses(Number(eff.nominal_loss) || 23)
+          }
+        }
       })
       .catch((e) => {
         console.error('Erro ao carregar dados do dimensionamento:', e)
@@ -220,23 +211,49 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
         nominalLossesPct: losses,
         additionalLossesPct: enableAdditionalLosses ? additionalLosses : 0,
       })
-      if (rec.recommendedModules > 0 && !useRoofFaces) {
+      if (rec.recommendedModules > 0 && !hasEffectiveFaces) {
         setModuleQty(rec.recommendedModules.toString())
       }
     }
   }
 
-  // Se usar faces de orientação, quantidade total vem da soma das faces
+  // Orientações cadastradas pela companhia em PvKitSettings (Eficiência PV)
+  const companyOrientations: OrientationLossRule[] = useMemo(() => {
+    if (Array.isArray(efficiencyRule?.orientation_losses)) {
+      return efficiencyRule.orientation_losses
+        .filter(
+          (o: any) => o && typeof o.orientation === 'string' && o.orientation.trim().length > 0,
+        )
+        .map((o: any) => ({
+          orientation: String(o.orientation).trim(),
+          loss: Number(o.loss) || 0,
+        }))
+    }
+    return []
+  }, [efficiencyRule])
+
+  const hasConfiguredOrientations = companyOrientations.length > 0
+
+  // Se usar faces e houver faces cadastradas pela companhia, quantidade total vem da soma das faces
+  const hasEffectiveFaces = useRoofFaces && hasConfiguredOrientations
+
   const faceModulesTotal = useMemo(() => {
-    if (!useRoofFaces) return 0
+    if (!hasEffectiveFaces) return 0
     return roofFaces.reduce((acc, f) => acc + (Number(f.modules) || 0), 0)
-  }, [useRoofFaces, roofFaces])
+  }, [hasEffectiveFaces, roofFaces])
+
+  // Inicializa a primeira face caso o usuário ative useRoofFaces e a lista esteja vazia
+  useEffect(() => {
+    if (hasEffectiveFaces && roofFaces.length === 0 && companyOrientations.length > 0) {
+      setRoofFaces([{ orientation: companyOrientations[0].orientation, modules: '' }])
+    }
+  }, [hasEffectiveFaces, roofFaces.length, companyOrientations])
 
   useEffect(() => {
-    if (useRoofFaces) {
+    if (hasEffectiveFaces) {
       setModuleQty(faceModulesTotal.toString())
     }
-  }, [useRoofFaces, faceModulesTotal])
+  }, [hasEffectiveFaces, faceModulesTotal])
 
   // Potência efetiva do kit CC (kWp)
   const effectiveModuleQty = Number(moduleQty) || 0
@@ -275,58 +292,35 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
     }
   }, [utilities, neg.utility_id, neg.concessionaire, sizing])
 
-  // 5. Cálculo da Geração Mês a Mês
-  const [monthlyGeneration, setMonthlyGeneration] = useState<any[]>([])
-
-  useEffect(() => {
-    const orientationOptions = efficiencyRule?.orientation_losses || []
-    const hspMonths = [
-      'jan',
-      'feb',
-      'mar',
-      'apr',
-      'may',
-      'jun',
-      'jul',
-      'aug',
-      'sep',
-      'oct',
-      'nov',
-      'dec',
-    ]
-
-    const monthly = MONTH_LABELS.map((month, idx) => {
-      const days = DAYS_IN_MONTH[idx]
-      const hspMonth = hspData ? hspData[hspMonths[idx]] || hspNum : hspNum
-
-      let gen = 0
-      if (useRoofFaces && roofFaces.length > 0) {
-        roofFaces.forEach((face: any) => {
-          const facePowerKwp = ((Number(face.modules) || 0) * modulePowerW) / 1000
-          const faceOrient = orientationOptions.find((o: any) => o.orientation === face.orientation)
-          const orientLoss = faceOrient ? Number(faceOrient.loss) || 0 : 0
-          const faceLossFactor = (1 - totalLossesNum / 100) * (1 - orientLoss / 100)
-          gen += hspMonth * facePowerKwp * faceLossFactor * days
-        })
-      } else {
-        gen = hspMonth * kitPowerKwp * totalLossFactor * days
-      }
-      return { month, geracao: Math.round(gen) }
+  // 5. Cálculo da Geração Mês a Mês com o motor solar centralizado
+  const generationCalcResult = useMemo(() => {
+    return calculateSystemMonthlyGeneration({
+      modulePowerW,
+      totalModuleQty: hasEffectiveFaces ? faceModulesTotal : Number(moduleQty) || 0,
+      useRoofFaces: hasEffectiveFaces,
+      roofFaces: roofFaces as RoofFaceItem[],
+      orientationLossRules: companyOrientations,
+      nominalLossesPct: losses,
+      additionalLossesPct: enableAdditionalLosses ? additionalLosses : 0,
+      hspData,
+      fallbackHsp: hspNum,
     })
-    setMonthlyGeneration(monthly)
   }, [
-    useRoofFaces,
-    roofFaces,
     modulePowerW,
-    kitPowerKwp,
-    totalLossesNum,
-    totalLossFactor,
+    hasEffectiveFaces,
+    faceModulesTotal,
+    moduleQty,
+    roofFaces,
+    companyOrientations,
+    losses,
+    enableAdditionalLosses,
+    additionalLosses,
     hspData,
     hspNum,
-    efficiencyRule,
   ])
 
-  const estMonthlyGen = monthlyGeneration.reduce((acc, curr) => acc + curr.geracao, 0) / 12 || 0
+  const monthlyGeneration = generationCalcResult.monthlyGeneration
+  const estMonthlyGen = generationCalcResult.estMonthlyGen
 
   const lastSavedGenRef = useRef<number>(Number(sizing?.estimated_monthly_generation) || 0)
 
@@ -335,11 +329,26 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
     const rounded = Math.round(estMonthlyGen)
     if (rounded > 0 && neg?.id && rounded !== lastSavedGenRef.current) {
       lastSavedGenRef.current = rounded
+      const actualQty = hasEffectiveFaces ? faceModulesTotal : Number(moduleQty) || 0
+      const finalKitPower =
+        actualQty > 0 && modulePowerW > 0 ? (actualQty * modulePowerW) / 1000 : 0
+
       updateNegotiation(neg.id, {
-        sizing: { ...sizing, estimated_monthly_generation: rounded },
+        sizing: {
+          ...sizing,
+          estimated_monthly_generation: rounded,
+          monthly_generation: rounded,
+          generation_kwh: rounded,
+          estimated_generation_kwh: rounded,
+          kit_power_kwp: Number(finalKitPower.toFixed(2)),
+          totalPower: Number(finalKitPower.toFixed(2)),
+          module_qty: actualQty,
+          module_quantity: actualQty,
+          modules_count: actualQty,
+        },
       }).catch(() => {})
     }
-  }, [estMonthlyGen, neg?.id])
+  }, [estMonthlyGen, neg?.id, hasEffectiveFaces, faceModulesTotal, moduleQty, modulePowerW, sizing])
 
   // Filtragem de módulos por distribuidora selecionada
   const filteredModules = useMemo(() => {
@@ -353,7 +362,7 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
     try {
       const cleanInvs = selectedInvs.filter((i) => i.id && i.qty > 0)
       const primaryInverterId = cleanInvs.length > 0 ? cleanInvs[0].id : null
-      const actualQty = Number(moduleQty) || 0
+      const actualQty = hasEffectiveFaces ? faceModulesTotal : Number(moduleQty) || 0
       const finalKitPower =
         actualQty > 0 && modulePowerW > 0 ? (actualQty * modulePowerW) / 1000 : 0
 
@@ -371,16 +380,25 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
             ]
           : []
 
+      const roundedMonthlyGen = Math.round(estMonthlyGen)
+
       const newSizing = {
         ...sizing,
         selected_distributor_id: selectedDist === 'all' ? null : selectedDist,
         selected_module_id: selectedModId || null,
         module_qty: actualQty,
+        module_quantity: actualQty,
+        modules_count: actualQty,
         kit_power_kwp: Number(finalKitPower.toFixed(2)),
         totalPower: Number(finalKitPower.toFixed(2)),
+        power_kwp: Number(finalKitPower.toFixed(2)),
+        kwp: Number(finalKitPower.toFixed(2)),
         inverters: cleanInvs,
         selected_inverter_id: primaryInverterId,
-        estimated_monthly_generation: Math.round(estMonthlyGen),
+        estimated_monthly_generation: roundedMonthlyGen,
+        monthly_generation: roundedMonthlyGen,
+        generation_kwh: roundedMonthlyGen,
+        estimated_generation_kwh: roundedMonthlyGen,
         losses,
         enable_additional_losses: enableAdditionalLosses,
         additional_losses: additionalLosses,
@@ -389,8 +407,8 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
 
       await updateNegotiation(neg.id, {
         sizing: newSizing,
-        use_roof_faces: useRoofFaces,
-        roof_faces_data: useRoofFaces ? roofFaces : [],
+        use_roof_faces: hasEffectiveFaces,
+        roof_faces_data: hasEffectiveFaces ? roofFaces : [],
       })
 
       toast({
@@ -555,19 +573,19 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
                   <Input
                     type="number"
                     min="1"
-                    disabled={useRoofFaces}
+                    disabled={hasEffectiveFaces}
                     value={moduleQty}
                     onChange={(e) => setModuleQty(e.target.value)}
                     className="w-24 h-8 text-center font-bold"
                   />
-                  {useRoofFaces && (
+                  {hasEffectiveFaces && (
                     <span className="text-xs text-muted-foreground">
-                      (definida na seção de Faces de Orientação)
+                      (definida na soma das faces de orientação)
                     </span>
                   )}
                 </div>
 
-                {!useRoofFaces &&
+                {!hasEffectiveFaces &&
                   immediateRec.recommendedModules > 0 &&
                   Number(moduleQty) !== immediateRec.recommendedModules && (
                     <Button
@@ -809,110 +827,178 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
                     <Compass className="w-4 h-4 text-primary" /> Faces de Orientação do Telhado
                   </h4>
                   <p className="text-xs text-muted-foreground">
-                    Ative caso os módulos fiquem instalados em águas diferentes do telhado (Norte,
-                    Leste, Oeste, Sul)
+                    Distribua os módulos entre as faces cadastradas na companhia para aplicar perdas
+                    reais por orientação
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="roof-faces-switch" className="text-xs cursor-pointer">
-                    Considerar faces
-                  </Label>
-                  <Switch
-                    id="roof-faces-switch"
-                    checked={useRoofFaces}
-                    onCheckedChange={setUseRoofFaces}
-                  />
-                </div>
+                {hasConfiguredOrientations && (
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="roof-faces-switch" className="text-xs cursor-pointer">
+                      Considerar faces
+                    </Label>
+                    <Switch
+                      id="roof-faces-switch"
+                      checked={useRoofFaces}
+                      onCheckedChange={(checked) => {
+                        setUseRoofFaces(checked)
+                        if (checked && roofFaces.length === 0 && companyOrientations.length > 0) {
+                          setRoofFaces([
+                            { orientation: companyOrientations[0].orientation, modules: '' },
+                          ])
+                        }
+                      }}
+                    />
+                  </div>
+                )}
               </div>
 
-              {useRoofFaces && (
-                <div className="space-y-3 bg-muted/30 p-4 rounded-xl border">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-semibold text-foreground">Faces Cadastradas:</span>
-                    <span className="text-muted-foreground">
-                      Total de módulos nas faces:{' '}
-                      <strong className="text-foreground">{faceModulesTotal}</strong>
-                    </span>
-                  </div>
-
-                  {roofFaces.map((face, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <Select
-                        value={face.orientation}
-                        onValueChange={(val) => {
-                          const next = [...roofFaces]
-                          next[idx].orientation = val
-                          setRoofFaces(next)
-                        }}
-                      >
-                        <SelectTrigger className="flex-1 h-8 text-xs">
-                          <SelectValue placeholder="Orientação" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(
-                            efficiencyRule?.orientation_losses || [
-                              { orientation: 'Norte', loss: 0 },
-                              { orientation: 'Nordeste', loss: 3 },
-                              { orientation: 'Noroeste', loss: 3 },
-                              { orientation: 'Leste', loss: 5 },
-                              { orientation: 'Oeste', loss: 5 },
-                              { orientation: 'Sudeste', loss: 10 },
-                              { orientation: 'Sudoeste', loss: 10 },
-                              { orientation: 'Sul', loss: 18 },
-                            ]
-                          ).map((o: any) => (
-                            <SelectItem
-                              key={o.orientation}
-                              value={o.orientation}
-                              className="text-xs"
-                            >
-                              {o.orientation} {o.loss ? `(-${o.loss}%)` : '(0%)'}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-
-                      <div className="flex items-center gap-1">
-                        <Input
-                          type="number"
-                          placeholder="Módulos"
-                          value={face.modules}
-                          onChange={(e) => {
-                            const next = [...roofFaces]
-                            next[idx].modules = e.target.value
-                            setRoofFaces(next)
-                          }}
-                          className="w-24 h-8 text-xs text-center"
-                        />
-                        <span className="text-xs text-muted-foreground">painéis</span>
-                      </div>
-
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive"
-                        disabled={roofFaces.length <= 1}
-                        onClick={() => setRoofFaces(roofFaces.filter((_, i) => i !== idx))}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+              {!hasConfiguredOrientations ? (
+                <div className="p-4 rounded-xl border border-dashed bg-muted/20 space-y-3 text-sm">
+                  <div className="flex items-start gap-2 text-muted-foreground">
+                    <Info className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="font-medium text-foreground">
+                        Nenhuma face de orientação cadastrada pela companhia
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Para habilitar a divisão de módulos por face do telhado com cálculo real de
+                        perda, configure as orientações e percentuais na tela de Eficiência PV da
+                        companhia.
+                      </p>
                     </div>
-                  ))}
-
+                  </div>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="w-full text-xs h-8 gap-1"
-                    onClick={() =>
-                      setRoofFaces([...roofFaces, { orientation: 'Leste', modules: '' }])
-                    }
+                    onClick={() => navigate('/configuracoes-kit-pv?tab=eficiencia')}
+                    className="gap-2 text-xs h-8 border-primary/40 text-primary hover:bg-primary/10"
                   >
-                    <Plus className="w-3.5 h-3.5" /> Adicionar Outra Face
+                    <Settings2 className="w-3.5 h-3.5" />
+                    Cadastrar em Configurações Kit PV (Eficiência PV)
                   </Button>
                 </div>
-              )}
+              ) : useRoofFaces ? (
+                <div className="space-y-3 bg-muted/30 p-4 rounded-xl border">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-semibold text-foreground">
+                      Faces cadastradas pela companhia:
+                    </span>
+                    <span className="text-muted-foreground">
+                      Total de módulos nas faces:{' '}
+                      <strong className="text-foreground">{faceModulesTotal}</strong>
+                      {selectedMod && faceModulesTotal > 0 && (
+                        <span className="ml-1 text-[11px]">
+                          ({((faceModulesTotal * modulePowerW) / 1000).toFixed(2)} kWp)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+
+                  {roofFaces.map((face, idx) => {
+                    const rule = companyOrientations.find(
+                      (o) => o.orientation.toLowerCase() === String(face.orientation).toLowerCase(),
+                    )
+                    const lossVal = rule ? Number(rule.loss) || 0 : 0
+
+                    return (
+                      <div key={idx} className="flex items-center gap-2">
+                        <Select
+                          value={face.orientation}
+                          onValueChange={(val) => {
+                            const next = [...roofFaces]
+                            next[idx].orientation = val
+                            setRoofFaces(next)
+                          }}
+                        >
+                          <SelectTrigger className="flex-1 h-8 text-xs">
+                            <SelectValue placeholder="Selecione a face cadastrada" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {companyOrientations.map((o) => (
+                              <SelectItem
+                                key={o.orientation}
+                                value={o.orientation}
+                                className="text-xs"
+                              >
+                                {o.orientation} {o.loss ? `(Perda: -${o.loss}%)` : '(Perda: 0%)'}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number"
+                            min="0"
+                            placeholder="Módulos"
+                            value={face.modules}
+                            onChange={(e) => {
+                              const next = [...roofFaces]
+                              next[idx].modules = e.target.value
+                              setRoofFaces(next)
+                            }}
+                            className="w-24 h-8 text-xs text-center font-semibold"
+                          />
+                          <span className="text-xs text-muted-foreground">painéis</span>
+                        </div>
+
+                        <Badge
+                          variant="secondary"
+                          className="text-[11px] font-mono h-8 px-2 flex items-center justify-center shrink-0 min-w-[70px]"
+                        >
+                          {lossVal > 0 ? `-${lossVal}%` : '0%'}
+                        </Badge>
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive"
+                          disabled={roofFaces.length <= 1}
+                          onClick={() => setRoofFaces(roofFaces.filter((_, i) => i !== idx))}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )
+                  })}
+
+                  <div className="flex items-center justify-between pt-2 border-t border-border/50 gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-xs h-8 gap-1"
+                      onClick={() => {
+                        const unused = companyOrientations.find(
+                          (co) =>
+                            !roofFaces.some(
+                              (rf) => rf.orientation.toLowerCase() === co.orientation.toLowerCase(),
+                            ),
+                        )
+                        const nextOrient = unused
+                          ? unused.orientation
+                          : companyOrientations[0].orientation
+                        setRoofFaces([...roofFaces, { orientation: nextOrient, modules: '' }])
+                      }}
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Adicionar Outra Face
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate('/configuracoes-kit-pv?tab=eficiencia')}
+                      className="text-xs h-8 text-muted-foreground hover:text-foreground gap-1"
+                    >
+                      <Settings2 className="w-3.5 h-3.5" />
+                      Gerenciar Regras em Eficiência PV
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </CardContent>
         )}

@@ -1145,3 +1145,162 @@ export function calculateInverterMatchSummary(
     statusColorClass,
   }
 }
+
+export const MONTH_LABELS = [
+  'Jan',
+  'Fev',
+  'Mar',
+  'Abr',
+  'Mai',
+  'Jun',
+  'Jul',
+  'Ago',
+  'Set',
+  'Out',
+  'Nov',
+  'Dez',
+]
+
+export const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+export const HSP_MONTH_KEYS = [
+  'jan',
+  'feb',
+  'mar',
+  'apr',
+  'may',
+  'jun',
+  'jul',
+  'aug',
+  'sep',
+  'oct',
+  'nov',
+  'dec',
+]
+
+export interface RoofFaceItem {
+  orientation: string
+  modules: number | string
+}
+
+export interface OrientationLossRule {
+  orientation: string
+  loss: number | string
+}
+
+export interface MonthlyGenerationItem {
+  month: string
+  geracao: number
+}
+
+export interface SystemGenerationResult {
+  monthlyGeneration: MonthlyGenerationItem[]
+  estMonthlyGen: number
+  annualGenerationKwh: number
+}
+
+/**
+ * Cálculo robusto da geração solar mês a mês e média mensal considerando:
+ * - Divisão por faces do telhado (se useRoofFaces = true e houver faces cadastradas)
+ * - Eficiência/perda cadastrada por face (da regra de eficiência PV da companhia)
+ * - Perdas globais (nominais + adicionais opcionais)
+ * - HSP mensal ou HSP anual médio do município
+ *
+ * Fórmula por face / mês:
+ *   facePowerKwp = (modulesOnFace * modulePowerW) / 1000
+ *   faceLossFactor = (1 - totalLossesNum / 100) * (1 - orientLoss / 100)
+ *   faceGenMonth = hspMonth * facePowerKwp * faceLossFactor * daysInMonth
+ *
+ * Fórmula sem faces / mês:
+ *   kitPowerKwp = (totalModules * modulePowerW) / 1000
+ *   genMonth = hspMonth * kitPowerKwp * (1 - totalLossesNum / 100) * daysInMonth
+ */
+export function calculateSystemMonthlyGeneration(params: {
+  modulePowerW: number
+  totalModuleQty?: number
+  useRoofFaces?: boolean
+  roofFaces?: RoofFaceItem[]
+  orientationLossRules?: OrientationLossRule[]
+  nominalLossesPct?: number // padrão 23%
+  additionalLossesPct?: number // padrão 0%
+  hspData?: any // registro com jan, feb, ..., dec e annual_avg
+  fallbackHsp?: number // padrão 4.94
+}): SystemGenerationResult {
+  const modPowerW = Math.max(0, Number(params.modulePowerW) || 0)
+  const nomLoss = Number(params.nominalLossesPct ?? 23)
+  const addLoss = Number(params.additionalLossesPct || 0)
+  const totalLossesPct = Math.max(0, Math.min(99, nomLoss + addLoss))
+  const globalLossFactor = 1 - totalLossesPct / 100
+
+  const hspNum = Number(params.hspData?.annual_avg || params.fallbackHsp || 4.94)
+  const hspData = params.hspData || null
+
+  const useFaces = Boolean(params.useRoofFaces)
+  const rawFaces = params.roofFaces || []
+  const rules = params.orientationLossRules || []
+
+  // Normalização do dicionário de perdas por orientação (case-insensitive)
+  const orientationLossMap = new Map<string, number>()
+  for (const r of rules) {
+    if (r && r.orientation) {
+      orientationLossMap.set(String(r.orientation).trim().toLowerCase(), Number(r.loss) || 0)
+    }
+  }
+
+  // Se usar faces, filtrar apenas faces com módulos > 0
+  const validFaces = useFaces
+    ? rawFaces
+        .map((f) => ({
+          orientation: String(f.orientation || '').trim(),
+          modules: Number(f.modules) || 0,
+        }))
+        .filter((f) => f.modules > 0 && f.orientation.length > 0)
+    : []
+
+  const hasActiveFaces = useFaces && validFaces.length > 0
+
+  // Se não usar faces ativas, usa quantidade total de módulos
+  const effectiveTotalQty = hasActiveFaces
+    ? validFaces.reduce((acc, f) => acc + f.modules, 0)
+    : Math.max(0, Number(params.totalModuleQty) || 0)
+
+  const totalKitPowerKwp = (effectiveTotalQty * modPowerW) / 1000
+
+  const monthlyGeneration: MonthlyGenerationItem[] = MONTH_LABELS.map((month, idx) => {
+    const days = DAYS_IN_MONTH[idx]
+    const monthKey = HSP_MONTH_KEYS[idx]
+    const hspMonth =
+      hspData && typeof hspData[monthKey] === 'number' && hspData[monthKey] > 0
+        ? Number(hspData[monthKey])
+        : hspNum
+
+    let monthGen = 0
+
+    if (hasActiveFaces) {
+      for (const face of validFaces) {
+        const facePowerKwp = (face.modules * modPowerW) / 1000
+        const orientLoss = orientationLossMap.get(face.orientation.toLowerCase()) ?? 0
+        const faceOrientLossFactor = 1 - Math.max(0, Math.min(99, orientLoss)) / 100
+        // Perda combinada: (1 - perda_global) * (1 - perda_face)
+        const faceLossFactor = globalLossFactor * faceOrientLossFactor
+        monthGen += hspMonth * facePowerKwp * faceLossFactor * days
+      }
+    } else {
+      monthGen = hspMonth * totalKitPowerKwp * globalLossFactor * days
+    }
+
+    return {
+      month,
+      geracao: Math.round(monthGen),
+    }
+  })
+
+  const annualGenerationKwh = monthlyGeneration.reduce((acc, curr) => acc + curr.geracao, 0)
+  const estMonthlyGen = Math.round(annualGenerationKwh / 12)
+
+  return {
+    monthlyGeneration,
+    estMonthlyGen,
+    annualGenerationKwh,
+  }
+}

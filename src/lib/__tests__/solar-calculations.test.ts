@@ -12,6 +12,7 @@ import {
   extractValidityDays,
   formatProposalDate,
   extractEstimatedMonthlyGeneration,
+  calculateSystemMonthlyGeneration,
   BRAZIL_GRID_EMISSION_FACTOR,
   buildEquipmentsArray,
   buildCommercialConditionsArray,
@@ -716,6 +717,102 @@ describe('solar-calculations', () => {
       expect(conditions[4].condicao).toContain(
         'Painéis 25 anos · Inversor 10 anos · Instalação 5 anos',
       )
+    })
+  })
+
+  describe('calculateSystemMonthlyGeneration - Mecânica de faces de orientação e perdas', () => {
+    const rules = [
+      { orientation: 'Norte', loss: 0 },
+      { orientation: 'Leste', loss: 5 },
+      { orientation: 'Oeste', loss: 7 },
+      { orientation: 'Sul', loss: 20 },
+    ]
+
+    it('calcula geração sem faces de telhado baseado no total de módulos', () => {
+      const result = calculateSystemMonthlyGeneration({
+        modulePowerW: 550,
+        totalModuleQty: 10, // 5.5 kWp
+        useRoofFaces: false,
+        nominalLossesPct: 20,
+        additionalLossesPct: 0,
+        fallbackHsp: 5.0,
+      })
+
+      expect(result.estMonthlyGen).toBeGreaterThan(0)
+      expect(result.monthlyGeneration).toHaveLength(12)
+      // Com HSP 5.0, 5.5 kWp, perda 20% (fator 0.8):
+      // geração diária = 5.0 * 5.5 * 0.8 = 22 kWh/dia -> ~669 kWh/mês (365*22/12 = 669.16)
+      expect(result.estMonthlyGen).toBeCloseTo(669, -1)
+    })
+
+    it('aplica a perda de cada face e reduz a geração em comparação com 100% voltado para o Norte (0% perda)', () => {
+      // Caso 1: 10 módulos todos no Norte (0% perda por orientação)
+      const genNorte = calculateSystemMonthlyGeneration({
+        modulePowerW: 550,
+        useRoofFaces: true,
+        roofFaces: [{ orientation: 'Norte', modules: 10 }],
+        orientationLossRules: rules,
+        nominalLossesPct: 20,
+        fallbackHsp: 5.0,
+      })
+
+      // Caso 2: 10 módulos divididos: 5 no Norte (0%) e 5 no Sul (20% perda)
+      const genDividido = calculateSystemMonthlyGeneration({
+        modulePowerW: 550,
+        useRoofFaces: true,
+        roofFaces: [
+          { orientation: 'Norte', modules: 5 },
+          { orientation: 'Sul', modules: 5 },
+        ],
+        orientationLossRules: rules,
+        nominalLossesPct: 20,
+        fallbackHsp: 5.0,
+      })
+
+      // Caso 3: 10 módulos todos no Sul (20% perda por orientação)
+      const genSul = calculateSystemMonthlyGeneration({
+        modulePowerW: 550,
+        useRoofFaces: true,
+        roofFaces: [{ orientation: 'Sul', modules: 10 }],
+        orientationLossRules: rules,
+        nominalLossesPct: 20,
+        fallbackHsp: 5.0,
+      })
+
+      // A geração com face Sul DEVE ser estritamente menor que a geração com face Norte
+      expect(genNorte.estMonthlyGen).toBeGreaterThan(genDividido.estMonthlyGen)
+      expect(genDividido.estMonthlyGen).toBeGreaterThan(genSul.estMonthlyGen)
+
+      // Na média de perda do caso dividido (metade a 0% e metade a 20% = 10% de perda extra sobre a geração pura):
+      // genSul deve ser aproximadamente 80% de genNorte (1 - 0.20)
+      const ratioSulToNorte = genSul.estMonthlyGen / genNorte.estMonthlyGen
+      expect(ratioSulToNorte).toBeCloseTo(0.8, 1)
+    })
+
+    it('ignora faces com módulos vazios ou zero sem quebrar o cálculo', () => {
+      const result = calculateSystemMonthlyGeneration({
+        modulePowerW: 550,
+        useRoofFaces: true,
+        roofFaces: [
+          { orientation: 'Norte', modules: 10 },
+          { orientation: 'Leste', modules: 0 },
+          { orientation: 'Sul', modules: '' },
+        ],
+        orientationLossRules: rules,
+        nominalLossesPct: 20,
+        fallbackHsp: 5.0,
+      })
+
+      const ref10Norte = calculateSystemMonthlyGeneration({
+        modulePowerW: 550,
+        useRoofFaces: true,
+        roofFaces: [{ orientation: 'Norte', modules: 10 }],
+        orientationLossRules: rules,
+        nominalLossesPct: 20,
+        fallbackHsp: 5.0,
+      })
+
+      expect(result.estMonthlyGen).toBe(ref10Norte.estMonthlyGen)
     })
   })
 })

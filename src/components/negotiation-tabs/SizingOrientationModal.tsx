@@ -40,7 +40,9 @@ export function SizingOrientationModal({
     neg.roof_faces_data?.length ? neg.roof_faces_data : [{ orientation: '', modules: '' }],
   )
 
-  const orientationOptions = efficiencyRule?.orientation_losses || []
+  const orientationOptions = Array.isArray(efficiencyRule?.orientation_losses)
+    ? efficiencyRule.orientation_losses.filter((o: any) => o && o.orientation)
+    : []
 
   const handleSave = async () => {
     setLoading(true)
@@ -98,65 +100,76 @@ export function SizingOrientationModal({
               </span>
             </div>
           )}
-          {useRoofFaces && (
-            <div className="space-y-3 bg-muted/30 p-3 rounded-lg border">
-              {recommendedModules > 0 && (
-                <div className="text-sm text-muted-foreground mb-2">
-                  Quantidade mínima de módulos recomendada:{' '}
-                  <strong className="text-foreground">{recommendedModules}</strong>
-                </div>
-              )}
-              {roofFaces.map((item, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <Select
-                    value={item.orientation}
-                    onValueChange={(v) => {
-                      const arr = [...roofFaces]
-                      arr[idx].orientation = v
-                      setRoofFaces(arr)
-                    }}
-                  >
-                    <SelectTrigger className="flex-1 h-8">
-                      <SelectValue placeholder="Orientação" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {orientationOptions.map((o: any) => (
-                        <SelectItem key={o.orientation} value={o.orientation}>
-                          {o.orientation} (-{o.loss}%)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    type="number"
-                    className="w-20 h-8"
-                    value={item.modules}
-                    onChange={(e) => {
-                      const arr = [...roofFaces]
-                      arr[idx].modules = e.target.value
-                      setRoofFaces(arr)
-                    }}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive"
-                    onClick={() => setRoofFaces(roofFaces.filter((_, i) => i !== idx))}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={() => setRoofFaces([...roofFaces, { orientation: '', modules: '' }])}
-              >
-                <Plus className="h-4 w-4 mr-2" /> Adicionar Face
-              </Button>
-            </div>
-          )}
+          {useRoofFaces &&
+            (orientationOptions.length === 0 ? (
+              <div className="text-xs text-muted-foreground p-3 rounded bg-amber-500/10 border border-amber-500/20">
+                Nenhuma face de orientação cadastrada pela companhia em Eficiência PV. Configure
+                antes de atribuir módulos.
+              </div>
+            ) : (
+              <div className="space-y-3 bg-muted/30 p-3 rounded-lg border">
+                {recommendedModules > 0 && (
+                  <div className="text-sm text-muted-foreground mb-2">
+                    Quantidade mínima de módulos recomendada:{' '}
+                    <strong className="text-foreground">{recommendedModules}</strong>
+                  </div>
+                )}
+                {roofFaces.map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <Select
+                      value={item.orientation}
+                      onValueChange={(v) => {
+                        const arr = [...roofFaces]
+                        arr[idx].orientation = v
+                        setRoofFaces(arr)
+                      }}
+                    >
+                      <SelectTrigger className="flex-1 h-8">
+                        <SelectValue placeholder="Orientação cadastrada" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {orientationOptions.map((o: any) => (
+                          <SelectItem key={o.orientation} value={o.orientation}>
+                            {o.orientation} (-{o.loss}%)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      className="w-20 h-8"
+                      value={item.modules}
+                      onChange={(e) => {
+                        const arr = [...roofFaces]
+                        arr[idx].modules = e.target.value
+                        setRoofFaces(arr)
+                      }}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive"
+                      onClick={() => setRoofFaces(roofFaces.filter((_, i) => i !== idx))}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() =>
+                    setRoofFaces([
+                      ...roofFaces,
+                      { orientation: orientationOptions[0]?.orientation || '', modules: '' },
+                    ])
+                  }
+                >
+                  <Plus className="h-4 w-4 mr-2" /> Adicionar Face
+                </Button>
+              </div>
+            ))}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
