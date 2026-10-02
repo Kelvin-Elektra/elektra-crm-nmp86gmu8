@@ -841,3 +841,307 @@ export function extractEstimatedMonthlyGeneration(
 
   return 0
 }
+
+/**
+ * Normaliza strings ou números de tensão para dígitos limpos (ex: "220V" -> "220", 254 -> "254").
+ */
+export function normalizeVoltageValue(val: any): string {
+  if (val === undefined || val === null) return ''
+  const s = String(val).trim()
+  const m = s.match(/\d+/)
+  return m ? m[0] : ''
+}
+
+/**
+ * Extrai a lista de tensões nominais aceitas por um inversor fotovoltaico.
+ * Trata tanto array `voltages: ['220', '254']` quanto campos legados `voltage: '220V, 254V'` ou `[220;254]`.
+ */
+export function extractInverterVoltages(inv: any): string[] {
+  if (!inv) return []
+
+  const set = new Set<string>()
+
+  // Array nativo moderno
+  if (Array.isArray(inv.voltages)) {
+    inv.voltages.forEach((v: any) => {
+      const clean = normalizeVoltageValue(v)
+      if (clean) set.add(clean)
+    })
+  }
+
+  // Campo string legado (ex: "220V", "127V / 220V", "[220;254]", "220, 380")
+  if (inv.voltage) {
+    const matches = String(inv.voltage).match(/\d+/g) || []
+    matches.forEach((m) => {
+      if (m) set.add(m)
+    })
+  }
+
+  return Array.from(set)
+}
+
+export interface VoltageCompatibilityResult {
+  isCompatible: boolean
+  matchedVoltage: string | null // ex: '254'
+  matchedVia: 'fase' | 'linha' | null // 'fase' ou 'linha'
+  summaryText: string // ex: "Compatível via 254V (tensão de linha)" ou "Incompatível com a rede (127V / 254V)"
+  gridPhase: string
+  gridLine: string
+  inverterVoltages: string[]
+}
+
+/**
+ * Onda 4 - Regra 5: Matemática do Match de Tensão (Rede da Concessionária x Inversor)
+ *
+ * A rede da concessionária define Tensão de Fase e Tensão de Linha (ex.: Copel Monofásico Rural = 127V fase / 254V linha).
+ * O inversor possui lista de tensões nominais aceitas (ex.: ['220', '254'] ou [220;254]).
+ *
+ * Um inversor é COMPATÍVEL quando sua lista contém a tensão de fase OU a tensão de linha da rede.
+ * Inversores incompatíveis não são escondidos na tela, mas recebem badge e aviso claro com a justificativa técnica.
+ */
+export function checkInverterVoltageCompatibility(
+  inverter: any,
+  grid: {
+    phaseVoltage?: string | number | null
+    lineVoltage?: string | number | null
+    tension?: string | null // fallback textual ex "127V / 254V" ou "220V"
+  },
+): VoltageCompatibilityResult {
+  const invVoltages = extractInverterVoltages(inverter)
+
+  let phase = normalizeVoltageValue(grid.phaseVoltage)
+  let line = normalizeVoltageValue(grid.lineVoltage)
+
+  // Se não foi passado phase/line direto, tenta extrair do campo composto tension (ex: "127V / 220V")
+  if (!phase && !line && grid.tension) {
+    const digits = String(grid.tension).match(/\d+/g) || []
+    if (digits.length >= 2) {
+      phase = digits[0]
+      line = digits[1]
+    } else if (digits.length === 1) {
+      line = digits[0]
+    }
+  }
+
+  // Se a rede não tem tensões conhecidas/definidas na negociação
+  if (!phase && !line) {
+    return {
+      isCompatible: true,
+      matchedVoltage: null,
+      matchedVia: null,
+      summaryText: 'Tensão da rede não informada na negociação',
+      gridPhase: '',
+      gridLine: '',
+      inverterVoltages: invVoltages,
+    }
+  }
+
+  // Se o inversor não tem tensões cadastradas
+  if (invVoltages.length === 0) {
+    return {
+      isCompatible: true,
+      matchedVoltage: null,
+      matchedVia: null,
+      summaryText: 'Inversor sem tensões cadastradas',
+      gridPhase: phase,
+      gridLine: line,
+      inverterVoltages: [],
+    }
+  }
+
+  // Testar match: fase tem prioridade se casar, ou linha
+  let matchedVoltage: string | null = null
+  let matchedVia: 'fase' | 'linha' | null = null
+
+  if (phase && invVoltages.includes(phase)) {
+    matchedVoltage = phase
+    matchedVia = 'fase'
+  } else if (line && invVoltages.includes(line)) {
+    matchedVoltage = line
+    matchedVia = 'linha'
+  }
+
+  const isCompatible = matchedVoltage !== null
+
+  let summaryText = ''
+  const gridDesc = [phase ? `${phase}V fase` : '', line ? `${line}V linha` : '']
+    .filter(Boolean)
+    .join(' / ')
+
+  if (isCompatible) {
+    summaryText = `Compatível via ${matchedVoltage}V (${matchedVia === 'fase' ? 'tensão de fase' : 'tensão de linha'})`
+  } else {
+    const invDesc = invVoltages.map((v) => `${v}V`).join(', ') || 'N/D'
+    summaryText = `Incompatível com a rede (${gridDesc || 'definida'}). Inversor opera em: ${invDesc}`
+  }
+
+  return {
+    isCompatible,
+    matchedVoltage,
+    matchedVia,
+    summaryText,
+    gridPhase: phase,
+    gridLine: line,
+    inverterVoltages: invVoltages,
+  }
+}
+
+export interface ImmediateSizingRecommendation {
+  recommendedModules: number
+  systemPowerKwp: number
+  requiredKwp: number
+  avgConsumption: number
+  dailyTargetKwh: number
+  hspAverage: number
+  totalLossFactor: number
+  totalLossesPct: number
+  generationList: Array<{
+    moduleId: string
+    moduleName: string
+    modulePowerW: number
+    quantity: number
+    powerKwp: number
+  }>
+}
+
+/**
+ * Onda 4 - Regra 1 e 3: Recomendação Imediata ao Selecionar Módulo
+ *
+ * O consultor escolhe o módulo e o sistema calcula imediatamente:
+ * - Quantos módulos são necessários para cobrir o consumo alvo
+ * - Potência do sistema em kWp
+ * - Estruturado com lista de gerações (generationList) para o motor suportar múltiplos
+ *   no futuro sem quebrar a regra de 1 modelo de módulo na UI.
+ */
+export function calculateImmediateModuleRecommendation(params: {
+  module: { id: string; name?: string; brand?: string; power?: number } | null
+  avgConsumptionKwh: number
+  hspAverage?: number
+  nominalLossesPct?: number // padrão 23%
+  additionalLossesPct?: number // padrão 0%
+}): ImmediateSizingRecommendation {
+  const avgConsumption = Math.max(0, Number(params.avgConsumptionKwh) || 0)
+  const hsp = Number(params.hspAverage) > 0 ? Number(params.hspAverage) : 4.94
+  const nomLoss = Number(params.nominalLossesPct ?? 23)
+  const addLoss = Number(params.additionalLossesPct || 0)
+  const totalLossesPct = Math.max(0, Math.min(99, nomLoss + addLoss))
+  const totalLossFactor = 1 - totalLossesPct / 100
+
+  const avgDaysPerMonth = 365 / 12
+  const dailyTargetKwh = avgConsumption > 0 ? avgConsumption / avgDaysPerMonth : 0
+  const avgDailyGenPerKwp = hsp * totalLossFactor
+  const requiredKwp =
+    avgDailyGenPerKwp > 0 && dailyTargetKwh > 0 ? dailyTargetKwh / avgDailyGenPerKwp : 0
+
+  const mod = params.module
+  const modPowerW = mod ? Number(mod.power) || 0 : 0
+
+  let recommendedModules = 0
+  if (modPowerW > 0 && requiredKwp > 0) {
+    recommendedModules = Math.ceil((requiredKwp * 1000) / modPowerW)
+  }
+
+  const systemPowerKwp =
+    modPowerW > 0 && recommendedModules > 0 ? (recommendedModules * modPowerW) / 1000 : 0
+
+  const modName = mod
+    ? [mod.brand, mod.name].filter(Boolean).join(' ') || `Módulo ${modPowerW}W`
+    : 'Módulo'
+
+  // Motor preservado com LISTA de gerações (Onda 4, item 3)
+  const generationList: ImmediateSizingRecommendation['generationList'] =
+    mod && recommendedModules > 0
+      ? [
+          {
+            moduleId: mod.id,
+            moduleName: modName,
+            modulePowerW: modPowerW,
+            quantity: recommendedModules,
+            powerKwp: Number(systemPowerKwp.toFixed(3)),
+          },
+        ]
+      : []
+
+  return {
+    recommendedModules,
+    systemPowerKwp: Number(systemPowerKwp.toFixed(2)),
+    requiredKwp: Number(requiredKwp.toFixed(2)),
+    avgConsumption,
+    dailyTargetKwh: Number(dailyTargetKwh.toFixed(2)),
+    hspAverage: Number(hsp.toFixed(2)),
+    totalLossFactor: Number(totalLossFactor.toFixed(4)),
+    totalLossesPct,
+    generationList,
+  }
+}
+
+export interface InverterMatchSummary {
+  totalDcPowerKwp: number // Potência dos módulos CC
+  totalAcPowerKw: number // Potência nominal total dos inversores CA
+  ratioPct: number // Overload / Carregamento = (totalDcPowerKwp / totalAcPowerKw) * 100
+  overloadStatus: 'ideal' | 'moderado' | 'alto' | 'baixo' | 'sem_inversor'
+  statusLabel: string
+  statusColorClass: string
+}
+
+/**
+ * Onda 4 - Regra 4: "Colinha da Potência CC / CA" e Overload
+ *
+ * Calcula a relação CC / CA entre a potência dos módulos e a potência dos inversores,
+ * retornando a proporção exata e o diagnóstico para o consultor de vendas.
+ */
+export function calculateInverterMatchSummary(
+  totalDcPowerKwp: number,
+  selectedInverters: Array<{ power?: number; qty?: number; quantity?: number }>,
+): InverterMatchSummary {
+  const dcKwp = Math.max(0, Number(totalDcPowerKwp) || 0)
+  const acKw = (selectedInverters || []).reduce((acc, inv) => {
+    const p = Number(inv.power) || 0
+    const q = Number(inv.qty || inv.quantity || 0)
+    return acc + p * q
+  }, 0)
+
+  if (acKw <= 0) {
+    return {
+      totalDcPowerKwp: Number(dcKwp.toFixed(2)),
+      totalAcPowerKw: 0,
+      ratioPct: 0,
+      overloadStatus: 'sem_inversor',
+      statusLabel: 'Nenhum inversor selecionado',
+      statusColorClass: 'text-muted-foreground',
+    }
+  }
+
+  const ratioPct = Number(((dcKwp / acKw) * 100).toFixed(1))
+
+  let overloadStatus: InverterMatchSummary['overloadStatus'] = 'ideal'
+  let statusLabel = 'Equilibrado'
+  let statusColorClass = 'text-emerald-600 dark:text-emerald-400'
+
+  if (ratioPct < 90) {
+    overloadStatus = 'baixo'
+    statusLabel = 'Subdimensionado (potência CA sobra)'
+    statusColorClass = 'text-amber-600 dark:text-amber-400'
+  } else if (ratioPct >= 90 && ratioPct <= 135) {
+    overloadStatus = 'ideal'
+    statusLabel = 'Excelente (relação CC/CA recomendada)'
+    statusColorClass = 'text-emerald-600 dark:text-emerald-400'
+  } else if (ratioPct > 135 && ratioPct <= 150) {
+    overloadStatus = 'moderado'
+    statusLabel = 'Atenção: Overload elevado'
+    statusColorClass = 'text-amber-600 dark:text-amber-400'
+  } else {
+    overloadStatus = 'alto'
+    statusLabel = 'Crítico: Overload acima de 150%'
+    statusColorClass = 'text-rose-600 dark:text-rose-400'
+  }
+
+  return {
+    totalDcPowerKwp: Number(dcKwp.toFixed(2)),
+    totalAcPowerKw: Number(acKw.toFixed(2)),
+    ratioPct,
+    overloadStatus,
+    statusLabel,
+    statusColorClass,
+  }
+}

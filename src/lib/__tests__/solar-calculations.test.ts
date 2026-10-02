@@ -15,6 +15,10 @@ import {
   BRAZIL_GRID_EMISSION_FACTOR,
   buildEquipmentsArray,
   buildCommercialConditionsArray,
+  extractInverterVoltages,
+  checkInverterVoltageCompatibility,
+  calculateImmediateModuleRecommendation,
+  calculateInverterMatchSummary,
 } from '../solar-calculations'
 import { getFioBScalingFactor, FIO_B_SCALING_FACTORS } from '../financial-analysis'
 
@@ -380,6 +384,116 @@ describe('solar-calculations', () => {
       expect(tir).toBeGreaterThan(44)
       expect(tir).toBeLessThan(46)
       expect(tir).toBeCloseTo(45.1, 0)
+    })
+  })
+
+  describe('Onda 4: normalizeVoltageValue e extractInverterVoltages', () => {
+    it('deve extrair tensões de arrays nativos e formatos legados textuais', () => {
+      expect(extractInverterVoltages({ voltages: ['220', '254'] })).toEqual(['220', '254'])
+      expect(extractInverterVoltages({ voltages: [220, 380] })).toEqual(['220', '380'])
+      expect(extractInverterVoltages({ voltage: '220V, 254V' })).toEqual(['220', '254'])
+      expect(extractInverterVoltages({ voltage: '[220;254]' })).toEqual(['220', '254'])
+      expect(extractInverterVoltages({ voltage: '127-220V' })).toEqual(['127', '220'])
+      expect(extractInverterVoltages(null)).toEqual([])
+      expect(extractInverterVoltages({})).toEqual([])
+    })
+  })
+
+  describe('Onda 4: checkInverterVoltageCompatibility (Match Rede Concessionária × Inversor)', () => {
+    it('deve validar compatibilidade quando a tensão de fase casa (ex: 220V em rede 220/380)', () => {
+      const inv = { voltages: ['220'] }
+      const grid = { phaseVoltage: '220', lineVoltage: '380' }
+      const res = checkInverterVoltageCompatibility(inv, grid)
+      expect(res.isCompatible).toBe(true)
+      expect(res.matchedVoltage).toBe('220')
+      expect(res.matchedVia).toBe('fase')
+      expect(res.summaryText).toContain('via 220V (tensão de fase)')
+    })
+
+    it('deve validar o caso real do backlog: Copel Monofásico Rural (127V fase / 254V linha) com inversor [220;254]', () => {
+      const inv = { voltages: ['220', '254'] }
+      const grid = { phaseVoltage: '127', lineVoltage: '254' }
+      const res = checkInverterVoltageCompatibility(inv, grid)
+      expect(res.isCompatible).toBe(true)
+      expect(res.matchedVoltage).toBe('254')
+      expect(res.matchedVia).toBe('linha')
+      expect(res.summaryText).toContain('via 254V (tensão de linha)')
+    })
+
+    it('deve marcar claramente como incompatível quando nenhuma tensão casa e explicar na mensagem', () => {
+      const inv = { voltages: ['380'] }
+      const grid = { phaseVoltage: '127', lineVoltage: '220' }
+      const res = checkInverterVoltageCompatibility(inv, grid)
+      expect(res.isCompatible).toBe(false)
+      expect(res.matchedVoltage).toBeNull()
+      expect(res.summaryText).toContain('Incompatível com a rede')
+      expect(res.summaryText).toContain('380V')
+    })
+
+    it('deve extrair tensões de campo de fallback textual caso phaseVoltage e lineVoltage não estejam preenchidos', () => {
+      const inv = { voltages: ['220'] }
+      const grid = { tension: '127V / 220V' }
+      const res = checkInverterVoltageCompatibility(inv, grid)
+      expect(res.isCompatible).toBe(true)
+      expect(res.matchedVoltage).toBe('220')
+      expect(res.matchedVia).toBe('linha')
+    })
+  })
+
+  describe('Onda 4: calculateImmediateModuleRecommendation', () => {
+    it('deve calcular recomendação imediata assim que o módulo é escolhido', () => {
+      // Consumo: 500 kWh/mês, HSP: 4.94, perdas: 23%
+      // Módulo: 550W
+      const mod = { id: 'mod1', brand: 'Canadian', name: 'HiKu6', power: 550 }
+      const rec = calculateImmediateModuleRecommendation({
+        module: mod,
+        avgConsumptionKwh: 500,
+        hspAverage: 4.94,
+        nominalLossesPct: 23,
+      })
+
+      expect(rec.recommendedModules).toBeGreaterThan(0)
+      expect(rec.systemPowerKwp).toBeGreaterThan(0)
+      expect(rec.systemPowerKwp).toBe(Number(((rec.recommendedModules * 550) / 1000).toFixed(2)))
+      // Preservação do motor com LISTA de gerações
+      expect(rec.generationList).toHaveLength(1)
+      expect(rec.generationList[0].moduleId).toBe('mod1')
+      expect(rec.generationList[0].modulePowerW).toBe(550)
+      expect(rec.generationList[0].quantity).toBe(rec.recommendedModules)
+    })
+
+    it('deve retornar recomendação vazia se o módulo for nulo', () => {
+      const rec = calculateImmediateModuleRecommendation({
+        module: null,
+        avgConsumptionKwh: 500,
+      })
+      expect(rec.recommendedModules).toBe(0)
+      expect(rec.systemPowerKwp).toBe(0)
+      expect(rec.generationList).toEqual([])
+    })
+  })
+
+  describe('Onda 4: calculateInverterMatchSummary (Colinha CC/CA e Overload)', () => {
+    it('deve calcular overload correto para relação CC/CA ideal (~120%)', () => {
+      const summary = calculateInverterMatchSummary(6.0, [{ power: 5.0, qty: 1 }])
+      expect(summary.totalDcPowerKwp).toBe(6.0)
+      expect(summary.totalAcPowerKw).toBe(5.0)
+      expect(summary.ratioPct).toBe(120.0)
+      expect(summary.overloadStatus).toBe('ideal')
+      expect(summary.statusLabel).toContain('Excelente')
+    })
+
+    it('deve avisar quando overload passar de 135%', () => {
+      const summary = calculateInverterMatchSummary(7.5, [{ power: 5.0, qty: 1 }])
+      expect(summary.ratioPct).toBe(150.0)
+      expect(summary.overloadStatus).toBe('moderado')
+      expect(summary.statusLabel).toContain('Overload')
+    })
+
+    it('deve indicar sem inversor quando lista estiver vazia', () => {
+      const summary = calculateInverterMatchSummary(6.0, [])
+      expect(summary.overloadStatus).toBe('sem_inversor')
+      expect(summary.ratioPct).toBe(0)
     })
   })
 
