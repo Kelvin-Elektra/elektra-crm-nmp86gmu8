@@ -2,7 +2,16 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Search, X, Plus, GripVertical, Tag as TagIcon, Settings2, Filter } from 'lucide-react'
+import {
+  Search,
+  X,
+  Plus,
+  GripVertical,
+  Tag as TagIcon,
+  Settings2,
+  Filter,
+  ArrowRightLeft,
+} from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import {
@@ -233,51 +242,62 @@ export default function Pipeline() {
     e.dataTransfer.setData('negotiation_id', id)
   }
 
+  const moveToStage = async (negId: string, stageId: string) => {
+    const negToMove = negotiations.find((n) => n.id === negId)
+    if (!negToMove) return
+
+    const currentEffective = getEffectiveStage(negToMove)
+    if (currentEffective === stageId) return
+
+    // Se moveu para o estágio de perda, interceptar e abrir modal de motivo
+    const targetStage = stages.find((s) => s.id === stageId)
+    if (isLossStageCheck(stageId, targetStage?.name)) {
+      setPendingLossMove({
+        negId,
+        stageId,
+        title: negToMove.title,
+      })
+      return
+    }
+
+    // Mudar estágio normal
+    setNegotiations((prev) =>
+      prev.map((n) =>
+        n.id === negId ? { ...n, stage: stageId, stage_changed_at: new Date().toISOString() } : n,
+      ),
+    )
+
+    try {
+      await updateNegotiation(negId, {
+        stage: stageId,
+        stage_changed_at: new Date().toISOString(),
+        // Se estava marcado como perdido e voltou para estágio ativo, limpa perda
+        lost_at: null,
+        loss_reason: null,
+        loss_notes: null,
+      })
+      toast({
+        title: 'Estágio atualizado',
+        description: `Negociação movida para "${targetStage?.name || 'novo estágio'}".`,
+      })
+    } catch (err) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao mover negociação',
+        description: getErrorMessage(err),
+      })
+      setNegotiations((prev) =>
+        prev.map((n) => (n.id === negId ? { ...n, stage: negToMove.stage } : n)),
+      )
+    }
+  }
+
   const handleDrop = async (e: React.DragEvent, stageId: string) => {
     e.preventDefault()
     setDragOverCol(null)
     const id = e.dataTransfer.getData('negotiation_id')
     if (id) {
-      const negToMove = negotiations.find((n) => n.id === id)
-      if (!negToMove) return
-
-      // Se moveu para o estágio de perda, interceptar e abrir modal de motivo
-      const targetStage = stages.find((s) => s.id === stageId)
-      if (isLossStageCheck(stageId, targetStage?.name)) {
-        setPendingLossMove({
-          negId: id,
-          stageId,
-          title: negToMove.title,
-        })
-        return
-      }
-
-      // Mudar estágio normal
-      setNegotiations((prev) =>
-        prev.map((n) =>
-          n.id === id ? { ...n, stage: stageId, stage_changed_at: new Date().toISOString() } : n,
-        ),
-      )
-
-      try {
-        await updateNegotiation(id, {
-          stage: stageId,
-          stage_changed_at: new Date().toISOString(),
-          // Se estava marcado como perdido e voltou para estágio ativo, limpa perda
-          lost_at: null,
-          loss_reason: null,
-          loss_notes: null,
-        })
-      } catch (err) {
-        toast({
-          variant: 'destructive',
-          title: 'Erro ao mover card',
-          description: getErrorMessage(err),
-        })
-        setNegotiations((prev) =>
-          prev.map((n) => (n.id === id ? { ...n, stage: negToMove.stage } : n)),
-        )
-      }
+      await moveToStage(id, stageId)
     }
   }
 
@@ -521,12 +541,51 @@ export default function Pipeline() {
                       <GripVertical className="absolute right-2 top-3 h-4 w-4 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
                       <CardHeader className="p-3 pb-2 pr-8">
                         <CardTitle
-                          className="text-sm font-medium line-clamp-1 flex items-center justify-between"
+                          className="text-sm font-medium line-clamp-1 flex items-center justify-between gap-1"
                           title={neg.title}
                         >
-                          <span>{neg.title}</span>
-                          {neg.expand?.lead_id?.phone && (
-                            <div onClick={(e) => e.stopPropagation()}>
+                          <span className="truncate flex-1">{neg.title}</span>
+                          <div
+                            className="flex items-center gap-0.5 shrink-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {/* Seletor discreto para mover negociação de estágio sem arrastar */}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-muted-foreground/60 hover:text-foreground hover:bg-muted"
+                                  title="Mover para outro estágio"
+                                >
+                                  <ArrowRightLeft className="h-3 w-3" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-48">
+                                <DropdownMenuLabel className="text-[11px] text-muted-foreground uppercase tracking-wider py-1">
+                                  Mover para...
+                                </DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                {stages
+                                  .filter((s) => s.id !== getEffectiveStage(neg))
+                                  .map((s) => (
+                                    <DropdownMenuItem
+                                      key={s.id}
+                                      onClick={() => moveToStage(neg.id, s.id)}
+                                      className="text-xs cursor-pointer flex items-center justify-between"
+                                    >
+                                      <span>{s.name}</span>
+                                      {isLossStageCheck(s.id, s.name) && (
+                                        <span className="text-[10px] text-rose-500 font-medium">
+                                          Perda
+                                        </span>
+                                      )}
+                                    </DropdownMenuItem>
+                                  ))}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+
+                            {neg.expand?.lead_id?.phone && (
                               <WhatsAppContactButton
                                 phone={neg.expand.lead_id.phone}
                                 clientName={neg.expand.lead_id.name}
@@ -535,8 +594,8 @@ export default function Pipeline() {
                                 showLabel={false}
                                 className="h-6 w-6 shrink-0"
                               />
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-3 pt-0 flex flex-col gap-2">

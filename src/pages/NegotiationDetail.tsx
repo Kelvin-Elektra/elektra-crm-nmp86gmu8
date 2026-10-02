@@ -12,7 +12,17 @@ import {
   ShoppingCart,
   Folder,
   FileArchive,
+  ArrowRightLeft,
 } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { MarkNegotiationLostDialog } from '@/components/MarkNegotiationLostDialog'
 import { useRealtime } from '@/hooks/use-realtime'
 import pb from '@/lib/pocketbase/client'
 import { useAuth } from '@/contexts/AuthContext'
@@ -45,6 +55,10 @@ export default function NegotiationDetail() {
   const [loading, setLoading] = useState(true)
   const [users, setUsers] = useState<any[]>([])
   const [pipelineStages, setPipelineStages] = useState<any[]>([])
+  const [pendingLossMove, setPendingLossMove] = useState<{
+    stageId: string
+    title?: string
+  } | null>(null)
 
   const loadData = async () => {
     if (!id) return
@@ -83,6 +97,76 @@ export default function NegotiationDetail() {
     }
   }, [neg?.company_id, isAdmin])
 
+  const isLossStageCheck = (stageId: string, stageName?: string) => {
+    const stg = pipelineStages.find((s) => s.id === stageId)
+    if (stg?.is_loss_stage) return true
+    const name = (stageName || stg?.name || '').toLowerCase()
+    return name.includes('perd') || name.includes('cancelad') || name.includes('desist')
+  }
+
+  const handleStageChange = async (targetStageId: string) => {
+    if (!neg || neg.stage === targetStageId) return
+
+    const targetStage = pipelineStages.find((s) => s.id === targetStageId)
+    if (isLossStageCheck(targetStageId, targetStage?.name)) {
+      setPendingLossMove({
+        stageId: targetStageId,
+        title: neg.title,
+      })
+      return
+    }
+
+    try {
+      const now = new Date().toISOString()
+      await pb.collection('negotiations').update(neg.id, {
+        stage: targetStageId,
+        stage_changed_at: now,
+        lost_at: null,
+        loss_reason: null,
+        loss_notes: null,
+      })
+      toast({
+        title: 'Estágio atualizado',
+        description: `Negociação movida para "${targetStage?.name || 'novo estágio'}".`,
+      })
+      loadData()
+    } catch (e: any) {
+      toast({
+        title: 'Erro',
+        description: e.message || 'Não foi possível alterar o estágio.',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const handleConfirmLoss = async (reason: string, notes: string) => {
+    if (!pendingLossMove || !neg) return
+    const { stageId } = pendingLossMove
+    const now = new Date().toISOString()
+
+    try {
+      await pb.collection('negotiations').update(neg.id, {
+        stage: stageId,
+        stage_changed_at: now,
+        lost_at: now,
+        loss_reason: reason,
+        loss_notes: notes,
+      })
+      toast({
+        title: 'Negociação marcada como perdida',
+        description: 'Motivo de perda registrado com sucesso.',
+      })
+      setPendingLossMove(null)
+      loadData()
+    } catch (e: any) {
+      toast({
+        title: 'Erro ao registrar perda',
+        description: e.message || 'Falha ao mover para estágio de perda.',
+        variant: 'destructive',
+      })
+    }
+  }
+
   const handleOwnerChange = async (newOwnerId: string) => {
     try {
       await pb.collection('negotiations').update(neg.id, { owner_id: newOwnerId })
@@ -117,10 +201,47 @@ export default function NegotiationDetail() {
               >
                 ID: {neg.id}
               </Badge>
-              <Badge variant="secondary">
-                {pipelineStages.find((s) => s.id === neg.stage)?.name ||
-                  (neg.stage === 'Venda Fechada' ? 'Venda Fechada' : neg.stage)}
-              </Badge>
+              <div className="flex items-center gap-1.5">
+                <Badge variant="secondary">
+                  {pipelineStages.find((s) => s.id === neg.stage)?.name ||
+                    (neg.stage === 'Venda Fechada' ? 'Venda Fechada' : neg.stage)}
+                </Badge>
+                {pipelineStages.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted gap-1"
+                        title="Mover negociação para outro estágio"
+                      >
+                        <ArrowRightLeft className="h-3 w-3" />
+                        <span className="text-[11px] font-normal">Mover</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-48">
+                      <DropdownMenuLabel className="text-[11px] text-muted-foreground uppercase tracking-wider py-1">
+                        Mover para estágio
+                      </DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {pipelineStages
+                        .filter((s) => s.id !== neg.stage)
+                        .map((s) => (
+                          <DropdownMenuItem
+                            key={s.id}
+                            onClick={() => handleStageChange(s.id)}
+                            className="text-xs cursor-pointer flex items-center justify-between"
+                          >
+                            <span>{s.name}</span>
+                            {isLossStageCheck(s.id, s.name) && (
+                              <span className="text-[10px] text-rose-500 font-medium">Perda</span>
+                            )}
+                          </DropdownMenuItem>
+                        ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
               <span className="text-sm text-muted-foreground flex items-center ml-2">
                 <User className="h-3 w-3 mr-1" />
                 Responsável:{' '}
@@ -213,6 +334,13 @@ export default function NegotiationDetail() {
           </TabsContent>
         </div>
       </Tabs>
+      {/* Diálogo obrigatório de motivo de perda ao mover para estágio de perda */}
+      <MarkNegotiationLostDialog
+        open={Boolean(pendingLossMove)}
+        onOpenChange={(op) => !op && setPendingLossMove(null)}
+        negotiationTitle={pendingLossMove?.title}
+        onConfirm={handleConfirmLoss}
+      />
     </div>
   )
 }

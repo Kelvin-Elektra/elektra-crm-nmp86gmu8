@@ -325,6 +325,7 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
   const lastSavedGenRef = useRef<number>(Number(sizing?.estimated_monthly_generation) || 0)
 
   // Salva silenciosamente a geração estimada caso recalculada e estável
+  // Apenas sincroniza campos calculados sem disparar reload que suje o estado local
   useEffect(() => {
     const rounded = Math.round(estMonthlyGen)
     if (rounded > 0 && neg?.id && rounded !== lastSavedGenRef.current) {
@@ -333,22 +334,20 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
       const finalKitPower =
         actualQty > 0 && modulePowerW > 0 ? (actualQty * modulePowerW) / 1000 : 0
 
+      // Atualiza os metadados calculados em background sem interferir nas propriedades de dirty state
       updateNegotiation(neg.id, {
         sizing: {
-          ...sizing,
+          ...(neg.sizing || {}),
           estimated_monthly_generation: rounded,
           monthly_generation: rounded,
           generation_kwh: rounded,
           estimated_generation_kwh: rounded,
           kit_power_kwp: Number(finalKitPower.toFixed(2)),
           totalPower: Number(finalKitPower.toFixed(2)),
-          module_qty: actualQty,
-          module_quantity: actualQty,
-          modules_count: actualQty,
         },
       }).catch(() => {})
     }
-  }, [estMonthlyGen, neg?.id, hasEffectiveFaces, faceModulesTotal, moduleQty, modulePowerW, sizing])
+  }, [estMonthlyGen, neg?.id, hasEffectiveFaces, faceModulesTotal, moduleQty, modulePowerW])
 
   // Filtragem de módulos por distribuidora selecionada
   const filteredModules = useMemo(() => {
@@ -357,14 +356,57 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
   }, [modules, selectedDist])
 
   // Rastreamento de alterações não salvas
-  const initialSnapshotRef = useRef<string>('')
+  // Função para gerar um snapshot canônico dos dados salvos no neg
+  const buildCanonicalSnapshot = (sourceSizing: any, sourceNeg: any) => {
+    const s = sourceSizing || {}
+    const sDist = s.selected_distributor_id || 'all'
+    const sModId = s.selected_module_id || ''
+    const sQty = s.module_qty !== undefined && s.module_qty !== null ? s.module_qty.toString() : ''
+
+    let sInvs: SelectedInverterItem[] = []
+    if (Array.isArray(s.inverters) && s.inverters.length > 0) {
+      sInvs = s.inverters
+        .filter((i: any) => i.id)
+        .map((i: any) => ({
+          id: i.id,
+          qty: Number(i.qty || i.quantity || 1),
+        }))
+    } else if (s.selected_inverter_id) {
+      sInvs = [{ id: s.selected_inverter_id, qty: 1 }]
+    }
+
+    const sLosses = Number(s.losses !== undefined ? s.losses : 23)
+    const sEnableAddLosses = Boolean(s.enable_additional_losses)
+    const sAddLosses = Number(s.additional_losses || 0)
+    const sUseRoofFaces = Boolean(sourceNeg?.use_roof_faces)
+    const sRoofFaces = Array.isArray(sourceNeg?.roof_faces_data) ? sourceNeg.roof_faces_data : []
+
+    return JSON.stringify({
+      selectedDist: sDist,
+      selectedModId: sModId,
+      moduleQty: sQty,
+      selectedInvs: sInvs,
+      losses: sLosses,
+      enableAdditionalLosses: sEnableAddLosses,
+      additionalLosses: sAddLosses,
+      useRoofFaces: sUseRoofFaces,
+      roofFaces: sUseRoofFaces ? sRoofFaces : [],
+    })
+  }
+
+  const initialSnapshotRef = useRef<string>(buildCanonicalSnapshot(sizing, neg))
+
+  // Atualiza o snapshot inicial quando neg muda (ex: reload)
+  useEffect(() => {
+    initialSnapshotRef.current = buildCanonicalSnapshot(neg.sizing, neg)
+  }, [neg?.id, neg?.updated])
 
   const currentSnapshot = useMemo(() => {
     return JSON.stringify({
       selectedDist,
       selectedModId,
       moduleQty: hasEffectiveFaces ? faceModulesTotal.toString() : moduleQty,
-      selectedInvs,
+      selectedInvs: selectedInvs.filter((i) => i.id && i.qty > 0),
       losses,
       enableAdditionalLosses,
       additionalLosses,
@@ -384,13 +426,6 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
     useRoofFaces,
     roofFaces,
   ])
-
-  // Inicializa o snapshot base após o carregamento inicial dos dados da negociação
-  useEffect(() => {
-    if (neg?.id && !initialSnapshotRef.current) {
-      initialSnapshotRef.current = currentSnapshot
-    }
-  }, [neg?.id, currentSnapshot])
 
   const hasUnsavedChanges = useMemo(() => {
     if (!initialSnapshotRef.current) return false
@@ -1073,47 +1108,30 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
         </CardContent>
       </Card>
 
-      {/* Barra Fixa Sticky no Rodapé para salvar com destaque quando há alterações não salvas */}
+      {/* Barra Fixa Sticky no Rodapé com os botões flutuantes quando há alterações não salvas */}
       {hasUnsavedChanges && (
-        <div className="fixed bottom-4 left-4 right-4 md:left-72 md:right-8 z-40 animate-in slide-in-from-bottom-4 duration-300">
-          <div className="bg-slate-900 text-white rounded-xl p-4 shadow-2xl border border-amber-500/50 flex flex-col sm:flex-row items-center justify-between gap-4 backdrop-blur-md">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-amber-500/20 text-amber-400">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="font-semibold text-sm text-amber-300 flex items-center gap-2">
-                  Você possui alterações não salvas no dimensionamento
-                </p>
-                <p className="text-xs text-slate-300">
-                  Salve agora para atualizar a potência, módulos e geração estimada na negociação.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  // Desfazer recarregando
-                  reload()
-                  initialSnapshotRef.current = ''
-                }}
-                disabled={saving}
-                className="text-xs text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white"
-              >
-                Descartar alterações
-              </Button>
-              <Button
-                onClick={handleSaveAll}
-                disabled={saving}
-                size="sm"
-                className="gap-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-5 shadow-lg"
-              >
-                <Save className="w-4 h-4" />
-                {saving ? 'Salvando...' : 'Salvar Alterações'}
-              </Button>
-            </div>
+        <div className="fixed bottom-4 right-4 md:right-8 z-40 animate-in slide-in-from-bottom-3 duration-200 pointer-events-none">
+          <div className="pointer-events-auto bg-slate-900/95 text-white rounded-xl p-2.5 px-3 shadow-2xl border border-amber-500/50 flex items-center gap-2 backdrop-blur-md">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                reload()
+              }}
+              disabled={saving}
+              className="text-xs text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white h-9"
+            >
+              Descartar
+            </Button>
+            <Button
+              onClick={handleSaveAll}
+              disabled={saving}
+              size="sm"
+              className="gap-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-4 h-9 shadow-md"
+            >
+              <Save className="w-4 h-4" />
+              {saving ? 'Salvando...' : 'Salvar Alterações'}
+            </Button>
           </div>
         </div>
       )}
