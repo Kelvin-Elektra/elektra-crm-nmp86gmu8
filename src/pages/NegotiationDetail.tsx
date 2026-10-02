@@ -33,6 +33,7 @@ import { DocsTab } from '@/components/negotiation-tabs/DocsTab'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Info } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { WhatsAppContactButton } from '@/components/WhatsAppContactButton'
 
 export default function NegotiationDetail() {
   const { user } = useAuth()
@@ -143,6 +144,18 @@ export default function NegotiationDetail() {
             </div>
           </div>
         </div>
+        {neg.expand?.lead_id?.phone && (
+          <div className="flex items-center gap-2">
+            <WhatsAppContactButton
+              phone={neg.expand.lead_id.phone}
+              clientName={neg.expand.lead_id.name}
+              variant="outline"
+              size="default"
+              showLabel={true}
+              className="bg-background shadow-xs font-medium"
+            />
+          </div>
+        )}
       </div>
 
       <Tabs defaultValue="detalhes" className="w-full">

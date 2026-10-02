@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { User, Mail, Phone, Hash, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { LeadDialog } from '@/components/LeadDialog'
+import { WhatsAppContactButton } from '@/components/WhatsAppContactButton'
 import pb from '@/lib/pocketbase/client'
 
 export function ClientInfoCard({ neg, reload }: { neg: any; reload?: () => void }) {
@@ -29,9 +30,18 @@ export function ClientInfoCard({ neg, reload }: { neg: any; reload?: () => void 
         <CardTitle className="text-lg flex items-center gap-2">
           <User className="h-5 w-5" /> Informações do Cliente
         </CardTitle>
-        <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
-          <Pencil className="h-4 w-4 mr-2" /> Editar Cliente
-        </Button>
+        <div className="flex items-center gap-2">
+          <WhatsAppContactButton
+            phone={lead?.phone}
+            clientName={lead?.name}
+            variant="outline"
+            size="sm"
+            showLabel={true}
+          />
+          <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
+            <Pencil className="h-4 w-4 mr-2" /> Editar Cliente
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
         <div className="flex items-start gap-3">
@@ -57,9 +67,21 @@ export function ClientInfoCard({ neg, reload }: { neg: any; reload?: () => void 
         </div>
         <div className="flex items-start gap-3">
           <Phone className="h-4 w-4 mt-0.5 text-muted-foreground" />
-          <div>
-            <p className="text-sm text-muted-foreground">Telefone</p>
-            <p className="font-medium">{lead?.phone || '-'}</p>
+          <div className="flex items-center gap-3">
+            <div>
+              <p className="text-sm text-muted-foreground">Telefone</p>
+              <p className="font-medium">{lead?.phone || '-'}</p>
+            </div>
+            {lead?.phone && (
+              <WhatsAppContactButton
+                phone={lead?.phone}
+                clientName={lead?.name}
+                size="sm"
+                variant="ghost"
+                showLabel={false}
+                className="h-8 w-8 p-0"
+              />
+            )}
           </div>
         </div>
       </CardContent>

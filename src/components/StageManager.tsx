@@ -183,6 +183,45 @@ export function StageManager({ open, onOpenChange }: any) {
               </Select>
             </div>
 
+            <div className="space-y-3 bg-muted/30 p-4 rounded-lg border border-border/50">
+              <Label className="text-base font-semibold">
+                Qual estágio representa as negociações perdidas?
+              </Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Negociações perdidas ficam ocultas do funil principal para não poluir o painel e
+                exigem o motivo da perda.
+              </p>
+              <Select
+                value={stages.find((s) => s.is_loss_stage)?.id || 'none'}
+                onValueChange={async (stageId) => {
+                  try {
+                    for (const s of stages) {
+                      const shouldBeLoss = s.id === stageId
+                      if (!!s.is_loss_stage !== shouldBeLoss) {
+                        await updatePipelineStage(s.id, { is_loss_stage: shouldBeLoss })
+                      }
+                    }
+                    toast({ title: 'Estágio de perda atualizado com sucesso' })
+                    load()
+                  } catch (err: any) {
+                    toast({ variant: 'destructive', title: 'Erro ao salvar estágio de perda' })
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o estágio de perda" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum estágio definido</SelectItem>
+                  {stages.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2">
               <div className="flex gap-2">
                 <Input
@@ -238,10 +277,15 @@ export function StageManager({ open, onOpenChange }: any) {
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <span className="text-sm font-medium truncate">{stage.name}</span>
                         {stage.is_sale_stage && (
-                          <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-semibold shrink-0">
+                          <span className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-2 py-0.5 rounded-full font-medium">
                             Venda
                           </span>
                         )}
+                        {stage.is_loss_stage && (
+                          <span className="text-xs bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200 px-2 py-0.5 rounded-full font-medium">
+                            Perda (Oculto)
+                          </span>
+                        )}{' '}
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <Button

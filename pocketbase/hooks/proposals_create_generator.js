@@ -810,6 +810,12 @@ routerAdd(
           subtotal: rawFinancial.subtotal !== undefined ? rawFinancial.subtotal : totInv,
           discount_amount:
             rawFinancial.discount_amount !== undefined ? rawFinancial.discount_amount : 0,
+          has_financing: Boolean(
+            rawFinancial.has_financing || rawFinancial.contempla_financiamento,
+          ),
+          contempla_financiamento: Boolean(
+            rawFinancial.has_financing || rawFinancial.contempla_financiamento,
+          ),
           monthly_savings: monSav,
           economy_monthly: monSav,
           estimated_monthly_savings: monSav,

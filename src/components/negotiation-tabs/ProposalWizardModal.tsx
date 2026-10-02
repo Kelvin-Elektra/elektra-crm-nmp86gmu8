@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
   Select,
@@ -65,6 +66,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
 
   const [validity, setValidity] = useState('')
   const [paymentTerms, setPaymentTerms] = useState('')
+  const [hasFinancing, setHasFinancing] = useState(false)
   const [notes, setNotes] = useState('')
   const [description, setDescription] = useState('')
   const [discount, setDiscount] = useState<number>(0)
@@ -760,6 +762,8 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
         sale_price: finalPrice,
         subtotal: totalValue,
         discount_amount: discount,
+        has_financing: hasFinancing,
+        contempla_financiamento: hasFinancing,
         monthly_savings: monthlySavingsVal,
         economy_monthly: monthlySavingsVal,
         estimated_monthly_savings: monthlySavingsVal,
@@ -858,6 +862,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
         notes: notes,
         discount_amount: discount,
         total_value: finalPrice,
+        has_financing: hasFinancing,
         kit_details: JSON.stringify(enrichedSnapshotData),
         cost_breakdown: cost_breakdown,
         snapshot_data: enrichedSnapshotData,
@@ -1123,6 +1128,28 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
                 </p>
               </div>
             </div>
+
+            {/* Toggle de Financiamento */}
+            <div className="flex items-center justify-between p-3.5 rounded-lg border bg-muted/40">
+              <div className="space-y-0.5">
+                <Label
+                  htmlFor="toggle-has-financing"
+                  className="text-sm font-semibold cursor-pointer"
+                >
+                  Proposta contempla financiamento?
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Destaca na proposta e no documento gerado que o cliente possui opção de
+                  financiamento bancário.
+                </p>
+              </div>
+              <Switch
+                id="toggle-has-financing"
+                checked={hasFinancing}
+                onCheckedChange={setHasFinancing}
+              />
+            </div>
+
             <div className="space-y-2">
               <Label>Condições de Pagamento</Label>
               <Input

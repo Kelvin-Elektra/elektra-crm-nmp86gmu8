@@ -40,6 +40,7 @@ import {
   buildCommercialConditionsArray,
 } from '@/lib/solar-calculations'
 import { Plus, Trash2 } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
 import {
   CompanyLeadTimeItem,
   normalizeCompanyLeadTimes,
@@ -85,6 +86,11 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
 
   const [discountPercent, setDiscountPercent] = useState(storedDiscount)
   const [paymentTerms, setPaymentTerms] = useState(proposal?.payment_terms || '')
+  const [hasFinancing, setHasFinancing] = useState<boolean>(
+    Boolean(
+      proposal?.has_financing ?? snapshot?.has_financing ?? snapshot?.contempla_financiamento,
+    ),
+  )
   const [notes, setNotes] = useState(proposal?.notes || '')
   const [validityDate, setValidityDate] = useState(
     proposal?.validity_date ? new Date(proposal.validity_date).toISOString().split('T')[0] : '',
@@ -150,6 +156,8 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
     try {
       const updatedSnapshot = {
         ...snapshot,
+        has_financing: hasFinancing,
+        contempla_financiamento: hasFinancing,
         installation_lead_time: installationLeadTime,
         accepted_payment_methods: paymentMethods.filter((m) => m.trim() !== ''),
         defined_payment_method: definedPaymentMethod,
@@ -366,6 +374,8 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
             sale_price: finalTotal,
             subtotal: subtotal,
             discount_amount: discountPercent,
+            has_financing: hasFinancing,
+            contempla_financiamento: hasFinancing,
             monthly_savings: monthlySav,
             economy_monthly: monthlySav,
             estimated_monthly_savings: monthlySav,
@@ -438,6 +448,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
         total_value: finalTotal,
         price: subtotal,
         payment_terms: paymentTerms,
+        has_financing: hasFinancing,
         notes: notes,
         validity_date: validityDate ? new Date(validityDate).toISOString() : null,
         snapshot_data: updatedSnapshot,
@@ -520,6 +531,26 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
               <span>Total Final:</span>
               <span className="text-primary">{BRL.format(finalTotal)}</span>
             </div>
+          </div>
+
+          {/* Toggle de Financiamento */}
+          <div className="flex items-center justify-between p-3.5 rounded-lg border bg-muted/40">
+            <div className="space-y-0.5">
+              <Label
+                htmlFor="toggle-edit-financing"
+                className="text-sm font-semibold cursor-pointer"
+              >
+                Proposta contempla financiamento?
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Indica se há opção de financiamento bancário para esta proposta.
+              </p>
+            </div>
+            <Switch
+              id="toggle-edit-financing"
+              checked={hasFinancing}
+              onCheckedChange={setHasFinancing}
+            />
           </div>
 
           <div className="space-y-2">

@@ -356,6 +356,47 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
     return modules.filter((m) => m.distributor_id === selectedDist)
   }, [modules, selectedDist])
 
+  // Rastreamento de alterações não salvas
+  const initialSnapshotRef = useRef<string>('')
+
+  const currentSnapshot = useMemo(() => {
+    return JSON.stringify({
+      selectedDist,
+      selectedModId,
+      moduleQty: hasEffectiveFaces ? faceModulesTotal.toString() : moduleQty,
+      selectedInvs,
+      losses,
+      enableAdditionalLosses,
+      additionalLosses,
+      useRoofFaces,
+      roofFaces: hasEffectiveFaces ? roofFaces : [],
+    })
+  }, [
+    selectedDist,
+    selectedModId,
+    hasEffectiveFaces,
+    faceModulesTotal,
+    moduleQty,
+    selectedInvs,
+    losses,
+    enableAdditionalLosses,
+    additionalLosses,
+    useRoofFaces,
+    roofFaces,
+  ])
+
+  // Inicializa o snapshot base após o carregamento inicial dos dados da negociação
+  useEffect(() => {
+    if (neg?.id && !initialSnapshotRef.current) {
+      initialSnapshotRef.current = currentSnapshot
+    }
+  }, [neg?.id, currentSnapshot])
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (!initialSnapshotRef.current) return false
+    return initialSnapshotRef.current !== currentSnapshot
+  }, [currentSnapshot])
+
   // 6. Ação principal: Salvar dimensionamento completo
   const handleSaveAll = async () => {
     setSaving(true)
@@ -411,6 +452,8 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
         roof_faces_data: hasEffectiveFaces ? roofFaces : [],
       })
 
+      initialSnapshotRef.current = currentSnapshot
+
       toast({
         title: 'Dimensionamento salvo com sucesso',
         description: 'Os dados do sistema solar foram atualizados na negociação.',
@@ -432,7 +475,7 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
   const coverageRatio = avgConsumption > 0 ? Math.round((estMonthlyGen / avgConsumption) * 100) : 0
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24">
       {/* Barra de Ações do Topo */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-card border rounded-xl p-4 shadow-sm">
         <div>
@@ -445,11 +488,23 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
             tensão e acompanhe a geração estimada.
           </p>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+          {hasUnsavedChanges && (
+            <Badge
+              variant="outline"
+              className="text-xs border-amber-500/50 bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-300"
+            >
+              ● Alterações não salvas
+            </Badge>
+          )}
           <Button
             onClick={handleSaveAll}
             disabled={saving}
-            className="gap-2 bg-primary font-medium w-full sm:w-auto"
+            className={`gap-2 font-medium w-full sm:w-auto ${
+              hasUnsavedChanges
+                ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-md'
+                : 'bg-primary'
+            }`}
           >
             <Save className="w-4 h-4" />
             {saving ? 'Salvando...' : 'Salvar Dimensionamento'}
@@ -964,7 +1019,7 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
                     )
                   })}
 
-                  <div className="flex items-center justify-between pt-2 border-t border-border/50 gap-2">
+                  <div className="flex items-center justify-start pt-2 border-t border-border/50 gap-2">
                     <Button
                       type="button"
                       variant="outline"
@@ -984,17 +1039,6 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
                       }}
                     >
                       <Plus className="w-3.5 h-3.5" /> Adicionar Outra Face
-                    </Button>
-
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => navigate('/configuracoes-kit-pv?tab=eficiencia')}
-                      className="text-xs h-8 text-muted-foreground hover:text-foreground gap-1"
-                    >
-                      <Settings2 className="w-3.5 h-3.5" />
-                      Gerenciar Regras em Eficiência PV
                     </Button>
                   </div>
                 </div>
@@ -1028,6 +1072,51 @@ export function SizingTab({ neg, reload }: { neg: any; reload: () => void }) {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Barra Fixa Sticky no Rodapé para salvar com destaque quando há alterações não salvas */}
+      {hasUnsavedChanges && (
+        <div className="fixed bottom-4 left-4 right-4 md:left-72 md:right-8 z-40 animate-in slide-in-from-bottom-4 duration-300">
+          <div className="bg-slate-900 text-white rounded-xl p-4 shadow-2xl border border-amber-500/50 flex flex-col sm:flex-row items-center justify-between gap-4 backdrop-blur-md">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-full bg-amber-500/20 text-amber-400">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm text-amber-300 flex items-center gap-2">
+                  Você possui alterações não salvas no dimensionamento
+                </p>
+                <p className="text-xs text-slate-300">
+                  Salve agora para atualizar a potência, módulos e geração estimada na negociação.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // Desfazer recarregando
+                  reload()
+                  initialSnapshotRef.current = ''
+                }}
+                disabled={saving}
+                className="text-xs text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white"
+              >
+                Descartar alterações
+              </Button>
+              <Button
+                onClick={handleSaveAll}
+                disabled={saving}
+                size="sm"
+                className="gap-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-5 shadow-lg"
+              >
+                <Save className="w-4 h-4" />
+                {saving ? 'Salvando...' : 'Salvar Alterações'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

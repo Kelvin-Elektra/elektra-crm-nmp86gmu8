@@ -140,7 +140,7 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-center flex-wrap gap-2">
                   <div>
-                    <CardTitle className="text-base flex items-center gap-2">
+                    <CardTitle className="text-base flex items-center gap-2 flex-wrap">
                       {p.proposal_code && (
                         <Badge
                           variant="outline"
@@ -150,6 +150,17 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
                         </Badge>
                       )}
                       <span>{p.description || `Proposta #${p.id.slice(0, 5)}`}</span>
+                      {(p.has_financing ||
+                        p.snapshot_data?.has_financing ||
+                        p.snapshot_data?.contempla_financiamento ||
+                        p.snapshot_data?.financial?.has_financing) && (
+                        <Badge
+                          variant="outline"
+                          className="border-blue-500/50 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 font-normal text-xs"
+                        >
+                          Com Financiamento
+                        </Badge>
+                      )}
                     </CardTitle>
                     <CardDescription className="mt-1 flex items-center gap-4">
                       <span>Gerada em: {format(new Date(p.created), 'dd/MM/yyyy')}</span>

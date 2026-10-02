@@ -283,6 +283,17 @@ export default function NegotiationProposalPage() {
                     <Badge variant="outline" className="text-xs bg-white">
                       Status: {activeProposal.status || 'Gerada'}
                     </Badge>
+                    {(activeProposal.has_financing ||
+                      activeProposal.snapshot_data?.has_financing ||
+                      activeProposal.snapshot_data?.contempla_financiamento ||
+                      activeProposal.snapshot_data?.financial?.has_financing) && (
+                      <Badge
+                        variant="outline"
+                        className="text-xs bg-blue-50 border-blue-400 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 font-semibold"
+                      >
+                        ● Opção com Financiamento
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Gerada em {format(new Date(activeProposal.created), 'dd/MM/yyyy HH:mm')}
@@ -291,6 +302,11 @@ export default function NegotiationProposalPage() {
                         {' '}
                         • Válida até {format(new Date(activeProposal.validity_date), 'dd/MM/yyyy')}
                       </>
+                    )}
+                    {(activeProposal.has_financing ||
+                      activeProposal.snapshot_data?.has_financing ||
+                      activeProposal.snapshot_data?.contempla_financiamento) && (
+                      <> • Contempla condições de financiamento bancário</>
                     )}
                   </p>
                 </div>

@@ -17,6 +17,7 @@ import { deleteLead } from '@/services/db'
 import { useRealtime } from '@/hooks/use-realtime'
 import { LeadDialog } from '@/components/LeadDialog'
 import { NewNegotiationDialog } from '@/components/NewNegotiationDialog'
+import { WhatsAppContactButton } from '@/components/WhatsAppContactButton'
 import { useAuth } from '@/contexts/AuthContext'
 
 export default function Leads() {
@@ -177,9 +178,31 @@ export default function Leads() {
                     <TableCell className="font-medium">{lead.name}</TableCell>
                     <TableCell>{lead.document || '-'}</TableCell>
                     <TableCell>{lead.email || '-'}</TableCell>
-                    <TableCell>{lead.phone || '-'}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span>{lead.phone || '-'}</span>
+                        {lead.phone && (
+                          <WhatsAppContactButton
+                            phone={lead.phone}
+                            clientName={lead.name}
+                            size="icon"
+                            variant="ghost"
+                            showLabel={false}
+                            className="h-7 w-7"
+                          />
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <WhatsAppContactButton
+                          phone={lead.phone}
+                          clientName={lead.name}
+                          size="icon"
+                          variant="ghost"
+                          showLabel={false}
+                          className="h-8 w-8"
+                        />
                         <Button
                           variant="ghost"
                           size="icon"

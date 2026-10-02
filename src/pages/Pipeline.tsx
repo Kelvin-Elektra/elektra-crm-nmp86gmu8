@@ -26,6 +26,11 @@ import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { TagManager } from '@/components/TagManager'
 import { StageManager } from '@/components/StageManager'
 import { NewNegotiationDialog } from '@/components/NewNegotiationDialog'
+import { WhatsAppContactButton } from '@/components/WhatsAppContactButton'
+import { MarkNegotiationLostDialog } from '@/components/MarkNegotiationLostDialog'
+import { PipelineInsightsSummary } from '@/components/PipelineInsightsSummary'
+import { Switch } from '@/components/ui/switch'
+import { BarChart3, AlertOctagon } from 'lucide-react'
 
 export default function Pipeline() {
   const [negotiations, setNegotiations] = useState<any[]>([])
@@ -42,6 +47,15 @@ export default function Pipeline() {
   const [tagManagerOpen, setTagManagerOpen] = useState(false)
   const [stageManagerOpen, setStageManagerOpen] = useState(false)
   const [newNegOpen, setNewNegOpen] = useState(false)
+
+  // Onda 5: Controle de perdidas ocultas e diálogo de motivo
+  const [showLost, setShowLost] = useState(false)
+  const [showInsights, setShowInsights] = useState(true)
+  const [pendingLossMove, setPendingLossMove] = useState<{
+    negId: string
+    stageId: string
+    title?: string
+  } | null>(null)
 
   const { user } = useAuth()
   const { toast } = useToast()
@@ -128,19 +142,50 @@ export default function Pipeline() {
   }
 
   const saleStage = stages.find((s) => s.is_sale_stage)
+  const lossStage = stages.find((s) => s.is_loss_stage)
+
+  const isLossStageCheck = (stageId: string, stageName?: string) => {
+    if (lossStage && lossStage.id === stageId) return true
+    const stg = stages.find((s) => s.id === stageId)
+    if (stg?.is_loss_stage) return true
+    const name = (stageName || stg?.name || '').toLowerCase()
+    return name.includes('perd') || name.includes('cancelad') || name.includes('desist')
+  }
+
+  const isSaleStageCheck = (stageId: string, stageName?: string) => {
+    if (saleStage && saleStage.id === stageId) return true
+    const stg = stages.find((s) => s.id === stageId)
+    if (stg?.is_sale_stage) return true
+    const name = (stageName || stg?.name || '').toLowerCase()
+    return name.includes('venda fechada') || name.includes('ganho') || name.includes('fechado')
+  }
 
   const getEffectiveStage = (n: any) => {
     if (n.stage === 'Venda Fechada' && saleStage) return saleStage.id
     return n.stage
   }
 
+  // Filtragem de negociações:
+  // Se showLost for false, negociações com lost_at ou em estágio de perda ficam ocultas
   const filtered = negotiations.filter((n) => {
+    const isLost =
+      isLossStageCheck(n.stage, n.expand?.stage?.name) || Boolean(n.lost_at || n.loss_reason)
+    if (!showLost && isLost) {
+      return false
+    }
+
     const matchesSearch =
       n.title.toLowerCase().includes(search.toLowerCase()) ||
       n.expand?.lead_id?.name?.toLowerCase().includes(search.toLowerCase())
     const matchesTags =
       selectedTags.length === 0 || (n.tags || []).some((t: string) => selectedTags.includes(t))
     return matchesSearch && matchesTags
+  })
+
+  // Estágios visíveis no funil: ocultar estágio de perda a menos que showLost seja true
+  const visibleStages = stages.filter((stg) => {
+    if (showLost) return true
+    return !isLossStageCheck(stg.id, stg.name)
   })
 
   const toggleColumn = (id: string) => {
@@ -196,10 +241,33 @@ export default function Pipeline() {
       const negToMove = negotiations.find((n) => n.id === id)
       if (!negToMove) return
 
-      setNegotiations((prev) => prev.map((n) => (n.id === id ? { ...n, stage: stageId } : n)))
+      // Se moveu para o estágio de perda, interceptar e abrir modal de motivo
+      const targetStage = stages.find((s) => s.id === stageId)
+      if (isLossStageCheck(stageId, targetStage?.name)) {
+        setPendingLossMove({
+          negId: id,
+          stageId,
+          title: negToMove.title,
+        })
+        return
+      }
+
+      // Mudar estágio normal
+      setNegotiations((prev) =>
+        prev.map((n) =>
+          n.id === id ? { ...n, stage: stageId, stage_changed_at: new Date().toISOString() } : n,
+        ),
+      )
 
       try {
-        await updateNegotiation(id, { stage: stageId })
+        await updateNegotiation(id, {
+          stage: stageId,
+          stage_changed_at: new Date().toISOString(),
+          // Se estava marcado como perdido e voltou para estágio ativo, limpa perda
+          lost_at: null,
+          loss_reason: null,
+          loss_notes: null,
+        })
       } catch (err) {
         toast({
           variant: 'destructive',
@@ -210,6 +278,50 @@ export default function Pipeline() {
           prev.map((n) => (n.id === id ? { ...n, stage: negToMove.stage } : n)),
         )
       }
+    }
+  }
+
+  // Confirmação de perda com motivo
+  const handleConfirmLoss = async (reason: string, notes: string) => {
+    if (!pendingLossMove) return
+    const { negId, stageId } = pendingLossMove
+    const now = new Date().toISOString()
+
+    setNegotiations((prev) =>
+      prev.map((n) =>
+        n.id === negId
+          ? {
+              ...n,
+              stage: stageId,
+              lost_at: now,
+              loss_reason: reason,
+              loss_notes: notes,
+              stage_changed_at: now,
+            }
+          : n,
+      ),
+    )
+
+    try {
+      await updateNegotiation(negId, {
+        stage: stageId,
+        lost_at: now,
+        loss_reason: reason,
+        loss_notes: notes,
+        stage_changed_at: now,
+      })
+
+      toast({
+        title: 'Negociação marcada como perdida',
+        description: 'A negociação foi arquivada e está disponível no menu Negociações Perdidas.',
+      })
+    } catch (err) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao registrar perda',
+        description: getErrorMessage(err),
+      })
+      loadAll()
     }
   }
 
@@ -275,6 +387,35 @@ export default function Pipeline() {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {/* Toggle de Insights do Funil */}
+          <Button
+            variant={showInsights ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={() => setShowInsights(!showInsights)}
+            title="Alternar resumo de insights do funil"
+            className="gap-1.5"
+          >
+            <BarChart3 className="h-4 w-4 text-primary" />
+            <span className="hidden sm:inline">Insights</span>
+          </Button>
+
+          {/* Toggle para Mostrar Perdidas no Funil */}
+          <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border bg-card text-xs">
+            <span className="text-muted-foreground">Perdidas:</span>
+            <Switch
+              checked={showLost}
+              onCheckedChange={setShowLost}
+              id="show-lost-switch"
+              className="scale-90"
+            />
+            <label
+              htmlFor="show-lost-switch"
+              className="cursor-pointer text-muted-foreground select-none"
+            >
+              {showLost ? 'Visíveis' : 'Ocultas'}
+            </label>
+          </div>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
@@ -305,9 +446,21 @@ export default function Pipeline() {
         </div>
       </div>
 
+      {/* Onda 5: Painel visual de Insights do Funil */}
+      {showInsights && (
+        <PipelineInsightsSummary
+          stages={stages}
+          negotiations={negotiations}
+          proposals={proposals}
+          isLossStageFn={isLossStageCheck}
+          isSaleStageFn={isSaleStageCheck}
+        />
+      )}
+
       <div className="flex-1 flex gap-4 overflow-x-auto pb-4 items-start">
-        {stages.map((stage) => {
+        {visibleStages.map((stage) => {
           const isCollapsed = collapsed.has(stage.id)
+          const isLoss = isLossStageCheck(stage.id, stage.name)
           const colNegs = filtered.filter((n) => getEffectiveStage(n) === stage.id)
           const colTotal = colNegs.reduce((acc, n) => acc + getNegValue(n.id), 0)
 
@@ -367,8 +520,23 @@ export default function Pipeline() {
                     >
                       <GripVertical className="absolute right-2 top-3 h-4 w-4 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
                       <CardHeader className="p-3 pb-2 pr-8">
-                        <CardTitle className="text-sm font-medium line-clamp-1" title={neg.title}>
-                          {neg.title}
+                        <CardTitle
+                          className="text-sm font-medium line-clamp-1 flex items-center justify-between"
+                          title={neg.title}
+                        >
+                          <span>{neg.title}</span>
+                          {neg.expand?.lead_id?.phone && (
+                            <div onClick={(e) => e.stopPropagation()}>
+                              <WhatsAppContactButton
+                                phone={neg.expand.lead_id.phone}
+                                clientName={neg.expand.lead_id.name}
+                                size="icon"
+                                variant="ghost"
+                                showLabel={false}
+                                className="h-6 w-6 shrink-0"
+                              />
+                            </div>
+                          )}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-3 pt-0 flex flex-col gap-2">
@@ -386,6 +554,14 @@ export default function Pipeline() {
                             </span>
                           )}
                         </div>
+
+                        {/* Motivo de perda se for perdida */}
+                        {neg.loss_reason && (
+                          <div className="text-[11px] bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 p-1.5 rounded border border-rose-200/50 flex items-start gap-1">
+                            <AlertOctagon className="w-3 h-3 shrink-0 mt-0.5 text-rose-600" />
+                            <span className="line-clamp-2">Perda: {neg.loss_reason}</span>
+                          </div>
+                        )}
 
                         <div className="flex flex-wrap gap-1 mt-2">
                           {(neg.tags || []).map((tagId: string) => {
@@ -506,6 +682,14 @@ export default function Pipeline() {
       <TagManager open={tagManagerOpen} onOpenChange={setTagManagerOpen} />
       <StageManager open={stageManagerOpen} onOpenChange={setStageManagerOpen} />
       <NewNegotiationDialog open={newNegOpen} onOpenChange={setNewNegOpen} />
+
+      {/* Diálogo obrigatório de motivo ao mover negociação para perda */}
+      <MarkNegotiationLostDialog
+        open={Boolean(pendingLossMove)}
+        onOpenChange={(op) => !op && setPendingLossMove(null)}
+        negotiationTitle={pendingLossMove?.title}
+        onConfirm={handleConfirmLoss}
+      />
     </div>
   )
 }
