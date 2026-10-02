@@ -218,16 +218,12 @@ export function NegotiationFinancingDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-2 text-primary">
             <Landmark className="w-5 h-5" />
-            <DialogTitle>Simulador de Financiamento</DialogTitle>
+            <DialogTitle>Financiamento da Negociação</DialogTitle>
           </div>
-          <DialogDescription>
-            Simule parcelas fixas com Tabela Price para a negociação{' '}
-            <strong>{negotiation?.title}</strong> e acompanhe o status de aprovação.
-          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
@@ -359,42 +355,33 @@ export function NegotiationFinancingDialog({
 
           {/* Card de Resultado da Simulação (Tabela Price) */}
           <Card className="border-primary/30 bg-primary/5">
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-primary uppercase tracking-wide flex items-center gap-1.5">
-                  <Calculator className="w-4 h-4" /> Resultado da Tabela Price (Parcela Fixa)
+            <CardContent className="p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between text-xs font-semibold text-primary">
+                <span className="flex items-center gap-1.5">
+                  <Calculator className="w-4 h-4" /> Simulação Tabela Price
                 </span>
-                <Badge variant="outline" className="text-xs font-medium">
-                  {installments} parcelas fixas
-                </Badge>
+                <span>{installments} parcelas fixas</span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                <div className="p-3 rounded-lg bg-background border">
-                  <p className="text-xs text-muted-foreground">Parcela Mensal Estimada</p>
-                  <p className="text-xl font-bold text-primary">{BRL(simulation.monthlyPayment)}</p>
-                  <p className="text-[11px] text-muted-foreground">por mês</p>
+              <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                <div className="p-2.5 rounded-md bg-background border">
+                  <p className="text-[11px] text-muted-foreground">Parcela Mensal</p>
+                  <p className="text-base font-bold text-primary">
+                    {BRL(simulation.monthlyPayment)}
+                  </p>
                 </div>
 
-                <div className="p-3 rounded-lg bg-background border">
-                  <p className="text-xs text-muted-foreground">Total Pago (Financiado)</p>
-                  <p className="text-lg font-bold text-foreground">
+                <div className="p-2.5 rounded-md bg-background border">
+                  <p className="text-[11px] text-muted-foreground">Total Financiado</p>
+                  <p className="text-sm font-bold text-foreground">
                     {BRL(simulation.totalFinancedPaid)}
                   </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {BRL(simulation.totalPaid)} com entrada
-                  </p>
                 </div>
 
-                <div className="p-3 rounded-lg bg-background border">
-                  <p className="text-xs text-muted-foreground">Total em Juros</p>
-                  <p className="text-lg font-bold text-amber-600 dark:text-amber-400">
+                <div className="p-2.5 rounded-md bg-background border">
+                  <p className="text-[11px] text-muted-foreground">Total em Juros</p>
+                  <p className="text-sm font-bold text-amber-600 dark:text-amber-400">
                     {BRL(simulation.totalInterest)}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {financedAmount > 0
-                      ? `${((simulation.totalInterest / financedAmount) * 100).toFixed(0)}% sobre o financiado`
-                      : '0%'}
                   </p>
                 </div>
               </div>
@@ -403,12 +390,12 @@ export function NegotiationFinancingDialog({
 
           {/* Observações da Análise */}
           <div className="space-y-1.5">
-            <Label className="text-xs">Observações do Financiamento (Opcional)</Label>
+            <Label className="text-xs">Observações</Label>
             <Input
-              placeholder="Ex: Documentação enviada ao correspondente, protocolo nº 12345..."
+              placeholder="Protocolo, contato ou notas da aprovação..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="h-9"
+              className="h-9 text-xs"
             />
           </div>
         </div>

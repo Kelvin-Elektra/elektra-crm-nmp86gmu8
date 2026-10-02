@@ -103,3 +103,18 @@ export async function getNegotiationFinancing(
     return null
   }
 }
+
+export async function getNegotiationFinancingSimulations(
+  negotiationId: string,
+): Promise<FinancingSimulationRecord[]> {
+  if (!negotiationId) return []
+  try {
+    return await pb.collection('financing_simulations').getFullList<FinancingSimulationRecord>({
+      filter: `negotiation_id = '${negotiationId}'`,
+      expand: 'partner_id,credit_line_id',
+      sort: '-created',
+    })
+  } catch {
+    return []
+  }
+}

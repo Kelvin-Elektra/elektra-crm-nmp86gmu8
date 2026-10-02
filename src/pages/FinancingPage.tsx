@@ -271,6 +271,7 @@ export default function FinancingPage() {
         valueAprovado: number
         countRecusado: number
         valueRecusado: number
+        simulations: FinancingSimulationRecord[]
       }
     >()
 
@@ -288,6 +289,7 @@ export default function FinancingPage() {
         valueAprovado: 0,
         countRecusado: 0,
         valueRecusado: 0,
+        simulations: [],
       })
     }
 
@@ -306,11 +308,13 @@ export default function FinancingPage() {
         valueAprovado: 0,
         countRecusado: 0,
         valueRecusado: 0,
+        simulations: [],
       }
 
       const val = Number(sim.financed_amount || 0)
       entry.countTotal += 1
       entry.valueTotal += val
+      entry.simulations.push(sim)
 
       const st = (sim.status || 'Em análise').toLowerCase()
       if (st.includes('aprov')) {
@@ -372,18 +376,21 @@ export default function FinancingPage() {
       {/* Header da Página */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Landmark className="w-6 h-6 text-primary" /> Financiamento Solar
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Gestão de parceiros bancários, linhas de crédito, simulador Price e acompanhamento de
-            propostas em análise.
+          <div className="flex items-center gap-2">
+            <Landmark className="w-6 h-6 text-primary" />
+            <h2 className="text-2xl font-bold tracking-tight">Financiamento</h2>
+          </div>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Bancos parceiros, linhas de crédito e propostas financiadas da companhia.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button onClick={() => handleOpenPartnerModal()} className="gap-2">
-            <Plus className="w-4 h-4" /> Novo Banco / Parceiro
+          <Button
+            onClick={() => handleOpenPartnerModal()}
+            className="gap-2 self-start sm:self-auto"
+          >
+            <Plus className="w-4 h-4" /> Novo Banco
           </Button>
         </div>
       </div>
@@ -468,18 +475,13 @@ export default function FinancingPage() {
           <Card>
             <CardHeader className="pb-3 border-b">
               <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-primary" /> Consolidação por Instituição
-                Financeira
+                <TrendingUp className="w-5 h-5 text-primary" /> Consolidação por Banco
               </CardTitle>
-              <CardDescription>
-                Volume total negociado e taxa de conversão em cada banco parceiro da companhia.
-              </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               {funnelByPartner.length === 0 ? (
                 <div className="p-12 text-center text-sm text-muted-foreground">
-                  Nenhum banco ou simulação cadastrada ainda. Adicione seus parceiros bancários na
-                  aba "Bancos & Linhas".
+                  Nenhum banco ou simulação cadastrada ainda.
                 </div>
               ) : (
                 <div className="divide-y">
@@ -498,7 +500,7 @@ export default function FinancingPage() {
                           </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Total de <strong>{item.countTotal}</strong> negociação(ões) vinculada(s)
+                          {item.countTotal} proposta(s) vinculada(s)
                         </p>
                       </div>
 
@@ -537,21 +539,22 @@ export default function FinancingPage() {
             </CardContent>
           </Card>
 
-          {/* Lista detalhada das simulações ativas */}
-          {simulations.length > 0 && (
-            <Card>
-              <CardHeader className="pb-3 border-b">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <FileSpreadsheet className="w-5 h-5 text-primary" /> Últimas Propostas com
-                  Financiamento
-                </CardTitle>
-                <CardDescription>
-                  Negociações em andamento vinculadas a uma linha de financiamento.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-0">
+          {/* Lista detalhada das simulações da companhia com a negociação de origem identificada */}
+          <Card>
+            <CardHeader className="pb-3 border-b">
+              <CardTitle className="text-base flex items-center gap-2">
+                <FileSpreadsheet className="w-5 h-5 text-primary" /> Todos os Financiamentos da
+                Companhia
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {simulations.length === 0 ? (
+                <div className="p-10 text-center text-sm text-muted-foreground">
+                  Nenhum financiamento criado ainda nas negociações.
+                </div>
+              ) : (
                 <div className="divide-y text-sm">
-                  {simulations.slice(0, 10).map((sim) => {
+                  {simulations.map((sim) => {
                     const neg = sim.expand?.negotiation_id
                     const partner = sim.expand?.partner_id
                     const line = sim.expand?.credit_line_id
@@ -564,16 +567,19 @@ export default function FinancingPage() {
                       >
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                              Negociação de Origem:
+                            </span>
                             <span className="font-semibold text-foreground">
                               {neg?.title || 'Negociação'}
                             </span>
                             <Badge
                               className={
                                 st === 'Aprovado'
-                                  ? 'bg-emerald-600 text-white'
+                                  ? 'bg-emerald-600 text-white text-xs'
                                   : st === 'Recusado'
-                                    ? 'bg-rose-600 text-white'
-                                    : 'bg-amber-500 text-white'
+                                    ? 'bg-rose-600 text-white text-xs'
+                                    : 'bg-amber-500 text-white text-xs'
                               }
                             >
                               {st}
@@ -582,7 +588,8 @@ export default function FinancingPage() {
                           <p className="text-xs text-muted-foreground">
                             Banco: <strong>{partner?.name || '—'}</strong>
                             {line?.name ? ` · Linha: ${line.name}` : ''} · {sim.installments}x de{' '}
-                            {BRL(Number(sim.monthly_payment) || 0)}
+                            {BRL(Number(sim.monthly_payment) || 0)} · Taxa:{' '}
+                            {sim.interest_rate_annual}% a.a.
                           </p>
                         </div>
 
@@ -592,18 +599,18 @@ export default function FinancingPage() {
                               {BRL(Number(sim.financed_amount) || 0)}
                             </p>
                             <p className="text-[11px] text-muted-foreground">
-                              Total com juros: {BRL(Number(sim.total_paid) || 0)}
+                              Total: {BRL(Number(sim.total_paid) || 0)}
                             </p>
                           </div>
 
                           {neg?.id && (
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
                               onClick={() => navigate(`/negociacoes/${neg.id}`)}
-                              className="gap-1 text-xs text-primary"
+                              className="gap-1.5 text-xs text-primary"
                             >
-                              Abrir <ExternalLink className="w-3.5 h-3.5" />
+                              Ver Negociação <ExternalLink className="w-3.5 h-3.5" />
                             </Button>
                           )}
                         </div>
@@ -611,21 +618,15 @@ export default function FinancingPage() {
                     )
                   })}
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* ABA 2: CADASTRO DE BANCOS E LINHAS DE CRÉDITO */}
         <TabsContent value="parceiros" className="space-y-6 mt-6">
           <div className="flex justify-between items-center">
-            <div>
-              <h3 className="font-bold text-lg">Bancos e Parceiros de Financiamento</h3>
-              <p className="text-xs text-muted-foreground">
-                Cadastre taxas de juros anuais, prazos máximos e exigência de entrada por produto de
-                crédito.
-              </p>
-            </div>
+            <h3 className="font-bold text-lg">Bancos e Linhas de Crédito</h3>
             <Button onClick={() => handleOpenPartnerModal()} size="sm" className="gap-2">
               <Plus className="w-4 h-4" /> Adicionar Banco
             </Button>
@@ -741,14 +742,10 @@ export default function FinancingPage() {
         {/* ABA 3: SIMULADOR PRICE RÁPIDO */}
         <TabsContent value="simulador" className="space-y-6 mt-6">
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3 border-b">
               <CardTitle className="text-base flex items-center gap-2">
-                <Calculator className="w-5 h-5 text-primary" /> Calculadora de Parcela Fixa (Tabela
-                Price)
+                <Calculator className="w-5 h-5 text-primary" /> Simulador Tabela Price
               </CardTitle>
-              <CardDescription>
-                Simule qualquer valor de financiamento instantaneamente com juros compostos.
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">

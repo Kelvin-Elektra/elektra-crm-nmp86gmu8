@@ -26,6 +26,7 @@ import PvKitSettings from './pages/PvKitSettings'
 import { DocumentTemplatesPage } from './pages/DocumentTemplatesPage'
 import { LostNegotiationsPage } from './pages/LostNegotiationsPage'
 import FinancingPage from './pages/FinancingPage'
+import CatalogPage from './pages/CatalogPage'
 import { WhatsAppSupportButton } from './components/WhatsAppSupportButton'
 
 type SsoState =
@@ -191,6 +192,7 @@ const App = () => (
               <Route path="/negociacoes/:id" element={<NegotiationDetail />} />
               <Route path="/negociacoes/:id/proposta" element={<NegotiationProposalPage />} />
               <Route path="/propostas" element={<Proposals />} />
+              <Route path="/catalogo" element={<CatalogPage />} />
               <Route path="/financiamento" element={<FinancingPage />} />
               <Route path="/modelos-documentos" element={<DocumentTemplatesPage />} />
               <Route path="/configuracoes-kit-pv" element={<PvKitSettings />} />

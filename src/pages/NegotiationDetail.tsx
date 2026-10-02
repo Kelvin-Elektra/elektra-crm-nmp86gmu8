@@ -42,9 +42,8 @@ import { FilesTab } from '@/components/negotiation-tabs/FilesTab'
 import { ProposalsTab } from '@/components/negotiation-tabs/ProposalsTab'
 import { DocsTab } from '@/components/negotiation-tabs/DocsTab'
 import { ProjectValidatorTab } from '@/components/negotiation-tabs/ProjectValidatorTab'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Info } from 'lucide-react'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { FinancingTab } from '@/components/negotiation-tabs/FinancingTab'
+import { Landmark } from 'lucide-react'
 import { WhatsAppContactButton } from '@/components/WhatsAppContactButton'
 
 export default function NegotiationDetail() {
@@ -301,7 +300,7 @@ export default function NegotiationDetail() {
       </div>
 
       <Tabs defaultValue="detalhes" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-7 h-auto gap-2 p-1 bg-muted/50 rounded-xl overflow-x-auto">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-8 h-auto gap-2 p-1 bg-muted/50 rounded-xl overflow-x-auto">
           <TabsTrigger value="detalhes" className="py-2.5 rounded-lg data-[state=active]:shadow-sm">
             <User className="mr-2 h-4 w-4 hidden md:block" /> Cliente
           </TabsTrigger>
@@ -322,6 +321,12 @@ export default function NegotiationDetail() {
             className="py-2.5 rounded-lg data-[state=active]:shadow-sm"
           >
             <FileText className="mr-2 h-4 w-4 hidden md:block" /> Propostas FV
+          </TabsTrigger>
+          <TabsTrigger
+            value="financiamento"
+            className="py-2.5 rounded-lg data-[state=active]:shadow-sm"
+          >
+            <Landmark className="mr-2 h-4 w-4 hidden md:block text-primary" /> Financiamento
           </TabsTrigger>
           <TabsTrigger
             value="orcamentos"
@@ -357,6 +362,9 @@ export default function NegotiationDetail() {
           </TabsContent>
           <TabsContent value="propostas" className="mt-0">
             <ProposalsTab proposals={proposals} neg={neg} reload={loadData} />
+          </TabsContent>
+          <TabsContent value="financiamento" className="mt-0">
+            <FinancingTab neg={neg} reload={loadData} />
           </TabsContent>
           <TabsContent value="orcamentos" className="mt-0 flex flex-col gap-6">
             <BudgetsTab neg={neg} />

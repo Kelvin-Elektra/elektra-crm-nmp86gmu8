@@ -10,6 +10,7 @@ import {
   Zap,
   AlertOctagon,
   Landmark,
+  Package,
 } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
@@ -35,6 +36,7 @@ const navItems = [
   { title: 'Negociações', path: '/negociacoes', icon: Briefcase },
   { title: 'Negociações Perdidas', path: '/negociacoes-perdidas', icon: AlertOctagon },
   { title: 'Propostas', path: '/propostas', icon: FileText },
+  { title: 'Produtos & Serviços', path: '/catalogo', icon: Package },
 ]
 
 export function AppSidebar() {
