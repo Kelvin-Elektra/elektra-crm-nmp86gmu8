@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Trash2, Pencil, Search } from 'lucide-react'
+import { Plus, Trash2, Pencil, Search, FileSpreadsheet } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
@@ -18,6 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { NOMINAL_VOLTAGES } from '@/types/electric-network'
+import { CatalogCsvImportDialog, CatalogImportConfig } from '@/components/CatalogCsvImportDialog'
 
 export function InvertersTab() {
   const { user } = useAuth()
@@ -30,6 +31,7 @@ export function InvertersTab() {
 
   const [search, setSearch] = useState('')
   const [distFilter, setDistFilter] = useState('all')
+  const [importOpen, setImportOpen] = useState(false)
 
   const initialForm = {
     name: '',
@@ -207,10 +209,111 @@ export function InvertersTab() {
     return matchSearch && matchDist
   })
 
+  const invertersImportConfig: CatalogImportConfig = {
+    collectionName: 'pv_inverters',
+    catalogTitle: 'Inversores Solares',
+    templateFilename: 'modelo_inversores_solares.csv',
+    headers: [
+      'Modelo',
+      'Marca',
+      'Potencia_kW',
+      'Tipo_Fase',
+      'Tensoes_Aceitas_V',
+      'Preco_R$',
+      'Overload_%',
+      'MPPT',
+      'Garantia_Anos',
+      'Distribuidora',
+      'Observacoes',
+    ],
+    sampleRows: [
+      [
+        'SUN-5K-G03',
+        'Deye',
+        5,
+        'monofásico',
+        '220',
+        '3850,00',
+        30,
+        2,
+        10,
+        'Solfácil',
+        'Inversor string com wifi integrado',
+      ],
+      [
+        'MID-15KTL3-X',
+        'Growatt',
+        15,
+        'trifásico',
+        '220, 380',
+        '8900,00',
+        40,
+        2,
+        10,
+        'Genyx',
+        'Inversor trifásico comercial',
+      ],
+    ],
+    matchFields: ['name', 'brand'],
+    mapRowToPayload: (row, companyId) => {
+      const name = (row['Modelo'] || row['name'] || row['Nome'] || '').trim()
+      const brand = (row['Marca'] || row['brand'] || '').trim()
+      const powerStr = row['Potencia_kW'] || row['power'] || '0'
+      const power = parseNumber(powerStr)
+
+      if (!name) return null
+
+      const rawType = (row['Tipo_Fase'] || row['type'] || 'monofásico').toLowerCase()
+      const type = rawType.includes('tri') ? 'trifásico' : 'monofásico'
+
+      // Tratar tensões nominais: ex: "220, 380" ou "220"
+      const voltStr = row['Tensoes_Aceitas_V'] || row['voltages'] || row['voltage'] || ''
+      const matchedNums = String(voltStr).match(/\d+/g) || []
+      const voltages = Array.from(new Set(matchedNums))
+      const legacyVoltage = voltages.length > 0 ? voltages.map((v) => `${v}V`).join(', ') : ''
+
+      // Tenta achar distribuidora
+      const distName = (row['Distribuidora'] || '').trim().toLowerCase()
+      let distId = form.distributor_id || distributors[0]?.id || null
+      if (distName) {
+        const found = distributors.find((d) => d.name.trim().toLowerCase() === distName)
+        if (found) distId = found.id
+      }
+
+      const warrantyStr = (row['Garantia_Anos'] || row['warranty'] || '').trim()
+      const wNum = warrantyStr ? parseInt(String(warrantyStr).replace(/\D/g, ''), 10) : null
+      const warranty = wNum ? `${wNum} anos` : warrantyStr
+
+      return {
+        company_id: companyId,
+        name,
+        brand: brand || 'Genérica',
+        power,
+        type,
+        voltages,
+        voltage: legacyVoltage,
+        distributor_id: distId,
+        price: row['Preco_R$'] ? parseNumber(row['Preco_R$']) : null,
+        overload: row['Overload_%'] ? parseNumber(row['Overload_%']) : 30,
+        mppt: row['MPPT'] ? parseNumber(row['MPPT']) : 1,
+        warranty,
+        obs: row['Observacoes'] || row['obs'] || '',
+      }
+    },
+  }
+
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
         <CardTitle>Catálogo de Inversores</CardTitle>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setImportOpen(true)}
+          className="gap-2 text-xs border-primary/40 text-primary hover:bg-primary/5"
+        >
+          <FileSpreadsheet className="w-4 h-4" /> Importar Planilha
+        </Button>
       </CardHeader>
       <CardContent className="space-y-6">
         <form
@@ -504,6 +607,14 @@ export function InvertersTab() {
           </table>
         </div>
       </CardContent>
+
+      <CatalogCsvImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        config={invertersImportConfig}
+        companyId={user?.company_id || ''}
+        onSuccess={loadData}
+      />
     </Card>
   )
 }

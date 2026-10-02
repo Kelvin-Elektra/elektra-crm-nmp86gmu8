@@ -9,6 +9,7 @@ import {
   Settings,
   Zap,
   AlertOctagon,
+  Landmark,
 } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
@@ -166,12 +167,29 @@ export function AppSidebar() {
             <SidebarMenuItem>
               <SidebarMenuButton
                 asChild
+                isActive={location.pathname === '/financiamento'}
+                tooltip="Financiamento"
+                className="h-10 w-full transition-all duration-200"
+              >
+                <Link to="/financiamento" className="flex items-center gap-3">
+                  <Landmark className="!h-5 !w-5 shrink-0 text-primary" />
+                  <span className="font-medium group-data-[collapsible=icon]:hidden">
+                    Financiamento
+                  </span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+          {isAdmin && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
                 isActive={location.pathname === '/modelos-documentos'}
                 tooltip="Modelos de Documentos"
                 className="h-10 w-full transition-all duration-200"
               >
                 <Link to="/modelos-documentos" className="flex items-center gap-3">
-                  <FileText className="!h-5 !w-5 shrink-0 text-primary" />
+                  <FileText className="!h-5 !w-5 shrink-0" />
                   <span className="font-medium group-data-[collapsible=icon]:hidden">
                     Modelos de Documentos
                   </span>

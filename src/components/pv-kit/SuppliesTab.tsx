@@ -12,11 +12,12 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Switch } from '@/components/ui/switch'
-import { Plus, Trash2, Pencil } from 'lucide-react'
+import { Plus, Trash2, Pencil, FileSpreadsheet } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 import { Skeleton } from '@/components/ui/skeleton'
+import { CatalogCsvImportDialog, CatalogImportConfig } from '@/components/CatalogCsvImportDialog'
 
 export function SuppliesTab() {
   const { user } = useAuth()
@@ -28,6 +29,7 @@ export function SuppliesTab() {
   const [loading, setLoading] = useState(true)
 
   const [editingSupplyId, setEditingSupplyId] = useState<string | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
   const [supplyForm, setSupplyForm] = useState({
     name: '',
     price: '',
@@ -187,9 +189,19 @@ export function SuppliesTab() {
 
       <TabsContent value="cadastro">
         <Card>
-          <CardHeader>
-            <CardTitle>Cadastro de Insumos</CardTitle>
-            <CardDescription>Cadastre os materiais com seus valores unitários.</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+            <div>
+              <CardTitle>Cadastro de Insumos</CardTitle>
+              <CardDescription>Cadastre os materiais com seus valores unitários.</CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setImportOpen(true)}
+              className="gap-2 text-xs border-primary/40 text-primary hover:bg-primary/5"
+            >
+              <FileSpreadsheet className="w-4 h-4" /> Importar Planilha
+            </Button>
           </CardHeader>
           <CardContent className="space-y-6">
             <form
@@ -566,6 +578,53 @@ export function SuppliesTab() {
           </CardContent>
         </Card>
       </TabsContent>
+
+      <CatalogCsvImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        config={{
+          collectionName: 'pv_supplies',
+          catalogTitle: 'Insumos e Materiais',
+          templateFilename: 'modelo_insumos_materiais.csv',
+          headers: ['Nome_Insumo', 'Valor_Unitario_R$', 'Distribuidor_Nome_ou_Global'],
+          sampleRows: [
+            ['Cabo solar 6mm vermelho', '4,50', 'Global'],
+            ['Cabo solar 6mm preto', '4,50', 'Global'],
+            ['Conector MC4 par', '12,00', 'Solfácil'],
+            ['Suporte Fibrometal', '85,00', 'Global'],
+          ],
+          matchFields: ['name'],
+          mapRowToPayload: (row, companyId) => {
+            const name = (row['Nome_Insumo'] || row['name'] || '').trim()
+            if (!name) return null
+
+            const priceStr = row['Valor_Unitario_R$'] || row['price'] || '0'
+            const price = parseNumber(priceStr) || 0
+
+            const distName = (row['Distribuidor_Nome_ou_Global'] || row['distributor'] || '')
+              .trim()
+              .toLowerCase()
+
+            let distId: string | null = null
+            if (distName && distName !== 'global' && distName !== 'todos') {
+              const matched = distributors.find((d) => d.name.trim().toLowerCase() === distName)
+              if (matched) distId = matched.id
+            }
+
+            return {
+              company_id: companyId,
+              name,
+              price,
+              distributor_id: distId,
+              calc_base: 'fixed',
+              multiplier: 1,
+              range_type: 'none',
+            }
+          },
+        }}
+        companyId={user?.company_id || ''}
+        onSuccess={loadData}
+      />
     </Tabs>
   )
 }

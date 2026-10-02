@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-02T19:14:41.700Z",
+  "generatedAt": "2026-10-02T19:19:23.335Z",
   "collections": [
     {
       "name": "users",
@@ -496,6 +496,12 @@
         {
           "name": "stage_changed_at",
           "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "quote_notes",
+          "type": "text",
           "required": false,
           "system": false
         }
@@ -2441,6 +2447,445 @@
       "indexes": [
         "CREATE INDEX idx_contract_tpl_company ON contract_templates (company_id)",
         "CREATE INDEX idx_contract_tpl_active ON contract_templates (active)"
+      ]
+    },
+    {
+      "name": "financing_partners",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "view": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "create": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "update": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "delete": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id && (@request.auth.role_company = 'admin' || @request.auth.role = 'User_owner'))"
+      },
+      "fields": [
+        {
+          "name": "company_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "companies"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "partner_type",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "active",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_fin_partner_comp ON financing_partners (company_id)",
+        "CREATE INDEX idx_fin_partner_active ON financing_partners (active)"
+      ]
+    },
+    {
+      "name": "financing_credit_lines",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "view": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "create": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "update": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "delete": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id && (@request.auth.role_company = 'admin' || @request.auth.role = 'User_owner'))"
+      },
+      "fields": [
+        {
+          "name": "company_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "companies"
+        },
+        {
+          "name": "partner_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "financing_partners"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "interest_rate_annual",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "max_installments",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "min_down_payment_percent",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "active",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_fin_line_comp ON financing_credit_lines (company_id)",
+        "CREATE INDEX idx_fin_line_partner ON financing_credit_lines (partner_id)"
+      ]
+    },
+    {
+      "name": "financing_simulations",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "view": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "create": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "update": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "delete": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id && (@request.auth.role_company = 'admin' || @request.auth.role = 'User_owner'))"
+      },
+      "fields": [
+        {
+          "name": "company_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "companies"
+        },
+        {
+          "name": "negotiation_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "negotiations"
+        },
+        {
+          "name": "partner_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "financing_partners"
+        },
+        {
+          "name": "credit_line_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "financing_credit_lines"
+        },
+        {
+          "name": "total_negotiation_value",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "down_payment",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "financed_amount",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "interest_rate_annual",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "installments",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "monthly_payment",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "total_paid",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "total_interest",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_fin_sim_comp ON financing_simulations (company_id)",
+        "CREATE INDEX idx_fin_sim_neg ON financing_simulations (negotiation_id)",
+        "CREATE INDEX idx_fin_sim_partner ON financing_simulations (partner_id)"
+      ]
+    },
+    {
+      "name": "catalog_items",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "view": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "create": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "update": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "delete": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id && (@request.auth.role_company = 'admin' || @request.auth.role = 'User_owner'))"
+      },
+      "fields": [
+        {
+          "name": "company_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "companies"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "item_type",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["produto", "servico"]
+        },
+        {
+          "name": "price",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "unit",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "active",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_catalog_items_comp ON catalog_items (company_id)",
+        "CREATE INDEX idx_catalog_items_active ON catalog_items (active)"
+      ]
+    },
+    {
+      "name": "negotiation_quote_items",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "view": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "create": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "update": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id)",
+        "delete": "@request.auth.role = 'User_elektra' || (company_id != '' && company_id = @request.auth.company_id)"
+      },
+      "fields": [
+        {
+          "name": "company_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "companies"
+        },
+        {
+          "name": "negotiation_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "negotiations"
+        },
+        {
+          "name": "catalog_item_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "catalog_items"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "item_type",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["produto", "servico"]
+        },
+        {
+          "name": "unit",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "unit_price",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "quantity",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "total_price",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_quote_items_comp ON negotiation_quote_items (company_id)",
+        "CREATE INDEX idx_quote_items_neg ON negotiation_quote_items (negotiation_id)"
       ]
     }
   ]

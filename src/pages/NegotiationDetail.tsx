@@ -13,6 +13,7 @@ import {
   Folder,
   FileArchive,
   ArrowRightLeft,
+  ShieldCheck,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -40,6 +41,7 @@ import { BudgetsTab } from '@/components/negotiation-tabs/BudgetsTab'
 import { FilesTab } from '@/components/negotiation-tabs/FilesTab'
 import { ProposalsTab } from '@/components/negotiation-tabs/ProposalsTab'
 import { DocsTab } from '@/components/negotiation-tabs/DocsTab'
+import { ProjectValidatorTab } from '@/components/negotiation-tabs/ProjectValidatorTab'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Info } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -55,6 +57,9 @@ export default function NegotiationDetail() {
   const [loading, setLoading] = useState(true)
   const [users, setUsers] = useState<any[]>([])
   const [pipelineStages, setPipelineStages] = useState<any[]>([])
+  const [validatorModules, setValidatorModules] = useState<any[]>([])
+  const [validatorInverters, setValidatorInverters] = useState<any[]>([])
+  const [validatorUtilities, setValidatorUtilities] = useState<any[]>([])
   const [pendingLossMove, setPendingLossMove] = useState<{
     stageId: string
     title?: string
@@ -70,6 +75,22 @@ export default function NegotiationDetail() {
       setProposals(props)
       const stgs = await pb.collection('pipeline_stages').getFullList()
       setPipelineStages(stgs)
+
+      // Carregar módulos, inversores e concessionárias para o validador
+      if (data?.company_id) {
+        pb.collection('pv_modules')
+          .getFullList({ filter: `company_id = '${data.company_id}'` })
+          .then(setValidatorModules)
+          .catch(() => {})
+        pb.collection('pv_inverters')
+          .getFullList({ filter: `company_id = '${data.company_id}'` })
+          .then(setValidatorInverters)
+          .catch(() => {})
+        pb.collection('pv_utilities')
+          .getFullList({ filter: `company_id = '${data.company_id}'` })
+          .then(setValidatorUtilities)
+          .catch(() => {})
+      }
     } catch (err) {
       console.error(err)
     } finally {
@@ -280,7 +301,7 @@ export default function NegotiationDetail() {
       </div>
 
       <Tabs defaultValue="detalhes" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6 h-auto gap-2 p-1 bg-muted/50 rounded-xl overflow-x-auto">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-7 h-auto gap-2 p-1 bg-muted/50 rounded-xl overflow-x-auto">
           <TabsTrigger value="detalhes" className="py-2.5 rounded-lg data-[state=active]:shadow-sm">
             <User className="mr-2 h-4 w-4 hidden md:block" /> Cliente
           </TabsTrigger>
@@ -289,6 +310,12 @@ export default function NegotiationDetail() {
             className="py-2.5 rounded-lg data-[state=active]:shadow-sm"
           >
             <Calculator className="mr-2 h-4 w-4 hidden md:block" /> Dimensionamento
+          </TabsTrigger>
+          <TabsTrigger
+            value="validacao"
+            className="py-2.5 rounded-lg data-[state=active]:shadow-sm"
+          >
+            <ShieldCheck className="mr-2 h-4 w-4 hidden md:block text-primary" /> Validação
           </TabsTrigger>
           <TabsTrigger
             value="propostas"
@@ -319,6 +346,14 @@ export default function NegotiationDetail() {
           </TabsContent>
           <TabsContent value="dimensionamento" className="mt-0">
             <SizingTab neg={neg} reload={loadData} />
+          </TabsContent>
+          <TabsContent value="validacao" className="mt-0">
+            <ProjectValidatorTab
+              negotiation={neg}
+              modules={validatorModules}
+              inverters={validatorInverters}
+              utilities={validatorUtilities}
+            />
           </TabsContent>
           <TabsContent value="propostas" className="mt-0">
             <ProposalsTab proposals={proposals} neg={neg} reload={loadData} />

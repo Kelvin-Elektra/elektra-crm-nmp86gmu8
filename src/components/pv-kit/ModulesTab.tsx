@@ -10,10 +10,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Trash2, Pencil, Search } from 'lucide-react'
+import { Plus, Trash2, Pencil, Search, FileSpreadsheet } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
+import { CatalogCsvImportDialog, CatalogImportConfig } from '@/components/CatalogCsvImportDialog'
 
 export function ModulesTab() {
   const { user } = useAuth()
@@ -25,6 +26,7 @@ export function ModulesTab() {
 
   const [search, setSearch] = useState('')
   const [distFilter, setDistFilter] = useState('all')
+  const [importOpen, setImportOpen] = useState(false)
 
   const initialForm = {
     name: '',
@@ -161,10 +163,112 @@ export function ModulesTab() {
     return matchSearch && matchDist
   })
 
+  const modulesImportConfig: CatalogImportConfig = {
+    collectionName: 'pv_modules',
+    catalogTitle: 'Módulos Fotovoltaicos',
+    templateFilename: 'modelo_modulos_fotovoltaicos.csv',
+    headers: [
+      'Modelo',
+      'Marca',
+      'Potencia_Wp',
+      'Preco_R$',
+      'Altura_m',
+      'Largura_m',
+      'Garantia_Fabricacao_Anos',
+      'Garantia_Linear',
+      'Degradacao_Anual_%',
+      'Distribuidora',
+      'Observacoes',
+    ],
+    sampleRows: [
+      [
+        'CS6W-550MS',
+        'Canadian Solar',
+        550,
+        '450,00',
+        '2,27',
+        '1,13',
+        12,
+        '84,8% em 25 anos',
+        '0,5',
+        'Solfácil',
+        'Módulo monocristalino tier 1',
+      ],
+      [
+        'TSM-NEG9R.28-440',
+        'Trina Solar',
+        440,
+        '380,00',
+        '1,76',
+        '1,13',
+        15,
+        '87,4% em 30 anos',
+        '0,4',
+        'Genyx',
+        'Tecnologia N-Type TOPCon',
+      ],
+    ],
+    matchFields: ['name', 'brand'],
+    mapRowToPayload: (row, companyId) => {
+      const name = (row['Modelo'] || row['name'] || row['Nome'] || '').trim()
+      const brand = (row['Marca'] || row['brand'] || '').trim()
+      const powerStr = row['Potencia_Wp'] || row['power'] || row['Potência'] || '0'
+      const power = Number(powerStr.replace(',', '.')) || 0
+
+      if (!name) return null
+
+      // Tenta achar a distribuidora pelo nome se fornecida
+      const distName = (row['Distribuidora'] || '').trim().toLowerCase()
+      let distId = form.distributor_id || distributors[0]?.id || null
+      if (distName) {
+        const matchedDist = distributors.find((d) => d.name.trim().toLowerCase() === distName)
+        if (matchedDist) distId = matchedDist.id
+      }
+
+      const parseNum = (v?: string) => (v ? Number(String(v).replace(',', '.')) || null : null)
+
+      const mfgStr = row['Garantia_Fabricacao_Anos'] || ''
+      const mfgNum = mfgStr ? parseInt(String(mfgStr).replace(/\D/g, ''), 10) : null
+      const mfgText = mfgNum ? `${mfgNum} anos` : mfgStr
+
+      const linearText = (row['Garantia_Linear'] || '').trim()
+      const warranty =
+        [mfgText ? `Fabricação: ${mfgText}` : '', linearText ? `Linear: ${linearText}` : '']
+          .filter(Boolean)
+          .join(' | ') ||
+        mfgText ||
+        linearText
+
+      return {
+        company_id: companyId,
+        name,
+        brand: brand || 'Genérica',
+        power,
+        distributor_id: distId,
+        price: parseNum(row['Preco_R$'] || row['price']),
+        height: parseNum(row['Altura_m'] || row['height']),
+        width: parseNum(row['Largura_m'] || row['width']),
+        warranty_manufacturing: mfgText,
+        warranty_linear: linearText,
+        warranty,
+        annual_degradation: parseNum(row['Degradacao_Anual_%'] || row['annual_degradation']),
+        notes: row['Observacoes'] || row['notes'] || '',
+      }
+    },
+  }
+
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
         <CardTitle>Catálogo de Módulos</CardTitle>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setImportOpen(true)}
+          className="gap-2 text-xs border-primary/40 text-primary hover:bg-primary/5"
+        >
+          <FileSpreadsheet className="w-4 h-4" /> Importar Planilha
+        </Button>
       </CardHeader>
       <CardContent className="space-y-6">
         <form
@@ -450,6 +554,14 @@ export function ModulesTab() {
           </table>
         </div>
       </CardContent>
+
+      <CatalogCsvImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        config={modulesImportConfig}
+        companyId={user?.company_id || ''}
+        onSuccess={loadData}
+      />
     </Card>
   )
 }

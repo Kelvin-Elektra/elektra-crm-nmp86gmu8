@@ -16,6 +16,7 @@ import {
   Lightbulb,
   AlertTriangle,
   ChevronDown,
+  Landmark,
   FileText,
   DollarSign,
   Percent,
@@ -33,6 +34,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { updateNegotiation } from '@/services/db'
 import pb from '@/lib/pocketbase/client'
+import { NegotiationFinancingDialog } from '@/components/NegotiationFinancingDialog'
 import { NumericInput } from '@/components/ui/numeric-input'
 import { cn } from '@/lib/utils'
 import {
@@ -75,6 +77,7 @@ export function FinancialAnalysisCard({
   const { toast } = useToast()
   const isAdmin = user?.role === 'admin'
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const [financingDialogOpen, setFinancingDialogOpen] = useState(false)
   const [consumerCategory, setConsumerCategory] = useState(
     neg.consumer_category || neg.sizing?.consumer_category || '',
   )
@@ -371,10 +374,22 @@ export function FinancialAnalysisCard({
   return (
     <Card className="border-primary/20">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Calculator className="w-5 h-5 text-primary" />
-          Análise Financeira e Parâmetros Tarifários
-        </CardTitle>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Calculator className="w-5 h-5 text-primary" />
+            Análise Financeira e Parâmetros Tarifários
+          </CardTitle>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setFinancingDialogOpen(true)}
+            className="gap-2 text-xs border-primary/40 text-primary hover:bg-primary/5 self-start sm:self-auto"
+          >
+            <Landmark className="w-4 h-4" />
+            Simular Financiamento
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -884,6 +899,17 @@ export function FinancialAnalysisCard({
           </CollapsibleContent>
         </Collapsible>
       </CardContent>
+
+      {/* Diálogo de Simulação de Financiamento */}
+      <NegotiationFinancingDialog
+        open={financingDialogOpen}
+        onOpenChange={setFinancingDialogOpen}
+        negotiation={neg}
+        defaultTotalValue={systemPrice}
+        onSaved={() => {
+          if (reload) reload()
+        }}
+      />
     </Card>
   )
 }
