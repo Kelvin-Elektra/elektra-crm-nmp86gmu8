@@ -23,6 +23,16 @@ routerAdd('POST', '/backend/v1/hub-sync', (e) => {
 
   const body = e.requestInfo().body || {}
 
+  $app
+    .logger()
+    .info(
+      'hub-sync payload received',
+      'body',
+      JSON.stringify(body),
+      'headers_x_secret_present',
+      !!provided,
+    )
+
   const hubUserId = body.hub_user_id
   const hubCompanyId = body.hub_company_id
   const hubUser = body.user || {}
@@ -34,33 +44,44 @@ routerAdd('POST', '/backend/v1/hub-sync', (e) => {
 
   try {
     let company
+    let companyChanged = false
     try {
       company = $app.findFirstRecordByData('companies', 'hub_company_id', hubCompanyId)
     } catch (_) {
       const compCol = $app.findCollectionByNameOrId('companies')
       company = new Record(compCol)
       company.set('hub_company_id', hubCompanyId)
+      companyChanged = true
     }
 
-    if (hubCompany.name || hubCompany.company_name) {
-      company.set('name', hubCompany.name || hubCompany.company_name)
-    } else if (company.isNew()) {
+    const newCompanyName = hubCompany.name || hubCompany.company_name
+    if (newCompanyName && company.getString('name') !== newCompanyName) {
+      company.set('name', newCompanyName)
+      companyChanged = true
+    } else if (company.isNew() && !company.getString('name')) {
       company.set('name', 'Empresa via Hub')
+      companyChanged = true
     }
 
-    if (hubCompany.status) {
+    if (hubCompany.status && company.getString('status') !== hubCompany.status) {
       company.set('status', hubCompany.status)
-    } else if (company.isNew()) {
+      companyChanged = true
+    } else if (company.isNew() && !company.getString('status')) {
       company.set('status', 'active')
+      companyChanged = true
     }
 
-    if (hubCompany.tax_id) {
+    if (hubCompany.tax_id && company.getString('tax_id') !== hubCompany.tax_id) {
       company.set('tax_id', hubCompany.tax_id)
+      companyChanged = true
     }
 
-    $app.saveNoValidate(company)
+    if (company.isNew() || companyChanged) {
+      $app.saveNoValidate(company)
+    }
 
     let user
+    let userChanged = false
     try {
       user = $app.findFirstRecordByData('users', 'hub_user_id', hubUserId)
     } catch (_) {
@@ -74,56 +95,82 @@ routerAdd('POST', '/backend/v1/hub-sync', (e) => {
         const userCol = $app.findCollectionByNameOrId('users')
         user = new Record(userCol)
         user.setPassword($security.randomString(20))
+        userChanged = true
       }
     }
 
-    user.set('hub_user_id', hubUserId)
+    if (user.getString('hub_user_id') !== hubUserId) {
+      user.set('hub_user_id', hubUserId)
+      userChanged = true
+    }
 
-    if (hubUser.email) {
+    if (hubUser.email && user.email() !== hubUser.email) {
       user.setEmail(hubUser.email)
+      userChanged = true
     }
 
-    user.setVerified(true)
+    if (!user.verified()) {
+      user.setVerified(true)
+      userChanged = true
+    }
 
-    if (hubUser.name) {
+    if (hubUser.name && user.getString('name') !== hubUser.name) {
       user.set('name', hubUser.name)
+      userChanged = true
     }
 
-    if (hubUser.phone) {
+    if (hubUser.phone && user.getString('phone') !== hubUser.phone) {
       user.set('phone', hubUser.phone)
+      userChanged = true
     }
 
-    if (hubUser.role) {
+    if (hubUser.role && user.getString('role') !== hubUser.role) {
       user.set('role', hubUser.role)
-    } else if (user.isNew()) {
+      userChanged = true
+    } else if (user.isNew() && !user.getString('role')) {
       user.set('role', 'User_employee')
+      userChanged = true
     }
 
-    if (hubUser.role_company) {
+    if (hubUser.role_company && user.getString('role_company') !== hubUser.role_company) {
       user.set('role_company', hubUser.role_company)
-    } else if (user.isNew()) {
+      userChanged = true
+    } else if (user.isNew() && !user.getString('role_company')) {
       user.set('role_company', 'user')
+      userChanged = true
     }
 
     if (hubUser.avatar && hubUser.avatar.startsWith('http')) {
       try {
         user.set('avatar', $filesystem.fileFromURL(hubUser.avatar, 15))
+        userChanged = true
       } catch (err) {
         $app.logger().warn('Failed to download avatar', 'error', err.message)
       }
     }
 
+    let desiredStatus = null
     if (typeof hubUser.active === 'boolean') {
-      user.set('status', hubUser.active ? 'active' : 'inactive')
+      desiredStatus = hubUser.active ? 'active' : 'inactive'
     } else if (hubUser.status) {
-      user.set('status', hubUser.status)
+      desiredStatus = hubUser.status
     } else if (user.isNew()) {
-      user.set('status', 'active')
+      desiredStatus = 'active'
     }
 
-    user.set('company_id', company.id)
+    if (desiredStatus && user.getString('status') !== desiredStatus) {
+      user.set('status', desiredStatus)
+      userChanged = true
+    }
 
-    $app.saveNoValidate(user)
+    if (user.getString('company_id') !== company.id) {
+      user.set('company_id', company.id)
+      userChanged = true
+    }
+
+    if (user.isNew() || userChanged) {
+      $app.saveNoValidate(user)
+    }
 
     return e.json(200, { success: true, company_id: company.id, user_id: user.id })
   } catch (err) {
