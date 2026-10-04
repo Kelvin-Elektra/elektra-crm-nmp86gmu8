@@ -23,6 +23,8 @@ routerAdd('POST', '/backend/v1/hub-sync', (e) => {
 
   const body = e.requestInfo().body || {}
 
+  console.log('[hub-sync] payload:', JSON.stringify(body))
+
   $app
     .logger()
     .info(
@@ -171,6 +173,18 @@ routerAdd('POST', '/backend/v1/hub-sync', (e) => {
     if (user.isNew() || userChanged) {
       $app.saveNoValidate(user)
     }
+
+    console.log(
+      '[hub-sync] resultado:',
+      JSON.stringify({
+        hubCompanyId,
+        hubUserId,
+        companyStatus: company.getString('status'),
+        userStatus: user.getString('status'),
+        companyChanged,
+        userChanged,
+      }),
+    )
 
     return e.json(200, { success: true, company_id: company.id, user_id: user.id })
   } catch (err) {
