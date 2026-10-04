@@ -4,7 +4,7 @@ import pb from '@/lib/pocketbase/client'
 import { getCachedSystemSettings } from '@/lib/pocketbase/settings'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ExternalLink, KeyRound, ShieldCheck, ArrowRight } from 'lucide-react'
+import { ExternalLink, ShieldCheck } from 'lucide-react'
 
 export default function HubWelcome() {
   const [settings] = useState<any>(getCachedSystemSettings())
@@ -77,46 +77,21 @@ export default function HubWelcome() {
               </div>
             </div>
 
-            {/* Separador sutil */}
-            <div className="relative flex items-center justify-center">
-              <div className="border-t w-full border-border/60" />
-              <span className="bg-card px-3 text-[11px] uppercase tracking-wider text-muted-foreground shrink-0 font-medium">
-                Ou acesse diretamente
-              </span>
-              <div className="border-t w-full border-border/60" />
-            </div>
-
-            {/* Opção discreta de login manual */}
-            <div className="space-y-3">
-              <Button
-                asChild
-                variant="outline"
-                className="w-full justify-between h-11 text-sm font-normal text-muted-foreground hover:text-foreground"
+            {/* Links auxiliares */}
+            <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground pt-1">
+              <Link
+                to="/reset-password"
+                className="hover:text-foreground hover:underline transition-colors"
               >
-                <Link to="/login">
-                  <span className="flex items-center gap-2">
-                    <KeyRound className="w-4 h-4 text-muted-foreground" />
-                    Entrar com e-mail e senha
-                  </span>
-                  <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                </Link>
-              </Button>
-
-              <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground pt-1">
-                <Link
-                  to="/reset-password"
-                  className="hover:text-foreground hover:underline transition-colors"
-                >
-                  Esqueceu sua senha?
-                </Link>
-                <span>•</span>
-                <Link
-                  to="/elektra-admin"
-                  className="hover:text-foreground hover:underline transition-colors"
-                >
-                  Acesso Administrativo
-                </Link>
-              </div>
+                Esqueceu sua senha?
+              </Link>
+              <span>•</span>
+              <Link
+                to="/elektra-admin"
+                className="hover:text-foreground hover:underline transition-colors"
+              >
+                Acesso Administrativo
+              </Link>
             </div>
           </CardContent>
         </Card>

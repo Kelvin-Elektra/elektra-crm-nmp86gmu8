@@ -1,9 +1,11 @@
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { useToast } from '@/hooks/use-toast'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
+import { checkAuthStatus } from '@/lib/auth-check'
 import pb from '@/lib/pocketbase/client'
 import Layout from './components/Layout'
 import Portal from './pages/Portal'
@@ -162,11 +164,66 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>
 }
 
+/**
+ * Monitor silencioso de status do usuário e da empresa.
+ * Executa (a) no carregamento com sessão salva e (b) em cada troca de rota.
+ * Se o acesso estiver revogado (usuário/empresa inactive ou token 401), desloga imediatamente,
+ * redireciona para a tela inicial e exibe mensagem amigável sem jargão técnico.
+ */
+const AuthStatusMonitor = () => {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { isAuthenticated, logout } = useAuth()
+  const { toast } = useToast()
+  const isHandlingRevocationRef = useRef(false)
+
+  useEffect(() => {
+    // Só verifica quando existe sessão ativa no client
+    if (!isAuthenticated || !pb.authStore.isValid) return
+    if (isHandlingRevocationRef.current) return
+
+    let cancelled = false
+
+    const runCheck = async () => {
+      try {
+        const result = await checkAuthStatus()
+        if (cancelled) return
+
+        if (result.blocked) {
+          isHandlingRevocationRef.current = true
+          logout()
+          navigate('/', { replace: true })
+          toast({
+            title: 'Acesso desativado',
+            description: 'Seu acesso foi desativado. Fale com o administrador.',
+            variant: 'destructive',
+          })
+          // Libera o lock após redirecionar
+          setTimeout(() => {
+            isHandlingRevocationRef.current = false
+          }, 1000)
+        }
+      } catch (_) {
+        // Falhas não bloqueantes não interrompem a experiência
+      }
+    }
+
+    runCheck()
+
+    return () => {
+      cancelled = true
+    }
+  }, [location.pathname, location.search, isAuthenticated, logout, navigate, toast])
+
+  return null
+}
+
 const App = () => (
   <BrowserRouter>
     <AuthProvider>
       <SplashScreen>
         <TooltipProvider>
+          <AuthStatusMonitor />
           <Toaster />
           <Sonner />
           <WhatsAppSupportButton />

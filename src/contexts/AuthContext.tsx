@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
+import { resetAuthCheckCache } from '@/lib/auth-check'
 
 export type User = {
   id: string
@@ -253,6 +254,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = () => {
+    resetAuthCheckCache()
     pb.authStore.clear()
     setRealUser(null)
     setSimulatedUser(null)
