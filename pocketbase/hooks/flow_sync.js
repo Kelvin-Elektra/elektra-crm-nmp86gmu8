@@ -48,7 +48,7 @@ routerAdd(
         })
       }
 
-      // 2. Carregar a Empresa (owner_email = companies.email)
+      // 2. Resolver owner_email a partir do usuário dono da companhia (users.email)
       let company = null
       if (negCompanyId) {
         try {
@@ -57,10 +57,93 @@ routerAdd(
       }
 
       let ownerEmail = ''
-      if (company) {
+
+      // 2.1 Identificar o usuário dono/assinante da companhia
+      // Prioridade 1: Usuário ativo da companhia com role = 'User_owner'
+      if (negCompanyId) {
+        try {
+          const ownerRec = $app.findFirstRecordByFilter(
+            'users',
+            "company_id = {:comp} && role = 'User_owner' && status = 'active'",
+            { comp: negCompanyId },
+          )
+          if (ownerRec) {
+            const mail = (
+              ownerRec.getString('email') ||
+              (ownerRec.email ? ownerRec.email() : '') ||
+              ''
+            ).trim()
+            if (mail) ownerEmail = mail
+          }
+        } catch (_) {}
+
+        // Prioridade 2: Usuário da companhia com role = 'User_owner' (qualquer status)
+        if (!ownerEmail) {
+          try {
+            const ownerRec = $app.findFirstRecordByFilter(
+              'users',
+              "company_id = {:comp} && role = 'User_owner'",
+              { comp: negCompanyId },
+            )
+            if (ownerRec) {
+              const mail = (
+                ownerRec.getString('email') ||
+                (ownerRec.email ? ownerRec.email() : '') ||
+                ''
+              ).trim()
+              if (mail) ownerEmail = mail
+            }
+          } catch (_) {}
+        }
+
+        // Prioridade 3: Usuário da companhia com role_company = 'admin' ou role = 'admin_company'
+        if (!ownerEmail) {
+          try {
+            const adminRec = $app.findFirstRecordByFilter(
+              'users',
+              "company_id = {:comp} && (role_company = 'admin' || role = 'admin_company')",
+              { comp: negCompanyId },
+            )
+            if (adminRec) {
+              const mail = (
+                adminRec.getString('email') ||
+                (adminRec.email ? adminRec.email() : '') ||
+                ''
+              ).trim()
+              if (mail) ownerEmail = mail
+            }
+          } catch (_) {}
+        }
+
+        // Prioridade 4: Primeiro usuário cadastrado da companhia (criador)
+        if (!ownerEmail) {
+          try {
+            const firstUsers = $app.findRecordsByFilter(
+              'users',
+              "company_id = '" + negCompanyId + "'",
+              'created',
+              1,
+              0,
+            )
+            if (firstUsers && firstUsers.length > 0) {
+              const uRec = firstUsers[0]
+              const mail = (
+                uRec.getString('email') ||
+                (uRec.email ? uRec.email() : '') ||
+                ''
+              ).trim()
+              if (mail) ownerEmail = mail
+            }
+          } catch (_) {}
+        }
+      }
+
+      // 2.2 Fallback: companies.email
+      if (!ownerEmail && company) {
         ownerEmail = (company.getString('email') || '').trim()
       }
-      // Se companies.email não estiver preenchido, fallback para o e-mail do usuário autenticado
+
+      // 2.3 Fallback: e-mail do usuário autenticado que está executando o sync
       if (!ownerEmail && user.email) {
         try {
           ownerEmail = (user.email() || '').trim()
@@ -74,7 +157,7 @@ routerAdd(
         return e.json(400, {
           success: false,
           message:
-            'A empresa vinculada não possui e-mail cadastrado (companies.email). Atualize os dados da empresa antes de enviar ao Flow.',
+            'Não foi possível identificar o e-mail do dono da companhia (users.email) nem um e-mail válido para sincronização com o Flow.',
         })
       }
 
