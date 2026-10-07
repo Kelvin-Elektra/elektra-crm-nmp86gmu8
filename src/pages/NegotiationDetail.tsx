@@ -24,6 +24,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { MarkNegotiationLostDialog } from '@/components/MarkNegotiationLostDialog'
+import { SendToFlowDialog } from '@/components/SendToFlowDialog'
+import { SendHorizontal } from 'lucide-react'
 import { useRealtime } from '@/hooks/use-realtime'
 import pb from '@/lib/pocketbase/client'
 import { useAuth } from '@/contexts/AuthContext'
@@ -63,6 +65,7 @@ export default function NegotiationDetail() {
     stageId: string
     title?: string
   } | null>(null)
+  const [flowDialogOpen, setFlowDialogOpen] = useState(false)
 
   const loadData = async () => {
     if (!id) return
@@ -261,6 +264,16 @@ export default function NegotiationDetail() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFlowDialogOpen(true)}
+                  className="h-6 px-2 text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10 hover:text-primary"
+                  title="Enviar projeto e cliente ao Elektra Flow"
+                >
+                  <SendHorizontal className="h-3 w-3" />
+                  <span>Enviar ao Flow</span>
+                </Button>
               </div>
               <span className="text-sm text-muted-foreground flex items-center ml-2">
                 <User className="h-3 w-3 mr-1" />
@@ -383,6 +396,15 @@ export default function NegotiationDetail() {
         onOpenChange={(op) => !op && setPendingLossMove(null)}
         negotiationTitle={pendingLossMove?.title}
         onConfirm={handleConfirmLoss}
+      />
+
+      {/* Modal enxuto de envio ao Elektra Flow */}
+      <SendToFlowDialog
+        open={flowDialogOpen}
+        onOpenChange={setFlowDialogOpen}
+        neg={neg}
+        proposals={proposals}
+        onSuccess={loadData}
       />
     </div>
   )

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-04T20:12:12.110Z",
+  "generatedAt": "2026-10-07T22:46:06.789Z",
   "collections": [
     {
       "name": "users",
@@ -502,6 +502,12 @@
         {
           "name": "quote_notes",
           "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "uc_beneficiaries",
+          "type": "json",
           "required": false,
           "system": false
         }
