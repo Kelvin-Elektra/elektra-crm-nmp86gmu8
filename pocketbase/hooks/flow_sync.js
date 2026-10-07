@@ -352,6 +352,8 @@ routerAdd(
 
       const flowPayload = {
         action: 'deal_won',
+        crm_deal_id: negotiationId,
+        crm_deal_url: crmDealUrl,
         owner_email: ownerEmail,
         client: clientPayload,
         project: projectPayload,
