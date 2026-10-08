@@ -442,7 +442,34 @@ routerAdd(
         project: projectPayload,
       }
 
-      console.log('[flow-sync] enviando payload:', JSON.stringify(flowPayload))
+      // Logging em blocos curtos para evitar truncamento em logs do Goja/PocketBase
+      console.log(
+        '[flow-sync] payload.action/crm_deal_id/owner_email: ' +
+          flowPayload.action +
+          ' | ' +
+          flowPayload.crm_deal_id +
+          ' | ' +
+          flowPayload.owner_email,
+      )
+      console.log('[flow-sync] payload.client: ' + JSON.stringify(clientPayload))
+
+      const projectBasePayload = {
+        name: projectPayload.name,
+        crm_deal_id: projectPayload.crm_deal_id,
+        crm_deal_url: projectPayload.crm_deal_url,
+        power_kwp: projectPayload.power_kwp,
+        power_dc_kwp: projectPayload.power_dc_kwp,
+        power_ac_kw: projectPayload.power_ac_kw,
+        value: projectPayload.value,
+        uc_number: projectPayload.uc_number,
+        uc_supply_type: projectPayload.uc_supply_type,
+        uc_service_type: projectPayload.uc_service_type,
+        uc_voltage: projectPayload.uc_voltage,
+      }
+      console.log('[flow-sync] payload.project (base): ' + JSON.stringify(projectBasePayload))
+      console.log('[flow-sync] payload.solar_kit: ' + JSON.stringify(projectPayload.solar_kit))
+      console.log('[flow-sync] payload.uc_beneficiaries: ' + JSON.stringify(ucBeneficiaries))
+
       $app
         .logger()
         .info(

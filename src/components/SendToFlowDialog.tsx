@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { VisuallyHidden } from '@/components/ui/visually-hidden'
+import pb from '@/lib/pocketbase/client'
 import { sendNegotiationToFlow } from '@/services/flow'
 import { useToast } from '@/hooks/use-toast'
 import { SendHorizontal, User, Zap, Box, Coins, Loader2, CheckCircle2 } from 'lucide-react'
@@ -30,12 +31,37 @@ export function SendToFlowDialog({
   onSuccess,
 }: SendToFlowDialogProps) {
   const [loading, setLoading] = useState(false)
+  const [modulesList, setModulesList] = useState<any[]>([])
+  const [invertersList, setInvertersList] = useState<any[]>([])
   const { toast } = useToast()
 
-  if (!neg) return null
+  const sizing = neg?.sizing || {}
+  const lead = neg?.expand?.lead_id || {}
+  const companyId = neg?.company_id
 
-  const sizing = neg.sizing || {}
-  const lead = neg.expand?.lead_id || {}
+  useEffect(() => {
+    let cancelled = false
+    if (open && companyId) {
+      Promise.all([
+        pb.collection('pv_modules').getFullList({ filter: `company_id='${companyId}'` }),
+        pb.collection('pv_inverters').getFullList({ filter: `company_id='${companyId}'` }),
+      ])
+        .then(([mods, invs]) => {
+          if (!cancelled) {
+            setModulesList(mods)
+            setInvertersList(invs)
+          }
+        })
+        .catch((err) => {
+          console.warn('[SendToFlowDialog] Falha ao carregar catálogo de módulos/inversores:', err)
+        })
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [open, companyId])
+
+  if (!neg) return null
 
   // Dados do Cliente
   const clientName = lead.name || neg.title || 'Cliente'
@@ -47,37 +73,80 @@ export function SendToFlowDialog({
       ? `${clientCity}/${clientState}`
       : clientCity || clientState || 'Não informada'
 
-  // Potência CC / CA
+  // Resolução do Módulo
+  const selectedModId = sizing.selected_module_id || sizing.moduleId || ''
+  const matchedMod = selectedModId ? modulesList.find((m) => m.id === selectedModId) : null
+
   const moduleQty = Number(
     sizing.module_qty !== undefined && sizing.module_qty !== null
       ? sizing.module_qty
       : sizing.modules_count || 0,
   )
-  const modulePowerW = Number(sizing.module_power || sizing.power_w || 0)
-  const moduleName = sizing.module_model || sizing.moduleName || 'Módulo Solar'
 
+  let resolvedPowerW = Number(sizing.module_power || sizing.power_w || 0)
+  if (!resolvedPowerW && matchedMod) {
+    resolvedPowerW = Number(matchedMod.power || 0)
+  }
+
+  let resolvedModuleName = sizing.module_model || sizing.moduleName || ''
+  if (matchedMod) {
+    const brand = (matchedMod.brand || '').trim()
+    const name = (matchedMod.name || '').trim()
+    resolvedModuleName = brand && name ? `${brand} - ${name}` : brand || name || 'Módulo Solar'
+  } else if (!resolvedModuleName) {
+    resolvedModuleName = 'Módulo Solar'
+  }
+
+  // Potência CC
   let powerDcKwp = 0
-  if (moduleQty > 0 && modulePowerW > 0) {
-    powerDcKwp = (moduleQty * modulePowerW) / 1000
-  } else if (sizing.system_power_kwp) {
-    powerDcKwp = Number(sizing.system_power_kwp) || 0
+  if (moduleQty > 0 && resolvedPowerW > 0) {
+    powerDcKwp = (moduleQty * resolvedPowerW) / 1000
   } else if (sizing.kit_power_kwp) {
     powerDcKwp = Number(sizing.kit_power_kwp) || 0
+  } else if (sizing.system_power_kwp) {
+    powerDcKwp = Number(sizing.system_power_kwp) || 0
+  } else if (sizing.totalPower) {
+    powerDcKwp = Number(sizing.totalPower) || 0
   }
   const displayKwp = powerDcKwp > 0 ? `${powerDcKwp.toFixed(2)} kWp` : 'Não calculada'
 
   // Inversores
-  const rawInverters =
+  const rawInverters: any[] =
     Array.isArray(sizing.inverters) && sizing.inverters.length > 0
       ? sizing.inverters
       : sizing.selected_inverter_id
         ? [{ id: sizing.selected_inverter_id, qty: 1 }]
         : []
 
-  const invertersCount = rawInverters.reduce(
-    (acc: number, item: any) => acc + Number(item?.qty || item?.quantity || 1),
-    0,
-  )
+  const resolvedInverterSummaries: string[] = []
+  let totalInvertersQty = 0
+
+  for (const item of rawInverters) {
+    if (!item) continue
+    const qty = Number(item.qty || item.quantity || 1)
+    if (qty <= 0) continue
+    totalInvertersQty += qty
+
+    const invRec = item.id ? invertersList.find((inv) => inv.id === item.id) : null
+    let invPower = Number(item.power || 0)
+    let invName = item.name || ''
+
+    if (invRec) {
+      const brand = (invRec.brand || '').trim()
+      const name = (invRec.name || '').trim()
+      invName = brand && name ? `${brand} ${name}` : brand || name || 'Inversor'
+      if (!invPower) {
+        invPower = Number(invRec.power || 0)
+      }
+    }
+
+    if (!invName) {
+      invName = 'Inversor Solar'
+    }
+
+    const powerStr = invPower > 0 ? ` (${invPower}kW)` : ''
+    resolvedInverterSummaries.push(`${qty}x ${invName}${powerStr}`)
+  }
 
   // Valor da negociação
   let dealValue = 0
@@ -192,12 +261,16 @@ export function SendToFlowDialog({
                 <p>
                   <strong className="text-foreground font-medium">Módulos:</strong>{' '}
                   {moduleQty > 0
-                    ? `${moduleQty}x ${moduleName} (${modulePowerW}W)`
+                    ? `${moduleQty}x ${resolvedModuleName}${resolvedPowerW > 0 ? ` (${resolvedPowerW}W)` : ''}`
                     : 'Não configurados'}
                 </p>
                 <p className="mt-0.5">
                   <strong className="text-foreground font-medium">Inversores:</strong>{' '}
-                  {invertersCount > 0 ? `${invertersCount} inversor(es)` : 'Não configurados'}
+                  {resolvedInverterSummaries.length > 0
+                    ? resolvedInverterSummaries.join(', ')
+                    : totalInvertersQty > 0
+                      ? `${totalInvertersQty} inversor(es)`
+                      : 'Não configurados'}
                 </p>
                 {beneficiariesCount > 0 && (
                   <p className="mt-0.5 text-emerald-600 dark:text-emerald-400 font-medium">
