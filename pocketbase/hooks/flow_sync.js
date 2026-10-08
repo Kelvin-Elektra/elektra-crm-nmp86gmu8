@@ -170,19 +170,36 @@ routerAdd(
         } catch (_) {}
       }
 
-      // Extração de sizing
-      let sizing = {}
-      try {
-        const rawSizing = neg.get('sizing')
-        if (typeof rawSizing === 'string') {
-          sizing = JSON.parse(rawSizing)
-        } else if (rawSizing && typeof rawSizing === 'object') {
-          sizing = rawSizing
-        }
-      } catch (_) {
-        sizing = {}
+      // Helper para decodificar campos JSON no Goja/PocketBase
+      // No Goja, record.get("campo_json") pode retornar tipos nativos Go que não
+      // se comportam como objetos/arrays JavaScript padrão. Usar record.getString("campo")
+      // e JSON.parse garante objetos/arrays JS puros.
+      const parseJsonField = (record, fieldName, fallbackVal) => {
+        if (!record) return fallbackVal
+        try {
+          let str = ''
+          if (typeof record.getString === 'function') {
+            str = (record.getString(fieldName) || '').trim()
+          }
+          if (!str) {
+            const rawVal = record.get(fieldName)
+            if (typeof rawVal === 'string') {
+              str = rawVal.trim()
+            } else if (rawVal && typeof rawVal === 'object') {
+              try {
+                str = JSON.stringify(rawVal)
+              } catch (_) {}
+            }
+          }
+          if (str && str !== 'null' && str !== 'undefined') {
+            return JSON.parse(str)
+          }
+        } catch (_) {}
+        return fallbackVal
       }
 
+      // Extração de sizing
+      const sizing = parseJsonField(neg, 'sizing', {})
       const addrStruct = (sizing && typeof sizing === 'object' && sizing.address_struct) || {}
 
       // Resolver dados do cliente
@@ -194,25 +211,53 @@ routerAdd(
       const cleanDocDigits = clientDoc.replace(/\D/g, '')
       const clientType = cleanDocDigits.length > 11 ? 'PJ' : 'PF'
 
+      // Resolução de campos estruturados de endereço (NUNCA concatenado):
+      // Fonte preferida para rua: sizing.address_struct.street; se não houver, lead.street ou vazio.
+      // NUNCA usar neg.address ou lead.address (que são textos concatenados como "Rua X, 123 - Bairro...")
+      // como valor do campo address (rua sem número).
+      // Colunas próprias da negociação e do lead para número, bairro, cidade, estado e CEP:
       const addressStreet =
-        (lead && lead.getString('address')) || addrStruct.street || neg.getString('address') || ''
+        (addrStruct && addrStruct.street ? String(addrStruct.street).trim() : '') ||
+        (lead && typeof lead.getString === 'function' && lead.getString('street')
+          ? lead.getString('street').trim()
+          : '')
+
       const addressNumber =
-        (lead && lead.getString('number')) || addrStruct.number || neg.getString('number') || ''
+        (neg.getString('number') || '').trim() ||
+        (lead && typeof lead.getString === 'function'
+          ? (lead.getString('number') || '').trim()
+          : '') ||
+        (addrStruct && addrStruct.number ? String(addrStruct.number).trim() : '')
+
       const addressNeighborhood =
-        (lead && lead.getString('neighborhood')) ||
-        addrStruct.neighborhood ||
-        neg.getString('neighborhood') ||
-        ''
+        (neg.getString('neighborhood') || '').trim() ||
+        (lead && typeof lead.getString === 'function'
+          ? (lead.getString('neighborhood') || '').trim()
+          : '') ||
+        (addrStruct && addrStruct.neighborhood ? String(addrStruct.neighborhood).trim() : '')
+
       const addressCity =
-        (lead && lead.getString('city')) || addrStruct.city || neg.getString('city') || ''
+        (neg.getString('city') || '').trim() ||
+        (lead && typeof lead.getString === 'function'
+          ? (lead.getString('city') || '').trim()
+          : '') ||
+        (addrStruct && addrStruct.city ? String(addrStruct.city).trim() : '')
+
       const addressState =
-        (lead && lead.getString('state')) || addrStruct.state || neg.getString('state') || ''
+        (neg.getString('state') || '').trim() ||
+        (lead && typeof lead.getString === 'function'
+          ? (lead.getString('state') || '').trim()
+          : '') ||
+        (addrStruct && addrStruct.state ? String(addrStruct.state).trim() : '')
+
       const addressCep =
-        (lead && lead.getString('cep')) ||
-        addrStruct.zip ||
-        addrStruct.cep ||
-        neg.getString('cep') ||
-        ''
+        (neg.getString('cep') || '').trim() ||
+        (lead && typeof lead.getString === 'function'
+          ? (lead.getString('cep') || '').trim()
+          : '') ||
+        (addrStruct && (addrStruct.zip || addrStruct.cep)
+          ? String(addrStruct.zip || addrStruct.cep).trim()
+          : '')
 
       const clientPayload = {
         name: clientName,
@@ -244,11 +289,30 @@ routerAdd(
 
       if (selectedModId) {
         try {
-          const modRec = $app.findRecordById('pv_modules', selectedModId)
+          let modRec = null
+          // Buscar módulo garantindo compatibilidade com companhia da negociação
+          if (negCompanyId) {
+            try {
+              modRec = $app.findFirstRecordByFilter(
+                'pv_modules',
+                "id = {:id} && (company_id = {:comp} || company_id = '' || company_id = null)",
+                { id: selectedModId, comp: negCompanyId },
+              )
+            } catch (_) {}
+          }
+          if (!modRec) {
+            try {
+              modRec = $app.findRecordById('pv_modules', selectedModId)
+            } catch (_) {}
+          }
           if (modRec) {
             const brand = (modRec.getString('brand') || '').trim()
             const name = (modRec.getString('name') || '').trim()
-            moduleName = (brand ? brand + ' ' : '') + name
+            if (brand && name) {
+              moduleName = brand + ' - ' + name
+            } else {
+              moduleName = brand || name || moduleName
+            }
             if (!modulePowerW) {
               modulePowerW = Number(modRec.get('power') || 0)
             }
@@ -282,11 +346,29 @@ routerAdd(
 
         if (invId) {
           try {
-            const invRec = $app.findRecordById('pv_inverters', invId)
+            let invRec = null
+            if (negCompanyId) {
+              try {
+                invRec = $app.findFirstRecordByFilter(
+                  'pv_inverters',
+                  "id = {:id} && (company_id = {:comp} || company_id = '' || company_id = null)",
+                  { id: invId, comp: negCompanyId },
+                )
+              } catch (_) {}
+            }
+            if (!invRec) {
+              try {
+                invRec = $app.findRecordById('pv_inverters', invId)
+              } catch (_) {}
+            }
             if (invRec) {
               const brand = (invRec.getString('brand') || '').trim()
               const name = (invRec.getString('name') || '').trim()
-              invName = (brand ? brand + ' ' : '') + name
+              if (brand && name) {
+                invName = brand + ' - ' + name
+              } else {
+                invName = brand || name || invName
+              }
               if (!invPowerKw) {
                 invPowerKw = Number(invRec.get('power') || 0)
               }
@@ -367,17 +449,7 @@ routerAdd(
       const ucVoltage = (sizing.tension || sizing.voltage || '').trim()
 
       // 7. Unidades beneficiárias (uc_beneficiaries)
-      let ucBeneficiariesRaw = []
-      try {
-        const rawUcB = neg.get('uc_beneficiaries')
-        if (typeof rawUcB === 'string') {
-          ucBeneficiariesRaw = JSON.parse(rawUcB)
-        } else if (Array.isArray(rawUcB)) {
-          ucBeneficiariesRaw = rawUcB
-        }
-      } catch (_) {
-        ucBeneficiariesRaw = []
-      }
+      const ucBeneficiariesRaw = parseJsonField(neg, 'uc_beneficiaries', [])
 
       const ucBeneficiaries = []
       if (Array.isArray(ucBeneficiariesRaw)) {
@@ -415,6 +487,12 @@ routerAdd(
         name: neg.getString('title') || 'Projeto Solar',
         crm_deal_id: negotiationId,
         crm_deal_url: crmDealUrl,
+        address: addressStreet,
+        number: addressNumber,
+        neighborhood: addressNeighborhood,
+        city: addressCity,
+        state: addressState,
+        cep: addressCep,
         power_kwp: powerDcKwp,
         power_dc_kwp: powerDcKwp,
         power_ac_kw: powerAcKw,
@@ -457,6 +535,12 @@ routerAdd(
         name: projectPayload.name,
         crm_deal_id: projectPayload.crm_deal_id,
         crm_deal_url: projectPayload.crm_deal_url,
+        address: projectPayload.address,
+        number: projectPayload.number,
+        neighborhood: projectPayload.neighborhood,
+        city: projectPayload.city,
+        state: projectPayload.state,
+        cep: projectPayload.cep,
         power_kwp: projectPayload.power_kwp,
         power_dc_kwp: projectPayload.power_dc_kwp,
         power_ac_kw: projectPayload.power_ac_kw,
