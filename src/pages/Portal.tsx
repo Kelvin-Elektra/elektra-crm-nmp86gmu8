@@ -110,11 +110,11 @@ export default function Portal() {
       />
       <div className="absolute inset-0 flex">
         <div className="w-1/2 h-full hidden md:block" />
-        <div className="w-full md:w-1/2 h-full backdrop-blur-md bg-background/60" />
+        <div className="w-full md:w-1/2 h-full backdrop-blur-md bg-background/40" />
       </div>
 
       <div className="relative z-10 w-full flex items-center justify-center md:justify-end md:pr-[10%] p-4">
-        <Card className="w-full max-w-md shadow-2xl border-0 bg-card/95 backdrop-blur">
+        <Card className="w-full max-w-md shadow-2xl border border-white/20 dark:border-white/10 bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl">
           <CardHeader className="space-y-4">
             {logoUrl && (
               <div className="flex justify-center mb-2">
@@ -183,19 +183,10 @@ export default function Portal() {
                       variant="link"
                       size="sm"
                       type="button"
-                      onClick={() => navigate('/reset-password')}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      Esqueceu sua senha?
-                    </Button>
-                    <Button
-                      variant="link"
-                      size="sm"
-                      type="button"
                       onClick={() => navigate('/')}
                       className="text-xs text-muted-foreground hover:text-foreground"
                     >
-                      ← Voltar para o aviso do HUB
+                      ← Voltar para o Elektra HUB
                     </Button>
                     {needsVerification && (
                       <Button

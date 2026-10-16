@@ -10,6 +10,7 @@ import {
   deleteContractTemplate,
   extractDocxText,
 } from '@/services/contract-templates'
+import pb from '@/lib/pocketbase/client'
 import { CRM_FIELD_SECTIONS, ALL_CRM_FIELDS } from '@/lib/dynamic-mapping'
 import {
   formatSignerSummary,
@@ -41,6 +42,7 @@ import {
   ArrowLeft,
   AlertTriangle,
   ClipboardList,
+  UserCheck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -136,6 +138,12 @@ export function DocumentTemplatesPage() {
   const [extractingDoc, setExtractingDoc] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Modal para definir responsável padrão da empresa (assinatura)
+  const [isOwnerModalOpen, setIsOwnerModalOpen] = useState(false)
+  const [ownerName, setOwnerName] = useState('')
+  const [ownerEmail, setOwnerEmail] = useState('')
+  const [savingOwner, setSavingOwner] = useState(false)
+
   // Busca e filtro no catálogo lateral de campos dinâmicos
   const [fieldSearch, setFieldSearch] = useState('')
   const [activeCatalogTab, setActiveCatalogTab] = useState<string>('all')
@@ -149,6 +157,9 @@ export function DocumentTemplatesPage() {
     try {
       const list = await getContractTemplates(user.company_id)
       setTemplates(list)
+      const comp = await pb.collection('companies').getOne(user.company_id)
+      setOwnerName(comp.signature_owner_name || '')
+      setOwnerEmail(comp.signature_owner_email || '')
     } catch (err) {
       console.error(err)
       toast({
@@ -369,6 +380,30 @@ export function DocumentTemplatesPage() {
     }
   }
 
+  const handleSaveDefaultOwner = async () => {
+    if (!user?.company_id) return
+    setSavingOwner(true)
+    try {
+      await pb.collection('companies').update(user.company_id, {
+        signature_owner_name: ownerName.trim(),
+        signature_owner_email: ownerEmail.trim(),
+      })
+      toast({
+        title: 'Responsável padrão atualizado',
+        description: 'Os dados foram salvos e serão usados nos documentos com assinatura do dono.',
+      })
+      setIsOwnerModalOpen(false)
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao salvar responsável',
+        description: err.message || 'Não foi possível atualizar os dados da empresa.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingOwner(false)
+    }
+  }
+
   const handleDelete = async () => {
     if (!deleteConfirmId) return
     try {
@@ -469,8 +504,18 @@ export function DocumentTemplatesPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsOwnerModalOpen(true)}
+            className="gap-1.5 text-xs h-9 text-slate-700 hover:text-slate-900 border-slate-300"
+            title="Definir responsável padrão pela empresa para assinaturas"
+          >
+            <UserCheck className="w-4 h-4 text-primary" />
+            Responsável Padrão
+          </Button>
+          <Button
             onClick={() => setIsCreateChoiceOpen(true)}
-            className="gap-2 shadow-sm"
+            className="gap-2 shadow-sm h-9 text-xs"
             disabled={extractingDoc}
           >
             <Plus className="w-4 h-4" />
@@ -612,6 +657,66 @@ export function DocumentTemplatesPage() {
           })}
         </div>
       )}
+
+      {/* MODAL 0: Responsável Padrão pela Empresa (Assinatura) */}
+      <Dialog open={isOwnerModalOpen} onOpenChange={setIsOwnerModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserCheck className="w-5 h-5 text-primary" />
+              Responsável Padrão pela Empresa
+            </DialogTitle>
+            <DialogDescription>
+              Defina o nome e e-mail do proprietário ou diretor que assinará os contratos e
+              procurações pela sua empresa.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="owner-name" className="text-xs">
+                Nome Completo do Responsável
+              </Label>
+              <Input
+                id="owner-name"
+                placeholder="Ex: João Silva"
+                value={ownerName}
+                onChange={(e) => setOwnerName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="owner-email" className="text-xs">
+                E-mail do Responsável
+              </Label>
+              <Input
+                id="owner-email"
+                type="email"
+                placeholder="Ex: diretor@empresa.com.br"
+                value={ownerEmail}
+                onChange={(e) => setOwnerEmail(e.target.value)}
+              />
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Estes dados serão inseridos automaticamente nas solicitações de assinatura eletrônica
+              quando o modelo exigir a assinatura do dono da empresa.
+            </p>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsOwnerModalOpen(false)}
+              disabled={savingOwner}
+            >
+              Cancelar
+            </Button>
+            <Button type="button" onClick={handleSaveDefaultOwner} disabled={savingOwner}>
+              {savingOwner ? 'Salvando...' : 'Salvar Responsável'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* MODAL 1: Escolha do modo de criação (Manual ou DOCX) */}
       <Dialog open={isCreateChoiceOpen} onOpenChange={setIsCreateChoiceOpen}>
