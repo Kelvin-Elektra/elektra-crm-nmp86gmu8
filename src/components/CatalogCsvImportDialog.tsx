@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { parseCsv, generateCsv, downloadCsv } from '@/lib/csv-helper'
+import { generateXlsx, downloadXlsx, parseXlsx } from '@/lib/xlsx-helper'
 import {
   FileSpreadsheet,
   Download,
@@ -69,10 +70,16 @@ export function CatalogCsvImportDialog({
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  // Baixar modelo de planilha
+  // Baixar modelo de planilha (agora em .xlsx real ou .csv conforme extensão)
   const handleDownloadTemplate = () => {
-    const csvContent = generateCsv(config.headers, config.sampleRows)
-    downloadCsv(config.templateFilename, csvContent)
+    const isXlsx = config.templateFilename.toLowerCase().endsWith('.xlsx')
+    if (isXlsx) {
+      const xlsxBytes = generateXlsx(config.headers, config.sampleRows, config.catalogTitle)
+      downloadXlsx(config.templateFilename, xlsxBytes)
+    } else {
+      const csvContent = generateCsv(config.headers, config.sampleRows)
+      downloadCsv(config.templateFilename, csvContent)
+    }
     toast({
       title: 'Modelo baixado!',
       description: `Abra o arquivo ${config.templateFilename} no Excel ou Google Sheets para preencher.`,
@@ -98,8 +105,24 @@ export function CatalogCsvImportDialog({
     let updatedCount = 0
 
     try {
-      const text = await selectedFile.text()
-      const { headers, rows } = parseCsv(text)
+      const isXlsxFile =
+        selectedFile.name.toLowerCase().endsWith('.xlsx') ||
+        selectedFile.type.includes('spreadsheetml')
+
+      let headers: string[] = []
+      let rows: Record<string, string>[] = []
+
+      if (isXlsxFile) {
+        const buffer = await selectedFile.arrayBuffer()
+        const parsed = await parseXlsx(buffer)
+        headers = parsed.headers
+        rows = parsed.rows
+      } else {
+        const text = await selectedFile.text()
+        const parsed = parseCsv(text)
+        headers = parsed.headers
+        rows = parsed.rows
+      }
 
       if (rows.length === 0) {
         toast({
@@ -218,7 +241,8 @@ export function CatalogCsvImportDialog({
               onClick={handleDownloadTemplate}
               className="gap-2 text-xs shrink-0"
             >
-              <Download className="w-3.5 h-3.5 text-primary" /> Baixar Modelo (.csv)
+              <Download className="w-3.5 h-3.5 text-primary" /> Baixar Modelo (
+              {config.templateFilename.toLowerCase().endsWith('.xlsx') ? '.xlsx' : '.csv'})
             </Button>
           </div>
 

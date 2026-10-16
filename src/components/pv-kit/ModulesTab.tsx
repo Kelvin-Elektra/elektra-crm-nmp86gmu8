@@ -166,7 +166,7 @@ export function ModulesTab() {
   const modulesImportConfig: CatalogImportConfig = {
     collectionName: 'pv_modules',
     catalogTitle: 'Módulos Fotovoltaicos',
-    templateFilename: 'modelo_modulos_fotovoltaicos.csv',
+    templateFilename: 'modelo_modulos_fotovoltaicos.xlsx',
     headers: [
       'Modelo',
       'Marca',

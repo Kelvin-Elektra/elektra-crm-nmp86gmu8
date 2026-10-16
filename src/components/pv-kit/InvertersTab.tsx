@@ -212,7 +212,7 @@ export function InvertersTab() {
   const invertersImportConfig: CatalogImportConfig = {
     collectionName: 'pv_inverters',
     catalogTitle: 'Inversores Solares',
-    templateFilename: 'modelo_inversores_solares.csv',
+    templateFilename: 'modelo_inversores_solares.xlsx',
     headers: [
       'Modelo',
       'Marca',

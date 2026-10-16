@@ -585,7 +585,7 @@ export function SuppliesTab() {
         config={{
           collectionName: 'pv_supplies',
           catalogTitle: 'Insumos e Materiais',
-          templateFilename: 'modelo_insumos_materiais.csv',
+          templateFilename: 'modelo_insumos_materiais.xlsx',
           headers: ['Nome_Insumo', 'Valor_Unitario_R$', 'Distribuidor_Nome_ou_Global'],
           sampleRows: [
             ['Cabo solar 6mm vermelho', '4,50', 'Global'],

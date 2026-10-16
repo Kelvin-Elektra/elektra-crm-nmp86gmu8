@@ -133,12 +133,10 @@ export function CostsTab() {
     if (!user?.company_id) return
     setLoading(true)
     try {
-      const res = (await pb
-        .collection('pv_costs')
-        .getFullList({
-          filter: `company_id='${user.company_id}'`,
-          sort: 'name,min_val,created',
-        })) as PvCostRecord[]
+      const res = (await pb.collection('pv_costs').getFullList({
+        filter: `company_id='${user.company_id}'`,
+        sort: 'name,min_val,created',
+      })) as PvCostRecord[]
       setData(res)
 
       const inst = await pb
@@ -302,14 +300,46 @@ export function CostsTab() {
       defaultMethod = 'fixed'
     }
 
-    setFormName(defaultName)
-    setFormCalcMethod(defaultMethod)
-    setFormValue('')
-    setFormCalcBase('modules')
-    setFormMultiplier('')
-    setFormTaxWeight('100')
-    setFormInstallationId('none')
-    setFormUserId('all')
+    // Identificar itens já cadastrados neste grupo para pré-preencher com a regra do grupo
+    let groupItems: PvCostRecord[] = []
+    if (groupType === 'imposto') {
+      groupItems = data.filter((d) => d.calc_method === 'tax')
+    } else if (groupType === 'comissao') {
+      groupItems = data.filter((d) => d.calc_method === 'commission')
+    } else if (groupType === 'margem') {
+      groupItems = data.filter((d) => d.calc_method === 'margin' || d.calc_method === 'kit_percent')
+    } else {
+      groupItems = data.filter(
+        (d) => d.name.trim().toLowerCase() === customName.trim().toLowerCase(),
+      )
+    }
+
+    // Regra de referência para copiar como padrão (última faixa cadastrada ou item principal)
+    const sortedGroupItems = [...groupItems].sort(
+      (a, b) => (Number(a.min_val) || 0) - (Number(b.min_val) || 0),
+    )
+    const referenceRule =
+      sortedGroupItems.length > 0 ? sortedGroupItems[sortedGroupItems.length - 1] : null
+
+    if (referenceRule) {
+      setFormName(referenceRule.name || defaultName)
+      setFormCalcMethod(referenceRule.calc_method || defaultMethod)
+      setFormValue(formatNumber(referenceRule.value))
+      setFormCalcBase((referenceRule.calc_base as any) || 'modules')
+      setFormMultiplier(formatNumber(referenceRule.multiplier))
+      setFormTaxWeight(formatNumber(referenceRule.tax_weight ?? 100))
+      setFormInstallationId(referenceRule.installation_id || 'none')
+      setFormUserId(referenceRule.user_id || 'all')
+    } else {
+      setFormName(defaultName)
+      setFormCalcMethod(defaultMethod)
+      setFormValue('')
+      setFormCalcBase('modules')
+      setFormMultiplier('')
+      setFormTaxWeight('100')
+      setFormInstallationId('none')
+      setFormUserId('all')
+    }
 
     // Verificar se o grupo já trabalha com faixas
     const existingRanges = getExistingRangesForContext(groupType, customName)
@@ -1055,7 +1085,7 @@ export function CostsTab() {
                   <SelectContent>
                     <SelectItem value="fixed">Valor Fixo (R$)</SelectItem>
                     <SelectItem value="variable">
-                      Valor Variável (R$ por Módulo, kWp ou kW)
+                      Valor Variável (R$ por módulo, kWp ou kW)
                     </SelectItem>
                     <SelectItem value="rate">Percentual sobre o Valor da Venda (%)</SelectItem>
                   </SelectContent>
@@ -1099,9 +1129,9 @@ export function CostsTab() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="modules">Quantidade de Módulos</SelectItem>
-                      <SelectItem value="kwp">Potência do Kit (kWp)</SelectItem>
-                      <SelectItem value="kw">Potência do Inversor (kW)</SelectItem>
+                      <SelectItem value="modules">Por módulo (quantidade)</SelectItem>
+                      <SelectItem value="kwp">Por kWp (potência do kit)</SelectItem>
+                      <SelectItem value="kw">Por kW (potência do inversor)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1118,10 +1148,10 @@ export function CostsTab() {
                 <p className="text-[11px] text-muted-foreground col-span-2">
                   Fórmula: Multiplicador ×{' '}
                   {formCalcBase === 'modules'
-                    ? 'Nº de Módulos'
+                    ? 'Nº de módulos'
                     : formCalcBase === 'kwp'
-                      ? 'kWp Total'
-                      : 'kW Inversores'}{' '}
+                      ? 'kWp total'
+                      : 'kW inversores'}{' '}
                   = Custo Final.
                 </p>
               </div>
@@ -1183,7 +1213,7 @@ export function CostsTab() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="kwp">Potência do Kit (kWp)</SelectItem>
-                        <SelectItem value="modules">Quantidade de Módulos</SelectItem>
+                        <SelectItem value="modules">Quantidade de Módulos (unidades)</SelectItem>
                         <SelectItem value="kw">Potência do Inversor (kW)</SelectItem>
                       </SelectContent>
                     </Select>
