@@ -319,6 +319,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
         avg_consumption: Number(formData.avg_consumption) || 0,
         owner_id: user?.id,
         installation_lead_time: defaultLeadTime,
+        quote_notes: 'Pagamento e entrega: a combinar',
         tags: [],
         use_roof_faces: false,
         roof_faces_data: [],

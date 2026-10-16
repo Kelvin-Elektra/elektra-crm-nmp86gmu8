@@ -45,7 +45,9 @@ export function BudgetsTab({ neg }: { neg: any }) {
 
   // Observações do orçamento
   const [quoteNotes, setQuoteNotes] = useState<string>(
-    neg.quote_notes || 'Pagamento: 50% na aprovação e 50% na conclusão. Validade: 10 dias.',
+    neg.quote_notes !== undefined && neg.quote_notes !== null && neg.quote_notes !== ''
+      ? neg.quote_notes
+      : 'Pagamento e entrega: a combinar',
   )
   const [savingNotes, setSavingNotes] = useState(false)
 
@@ -374,93 +376,113 @@ export function BudgetsTab({ neg }: { neg: any }) {
             </div>
           ) : (
             <div className="divide-y border-t">
-              <div className="grid grid-cols-12 gap-2 p-3 bg-muted/40 text-xs font-semibold text-muted-foreground">
-                <div className="col-span-4 sm:col-span-5">Item</div>
-                <div className="col-span-2 text-center">Tipo</div>
-                <div className="col-span-2 text-center">Qtd.</div>
-                <div className="col-span-2 text-right">Unitário</div>
-                <div className="col-span-2 sm:col-span-1 text-right">Total</div>
+              {/* Tabela responsiva com overflow horizontal suave se tela for muito estreita */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/40 border-b text-xs font-semibold text-muted-foreground">
+                    <tr>
+                      <th className="text-left py-3 px-4 font-semibold">Item</th>
+                      <th className="text-center py-3 px-3 font-semibold w-24">Tipo</th>
+                      <th className="text-center py-3 px-3 font-semibold w-28">Qtd.</th>
+                      <th className="text-right py-3 px-4 font-semibold w-36">Unitário</th>
+                      <th className="text-right py-3 px-4 font-semibold w-36">Total</th>
+                      <th className="w-12 py-3 px-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {quoteItems.map((item) => (
+                      <tr key={item.id} className="hover:bg-muted/10 transition-colors">
+                        <td className="py-3 px-4 align-middle">
+                          <div className="space-y-0.5">
+                            <p className="font-semibold text-foreground">{item.name}</p>
+                            {item.description && (
+                              <p className="text-xs text-muted-foreground line-clamp-1">
+                                {item.description}
+                              </p>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-3 text-center align-middle">
+                          <Badge
+                            variant="outline"
+                            className={`text-xs ${
+                              item.item_type === 'servico'
+                                ? 'border-sky-300 text-sky-700 dark:text-sky-300'
+                                : 'border-amber-300 text-amber-700 dark:text-amber-300'
+                            }`}
+                          >
+                            {item.item_type === 'servico' ? 'Serviço' : 'Produto'}
+                          </Badge>
+                        </td>
+
+                        <td className="py-3 px-3 align-middle">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <Input
+                              type="number"
+                              min="1"
+                              className="h-8 w-16 text-center text-xs px-1 bg-background"
+                              value={item.quantity}
+                              onChange={(e) =>
+                                handleUpdateQuantity(
+                                  item.id,
+                                  Math.max(1, Number(e.target.value) || 1),
+                                  item.unit_price,
+                                )
+                              }
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              {item.unit || 'un'}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-4 text-right align-middle">
+                          <div className="flex items-center justify-end">
+                            <div className="relative flex items-center">
+                              <span className="absolute left-2 text-[11px] text-muted-foreground pointer-events-none select-none">
+                                R$
+                              </span>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                className="h-8 w-28 pl-7 text-right text-xs bg-background"
+                                value={item.unit_price}
+                                onChange={(e) =>
+                                  handleUpdateUnitPrice(
+                                    item.id,
+                                    Math.max(0, Number(e.target.value) || 0),
+                                    item.quantity,
+                                  )
+                                }
+                              />
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-4 text-right align-middle">
+                          <span className="font-bold text-foreground text-sm whitespace-nowrap">
+                            {BRL(item.total_price)}
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-2 text-center align-middle">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+                            onClick={() => handleRemoveQuoteItem(item.id)}
+                            title="Remover item"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-
-              {quoteItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="grid grid-cols-12 gap-2 p-3 sm:p-4 items-center text-sm hover:bg-muted/10 transition-colors"
-                >
-                  <div className="col-span-4 sm:col-span-5 space-y-0.5">
-                    <p className="font-semibold text-foreground">{item.name}</p>
-                    {item.description && (
-                      <p className="text-xs text-muted-foreground line-clamp-1">
-                        {item.description}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="col-span-2 text-center">
-                    <Badge
-                      variant="outline"
-                      className={`text-xs ${
-                        item.item_type === 'servico'
-                          ? 'border-sky-300 text-sky-700 dark:text-sky-300'
-                          : 'border-amber-300 text-amber-700 dark:text-amber-300'
-                      }`}
-                    >
-                      {item.item_type === 'servico' ? 'Serviço' : 'Produto'}
-                    </Badge>
-                  </div>
-
-                  <div className="col-span-2 flex items-center justify-center gap-1.5">
-                    <Input
-                      type="number"
-                      min="1"
-                      className="h-8 w-16 text-center text-xs px-1"
-                      value={item.quantity}
-                      onChange={(e) =>
-                        handleUpdateQuantity(
-                          item.id,
-                          Math.max(1, Number(e.target.value) || 1),
-                          item.unit_price,
-                        )
-                      }
-                    />
-                    <span className="text-xs text-muted-foreground hidden sm:inline">
-                      {item.unit || 'un'}
-                    </span>
-                  </div>
-
-                  <div className="col-span-2 flex items-center justify-end">
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className="h-8 w-24 text-right text-xs px-1"
-                      value={item.unit_price}
-                      onChange={(e) =>
-                        handleUpdateUnitPrice(
-                          item.id,
-                          Math.max(0, Number(e.target.value) || 0),
-                          item.quantity,
-                        )
-                      }
-                    />
-                  </div>
-
-                  <div className="col-span-2 sm:col-span-1 flex items-center justify-end gap-2 text-right">
-                    <p className="font-bold text-foreground text-xs sm:text-sm">
-                      {BRL(item.total_price)}
-                    </p>
-
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
-                      onClick={() => handleRemoveQuoteItem(item.id)}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
 
               {/* Barra de Totais */}
               <div className="p-4 bg-muted/30 flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -486,7 +508,7 @@ export function BudgetsTab({ neg }: { neg: any }) {
         <CardContent className="space-y-3">
           <Textarea
             rows={3}
-            placeholder="Ex: Pagamento 50% na aprovação e 50% na conclusão..."
+            placeholder="Ex: Pagamento e entrega: a combinar"
             value={quoteNotes}
             onChange={(e) => setQuoteNotes(e.target.value)}
           />

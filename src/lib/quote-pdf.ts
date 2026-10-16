@@ -217,11 +217,7 @@ export async function generateQuote1PagePdf(options: QuotePdfOptions): Promise<B
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7.5)
   doc.setTextColor(148, 163, 184)
-  doc.text(
-    'Este orçamento possui validade de 10 dias corridos. Preços e condições sujeitos a alteração.',
-    margin,
-    footerY + 2,
-  )
+  doc.text('Preços e condições sujeitos a alteração sob aviso prévio', margin, footerY + 2)
   doc.text('Página 1 de 1', pageWidth - margin, footerY + 2, { align: 'right' })
 
   return doc.output('blob')
