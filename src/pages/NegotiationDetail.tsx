@@ -25,7 +25,17 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { MarkNegotiationLostDialog } from '@/components/MarkNegotiationLostDialog'
 import { SendToFlowDialog } from '@/components/SendToFlowDialog'
-import { SendHorizontal } from 'lucide-react'
+import { SendHorizontal, CheckCircle2 } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { useRealtime } from '@/hooks/use-realtime'
 import pb from '@/lib/pocketbase/client'
 import { useAuth } from '@/contexts/AuthContext'
@@ -66,6 +76,44 @@ export default function NegotiationDetail() {
     title?: string
   } | null>(null)
   const [flowDialogOpen, setFlowDialogOpen] = useState(false)
+  const [flowConfirmReopen, setFlowConfirmReopen] = useState(false)
+  const [flowSent, setFlowSent] = useState(() => {
+    try {
+      return id ? localStorage.getItem(`flow_sent_${id}`) === 'true' : false
+    } catch {
+      return false
+    }
+  })
+
+  // Sincroniza estado de envio com o ID da negociação ou sizing/metadata se houver flag
+  useEffect(() => {
+    if (!id) return
+    try {
+      const persisted = localStorage.getItem(`flow_sent_${id}`) === 'true'
+      const inNeg = Boolean(neg?.sizing?.flow_synced_at || neg?.flow_synced)
+      setFlowSent(persisted || inNeg)
+    } catch {
+      /* ignore */
+    }
+  }, [id, neg?.sizing?.flow_synced_at, neg?.flow_synced])
+
+  const handleFlowClick = () => {
+    if (flowSent) {
+      setFlowConfirmReopen(true)
+    } else {
+      setFlowDialogOpen(true)
+    }
+  }
+
+  const handleFlowSuccess = () => {
+    setFlowSent(true)
+    try {
+      if (id) localStorage.setItem(`flow_sent_${id}`, 'true')
+    } catch {
+      /* ignore */
+    }
+    loadData()
+  }
 
   const loadData = async () => {
     if (!id) return
@@ -267,12 +315,24 @@ export default function NegotiationDetail() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setFlowDialogOpen(true)}
-                  className="h-6 px-2 text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10 hover:text-primary"
-                  title="Enviar projeto e cliente ao Elektra Flow"
+                  onClick={handleFlowClick}
+                  className={
+                    flowSent
+                      ? 'h-6 px-2 text-xs gap-1.5 font-medium border-emerald-500/50 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-600 dark:text-emerald-300 dark:hover:bg-emerald-900/50'
+                      : 'h-6 px-2 text-xs gap-1.5 font-medium border-primary/30 text-primary hover:bg-primary/10 hover:text-primary'
+                  }
+                  title={
+                    flowSent
+                      ? 'Proposta já enviada ao Elektra Flow. Clique para reenviar/atualizar.'
+                      : 'Enviar projeto e cliente ao Elektra Flow'
+                  }
                 >
-                  <SendHorizontal className="h-3 w-3" />
-                  <span>Enviar ao Flow</span>
+                  {flowSent ? (
+                    <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                  ) : (
+                    <SendHorizontal className="h-3 w-3" />
+                  )}
+                  <span>{flowSent ? 'Enviado ao Flow' : 'Enviar ao Flow'}</span>
                 </Button>
               </div>
               <span className="text-sm text-muted-foreground flex items-center ml-2">
@@ -398,13 +458,38 @@ export default function NegotiationDetail() {
         onConfirm={handleConfirmLoss}
       />
 
+      {/* Confirmação de reenvio ao Elektra Flow quando já foi enviado */}
+      <AlertDialog open={flowConfirmReopen} onOpenChange={setFlowConfirmReopen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reenviar negociação ao Elektra Flow?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta proposta já foi enviada anteriormente ao Elektra Flow. Enviar de novo vai
+              atualizar o cadastro do cliente e os dados do projeto no Flow com as informações
+              atuais. Deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setFlowConfirmReopen(false)
+                setFlowDialogOpen(true)
+              }}
+            >
+              Continuar e Reenviar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Modal enxuto de envio ao Elektra Flow */}
       <SendToFlowDialog
         open={flowDialogOpen}
         onOpenChange={setFlowDialogOpen}
         neg={neg}
         proposals={proposals}
-        onSuccess={loadData}
+        onSuccess={handleFlowSuccess}
       />
     </div>
   )

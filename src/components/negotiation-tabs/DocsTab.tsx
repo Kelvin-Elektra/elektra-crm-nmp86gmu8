@@ -655,7 +655,7 @@ export function DocsTab({ neg, proposals }: DocsTabProps) {
                     title="Abrir a proposta comercial no gerador externo"
                   >
                     <ExternalLink className="h-3.5 w-3.5 mr-1.5 text-primary" />
-                    Abrir no Gerador
+                    Abrir
                   </Button>
                   <Button
                     className="w-full text-xs"

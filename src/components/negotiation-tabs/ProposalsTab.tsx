@@ -198,7 +198,7 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
                           onClick={() => window.open(link, '_blank')}
                           title="Abrir proposta no gerador externo"
                         >
-                          <ExternalLink className="h-4 w-4 mr-1 text-primary" /> Abrir no Gerador
+                          <ExternalLink className="h-4 w-4 mr-1 text-primary" /> Abrir
                         </Button>
                       )
                     }

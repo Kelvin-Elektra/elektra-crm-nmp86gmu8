@@ -110,7 +110,7 @@ export default function Proposals() {
                       title="Abrir proposta no gerador externo"
                       className="gap-1.5"
                     >
-                      <ExternalLink className="h-4 w-4 text-primary" /> Abrir no Gerador
+                      <ExternalLink className="h-4 w-4 text-primary" /> Abrir
                     </Button>
                   )
                 }

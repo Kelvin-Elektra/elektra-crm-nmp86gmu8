@@ -200,7 +200,7 @@ export default function NegotiationProposalPage() {
               onClick={() => window.open(viewUrl, '_blank')}
               className="gap-2 bg-primary shadow-sm"
             >
-              <ExternalLink className="h-4 w-4" /> Abrir no Gerador Externo
+              <ExternalLink className="h-4 w-4" /> Abrir
             </Button>
           ) : (
             activeProposal && (

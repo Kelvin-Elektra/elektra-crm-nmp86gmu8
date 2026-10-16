@@ -87,11 +87,19 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
   useEffect(() => {
     if (open && step === 1) {
       setValidity(new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0])
-      setDescription(`Proposta Sistema ${(neg.sizing?.kit_power_kwp || 0).toFixed(2)} kWp`)
+      setDescription(`Proposta Sistema ${(neg?.sizing?.kit_power_kwp || 0).toFixed(2)} kWp`)
+      // Inicializar paymentTerms a partir da negociação (ex: quote_notes ou payment_terms),
+      // garantindo que continue preenchido internamente para o payload do gerador
+      const initialTerms =
+        neg?.payment_terms ||
+        neg?.quote_notes ||
+        neg?.sizing?.payment_terms ||
+        'Pagamento e entrega: a combinar'
+      setPaymentTerms(initialTerms)
       setStep(1)
       loadPricingData()
     }
-  }, [open, neg.sizing])
+  }, [open, neg?.sizing, neg?.payment_terms, neg?.quote_notes])
 
   useEffect(() => {
     if (!rawPricingData) return
@@ -1151,22 +1159,6 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
             </div>
 
             <div className="space-y-2">
-              <Label>Condições de Pagamento</Label>
-              <Input
-                placeholder={companyPaymentMethods || 'Ex: Entrada de 30% + 12x sem juros'}
-                value={paymentTerms}
-                onChange={(e) => setPaymentTerms(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Forma de Pagamento Definida</Label>
-              <Input
-                placeholder="Ex: PIX, Boleto, Cartão de Crédito"
-                value={definedPaymentMethod}
-                onChange={(e) => setDefinedPaymentMethod(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
               <Label>Prazo de Instalação</Label>
               {companyLeadTimes.length > 0 ? (
                 <div className="space-y-1.5">
@@ -1226,6 +1218,16 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
             <div className="space-y-2">
               <Label>Observações Internas (Não sai no PDF)</Label>
               <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </div>
+
+            {/* Forma de Pagamento Definida: movido para o final do formulário, antes do rodapé financeiro */}
+            <div className="space-y-2">
+              <Label>Forma de Pagamento Definida</Label>
+              <Input
+                placeholder="Ex: PIX, Boleto, Cartão de Crédito"
+                value={definedPaymentMethod}
+                onChange={(e) => setDefinedPaymentMethod(e.target.value)}
+              />
             </div>
             {isAdmin && discount > 0 && rawPricingData?.marginSum !== undefined && (
               <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg space-y-2">

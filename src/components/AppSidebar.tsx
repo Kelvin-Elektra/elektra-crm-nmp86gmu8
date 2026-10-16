@@ -36,7 +36,6 @@ const navItems = [
   { title: 'Negociações', path: '/negociacoes', icon: Briefcase },
   { title: 'Negociações Perdidas', path: '/negociacoes-perdidas', icon: AlertOctagon },
   { title: 'Propostas', path: '/propostas', icon: FileText },
-  { title: 'Produtos & Serviços', path: '/catalogo', icon: Package },
 ]
 
 export function AppSidebar() {
@@ -162,6 +161,23 @@ export function AppSidebar() {
                     Sair da Simulação
                   </span>
                 </div>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+          {isAdmin && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={location.pathname === '/catalogo'}
+                tooltip="Produtos & Serviços"
+                className="h-10 w-full transition-all duration-200"
+              >
+                <Link to="/catalogo" className="flex items-center gap-3">
+                  <Package className="!h-5 !w-5 shrink-0" />
+                  <span className="font-medium group-data-[collapsible=icon]:hidden">
+                    Produtos & Serviços
+                  </span>
+                </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}

@@ -186,6 +186,13 @@ export function SendToFlowDialog({
     setLoading(true)
     try {
       const res = await sendNegotiationToFlow(neg.id)
+      try {
+        if (neg?.id) {
+          localStorage.setItem(`flow_sent_${neg.id}`, 'true')
+        }
+      } catch {
+        /* ignore */
+      }
       toast({
         title: 'Enviado ao Elektra Flow',
         description: res.message || 'Projeto e cliente sincronizados com sucesso no Flow.',
