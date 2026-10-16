@@ -8,20 +8,27 @@ onRecordUpdate((e) => {
     const companyId = e.record.getString('company_id')
     const recordId = e.record.id
     if (companyId) {
-      const existing = $app.findRecordsByFilter(
+      // Bloqueia apenas misturar tipos de margem incompatíveis (não misturar margem real com margem fake)
+      const oppositeMethod = method === 'margin' ? 'kit_percent' : 'margin'
+      const incompatible = $app.findRecordsByFilter(
         'pv_costs',
         "company_id = '" +
           companyId +
-          "' && (calc_method = 'margin' || calc_method = 'kit_percent') && id != '" +
+          "' && calc_method = '" +
+          oppositeMethod +
+          "' && id != '" +
           recordId +
           "'",
         '',
         1,
         0,
       )
-      if (existing.length > 0) {
+      if (incompatible.length > 0) {
+        const opposingLabel = oppositeMethod === 'margin' ? 'Margem Real' : 'Margem Fake'
         throw new BadRequestError(
-          'Ja existe um custo do tipo Margem para esta empresa. Apenas um tipo de margem pode estar ativo por empresa.',
+          'A empresa já possui custos configurados com ' +
+            opposingLabel +
+            '. Escolha um único tipo de margem (Real ou Fake) para todas as faixas da empresa.',
         )
       }
     }

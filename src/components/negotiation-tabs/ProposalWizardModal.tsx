@@ -290,21 +290,40 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
 
       pv_costs.forEach((c) => {
         let matched = true
-        if (
-          c.range_type === 'kwp' &&
-          (baseKwp < (c.min_val || 0) || (c.max_val && baseKwp > c.max_val))
-        )
-          matched = false
-        if (
-          c.range_type === 'modules' &&
-          (baseMods < (c.min_val || 0) || (c.max_val && baseMods > c.max_val))
-        )
-          matched = false
-        if (
-          c.range_type === 'kw' &&
-          (baseKw < (c.min_val || 0) || (c.max_val && baseKw > c.max_val))
-        )
-          matched = false
+        if (c.range_type === 'kwp') {
+          const min = Number(c.min_val) || 0
+          const hasMax =
+            c.max_val !== null &&
+            c.max_val !== undefined &&
+            c.max_val !== '' &&
+            Number(c.max_val) > 0
+          // Se min > 0, o limite inferior da faixa sequencial é estritamente maior que min (exceto se min == 0)
+          const lowerOk = min === 0 ? baseKwp >= 0 : baseKwp > min
+          const upperOk = !hasMax || baseKwp <= Number(c.max_val)
+          if (!lowerOk || !upperOk) matched = false
+        }
+        if (c.range_type === 'modules') {
+          const min = Number(c.min_val) || 0
+          const hasMax =
+            c.max_val !== null &&
+            c.max_val !== undefined &&
+            c.max_val !== '' &&
+            Number(c.max_val) > 0
+          const lowerOk = min === 0 ? baseMods >= 0 : baseMods > min
+          const upperOk = !hasMax || baseMods <= Number(c.max_val)
+          if (!lowerOk || !upperOk) matched = false
+        }
+        if (c.range_type === 'kw') {
+          const min = Number(c.min_val) || 0
+          const hasMax =
+            c.max_val !== null &&
+            c.max_val !== undefined &&
+            c.max_val !== '' &&
+            Number(c.max_val) > 0
+          const lowerOk = min === 0 ? baseKw >= 0 : baseKw > min
+          const upperOk = !hasMax || baseKw <= Number(c.max_val)
+          if (!lowerOk || !upperOk) matched = false
+        }
         if (c.installation_id && c.installation_id !== instId) matched = false
 
         if (matched) {
