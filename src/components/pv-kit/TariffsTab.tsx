@@ -112,6 +112,7 @@ const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
 const EMPTY_FORM = {
   utility_id: '',
   class: '',
+  classes: [] as string[],
   network_type: '',
   voltage: '',
   te: 0,
@@ -330,15 +331,25 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
       return
     }
     setEditingId(null)
-    setForm({ ...EMPTY_FORM, utility_id: utilities[0]?.id || '' })
+    setForm({ ...EMPTY_FORM, utility_id: utilities[0]?.id || '', classes: [] })
     setOpen(true)
   }
 
   const handleEdit = (rule: any) => {
     setEditingId(rule.id)
+    const initialClasses: string[] =
+      Array.isArray(rule.classes) && rule.classes.length > 0
+        ? rule.classes
+        : rule.class
+          ? String(rule.class)
+              .split(',')
+              .map((c: string) => c.trim())
+              .filter(Boolean)
+          : []
     setForm({
       utility_id: rule.utility_id || '',
-      class: rule.class || '',
+      class: initialClasses[0] || rule.class || '',
+      classes: initialClasses,
       network_type: rule.network_type || '',
       voltage: rule.voltage || '',
       te: Number(rule.te) || 0,
@@ -350,9 +361,64 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
     setOpen(true)
   }
 
+  const toggleFormClass = (c: string) => {
+    setForm((prev: any) => {
+      const currentList: string[] = Array.isArray(prev.classes) ? [...prev.classes] : []
+      const idx = currentList.indexOf(c)
+      let nextList: string[]
+      if (idx >= 0) {
+        nextList = currentList.filter((item) => item !== c)
+      } else {
+        nextList = [...currentList, c]
+      }
+      return {
+        ...prev,
+        classes: nextList,
+        class: nextList.join(', '),
+      }
+    })
+  }
+
+  const toggleSelectAllClasses = () => {
+    setForm((prev: any) => {
+      const currentList: string[] = Array.isArray(prev.classes) ? prev.classes : []
+      const allSelected = CONSUMER_CATEGORIES.every((c) => currentList.includes(c))
+      const nextList = allSelected ? [] : [...CONSUMER_CATEGORIES]
+      return {
+        ...prev,
+        classes: nextList,
+        class: nextList.join(', '),
+      }
+    })
+  }
+
   const handleSave = async () => {
     try {
-      const data = { ...form, company_id: companyId }
+      const selectedClasses: string[] =
+        Array.isArray(form.classes) && form.classes.length > 0
+          ? form.classes
+          : form.class
+            ? String(form.class)
+                .split(',')
+                .map((c: string) => c.trim())
+                .filter(Boolean)
+            : []
+
+      if (selectedClasses.length === 0) {
+        toast({
+          variant: 'destructive',
+          title: 'Classe obrigatória',
+          description: 'Selecione pelo menos uma classe de consumo para a tarifa.',
+        })
+        return
+      }
+
+      const data = {
+        ...form,
+        company_id: companyId,
+        classes: selectedClasses,
+        class: selectedClasses.join(', '),
+      }
       if (editingId) {
         await pb.collection('pv_tariff_rules').update(editingId, data)
       } else {
@@ -787,7 +853,34 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
                 {rules.map((rule) => (
                   <TableRow key={rule.id}>
                     <TableCell className="font-medium">{getUtilityName(rule.utility_id)}</TableCell>
-                    <TableCell>{rule.class}</TableCell>
+                    <TableCell>
+                      {(() => {
+                        const classesList: string[] =
+                          Array.isArray(rule.classes) && rule.classes.length > 0
+                            ? rule.classes
+                            : rule.class
+                              ? String(rule.class)
+                                  .split(',')
+                                  .map((c: string) => c.trim())
+                                  .filter(Boolean)
+                              : []
+                        if (classesList.length === 0) return '-'
+                        if (classesList.length === 1) return classesList[0]
+                        return (
+                          <div className="flex flex-wrap gap-1 max-w-xs">
+                            {classesList.map((c) => (
+                              <Badge
+                                key={c}
+                                variant="secondary"
+                                className="text-[11px] font-normal py-0"
+                              >
+                                {c}
+                              </Badge>
+                            ))}
+                          </div>
+                        )
+                      })()}
+                    </TableCell>
                     <TableCell>{BRL.format(Number(rule.te) || 0)}</TableCell>
                     <TableCell>{BRL.format(Number(rule.tusd) || 0)}</TableCell>
                     <TableCell>{Number(rule.icms_rate) || 0}%</TableCell>
@@ -1114,7 +1207,7 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
             <DialogTitle>{editingId ? 'Editar Tarifa' : 'Nova Tarifa'}</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+            <div className="space-y-2 col-span-2">
               <Label>Concessionária</Label>
               <Select value={form.utility_id} onValueChange={(v) => updateForm('utility_id', v)}>
                 <SelectTrigger>
@@ -1129,20 +1222,57 @@ export function TariffsTab({ companyId: propCompanyId }: { companyId?: string })
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Classe de Consumo</Label>
-              <Select value={form.class} onValueChange={(v) => updateForm('class', v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CONSUMER_CATEGORIES.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="space-y-2 col-span-2">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-1.5 font-medium">
+                  Classes de Consumo
+                  <span className="text-xs text-muted-foreground font-normal">
+                    (marque todas as que utilizam esta mesma regra tarifária)
+                  </span>
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs text-primary"
+                  onClick={toggleSelectAllClasses}
+                >
+                  {CONSUMER_CATEGORIES.every((c) => (form.classes || []).includes(c))
+                    ? 'Desmarcar todas'
+                    : 'Selecionar todas'}
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 p-3 rounded-lg border bg-muted/20">
+                {CONSUMER_CATEGORIES.map((c) => {
+                  const isChecked = Array.isArray(form.classes) ? form.classes.includes(c) : false
+                  const inputId = `tariff-class-${c}`
+                  return (
+                    <label
+                      key={c}
+                      htmlFor={inputId}
+                      className={`flex items-center gap-2 p-2 rounded-md border text-xs cursor-pointer transition-colors ${
+                        isChecked
+                          ? 'border-primary bg-primary/10 font-medium text-primary'
+                          : 'border-border bg-background hover:bg-muted/50 text-foreground'
+                      }`}
+                    >
+                      <input
+                        id={inputId}
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleFormClass(c)}
+                        className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
+                      />
+                      <span className="truncate">{c}</span>
+                    </label>
+                  )
+                })}
+              </div>
+              {Array.isArray(form.classes) && form.classes.length === 0 && (
+                <p className="text-[11px] text-destructive">
+                  Selecione pelo menos uma classe de consumo.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>TE (R$/kWh)</Label>

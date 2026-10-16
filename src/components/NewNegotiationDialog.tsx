@@ -226,13 +226,28 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
 
   const networkOptions = ALL_NETWORK_TYPES
 
+  const targetCategory = formData.consumer_category?.toLowerCase()
+  const matchesClass = (r: any) => {
+    if (!targetCategory) return true
+    if (Array.isArray(r.classes) && r.classes.length > 0) {
+      return r.classes.some((c: string) => String(c).toLowerCase() === targetCategory)
+    }
+    if (r.class) {
+      return String(r.class)
+        .split(',')
+        .map((p: string) => p.trim().toLowerCase())
+        .includes(targetCategory)
+    }
+    return false
+  }
+
   const matchedRule =
     formData.utility_id && formData.network_type
       ? tariffRules.find(
           (r) =>
             r.utility_id === formData.utility_id &&
             r.network_type === formData.network_type &&
-            (!formData.consumer_category || r.class === formData.consumer_category),
+            matchesClass(r),
         ) ||
         tariffRules.find(
           (r) => r.utility_id === formData.utility_id && r.network_type === formData.network_type,

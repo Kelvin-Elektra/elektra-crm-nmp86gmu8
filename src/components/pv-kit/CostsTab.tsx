@@ -654,7 +654,15 @@ export function CostsTab() {
                       variant="outline"
                       className="text-xs border-primary/40 text-primary font-normal"
                     >
-                      Por Faixa ({commonMetric.toUpperCase()})
+                      Por Faixa (
+                      {commonMetric === 'modules'
+                        ? 'Nº de módulos'
+                        : commonMetric === 'kwp'
+                          ? 'kWp'
+                          : commonMetric === 'kw'
+                            ? 'kW'
+                            : commonMetric}
+                      )
                     </Badge>
                   )}
                 </CardTitle>
@@ -1226,8 +1234,8 @@ export function CostsTab() {
                       </Label>
                       <div className="p-2 rounded-md bg-muted text-xs font-medium text-foreground">
                         {currentNextMin === 0
-                          ? `A partir de 0 ${rangeMetric.toUpperCase()}`
-                          : `Acima de ${formatNumber(currentNextMin)} ${rangeMetric.toUpperCase()}`}
+                          ? `A partir de 0 ${rangeMetric === 'modules' ? 'módulos' : rangeMetric.toUpperCase()}`
+                          : `Acima de ${formatNumber(currentNextMin)} ${rangeMetric === 'modules' ? 'módulos' : rangeMetric.toUpperCase()}`}
                       </div>
                     </div>
 
@@ -1257,8 +1265,9 @@ export function CostsTab() {
                       htmlFor="unlimited-checkbox"
                       className="text-xs cursor-pointer font-normal"
                     >
-                      Esta é a última faixa (aplicar para qualquer potência acima de{' '}
-                      {formatNumber(currentNextMin)} {rangeMetric.toUpperCase()})
+                      Esta é a última faixa (aplicar para qualquer valor acima de{' '}
+                      {formatNumber(currentNextMin)}{' '}
+                      {rangeMetric === 'modules' ? 'módulos' : rangeMetric.toUpperCase()})
                     </Label>
                   </div>
 
@@ -1266,8 +1275,10 @@ export function CostsTab() {
                     <HelpCircle className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>
                       Garantia inteligente: Kits de exatos {rangeUpperLimit || '10'}{' '}
-                      {rangeMetric.toUpperCase()} cairão nesta faixa (inclusive). A próxima começará
-                      imediatamente em &gt; {rangeUpperLimit || '10'} {rangeMetric.toUpperCase()}.
+                      {rangeMetric === 'modules' ? 'módulos' : rangeMetric.toUpperCase()} cairão
+                      nesta faixa (inclusive). A próxima começará imediatamente em &gt;{' '}
+                      {rangeUpperLimit || '10'}{' '}
+                      {rangeMetric === 'modules' ? 'módulos' : rangeMetric.toUpperCase()}.
                     </span>
                   </div>
                 </div>

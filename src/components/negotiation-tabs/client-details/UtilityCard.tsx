@@ -84,12 +84,27 @@ export function UtilityCard({ neg, reload }: { neg: any; reload?: () => void }) 
       }
     }
 
+    const targetClass = formData.consumer_class?.toLowerCase()
+    const matchesRuleClass = (r: any) => {
+      if (!targetClass) return true
+      if (Array.isArray(r.classes) && r.classes.length > 0) {
+        return r.classes.some((c: string) => String(c).toLowerCase() === targetClass)
+      }
+      if (r.class) {
+        return String(r.class)
+          .split(',')
+          .map((p: string) => p.trim().toLowerCase())
+          .includes(targetClass)
+      }
+      return false
+    }
+
     const matchedRule =
       tariffRules.find(
         (r) =>
           r.utility_id === formData.utility_id &&
           r.network_type === formData.network_type &&
-          (!formData.consumer_class || r.class === formData.consumer_class),
+          matchesRuleClass(r),
       ) ||
       tariffRules.find(
         (r) => r.utility_id === formData.utility_id && r.network_type === formData.network_type,
@@ -111,12 +126,23 @@ export function UtilityCard({ neg, reload }: { neg: any; reload?: () => void }) 
   const handleSave = async () => {
     setLoading(true)
     try {
-      const ruleSnapshot = tariffRules.find(
-        (r) =>
-          r.utility_id === formData.utility_id &&
-          r.network_type === formData.network_type &&
-          r.class === formData.consumer_class,
-      )
+      const targetClass = formData.consumer_class?.toLowerCase()
+      const ruleSnapshot = tariffRules.find((r) => {
+        if (r.utility_id !== formData.utility_id || r.network_type !== formData.network_type) {
+          return false
+        }
+        if (!targetClass) return true
+        if (Array.isArray(r.classes) && r.classes.length > 0) {
+          return r.classes.some((c: string) => String(c).toLowerCase() === targetClass)
+        }
+        if (r.class) {
+          return String(r.class)
+            .split(',')
+            .map((p: string) => p.trim().toLowerCase())
+            .includes(targetClass)
+        }
+        return false
+      })
       const selectedUtilName = utilities.find((d) => d.id === formData.utility_id)?.name || ''
 
       const newSizing = {
@@ -175,7 +201,14 @@ export function UtilityCard({ neg, reload }: { neg: any; reload?: () => void }) 
                 (r) =>
                   r.utility_id === formData.utility_id && r.network_type === formData.network_type,
               )
-              .map((r) => r.class)
+              .flatMap((r) => {
+                if (Array.isArray(r.classes) && r.classes.length > 0) return r.classes
+                if (r.class)
+                  return String(r.class)
+                    .split(',')
+                    .map((p: string) => p.trim())
+                return []
+              })
               .filter(Boolean),
           ),
         )

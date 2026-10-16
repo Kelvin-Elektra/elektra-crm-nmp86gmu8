@@ -236,7 +236,24 @@ export async function fetchTariffDetails(
       }
     }
 
-    const matched = rules.find((r) => r.class?.toLowerCase() === consumerCategory.toLowerCase())
+    const targetCat = consumerCategory.toLowerCase()
+    const matched = rules.find((r) => {
+      // 1. Suporta lista de classes (classes: string[])
+      if (Array.isArray(r.classes) && r.classes.length > 0) {
+        if (r.classes.some((c: string) => String(c).toLowerCase() === targetCat)) {
+          return true
+        }
+      }
+      // 2. Compatibilidade com campo class único legado
+      if (r.class) {
+        // Trata caso de string separada por vírgula ou valor único
+        const parts = String(r.class)
+          .split(',')
+          .map((p) => p.trim().toLowerCase())
+        if (parts.includes(targetCat)) return true
+      }
+      return false
+    })
 
     if (!matched) {
       return { te: 0, tusd: 0, icms_rate: 0, icms_exemption: 'none', fio_b_value: 0, found: false }

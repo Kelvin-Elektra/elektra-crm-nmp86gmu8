@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-16T19:40:48.261Z",
+  "generatedAt": "2026-10-16T22:53:50.070Z",
   "collections": [
     {
       "name": "users",
@@ -1824,12 +1824,17 @@
           "type": "number",
           "required": false,
           "system": false
+        },
+        {
+          "name": "classes",
+          "type": "json",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
         "CREATE INDEX idx_pv_tariff_rules_company ON pv_tariff_rules (company_id)",
-        "CREATE INDEX `idx_pv_tariff_rules_utility` ON `pv_tariff_rules` (utility_id)",
-        "CREATE UNIQUE INDEX `idx_pv_tariff_rules_unique_class_util` ON `pv_tariff_rules` (utility_id, class)"
+        "CREATE INDEX `idx_pv_tariff_rules_utility` ON `pv_tariff_rules` (utility_id)"
       ]
     },
     {
