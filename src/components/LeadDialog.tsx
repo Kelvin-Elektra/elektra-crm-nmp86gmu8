@@ -85,6 +85,31 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: any) {
       }
     }
 
+    // Trava de duplicidade por CPF/CNPJ por companhia
+    const cleanDoc = formData.document ? formData.document.replace(/\D/g, '') : ''
+    if (cleanDoc && user?.company_id) {
+      try {
+        const { default: pb } = await import('@/lib/pocketbase/client')
+        // Busca leads da empresa para comparar documento normalizado ou mascarado
+        let query = `company_id = '${user.company_id}' && (document = '${cleanDoc}' || document = '${formData.document}')`
+        if (lead) query += ` && id != '${lead.id}'`
+        const existingLeadByDoc = await pb.collection('leads').getFirstListItem(query)
+
+        if (existingLeadByDoc) {
+          toast({
+            variant: 'destructive',
+            title: 'Lead Duplicado',
+            description: `Já existe um lead cadastrado com este CPF/CNPJ (${formData.document}) nesta empresa: "${existingLeadByDoc.name}".`,
+          })
+          setErrors({ document: 'Já existe um lead com este CPF/CNPJ para esta empresa.' })
+          setLoading(false)
+          return
+        }
+      } catch (err) {
+        // Not found, safe to proceed
+      }
+    }
+
     try {
       if (!user?.id || (user?.role !== 'User_elektra' && !user?.company_id)) {
         throw new Error('missing_context')

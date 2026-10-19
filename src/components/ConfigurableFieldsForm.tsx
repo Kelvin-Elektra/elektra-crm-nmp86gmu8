@@ -18,7 +18,6 @@ import {
   Loader2,
   Image as ImageIcon,
   Trash2,
-  ExternalLink,
   Plus,
   ArrowUp,
   ArrowDown,
@@ -836,16 +835,6 @@ function ImageFieldInput({
           <div className="absolute top-1 right-1 flex items-center gap-1 opacity-90 group-hover:opacity-100 transition-opacity">
             <Button
               type="button"
-              variant="secondary"
-              size="icon"
-              className="h-6 w-6 shadow-sm bg-white/90 hover:bg-white text-foreground"
-              title="Abrir imagem em nova aba"
-              onClick={() => window.open(value, '_blank')}
-            >
-              <ExternalLink className="h-3 w-3" />
-            </Button>
-            <Button
-              type="button"
               variant="destructive"
               size="icon"
               className="h-6 w-6 shadow-sm"
@@ -861,7 +850,7 @@ function ImageFieldInput({
         </div>
       ) : null}
 
-      <div className="flex flex-wrap sm:flex-nowrap gap-2 w-full min-w-0">
+      <div className="flex items-center gap-2 w-full min-w-0">
         <input
           ref={fileInputRef}
           type="file"
@@ -873,7 +862,7 @@ function ImageFieldInput({
           type="button"
           variant="outline"
           size="sm"
-          className="shrink-0 text-xs h-8"
+          className="w-full text-xs h-9"
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
         >
@@ -882,20 +871,8 @@ function ImageFieldInput({
           ) : (
             <Upload className="h-3.5 w-3.5 mr-1.5" />
           )}
-          {uploading ? 'Enviando...' : value ? 'Substituir' : 'Upload'}
+          {uploading ? 'Enviando imagem...' : value ? 'Substituir imagem' : 'Enviar imagem'}
         </Button>
-        <Input
-          type="url"
-          value={value || ''}
-          maxLength={maxLength}
-          onChange={(e) => {
-            onChange(e.target.value)
-            setImgError(false)
-          }}
-          placeholder={field.default || 'https://exemplo.com/imagem.png'}
-          className="flex-1 text-xs font-mono h-8 min-w-0"
-          required={field.required}
-        />
       </div>
     </div>
   )

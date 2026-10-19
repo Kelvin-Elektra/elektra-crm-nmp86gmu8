@@ -63,6 +63,8 @@ export function SendToFlowDialog({
         .then(([mods, invs]) => {
           if (!cancelled) {
             setModulesList(mods)
+          }
+          if (!cancelled) {
             setInvertersList(invs)
           }
         })
@@ -74,6 +76,54 @@ export function SendToFlowDialog({
       cancelled = true
     }
   }, [open, companyId])
+
+  // Proposta vendida
+  const soldProposal = useMemo(() => {
+    if (!neg || !proposals || proposals.length === 0) return null
+    return (
+      proposals.find((p) => {
+        const st = (p.status || '').toLowerCase()
+        return (
+          st === 'accepted' ||
+          st === 'aprovada' ||
+          st === 'ganho' ||
+          st === 'vendida' ||
+          st === 'vendido'
+        )
+      }) || null
+    )
+  }, [neg, proposals])
+
+  // Resetar seleção ao abrir
+  useEffect(() => {
+    if (open) {
+      if (soldProposal) {
+        setSelectedProposalId(soldProposal.id)
+        setContinueWithoutSold(false)
+      } else {
+        setSelectedProposalId(proposals[0]?.id || '')
+        setContinueWithoutSold(false)
+      }
+    }
+  }, [open, soldProposal, proposals])
+
+  // Valor a ser enviado:
+  // Se houver proposta vendida, usa o valor da proposta vendida.
+  // Se o usuário estiver escolhendo manualmente após o aviso, usa a proposta selecionada.
+  const effectiveProposal = useMemo(() => {
+    if (soldProposal) return soldProposal
+    if (selectedProposalId) {
+      return proposals.find((p) => p.id === selectedProposalId) || null
+    }
+    return null
+  }, [soldProposal, selectedProposalId, proposals])
+
+  const effectiveDealValue = useMemo(() => {
+    if (effectiveProposal) {
+      return Number(effectiveProposal.total_value || effectiveProposal.price || 0)
+    }
+    return 0
+  }, [effectiveProposal])
 
   if (!neg) return null
 
@@ -178,54 +228,6 @@ export function SendToFlowDialog({
   if (!dealValue && sizing.kit_price) {
     dealValue = Number(sizing.kit_price) || 0
   }
-
-  // Proposta vendida
-  const soldProposal = useMemo(() => {
-    if (!proposals || proposals.length === 0) return null
-    return (
-      proposals.find((p) => {
-        const st = (p.status || '').toLowerCase()
-        return (
-          st === 'accepted' ||
-          st === 'aprovada' ||
-          st === 'ganho' ||
-          st === 'vendida' ||
-          st === 'vendido'
-        )
-      }) || null
-    )
-  }, [proposals])
-
-  // Resetar seleção ao abrir
-  useEffect(() => {
-    if (open) {
-      if (soldProposal) {
-        setSelectedProposalId(soldProposal.id)
-        setContinueWithoutSold(false)
-      } else {
-        setSelectedProposalId(proposals[0]?.id || '')
-        setContinueWithoutSold(false)
-      }
-    }
-  }, [open, soldProposal, proposals])
-
-  // Valor a ser enviado:
-  // Se houver proposta vendida, usa o valor da proposta vendida.
-  // Se o usuário estiver escolhendo manualmente após o aviso, usa a proposta selecionada.
-  const effectiveProposal = useMemo(() => {
-    if (soldProposal) return soldProposal
-    if (selectedProposalId) {
-      return proposals.find((p) => p.id === selectedProposalId) || null
-    }
-    return null
-  }, [soldProposal, selectedProposalId, proposals])
-
-  const effectiveDealValue = useMemo(() => {
-    if (effectiveProposal) {
-      return Number(effectiveProposal.total_value || effectiveProposal.price || 0)
-    }
-    return 0
-  }, [effectiveProposal])
 
   const formattedValue =
     effectiveDealValue > 0

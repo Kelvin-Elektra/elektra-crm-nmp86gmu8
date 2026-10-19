@@ -12,6 +12,7 @@ import {
   Compass,
   Gauge,
   Info,
+  Maximize2,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -21,6 +22,7 @@ import { useToast } from '@/hooks/use-toast'
 import {
   checkInverterVoltageCompatibility,
   calculateInverterMatchSummary,
+  calculateOccupiedArea,
 } from '@/lib/solar-calculations'
 import { getVoltagesForNetwork } from '@/types/electric-network'
 
@@ -30,7 +32,7 @@ export interface ValidationItem {
   id: string
   title: string
   status: ValidationStatus
-  category: 'cc_ca' | 'grid_voltage' | 'faces' | 'inverter_limits'
+  category: 'cc_ca' | 'grid_voltage' | 'faces' | 'inverter_limits' | 'roof_area'
   summary: string
   details: string
   recommendation?: string
@@ -419,11 +421,14 @@ export function ProjectValidatorTab({
 
         if (mpptCount && mpptCount > 0) {
           const totalMppts = mpptCount * (inv.qty || 1)
-          const modPerMppt =
-            totalMppts > 0 && totalModuleQty > 0 ? (totalModuleQty / totalMppts).toFixed(1) : null
+          const rawModPerMppt =
+            totalMppts > 0 && totalModuleQty > 0 ? totalModuleQty / totalMppts : 0
+          const adjustedModPerMppt =
+            rawModPerMppt > 0 ? Math.max(1, Math.round(rawModPerMppt * 10) / 10) : null
+          const modPerMpptStr = adjustedModPerMppt !== null ? adjustedModPerMppt.toFixed(1) : null
 
           reports.push(
-            `• ${invName} (${inv.qty}x): ${mpptCount} MPPT(s) por unidade. Total: ${totalMppts} rastreador(es). Média estimada: ${modPerMppt || '—'} módulos por MPPT.`,
+            `• ${invName} (${inv.qty}x): ${mpptCount} MPPT(s) por unidade. Total: ${totalMppts} rastreador(es). Média estimada: ${modPerMpptStr || '—'} módulos por MPPT.`,
           )
         } else {
           allHaveMppt = false
@@ -458,6 +463,101 @@ export function ProjectValidatorTab({
       }
     }
 
+    // --- ITEM 5: Espaço de Telhado por Taxa de Ocupação ---
+    // Área disponível informada pelo usuário (sizing.available_area / neg.available_roof_area etc.)
+    const rawAvailableArea =
+      sizing.available_area ??
+      neg.available_roof_area ??
+      sizing.available_roof_area ??
+      neg.available_area ??
+      neg.roof_area ??
+      sizing.roof_area ??
+      null
+    const availableArea =
+      rawAvailableArea !== null && rawAvailableArea !== undefined && rawAvailableArea !== ''
+        ? Number(rawAvailableArea)
+        : 0
+
+    // Área ocupada pelos módulos (sizing.occupied_area_m2 ou recalculada via calculateOccupiedArea)
+    const occupiedAreaM2 = Number(
+      sizing.occupied_area_m2 ??
+        calculateOccupiedArea(
+          totalModuleQty,
+          selectedMod ? { height: selectedMod.height, width: selectedMod.width } : null,
+        ),
+    )
+
+    if (occupiedAreaM2 <= 0) {
+      items.push({
+        id: 'roof_occupancy',
+        title: 'Espaço de Telhado (Taxa de Ocupação)',
+        category: 'roof_area',
+        status: 'manual',
+        summary: 'Quantidade de módulos fotovoltaicos não definida para calcular área ocupada.',
+        details:
+          'Defina os módulos fotovoltaicos na aba "Dimensionamento" para que o sistema calcule a área ocupada e confronte com a área útil da cobertura.',
+        recommendation: 'Configure os módulos e a quantidade no dimensionamento.',
+      })
+    } else if (availableArea <= 0) {
+      items.push({
+        id: 'roof_occupancy',
+        title: 'Espaço de Telhado (Taxa de Ocupação)',
+        category: 'roof_area',
+        status: 'manual',
+        summary: `Área ocupada calculada em ${occupiedAreaM2.toFixed(1)} m²; área disponível de telhado não informada.`,
+        details: `O arranjo com ${totalModuleQty} módulos ocupará aproximadamente ${occupiedAreaM2.toFixed(1)} m² de cobertura. Para conferência da taxa de ocupação, informe a área útil disponível na negociação ou no dimensionamento.`,
+        recommendation:
+          'Informe a área disponível de telhado para validar se a cobertura suporta o arranjo confortavelmente.',
+        metrics: [
+          { label: 'Área Ocupada pelos Módulos', value: `${occupiedAreaM2.toFixed(1)} m²` },
+          { label: 'Área Disponível', value: 'Não informada' },
+          { label: 'Módulos', value: `${totalModuleQty} painéis` },
+        ],
+      })
+    } else {
+      const occupancyRate = (occupiedAreaM2 / availableArea) * 100
+      const occupancyRateFormatted = `${occupancyRate.toFixed(1)}%`
+
+      let status: ValidationStatus = 'ok'
+      let summary = ''
+      let details = ''
+      let recommendation: string | undefined
+
+      if (occupancyRate < 80) {
+        status = 'ok'
+        summary = `Taxa de ocupação de ${occupancyRateFormatted} está confortável (< 80%).`
+        details = `A área ocupada pelos módulos (${occupiedAreaM2.toFixed(1)} m²) utiliza ${occupancyRateFormatted} da área total disponível (${availableArea.toFixed(1)} m²). Há folga suficiente para corredores técnicos, ventilação e manutenção.`
+      } else if (occupancyRate <= 100) {
+        status = 'warning'
+        summary = `Taxa de ocupação de ${occupancyRateFormatted} indica ocupação densa da cobertura (80% a 100%).`
+        details = `A área ocupada (${occupiedAreaM2.toFixed(1)} m²) está muito próxima do limite da área disponível (${availableArea.toFixed(1)} m²). Pode haver restrição de recuos mínimos de borda e passagens de circulação.`
+        recommendation =
+          'Verifique na visita técnica se haverá espaço para recuos regulamentares, cumeeiras, calhas e circulação dos instaladores.'
+      } else {
+        status = 'error'
+        summary = `Taxa de ocupação de ${occupancyRateFormatted} excede a área disponível (> 100%).`
+        details = `A área ocupada pelos módulos (${occupiedAreaM2.toFixed(1)} m²) é maior do que a área útil de instalação informada (${availableArea.toFixed(1)} m²). O arranjo físico é incompatível com o espaço disponível.`
+        recommendation =
+          'Reduza a quantidade de módulos, utilize painéis de maior potência ou divida a instalação com outra cobertura/solo.'
+      }
+
+      items.push({
+        id: 'roof_occupancy',
+        title: 'Espaço de Telhado (Taxa de Ocupação)',
+        category: 'roof_area',
+        status,
+        summary,
+        details,
+        recommendation,
+        metrics: [
+          { label: 'Área Disponível', value: `${availableArea.toFixed(1)} m²` },
+          { label: 'Área Ocupada', value: `${occupiedAreaM2.toFixed(1)} m²` },
+          { label: 'Taxa de Ocupação', value: occupancyRateFormatted },
+          { label: 'Critério', value: '< 80% Conforme · 80-100% Atenção · > 100% Incompatível' },
+        ],
+      })
+    }
+
     return items
   }, [
     totalDcPowerKwp,
@@ -467,6 +567,11 @@ export function ProjectValidatorTab({
     neg.use_roof_faces,
     neg.roof_faces_data,
     totalModuleQty,
+    sizing,
+    neg.available_roof_area,
+    neg.available_area,
+    neg.roof_area,
+    selectedMod,
   ])
 
   // Contadores de status
@@ -584,6 +689,8 @@ export function ProjectValidatorTab({
         return <Compass className="w-5 h-5 text-sky-500" />
       case 'inverter_limits':
         return <Boxes className="w-5 h-5 text-indigo-500" />
+      case 'roof_area':
+        return <Maximize2 className="w-5 h-5 text-teal-500" />
     }
   }
 
