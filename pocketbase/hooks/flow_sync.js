@@ -405,37 +405,48 @@ routerAdd(
       }
       powerAcKw = Number(powerAcKw.toFixed(2))
 
-      // 5. Valor da negociação
-      // Buscar propostas da negociação ordenadas por data
+      // 5. Valor da negociação: SOMENTE de proposta vendida (ou proposta especificada no envio)
       let dealValue = 0
+      const specificProposalId = (body.proposal_id || '').trim()
+
       try {
-        const props = $app.findRecordsByFilter(
-          'proposals',
-          "negotiation_id = '" + negotiationId + "'",
-          '-created',
-          20,
-        )
-        if (props && props.length > 0) {
-          // Procura proposta aceita/ganha primeiro
-          let acceptedProp = null
-          for (let p = 0; p < props.length; p++) {
-            const st = (props[p].getString('status') || '').toLowerCase()
-            if (st === 'accepted' || st === 'aprovada' || st === 'ganho') {
-              acceptedProp = props[p]
-              break
+        if (specificProposalId) {
+          // Usuário indicou explicitamente uma proposta no envio
+          const propRec = $app.findRecordById('proposals', specificProposalId)
+          if (propRec && propRec.getString('negotiation_id') === negotiationId) {
+            dealValue = Number(propRec.get('total_value') || propRec.get('price') || 0)
+          }
+        }
+
+        if (!dealValue) {
+          const props = $app.findRecordsByFilter(
+            'proposals',
+            "negotiation_id = '" + negotiationId + "'",
+            '-created',
+            50,
+          )
+          if (props && props.length > 0) {
+            // Regra: Somente o valor da proposta marcada como vendida
+            let acceptedProp = null
+            for (let p = 0; p < props.length; p++) {
+              const st = (props[p].getString('status') || '').toLowerCase()
+              if (
+                st === 'accepted' ||
+                st === 'aprovada' ||
+                st === 'ganho' ||
+                st === 'vendida' ||
+                st === 'vendido'
+              ) {
+                acceptedProp = props[p]
+                break
+              }
+            }
+            if (acceptedProp) {
+              dealValue = Number(acceptedProp.get('total_value') || acceptedProp.get('price') || 0)
             }
           }
-          const chosenProp = acceptedProp || props[0]
-          dealValue = Number(chosenProp.get('total_value') || chosenProp.get('price') || 0)
         }
       } catch (_) {}
-
-      if (!dealValue && sizing.total_price) {
-        dealValue = Number(sizing.total_price) || 0
-      }
-      if (!dealValue && sizing.kit_price) {
-        dealValue = Number(sizing.kit_price) || 0
-      }
 
       // 6. Dados elétricos e concessionária
       const ucNumber = (neg.getString('uc') || '').trim()
@@ -480,7 +491,7 @@ routerAdd(
       if (siteUrl.endsWith('/')) {
         siteUrl = siteUrl.slice(0, -1)
       }
-      const crmDealUrl = siteUrl + '/negotiations/' + negotiationId
+      const crmDealUrl = siteUrl + '/negociacoes/' + negotiationId
 
       // 9. Montar payload do projeto
       const projectPayload = {

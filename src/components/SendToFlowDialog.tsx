@@ -13,7 +13,19 @@ import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import pb from '@/lib/pocketbase/client'
 import { sendNegotiationToFlow } from '@/services/flow'
 import { useToast } from '@/hooks/use-toast'
-import { SendHorizontal, User, Zap, Box, Coins, Loader2, CheckCircle2 } from 'lucide-react'
+import {
+  SendHorizontal,
+  User,
+  Zap,
+  Box,
+  Coins,
+  Loader2,
+  CheckCircle2,
+  AlertTriangle,
+  FileText,
+} from 'lucide-react'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Label } from '@/components/ui/label'
 
 interface SendToFlowDialogProps {
   open: boolean
@@ -33,6 +45,8 @@ export function SendToFlowDialog({
   const [loading, setLoading] = useState(false)
   const [modulesList, setModulesList] = useState<any[]>([])
   const [invertersList, setInvertersList] = useState<any[]>([])
+  const [selectedProposalId, setSelectedProposalId] = useState<string>('')
+  const [continueWithoutSold, setContinueWithoutSold] = useState(false)
   const { toast } = useToast()
 
   const sizing = neg?.sizing || {}
@@ -165,10 +179,58 @@ export function SendToFlowDialog({
     dealValue = Number(sizing.kit_price) || 0
   }
 
+  // Proposta vendida
+  const soldProposal = useMemo(() => {
+    if (!proposals || proposals.length === 0) return null
+    return (
+      proposals.find((p) => {
+        const st = (p.status || '').toLowerCase()
+        return (
+          st === 'accepted' ||
+          st === 'aprovada' ||
+          st === 'ganho' ||
+          st === 'vendida' ||
+          st === 'vendido'
+        )
+      }) || null
+    )
+  }, [proposals])
+
+  // Resetar seleção ao abrir
+  useEffect(() => {
+    if (open) {
+      if (soldProposal) {
+        setSelectedProposalId(soldProposal.id)
+        setContinueWithoutSold(false)
+      } else {
+        setSelectedProposalId(proposals[0]?.id || '')
+        setContinueWithoutSold(false)
+      }
+    }
+  }, [open, soldProposal, proposals])
+
+  // Valor a ser enviado:
+  // Se houver proposta vendida, usa o valor da proposta vendida.
+  // Se o usuário estiver escolhendo manualmente após o aviso, usa a proposta selecionada.
+  const effectiveProposal = useMemo(() => {
+    if (soldProposal) return soldProposal
+    if (selectedProposalId) {
+      return proposals.find((p) => p.id === selectedProposalId) || null
+    }
+    return null
+  }, [soldProposal, selectedProposalId, proposals])
+
+  const effectiveDealValue = useMemo(() => {
+    if (effectiveProposal) {
+      return Number(effectiveProposal.total_value || effectiveProposal.price || 0)
+    }
+    return 0
+  }, [effectiveProposal])
+
   const formattedValue =
-    dealValue > 0
-      ? dealValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-      : 'Não definido'
+    effectiveDealValue > 0
+      ? effectiveDealValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+      : 'Não definido (R$ 0,00)'
 
   // UCs Beneficiárias
   let beneficiariesCount = 0
@@ -183,9 +245,17 @@ export function SendToFlowDialog({
   }
 
   const handleSend = async () => {
+    // Se não há proposta vendida e o usuário ainda não confirmou o prosseguimento manual
+    if (!soldProposal && !continueWithoutSold) {
+      setContinueWithoutSold(true)
+      return
+    }
+
     setLoading(true)
     try {
-      const res = await sendNegotiationToFlow(neg.id)
+      const res = await sendNegotiationToFlow(neg.id, {
+        proposalId: effectiveProposal?.id,
+      })
       try {
         if (neg?.id) {
           localStorage.setItem(`flow_sent_${neg.id}`, 'true')
@@ -290,12 +360,93 @@ export function SendToFlowDialog({
             {/* Valor */}
             <div className="flex items-center justify-between pt-1 border-t border-border/40 text-xs">
               <div className="flex items-center gap-1.5 text-muted-foreground">
-                <Coins className="h-4 w-4 text-emerald-600" />
-                <span>Valor Total:</span>
+                <Coins className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span>Valor da Venda (Flow):</span>
               </div>
-              <span className="font-semibold text-foreground text-sm">{formattedValue}</span>
+              <div className="text-right">
+                <span className="font-semibold text-foreground text-sm">{formattedValue}</span>
+                {effectiveProposal && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Origem:{' '}
+                    {effectiveProposal.proposal_code ||
+                      effectiveProposal.description ||
+                      `Proposta #${effectiveProposal.id.slice(0, 5)}`}
+                    {soldProposal?.id === effectiveProposal.id && (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                        {' '}
+                        (Vendida)
+                      </span>
+                    )}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Aviso se não houver proposta vendida */}
+          {!soldProposal && (
+            <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-950/30 p-3 text-xs text-amber-900 dark:text-amber-200">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold">Nenhuma proposta marcada como vendida</p>
+                  <p className="text-muted-foreground text-xs mt-0.5">
+                    O Elektra Flow espera o valor da proposta vendida. Para garantir que o Flow
+                    receba o valor correto, você pode marcar uma proposta como vendida na negociação
+                    ou escolher abaixo qual proposta enviar.
+                  </p>
+                </div>
+              </div>
+
+              {continueWithoutSold && proposals.length > 0 && (
+                <div className="pt-2 border-t border-amber-200 dark:border-amber-900/50 space-y-2">
+                  <p className="font-medium text-foreground">
+                    Selecione qual proposta enviar ao Flow:
+                  </p>
+                  <RadioGroup
+                    value={selectedProposalId}
+                    onValueChange={setSelectedProposalId}
+                    className="space-y-1.5"
+                  >
+                    {proposals.map((prop) => {
+                      const propVal = Number(prop.total_value || prop.price || 0).toLocaleString(
+                        'pt-BR',
+                        { style: 'currency', currency: 'BRL' },
+                      )
+                      return (
+                        <div
+                          key={prop.id}
+                          className="flex items-center space-x-2 bg-background/80 p-2 rounded border cursor-pointer hover:bg-background"
+                          onClick={() => setSelectedProposalId(prop.id)}
+                        >
+                          <RadioGroupItem value={prop.id} id={`flow-prop-${prop.id}`} />
+                          <Label
+                            htmlFor={`flow-prop-${prop.id}`}
+                            className="flex-1 cursor-pointer flex items-center justify-between text-xs"
+                          >
+                            <span className="font-medium text-foreground flex items-center gap-1.5">
+                              <FileText className="h-3.5 w-3.5 text-primary" />
+                              {prop.proposal_code ||
+                                prop.description ||
+                                `Proposta #${prop.id.slice(0, 5)}`}
+                            </span>
+                            <span className="font-bold text-primary">{propVal}</span>
+                          </Label>
+                        </div>
+                      )
+                    })}
+                  </RadioGroup>
+                </div>
+              )}
+
+              {continueWithoutSold && proposals.length === 0 && (
+                <p className="text-xs text-destructive font-medium pt-1">
+                  Esta negociação não possui nenhuma proposta cadastrada. Crie uma proposta
+                  comercial para enviar o valor correto ao Flow.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground bg-primary/5 p-2 rounded border border-primary/20">
             <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
@@ -309,19 +460,30 @@ export function SendToFlowDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancelar
           </Button>
-          <Button onClick={handleSend} disabled={loading} className="gap-1.5">
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Sincronizando...
-              </>
-            ) : (
-              <>
-                <SendHorizontal className="h-4 w-4" />
-                Confirmar Envio
-              </>
-            )}
-          </Button>
+          {!soldProposal && !continueWithoutSold ? (
+            <Button
+              type="button"
+              variant="default"
+              onClick={() => setContinueWithoutSold(true)}
+              className="gap-1.5"
+            >
+              Continuar Mesmo Assim
+            </Button>
+          ) : (
+            <Button onClick={handleSend} disabled={loading} className="gap-1.5">
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Sincronizando...
+                </>
+              ) : (
+                <>
+                  <SendHorizontal className="h-4 w-4" />
+                  Confirmar Envio
+                </>
+              )}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

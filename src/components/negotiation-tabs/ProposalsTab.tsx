@@ -56,6 +56,18 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
       return
     }
     try {
+      // Regra: apenas UMA proposta vendida por negociação.
+      // Ao marcar esta como vendida, desmarca (desfaz a venda) das outras.
+      const othersSold = proposals.filter(
+        (p: any) => p.id !== closeSaleModal.id && p.status === 'accepted',
+      )
+      for (const other of othersSold) {
+        await pb.collection('proposals').update(other.id, {
+          status: 'Gerada',
+          closing_date: '',
+        })
+      }
+
       await pb.collection('proposals').update(closeSaleModal.id, {
         status: 'accepted',
         closing_date: closingDate + ' 12:00:00',

@@ -7,9 +7,17 @@ export interface FlowSyncResponse {
   payload_sent?: any
 }
 
-export async function sendNegotiationToFlow(negotiationId: string): Promise<FlowSyncResponse> {
+export async function sendNegotiationToFlow(
+  negotiationId: string,
+  options?: { proposalId?: string },
+): Promise<FlowSyncResponse> {
   const token = pb.authStore.token
   const baseUrl = pb.baseUrl || ''
+
+  const payload: any = { negotiation_id: negotiationId }
+  if (options?.proposalId) {
+    payload.proposal_id = options.proposalId
+  }
 
   const res = await fetch(`${baseUrl}/backend/v1/flow-sync`, {
     method: 'POST',
@@ -17,7 +25,7 @@ export async function sendNegotiationToFlow(negotiationId: string): Promise<Flow
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ negotiation_id: negotiationId }),
+    body: JSON.stringify(payload),
   })
 
   const data = await res.json().catch(() => ({}))
