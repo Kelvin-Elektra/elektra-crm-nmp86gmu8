@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -31,7 +32,15 @@ export function TechnicalCard({ neg, reload }: { neg: any; reload?: () => void }
   const [installations, setInstallations] = useState<any[]>([])
   const [formData, setFormData] = useState({
     installation_id: initialSizing.installation_id || initialSizing.installation_type || '',
+    available_roof_area: neg.available_roof_area != null ? String(neg.available_roof_area) : '',
   })
+
+  useEffect(() => {
+    setFormData({
+      installation_id: neg.sizing?.installation_id || neg.sizing?.installation_type || '',
+      available_roof_area: neg.available_roof_area != null ? String(neg.available_roof_area) : '',
+    })
+  }, [neg])
 
   useEffect(() => {
     if (neg.company_id) {
@@ -50,7 +59,12 @@ export function TechnicalCard({ neg, reload }: { neg: any; reload?: () => void }
         installation_id: formData.installation_id,
         installation_type: formData.installation_id, // mantido por compatibilidade
       }
-      await updateNegotiation(neg.id, { sizing: newSizing })
+      const roofAreaNum =
+        formData.available_roof_area === '' ? 0 : Number(formData.available_roof_area)
+      await updateNegotiation(neg.id, {
+        sizing: newSizing,
+        available_roof_area: isNaN(roofAreaNum) ? 0 : roofAreaNum,
+      })
       toast({ description: 'Dados salvos com sucesso' })
       setOpen(false)
       reload?.()
@@ -64,6 +78,10 @@ export function TechnicalCard({ neg, reload }: { neg: any; reload?: () => void }
   const currentInstId = initialSizing.installation_id || initialSizing.installation_type || ''
   const selectedInstName =
     installations.find((i) => i.id === currentInstId)?.name || currentInstId || '-'
+  const roofAreaDisplay =
+    neg.available_roof_area != null && Number(neg.available_roof_area) > 0
+      ? `${Number(neg.available_roof_area).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} m²`
+      : 'Não informada'
 
   return (
     <Card>
@@ -75,10 +93,14 @@ export function TechnicalCard({ neg, reload }: { neg: any; reload?: () => void }
           <Pencil className="h-4 w-4 mr-2" /> Editar
         </Button>
       </CardHeader>
-      <CardContent className="mt-2">
+      <CardContent className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <p className="text-sm text-muted-foreground">Tipo de Instalação</p>
           <p className="font-medium">{selectedInstName}</p>
+        </div>
+        <div>
+          <p className="text-sm text-muted-foreground">Área disponível para instalação</p>
+          <p className="font-medium">{roofAreaDisplay}</p>
         </div>
       </CardContent>
 
@@ -110,6 +132,20 @@ export function TechnicalCard({ neg, reload }: { neg: any; reload?: () => void }
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Área disponível para instalação (m²)</Label>
+              <Input
+                type="number"
+                step="0.1"
+                min="0"
+                placeholder="Ex: 45.0"
+                value={formData.available_roof_area}
+                onChange={(e) => setFormData({ ...formData, available_roof_area: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">
+                Espaço livre em telhado ou solo para posicionamento dos módulos fotovoltaicos.
+              </p>
             </div>
           </div>
           <DialogFooter>

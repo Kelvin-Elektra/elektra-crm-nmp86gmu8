@@ -68,6 +68,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
     tension: '',
     phase_voltage: '',
     line_voltage: '',
+    available_roof_area: '',
     uc: '',
     avg_consumption: '',
   })
@@ -334,6 +335,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
         avg_consumption: Number(formData.avg_consumption) || 0,
         owner_id: user?.id,
         installation_lead_time: defaultLeadTime,
+        available_roof_area: Number(formData.available_roof_area) || 0,
         quote_notes: 'Pagamento e entrega: a combinar',
         tags: [],
         use_roof_faces: false,
@@ -381,6 +383,7 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
         tension: '',
         phase_voltage: '',
         line_voltage: '',
+        available_roof_area: '',
         uc: '',
         avg_consumption: '',
       })
@@ -650,6 +653,32 @@ export function NewNegotiationDialog({ open, onOpenChange, onSuccess, initialLea
                     value={formData.public_lighting_fee}
                     onChange={(e) =>
                       setFormData({ ...formData, public_lighting_fee: e.target.value })
+                    }
+                  />
+                </div>
+
+                {/* Área disponível para instalação */}
+                <div className="space-y-2 sm:col-span-2">
+                  <div className="flex items-center gap-1">
+                    <Label>Área disponível para instalação (m²)</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs text-xs">
+                        Área de telhado ou solo livre para posicionamento dos módulos fotovoltaicos.
+                        Utilizada na validação técnica de espaço físico.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    placeholder="Ex: 45.0"
+                    value={formData.available_roof_area}
+                    onChange={(e) =>
+                      setFormData({ ...formData, available_roof_area: e.target.value })
                     }
                   />
                 </div>

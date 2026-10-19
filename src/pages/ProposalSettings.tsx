@@ -95,6 +95,7 @@ export default function ProposalSettings() {
   const [livePreviewOpen, setLivePreviewOpen] = useState<number | null>(null)
   const [defaultLeadTimeDays, setDefaultLeadTimeDays] = useState<string>('')
   const [defaultLeadTimeText, setDefaultLeadTimeText] = useState<string>('')
+  const [defaultValidityDays, setDefaultValidityDays] = useState<string>('')
   const [defaultPaymentMethods, setDefaultPaymentMethods] = useState<string[]>([])
   const [companyData, setCompanyData] = useState<Record<string, any>>({})
   const [previewingTemplateId, setPreviewingTemplateId] = useState<string | null>(null)
@@ -174,6 +175,8 @@ export default function ProposalSettings() {
         if (record.default_lead_time_days != null)
           setDefaultLeadTimeDays(String(record.default_lead_time_days))
         if (record.default_lead_time_text) setDefaultLeadTimeText(record.default_lead_time_text)
+        if (record.default_validity_days != null)
+          setDefaultValidityDays(String(record.default_validity_days))
         if (Array.isArray(record.default_payment_methods))
           setDefaultPaymentMethods(record.default_payment_methods)
         if (
@@ -446,6 +449,7 @@ export default function ProposalSettings() {
         },
         default_lead_time_days: Number(defaultLeadTimeDays) || 0,
         default_lead_time_text: defaultLeadTimeText,
+        default_validity_days: Number(defaultValidityDays) || 0,
         default_payment_methods: defaultPaymentMethods.filter((m) => m.trim() !== ''),
       }
 
@@ -938,6 +942,24 @@ export default function ProposalSettings() {
                         placeholder="Ex: após assinatura do contrato"
                       />
                     </div>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <h4 className="font-semibold text-sm mb-3">Validade Padrão da Proposta</h4>
+                  <div className="space-y-2">
+                    <Label>Validade (dias corridos)</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={defaultValidityDays}
+                      onChange={(e) => setDefaultValidityDays(e.target.value)}
+                      placeholder="Ex: 10"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Define a quantidade padrão de dias de validade ao abrir o gerador de nova
+                      proposta comercial.
+                    </p>
                   </div>
                 </div>
               </div>

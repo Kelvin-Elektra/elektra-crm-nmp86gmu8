@@ -245,6 +245,7 @@ export function buildEquipmentsArray(params: {
     specification?: string
     [key: string]: any
   }> | null
+  includeSupplies?: boolean
 }): EquipmentItem[] {
   const items: EquipmentItem[] = []
 
@@ -313,8 +314,9 @@ export function buildEquipmentsArray(params: {
     }
   }
 
-  // 3. Insumos do kit
-  const supplies = params.supplies || []
+  // 3. Insumos do kit (se includeSupplies não for false; padrão: true)
+  const shouldIncludeSupplies = params.includeSupplies !== false
+  const supplies = shouldIncludeSupplies ? params.supplies || [] : []
   if (Array.isArray(supplies) && supplies.length > 0) {
     for (const sup of supplies) {
       // Pular se for o próprio módulo ou inversor marcado como type module/inverter no kitComposition
@@ -713,10 +715,24 @@ export function extractValidityDays(
   // Se contiver formato de data ISO "YYYY-MM-DD" ou "YYYY-MM-DDTHH:mm:ss"
   const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/)
   if (isoMatch) {
-    const targetDate = new Date(str)
-    const baseDate = referenceDate ? new Date(referenceDate) : new Date()
-    if (!isNaN(targetDate.getTime()) && !isNaN(baseDate.getTime())) {
-      const diffMs = targetDate.getTime() - baseDate.getTime()
+    const y = parseInt(isoMatch[1], 10)
+    const m = parseInt(isoMatch[2], 10) - 1
+    const d = parseInt(isoMatch[3], 10)
+    const targetMidnight = new Date(y, m, d, 0, 0, 0, 0).getTime()
+
+    const base = referenceDate ? new Date(referenceDate) : new Date()
+    if (!isNaN(base.getTime())) {
+      // Normaliza para meia-noite da data local para evitar erro de fuso horário / horas (bug do 9)
+      const baseMidnight = new Date(
+        base.getFullYear(),
+        base.getMonth(),
+        base.getDate(),
+        0,
+        0,
+        0,
+        0,
+      ).getTime()
+      const diffMs = targetMidnight - baseMidnight
       const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
       if (diffDays > 0) return diffDays
     }
@@ -728,10 +744,20 @@ export function extractValidityDays(
     const d = parseInt(brMatch[1], 10)
     const m = parseInt(brMatch[2], 10) - 1
     const y = parseInt(brMatch[3], 10)
-    const targetDate = new Date(y, m, d)
-    const baseDate = referenceDate ? new Date(referenceDate) : new Date()
-    if (!isNaN(targetDate.getTime()) && !isNaN(baseDate.getTime())) {
-      const diffMs = targetDate.getTime() - baseDate.getTime()
+    const targetMidnight = new Date(y, m, d, 0, 0, 0, 0).getTime()
+
+    const base = referenceDate ? new Date(referenceDate) : new Date()
+    if (!isNaN(base.getTime())) {
+      const baseMidnight = new Date(
+        base.getFullYear(),
+        base.getMonth(),
+        base.getDate(),
+        0,
+        0,
+        0,
+        0,
+      ).getTime()
+      const diffMs = targetMidnight - baseMidnight
       const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
       if (diffDays > 0) return diffDays
     }

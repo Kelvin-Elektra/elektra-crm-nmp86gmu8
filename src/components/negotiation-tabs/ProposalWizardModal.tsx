@@ -86,7 +86,6 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
 
   useEffect(() => {
     if (open && step === 1) {
-      setValidity(new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0])
       setDescription(`Proposta Sistema ${(neg?.sizing?.kit_power_kwp || 0).toFixed(2)} kWp`)
       // Inicializar paymentTerms a partir da negociação (ex: quote_notes ou payment_terms),
       // garantindo que continue preenchido internamente para o payload do gerador
@@ -203,6 +202,19 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
         .collection('proposal_settings')
         .getFirstListItem(`company_id='${companyId}'`)
         .catch(() => ({}))) as Record<string, any>
+
+      // Validade padrão configurável por companhia (fallback 10 dias)
+      const configuredValidityDays =
+        settings.default_validity_days != null && Number(settings.default_validity_days) > 0
+          ? Number(settings.default_validity_days)
+          : 10
+      const targetDate = new Date()
+      targetDate.setDate(targetDate.getDate() + configuredValidityDays)
+      const targetYear = targetDate.getFullYear()
+      const targetMonth = String(targetDate.getMonth() + 1).padStart(2, '0')
+      const targetDay = String(targetDate.getDate()).padStart(2, '0')
+      setValidity(`${targetYear}-${targetMonth}-${targetDay}`)
+
       const paymentMethodsList = Array.isArray(settings.default_payment_methods)
         ? settings.default_payment_methods
         : []
@@ -234,23 +246,26 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
       setCompanyLeadTimes(availableLeadTimes)
 
       // Prioridade do prazo de instalação:
-      // 1. Negociação já possui installation_lead_time
-      // 2. Item padrão dos prazos da empresa (ou campo legado)
-      // 3. proposal_settings (default_lead_time_days / default_lead_time_text)
-      let selectedLeadTime = neg.installation_lead_time || ''
+      // 1. Negociação já possui installation_lead_time preenchido
+      // 2. proposal_settings (default_lead_time_days / default_lead_time_text da companhia)
+      // 3. Item padrão dos prazos da empresa em companies (ou campo legado)
+      let selectedLeadTime = (neg.installation_lead_time || '').trim()
+      const leadTimeDays = settings.default_lead_time_days
+      const leadTimeText = (settings.default_lead_time_text || '').trim()
+      let settingsLeadTime = ''
+      if (leadTimeDays && Number(leadTimeDays) > 0) {
+        settingsLeadTime = `${leadTimeDays} dias ${leadTimeText}`.trim()
+      } else if (leadTimeText) {
+        settingsLeadTime = leadTimeText
+      }
+
+      if (!selectedLeadTime && settingsLeadTime) {
+        selectedLeadTime = settingsLeadTime
+      }
       if (!selectedLeadTime && companyDefaultTime) {
         selectedLeadTime = companyDefaultTime
       }
-      if (!selectedLeadTime) {
-        const leadTimeDays = settings.default_lead_time_days
-        const leadTimeText = settings.default_lead_time_text || ''
-        if (leadTimeDays && Number(leadTimeDays) > 0) {
-          selectedLeadTime = `${leadTimeDays} dias ${leadTimeText}`.trim()
-        } else {
-          selectedLeadTime = leadTimeText
-        }
-      }
-      setCompanyLeadTime(companyDefaultTime || selectedLeadTime)
+      setCompanyLeadTime(settingsLeadTime || companyDefaultTime || selectedLeadTime)
       setInstallationLeadTime(selectedLeadTime)
       const allCosts = await pb
         .collection('pv_costs')

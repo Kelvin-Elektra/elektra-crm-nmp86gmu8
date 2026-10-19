@@ -513,6 +513,14 @@ describe('solar-calculations', () => {
       expect(days).toBe(15)
     })
 
+    it('deve evitar o bug do 9 calculando exatamente 10 dias corridos mesmo com hora/fuso horário', () => {
+      // Data de hoje 15:30 e validade 10 dias depois (YYYY-MM-DD)
+      const refDate = '2026-09-15T15:30:00.000Z'
+      const targetDate = '2026-09-25'
+      const days = extractValidityDays(targetDate, refDate)
+      expect(days).toBe(10)
+    })
+
     it('deve calcular diferença de dias se receber data no padrão DD/MM/AAAA', () => {
       const refDate = new Date(2026, 2, 1) // 01/03/2026
       const targetDate = '16/03/2026'
@@ -668,6 +676,43 @@ describe('solar-calculations', () => {
       expect(equipments[1].item).toBe('Conector MC4')
       expect(equipments[1].quantity).toBe('4')
       expect(equipments[1].warranty).toBe('-')
+    })
+
+    it('deve filtrar insumos do array se includeSupplies for false (toggle do Template 2)', () => {
+      const equipments = buildEquipmentsArray({
+        module: {
+          name: 'Painel 550W',
+          brand: 'Canadian',
+          power: 550,
+        },
+        moduleQty: 10,
+        inverters: [
+          {
+            name: 'Inversor 5kW',
+            brand: 'Growatt',
+            power: 5,
+            qty: 1,
+          },
+        ],
+        supplies: [
+          {
+            name: 'Estrutura de Fixação',
+            qty: 1,
+            type: 'supply',
+          },
+          {
+            name: 'Cabo Solar 6mm²',
+            qty: 50,
+            type: 'supply',
+          },
+        ],
+        includeSupplies: false,
+      })
+
+      // Sem insumos: apenas módulos + inversores
+      expect(equipments).toHaveLength(2)
+      expect(equipments[0].item).toBe('Canadian Painel 550W')
+      expect(equipments[1].item).toBe('Growatt Inversor 5kW')
     })
   })
 

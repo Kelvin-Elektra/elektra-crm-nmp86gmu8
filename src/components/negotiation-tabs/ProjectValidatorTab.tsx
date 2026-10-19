@@ -464,11 +464,11 @@ export function ProjectValidatorTab({
     }
 
     // --- ITEM 5: Espaço de Telhado por Taxa de Ocupação ---
-    // Área disponível informada pelo usuário (sizing.available_area / neg.available_roof_area etc.)
+    // Área disponível informada pelo usuário (prioriza neg.available_roof_area campo oficial)
     const rawAvailableArea =
-      sizing.available_area ??
       neg.available_roof_area ??
       sizing.available_roof_area ??
+      sizing.available_area ??
       neg.available_area ??
       neg.roof_area ??
       sizing.roof_area ??
