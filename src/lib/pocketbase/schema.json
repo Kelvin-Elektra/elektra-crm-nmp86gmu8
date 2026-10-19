@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-19T17:07:55.746Z",
+  "generatedAt": "2026-10-19T20:04:05.194Z",
   "collections": [
     {
       "name": "users",
@@ -510,6 +510,12 @@
           "type": "json",
           "required": false,
           "system": false
+        },
+        {
+          "name": "available_roof_area",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -998,6 +1004,12 @@
         },
         {
           "name": "default_tariff_adjustment",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "default_validity_days",
           "type": "number",
           "required": false,
           "system": false
