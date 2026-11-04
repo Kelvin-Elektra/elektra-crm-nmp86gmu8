@@ -125,3 +125,31 @@ describe('isPercentOfSaleMethod', () => {
     expect(isPercentOfSaleMethod('kit')).toBe(false)
   })
 })
+
+describe('targetSalePrice direto', () => {
+  it('permite recalcular especificando targetSalePrice diretamente', () => {
+    const res = recalcPricingWithDiscount({
+      subtotal: 100000,
+      targetSalePrice: 95000,
+      pricing: { rateSum: 0.04, taxSum: 0.15, marginSum: 0.2, kitPrice: 20000 },
+    })
+    expect(res).not.toBeNull()
+    expect(res?.finalTotal).toBe(95000)
+    expect(res?.discountValue).toBe(5000)
+    expect(res?.discountPercent).toBe(5)
+    expect(res?.percentCostsTotal).toBeCloseTo(18050, 4)
+    expect(res?.marginAmount).toBeCloseTo(56950, 4)
+  })
+
+  it('permite targetSalePrice sem desconto (igual ao subtotal)', () => {
+    const res = recalcPricingWithDiscount({
+      subtotal: 100000,
+      targetSalePrice: 100000,
+      pricing: { rateSum: 0.04, taxSum: 0.15, marginSum: 0.2, kitPrice: 20000 },
+    })
+    expect(res).not.toBeNull()
+    expect(res?.finalTotal).toBe(100000)
+    expect(res?.discountPercent).toBe(0)
+    expect(res?.discountValue).toBe(0)
+  })
+})

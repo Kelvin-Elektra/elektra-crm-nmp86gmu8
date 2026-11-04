@@ -40,8 +40,11 @@ import {
   buildCommercialConditionsArray,
 } from '@/lib/solar-calculations'
 import { recalcPricingWithDiscount } from '@/lib/discount-recalc'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Info, AlertTriangle } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
+import { NumericInput } from '@/components/ui/numeric-input'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 import {
   CompanyLeadTimeItem,
   normalizeCompanyLeadTimes,
@@ -82,11 +85,13 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
   }, [proposal])
 
   const marginSum = snapshot?.pricing?.marginSum || 0
-  const storedDiscount = proposal?.discount_amount || 0
-  const storedTotal = proposal?.total_value || proposal?.price || 0
+  const storedDiscount = Number(proposal?.discount_amount) || 0
+  const storedTotal = Number(proposal?.total_value || proposal?.price) || 0
   const subtotal = storedDiscount > 0 ? storedTotal / (1 - storedDiscount / 100) : storedTotal
 
+  const [discountMode, setDiscountMode] = useState<'percent' | 'final_price'>('percent')
   const [discountPercent, setDiscountPercent] = useState(storedDiscount)
+  const [finalPriceInput, setFinalPriceInput] = useState(storedTotal)
   const [paymentTerms, setPaymentTerms] = useState(proposal?.payment_terms || '')
   const [hasFinancing, setHasFinancing] = useState<boolean>(
     Boolean(
@@ -107,6 +112,13 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
   const [definedPaymentMethod, setDefinedPaymentMethod] = useState(
     snapshot?.defined_payment_method || '',
   )
+
+  useEffect(() => {
+    if (!open) return
+    setDiscountPercent(storedDiscount)
+    setFinalPriceInput(storedTotal)
+    setDiscountMode('percent')
+  }, [open, storedDiscount, storedTotal])
 
   useEffect(() => {
     if (!open) return
@@ -147,24 +159,41 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
       })
   }, [open, user?.company_id, proposal?.company_id])
 
-  const discountValue = subtotal * (discountPercent / 100)
-  const finalTotal = subtotal - discountValue
-  // Recálculo REAL: custos percentuais sobre a venda incidem sobre o valor já
-  // descontado; margem real = venda_final − todos os custos (pode ser negativa).
-  // Sem custos aplicados no snapshot, cai no comportamento anterior (não há base
-  // para o cálculo real).
-  const recalc = useMemo(
-    () =>
-      recalcPricingWithDiscount({
+  const handlePercentChange = (val: number) => {
+    setDiscountPercent(val)
+    if (subtotal > 0) {
+      const derived = subtotal * (1 - val / 100)
+      setFinalPriceInput(Number(derived.toFixed(2)))
+    }
+  }
+
+  const handleFinalPriceChange = (val: number) => {
+    setFinalPriceInput(val)
+    if (subtotal > 0) {
+      const diff = subtotal - val
+      const derivedPct = (diff / subtotal) * 100
+      setDiscountPercent(Number(derivedPct.toFixed(2)))
+    }
+  }
+
+  const recalc = useMemo(() => {
+    if (subtotal <= 0) return null
+    if (discountMode === 'final_price') {
+      return recalcPricingWithDiscount({
         subtotal,
-        discountPercent,
+        targetSalePrice: finalPriceInput,
         pricing: snapshot?.pricing,
         billingModel: snapshot?.settings?.billing_model,
-      }),
-    [subtotal, discountPercent, snapshot],
-  )
-  // Margem ORIGINAL (sem desconto) pela mesma engenharia do recálculo, para os
-  // dois números saírem do mesmo módulo.
+      })
+    }
+    return recalcPricingWithDiscount({
+      subtotal,
+      discountPercent,
+      pricing: snapshot?.pricing,
+      billingModel: snapshot?.settings?.billing_model,
+    })
+  }, [subtotal, discountMode, finalPriceInput, discountPercent, snapshot])
+
   const originalRecalc = useMemo(
     () =>
       recalcPricingWithDiscount({
@@ -175,14 +204,21 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
       }),
     [subtotal, snapshot],
   )
+
+  const effectiveDiscountPercent = recalc ? recalc.discountPercent : discountPercent
+  const effectiveDiscountValue = recalc ? recalc.discountValue : (subtotal * discountPercent) / 100
+  const effectiveFinalTotal = recalc ? recalc.finalTotal : subtotal - effectiveDiscountValue
+
   const originalMarginAmount = originalRecalc ? originalRecalc.marginAmount : subtotal * marginSum
-  const adjustedMarginAmount = recalc ? recalc.marginAmount : originalMarginAmount - discountValue
-  // Margem ajustada em % — sem travamento em zero: com desconto grande ela é
-  // negativa em R$ e em %.
-  const adjustedMarginPct = recalc ? recalc.marginPct * 100 : marginSum * 100 - discountPercent
+  const adjustedMarginAmount = recalc
+    ? recalc.marginAmount
+    : originalMarginAmount - effectiveDiscountValue
+  const adjustedMarginPct = recalc
+    ? recalc.marginPct * 100
+    : marginSum * 100 - effectiveDiscountPercent
   const marginSumPct = originalRecalc ? originalRecalc.marginPct * 100 : marginSum * 100
-  const maxDiscount = (user as any)?.max_discount || 0
-  const discountExceeded = discountPercent > maxDiscount
+  const maxDiscount = Number((user as any)?.max_discount) || 0
+  const discountExceeded = effectiveDiscountPercent > maxDiscount + 0.01 && !isAdmin
 
   const addPaymentMethod = () => {
     const val = newMethod.trim()
@@ -198,6 +234,9 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
   const handleSave = async () => {
     if (discountExceeded) return
     setLoading(true)
+    const saveFinalTotal = effectiveFinalTotal
+    const saveDiscountPct =
+      effectiveDiscountPercent > 0 ? Number(effectiveDiscountPercent.toFixed(2)) : 0
     try {
       const updatedSnapshot = {
         ...snapshot,
@@ -393,7 +432,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
               fio_b_value: 0.22,
             },
             publicLightingFeeMonthly: Number(fp?.publicLightingFee) || 0,
-            totalInvestment: finalTotal,
+            totalInvestment: saveFinalTotal,
             years: 25,
           })
 
@@ -401,8 +440,8 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
             detailedProjectionTable.length > 0
               ? detailedProjectionTable[detailedProjectionTable.length - 1].cumulativeSavings
               : Number(fp?.savings25Years) || annualSavingsVal * 25
-          const investmentMultiple = calculateInvestmentMultiple(savings25YearsVal, finalTotal)
-          const tirPct = calculateTir(finalTotal, annualSavingsVal, 25)
+          const investmentMultiple = calculateInvestmentMultiple(savings25YearsVal, saveFinalTotal)
+          const tirPct = calculateTir(saveFinalTotal, annualSavingsVal, 25)
           const savingsProjection = generateSavingsProjection(detailedProjectionTable)
 
           const calcSnapshot = {
@@ -413,7 +452,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
             annual_tariff_adjustment: annualTariffAdjustment,
             simultaneity_factor: Number(rawSizing.simultaneity_factor) || 30,
             tariff_details: fp?.tariffDetails || prevCalcSnap.tariff_details || {},
-            total_investment: finalTotal,
+            total_investment: saveFinalTotal,
             savings_projection_table: detailedProjectionTable,
             savings_25_years: savings25YearsVal,
             payback_years: paybackYearsVal,
@@ -422,13 +461,13 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           }
 
           const financialPayload = {
-            total_investment: finalTotal,
-            investment: finalTotal,
-            price: finalTotal,
-            total_value: finalTotal,
-            sale_price: finalTotal,
+            total_investment: saveFinalTotal,
+            investment: saveFinalTotal,
+            price: saveFinalTotal,
+            total_value: saveFinalTotal,
+            sale_price: saveFinalTotal,
             subtotal: subtotal,
-            discount_amount: discountPercent,
+            discount_amount: saveDiscountPct,
             has_financing: hasFinancing,
             contempla_financiamento: hasFinancing,
             monthly_savings: monthlySav,
@@ -515,8 +554,8 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
       }
 
       await pb.collection('proposals').update(proposal.id, {
-        discount_amount: discountPercent,
-        total_value: finalTotal,
+        discount_amount: saveDiscountPct,
+        total_value: saveFinalTotal,
         price: subtotal,
         payment_terms: paymentTerms,
         has_financing: hasFinancing,
@@ -550,24 +589,118 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           </VisuallyHidden>
         </DialogHeader>
         <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label>Desconto (%)</Label>
-            <Input
-              type="number"
-              min="0"
-              max={maxDiscount}
-              value={discountPercent}
-              onChange={(e) => setDiscountPercent(Number(e.target.value))}
-            />
-            <p className="text-xs text-muted-foreground">Máx. permitido: {maxDiscount}%</p>
+          {/* Ajuste de Preço: Desconto % vs Valor Final R$ */}
+          <div className="border rounded-lg p-3.5 bg-muted/20 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Label className="font-semibold text-sm">Ajuste de Preço</Label>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-4 h-4 text-muted-foreground cursor-pointer hover:text-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs text-xs">
+                      Escolha entre aplicar % de desconto ou setar o valor final em reais
+                      diretamente. A margem absorve o ajuste e os custos percentuais são
+                      recalculados.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <div className="flex items-center gap-1 bg-muted p-1 rounded text-xs">
+                <button
+                  type="button"
+                  onClick={() => setDiscountMode('percent')}
+                  className={cn(
+                    'px-2.5 py-1 rounded transition-colors font-medium',
+                    discountMode === 'percent'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  Por Desconto (%)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDiscountMode('final_price')}
+                  className={cn(
+                    'px-2.5 py-1 rounded transition-colors font-medium',
+                    discountMode === 'final_price'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  Por Valor Final (R$)
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-medium">Desconto (%)</Label>
+                  <span className="text-[11px] text-muted-foreground">
+                    Máx. permitido: {maxDiscount.toFixed(2)}%
+                  </span>
+                </div>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max={isAdmin ? 100 : maxDiscount}
+                  value={discountPercent || ''}
+                  disabled={discountMode !== 'percent'}
+                  onChange={(e) => handlePercentChange(Number(e.target.value))}
+                  className={cn(
+                    'text-sm',
+                    discountMode !== 'percent' && 'bg-muted/50 cursor-not-allowed',
+                  )}
+                  placeholder="0,00"
+                />
+                {discountMode === 'final_price' && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Derivado: {effectiveDiscountPercent.toFixed(2)}%
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-medium">Valor Final de Venda (R$)</Label>
+                  <span className="text-[11px] text-muted-foreground">
+                    Base: {BRL.format(subtotal)}
+                  </span>
+                </div>
+                <NumericInput
+                  value={effectiveFinalTotal}
+                  precision={2}
+                  disabled={discountMode !== 'final_price'}
+                  onChangeValue={(val) => handleFinalPriceChange(val || 0)}
+                  className={cn(
+                    'text-sm font-semibold',
+                    discountMode !== 'final_price' && 'bg-muted/50 cursor-not-allowed',
+                  )}
+                />
+                {effectiveDiscountValue > 0 && (
+                  <p className="text-[11px] text-destructive">
+                    Diferença: - {BRL.format(effectiveDiscountValue)}
+                  </p>
+                )}
+              </div>
+            </div>
+
             {discountExceeded && (
-              <p className="text-sm text-destructive font-medium">
-                Desconto excede o limite permitido para o seu usuário.
-              </p>
+              <div className="flex items-center gap-2 p-2.5 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-xs">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>
+                  Desconto de {effectiveDiscountPercent.toFixed(2)}% excede o limite máximo
+                  permitido para seu usuário ({maxDiscount.toFixed(2)}%).
+                </span>
+              </div>
             )}
           </div>
 
-          {isAdmin && marginSum > 0 && discountPercent > 0 && (
+          {isAdmin && marginSum > 0 && effectiveDiscountPercent > 0 && (
             <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg space-y-2">
               <h4 className="font-semibold text-sm text-amber-900">Impacto na Margem Real</h4>
               <div className="flex justify-between text-sm">
@@ -581,7 +714,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
                   {recalc ? 'Custos (recalc. s/ venda c/ desconto):' : 'Desconto Aplicado:'}
                 </span>
                 <span className="font-medium text-destructive">
-                  - {BRL.format(recalc ? recalc.costsTotal : discountValue)}
+                  - {BRL.format(recalc ? recalc.costsTotal : effectiveDiscountValue)}
                 </span>
               </div>
               {recalc && (
@@ -592,7 +725,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
               )}
               <div className="flex justify-between text-sm font-semibold pt-1 border-t border-amber-200">
                 <span className="text-amber-900">Margem Ajustada:</span>
-                <span className="text-amber-700">
+                <span className="font-medium text-amber-700">
                   {BRL.format(adjustedMarginAmount)} ({adjustedMarginPct.toFixed(2)}%)
                 </span>
               </div>
@@ -604,13 +737,19 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
               <span className="text-muted-foreground">Subtotal:</span>
               <span className="font-medium">{BRL.format(subtotal)}</span>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Desconto ({discountPercent}%):</span>
-              <span className="font-medium text-destructive">- {BRL.format(discountValue)}</span>
-            </div>
+            {effectiveDiscountValue > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">
+                  Desconto ({effectiveDiscountPercent.toFixed(2)}%):
+                </span>
+                <span className="font-medium text-destructive">
+                  - {BRL.format(effectiveDiscountValue)}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between text-base font-bold pt-2 border-t">
               <span>Total Final:</span>
-              <span className="text-primary">{BRL.format(finalTotal)}</span>
+              <span className="text-primary">{BRL.format(effectiveFinalTotal)}</span>
             </div>
           </div>
 

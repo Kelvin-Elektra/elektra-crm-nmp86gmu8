@@ -39,21 +39,27 @@ onRecordCreateRequest((e) => {
     } catch (_) {}
   }
 
-  const discount = e.record.get('discount_amount') || 0
+  const discount = Number(e.record.get('discount_amount')) || 0
   const authId = e.auth ? e.auth.id : ''
 
   if (discount > 0 && authId) {
     try {
       const user = $app.findRecordById('users', authId)
       const role = user.getString('role') || ''
-      if (role === 'User_elektra') {
+      const roleCompany = user.getString('role_company') || ''
+      if (role === 'User_elektra' || roleCompany === 'admin' || role === 'User_owner') {
         e.next()
         return
       }
-      const maxDiscount = user.get('max_discount') || 0
-      if (discount > maxDiscount) {
+      const maxDiscount = Number(user.get('max_discount')) || 0
+      // Tolerância de 0.01 para arredondamentos em ponto flutuante
+      if (discount > maxDiscount + 0.01) {
         throw new BadRequestError(
-          'Desconto (' + discount + '%) excede o limite maximo permitido (' + maxDiscount + '%).',
+          'Desconto (' +
+            discount.toFixed(2) +
+            '%) excede o limite máximo permitido (' +
+            maxDiscount.toFixed(2) +
+            '%).',
         )
       }
     } catch (err) {

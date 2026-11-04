@@ -51,11 +51,11 @@ export interface PricingLike {
 
 export interface DiscountRecalcInput {
   subtotal: number
-  discountPercent: number
-  pricing?: PricingLike
-  billingModel?: string
+  discountPercent?: number
+  targetSalePrice?: number
+  pricing?: PricingLike | null
+  billingModel?: string | null
 }
-
 export interface DiscountRecalcResult {
   baseTotal: number
   discountPercent: number
@@ -139,20 +139,36 @@ function percentValueOf(cost: AppliedCostLike, baseTotal: number): number {
  * e sem somas agregadas) — não inventa cálculo.
  */
 export function recalcPricingWithDiscount(input: DiscountRecalcInput): DiscountRecalcResult | null {
-  const { subtotal, discountPercent } = input
+  const { subtotal } = input
   const pricing = input.pricing
 
   if (!pricing) return null
   if (!Number.isFinite(subtotal) || subtotal <= 0) return null
-  if (!Number.isFinite(discountPercent) || discountPercent < 0) return null
 
-  const billingModel = input.billingModel || pricing.settings?.billing_model || 'direct'
-  const intermediated = billingModel === 'intermediated'
+  let finalTotal: number
+  let discountValue: number
+  let discountPercent: number
+
+  if (typeof input.targetSalePrice === 'number' && Number.isFinite(input.targetSalePrice)) {
+    // Modo valor de venda direto
+    finalTotal = input.targetSalePrice
+    discountValue = subtotal - finalTotal
+    discountPercent = subtotal > 0 ? (discountValue / subtotal) * 100 : 0
+  } else {
+    const rawPct =
+      typeof input.discountPercent === 'number' && Number.isFinite(input.discountPercent)
+        ? input.discountPercent
+        : 0
+    if (rawPct < 0) return null
+    discountPercent = rawPct
+    const scale = 1 - safe(discountPercent) / 100
+    finalTotal = subtotal * scale
+    discountValue = subtotal - finalTotal
+  }
 
   const baseTotal = subtotal
-  const scale = 1 - safe(discountPercent) / 100
-  const finalTotal = baseTotal * scale
-  const discountValue = baseTotal - finalTotal
+  const billingModel = input.billingModel || pricing.settings?.billing_model || 'direct'
+  const intermediated = billingModel === 'intermediated'
 
   // Kit: manual (pricing.kitPrice) tem precedência sobre o automático.
   let kitPrice = safe(pricing.kitPrice, NaN) || safe(pricing.autoKitPrice, 0) || 0

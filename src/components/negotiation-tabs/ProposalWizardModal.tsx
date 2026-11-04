@@ -20,7 +20,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { FileText, ArrowRight, ArrowLeft } from 'lucide-react'
+import { FileText, ArrowRight, ArrowLeft, Info, AlertTriangle } from 'lucide-react'
+import { NumericInput } from '@/components/ui/numeric-input'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 import {
   CompanyLeadTimeItem,
   normalizeCompanyLeadTimes,
@@ -71,13 +74,13 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
   const [hasFinancing, setHasFinancing] = useState(false)
   const [notes, setNotes] = useState('')
   const [description, setDescription] = useState('')
+  const [discountMode, setDiscountMode] = useState<'percent' | 'final_price'>('percent')
   const [discount, setDiscount] = useState<number>(0)
+  const [finalPriceInput, setFinalPriceInput] = useState<number>(0)
 
   const [totalValue, setTotalValue] = useState(0)
   const [pricingDetails, setPricingDetails] = useState<any>(null)
   const [rawPricingData, setRawPricingData] = useState<any>(null)
-  // Recálculo real de custos/margem com o desconto informado (null se não houver
-  // base de custos) — usado no resumo "Impacto na Margem Real".
   const [discountRecalc, setDiscountRecalc] = useState<DiscountRecalcResult | null>(null)
 
   const [pricingMode, setPricingMode] = useState<'automatic' | 'manual'>('automatic')
@@ -179,9 +182,23 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
       kitPercentAmount,
       appliedCosts: updatedAppliedCosts,
     })
-    // Recálculo real de custos/margem para o desconto atual (exibição no resumo)
-    setDiscountRecalc(
-      recalcPricingWithDiscount({
+
+    if (discountMode === 'final_price') {
+      const derivedRecalc = recalcPricingWithDiscount({
+        subtotal: salePrice,
+        targetSalePrice: finalPriceInput || salePrice,
+        pricing: {
+          ...rawPricingData,
+          kitPrice: safeKitPrice,
+        },
+        billingModel: settings?.billing_model,
+      })
+      setDiscountRecalc(derivedRecalc)
+      if (derivedRecalc) {
+        setDiscount(Number(derivedRecalc.discountPercent.toFixed(2)))
+      }
+    } else {
+      const derivedRecalc = recalcPricingWithDiscount({
         subtotal: salePrice,
         discountPercent: discount,
         pricing: {
@@ -189,9 +206,21 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
           kitPrice: safeKitPrice,
         },
         billingModel: settings?.billing_model,
-      }),
-    )
-  }, [rawPricingData, pricingMode, manualKitValue, neg.sizing, discount])
+      })
+      setDiscountRecalc(derivedRecalc)
+      if (derivedRecalc) {
+        setFinalPriceInput(Number(derivedRecalc.finalTotal.toFixed(2)))
+      }
+    }
+  }, [
+    rawPricingData,
+    pricingMode,
+    manualKitValue,
+    neg.sizing,
+    discount,
+    discountMode,
+    finalPriceInput,
+  ])
 
   const loadPricingData = async () => {
     try {
@@ -452,34 +481,46 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
     return BRL.format(cost.amount || 0)
   }
 
+  const handlePercentChangeWizard = (val: number) => {
+    setDiscount(val)
+    if (totalValue > 0) {
+      const derived = totalValue * (1 - val / 100)
+      setFinalPriceInput(Number(derived.toFixed(2)))
+    }
+  }
+
+  const handleFinalPriceChangeWizard = (val: number) => {
+    setFinalPriceInput(val)
+    if (totalValue > 0) {
+      const diff = totalValue - val
+      const derivedPct = (diff / totalValue) * 100
+      setDiscount(Number(derivedPct.toFixed(2)))
+    }
+  }
+
   const handleGenerate = async () => {
-    const maxDiscount = (user as any)?.max_discount || 0
-    if (discount > maxDiscount) {
+    const maxDiscount = Number((user as any)?.max_discount) || 0
+    const effectiveDiscountPercent = discountRecalc ? discountRecalc.discountPercent : discount
+    if (effectiveDiscountPercent > maxDiscount + 0.01 && !isAdmin) {
       toast({
         variant: 'destructive',
         title: 'Desconto não permitido',
-        description: `O desconto máximo permitido para seu usuário é ${maxDiscount}%`,
+        description: `O desconto de ${effectiveDiscountPercent.toFixed(2)}% excede o limite permitido (${maxDiscount.toFixed(2)}%)`,
       })
       return
     }
 
     setLoading(true)
     try {
-      const finalPrice = totalValue * (1 - discount / 100)
-      // Recálculo REAL com desconto: custos percentuais sobre a venda (impostos,
-      // comissões) incidem sobre o valor JÁ descontado; margem real = venda_final
-      // − todos os custos. Sem custos aplicados, mantém o comportamento anterior.
-      const discountRecalc = recalcPricingWithDiscount({
-        subtotal: totalValue,
-        discountPercent: discount,
-        pricing: rawPricingData
-          ? {
-              ...rawPricingData,
-              kitPrice: pricingDetails?.kitPrice ?? rawPricingData?.autoKitPrice,
-            }
-          : undefined,
-        billingModel: rawPricingData?.settings?.billing_model,
-      })
+      const finalPrice = discountRecalc
+        ? discountRecalc.finalTotal
+        : totalValue * (1 - discount / 100)
+      const effectiveDiscountValue = discountRecalc
+        ? discountRecalc.discountValue
+        : (totalValue * discount) / 100
+      const effectiveDiscountPct = discountRecalc
+        ? Number(discountRecalc.discountPercent.toFixed(2))
+        : discount
 
       const consumerCategory = neg.sizing?.consumer_category || ''
       const simultaneityFactor =
@@ -861,7 +902,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
         total_value: finalPrice,
         sale_price: finalPrice,
         subtotal: totalValue,
-        discount_amount: discount,
+        discount_amount: effectiveDiscountPct,
         has_financing: hasFinancing,
         contempla_financiamento: hasFinancing,
         monthly_savings: monthlySavingsVal,
@@ -960,7 +1001,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
         validity_date: validity ? new Date(validity).toISOString() : null,
         payment_terms: paymentTerms,
         notes: notes,
-        discount_amount: discount,
+        discount_amount: effectiveDiscountPct,
         total_value: finalPrice,
         has_financing: hasFinancing,
         kit_details: JSON.stringify(enrichedSnapshotData),
@@ -1209,24 +1250,128 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
                 onChange={(e) => setDescription(e.target.value)}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Validade da Proposta</Label>
                 <Input type="date" value={validity} onChange={(e) => setValidity(e.target.value)} />
               </div>
-              <div className="space-y-2">
-                <Label>Desconto Aplicado (%)</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  max={(user as any)?.max_discount || 0}
-                  value={discount}
-                  onChange={(e) => setDiscount(Number(e.target.value))}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Máx. permitido: {(user as any)?.max_discount || 0}%
-                </p>
+            </div>
+
+            {/* Ajuste de Preço: Desconto % vs Valor Final R$ */}
+            <div className="border rounded-lg p-3.5 bg-muted/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Label className="font-semibold text-sm">Ajuste de Preço</Label>
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="w-4 h-4 text-muted-foreground cursor-pointer hover:text-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs text-xs">
+                        Informe o % de desconto ou digite o valor final da venda em R$. A margem
+                        absorve o ajuste e os custos percentuais são recalculados.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <div className="flex items-center gap-1 bg-muted p-1 rounded text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setDiscountMode('percent')}
+                    className={cn(
+                      'px-2.5 py-1 rounded transition-colors font-medium',
+                      discountMode === 'percent'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    Por Desconto (%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDiscountMode('final_price')}
+                    className={cn(
+                      'px-2.5 py-1 rounded transition-colors font-medium',
+                      discountMode === 'final_price'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    Por Valor Final (R$)
+                  </button>
+                </div>
               </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium">Desconto (%)</Label>
+                    <span className="text-[11px] text-muted-foreground">
+                      Máx: {(Number((user as any)?.max_discount) || 0).toFixed(2)}%
+                    </span>
+                  </div>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max={isAdmin ? 100 : (user as any)?.max_discount || 0}
+                    value={discount || ''}
+                    disabled={discountMode !== 'percent'}
+                    onChange={(e) => handlePercentChangeWizard(Number(e.target.value))}
+                    className={cn(
+                      'text-sm',
+                      discountMode !== 'percent' && 'bg-muted/50 cursor-not-allowed',
+                    )}
+                    placeholder="0,00"
+                  />
+                  {discountMode === 'final_price' && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Derivado:{' '}
+                      {(discountRecalc ? discountRecalc.discountPercent : discount).toFixed(2)}%
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium">Valor Final de Venda (R$)</Label>
+                    <span className="text-[11px] text-muted-foreground">
+                      Base: {BRL.format(totalValue)}
+                    </span>
+                  </div>
+                  <NumericInput
+                    value={
+                      discountRecalc ? discountRecalc.finalTotal : finalPriceInput || totalValue
+                    }
+                    precision={2}
+                    disabled={discountMode !== 'final_price'}
+                    onChangeValue={(val) => handleFinalPriceChangeWizard(val || 0)}
+                    className={cn(
+                      'text-sm font-semibold',
+                      discountMode !== 'final_price' && 'bg-muted/50 cursor-not-allowed',
+                    )}
+                  />
+                  {discountRecalc && discountRecalc.discountValue > 0 && (
+                    <p className="text-[11px] text-destructive">
+                      Diferença: - {BRL.format(discountRecalc.discountValue)}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {(discountRecalc ? discountRecalc.discountPercent : discount) >
+                (Number((user as any)?.max_discount) || 0) + 0.01 &&
+                !isAdmin && (
+                  <div className="flex items-center gap-2 p-2.5 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-xs">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span>
+                      Desconto de{' '}
+                      {(discountRecalc ? discountRecalc.discountPercent : discount).toFixed(2)}%
+                      excede o limite máximo permitido para seu usuário (
+                      {(Number((user as any)?.max_discount) || 0).toFixed(2)}%).
+                    </span>
+                  </div>
+                )}
             </div>
 
             {/* Toggle de Financiamento */}
@@ -1321,76 +1466,88 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
                 onChange={(e) => setDefinedPaymentMethod(e.target.value)}
               />
             </div>
-            {isAdmin && discount > 0 && rawPricingData?.marginSum !== undefined && (
-              <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg space-y-2">
-                <h4 className="font-semibold text-sm text-amber-900">Impacto na Margem Real</h4>
-                <div className="flex justify-between text-sm">
-                  <span className="text-amber-700">Margem Original:</span>
-                  <span className="font-medium text-amber-900">
-                    {BRL.format(
-                      discountRecalc
-                        ? discountRecalc.baseTotal -
-                            discountRecalc.fixedCostsTotal -
-                            discountRecalc.percentCostsTotal
-                        : totalValue * (rawPricingData?.marginSum || 0),
-                    )}{' '}
-                    ({((rawPricingData?.marginSum || 0) * 100).toFixed(2)}
-                    %)
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-amber-700">
-                    {discountRecalc
-                      ? 'Custos (recalc. s/ venda c/ desconto):'
-                      : 'Desconto Aplicado:'}
-                  </span>
-                  <span className="font-medium text-destructive">
-                    -{' '}
-                    {BRL.format(
-                      discountRecalc ? discountRecalc.costsTotal : (totalValue * discount) / 100,
-                    )}
-                  </span>
-                </div>
-                {discountRecalc && (
-                  <div className="flex justify-between text-xs text-amber-700/80">
-                    <span>Venda com desconto:</span>
-                    <span>{BRL.format(discountRecalc.finalTotal)}</span>
+            {isAdmin &&
+              (discountRecalc ? discountRecalc.discountPercent > 0 : discount > 0) &&
+              rawPricingData?.marginSum !== undefined && (
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg space-y-2">
+                  <h4 className="font-semibold text-sm text-amber-900">Impacto na Margem Real</h4>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-amber-700">Margem Original:</span>
+                    <span className="font-medium text-amber-900">
+                      {BRL.format(
+                        discountRecalc
+                          ? discountRecalc.baseTotal -
+                              discountRecalc.fixedCostsTotal -
+                              discountRecalc.percentCostsTotal
+                          : totalValue * (rawPricingData?.marginSum || 0),
+                      )}{' '}
+                      ({((rawPricingData?.marginSum || 0) * 100).toFixed(2)}
+                      %)
+                    </span>
                   </div>
-                )}
-                <div className="flex justify-between text-sm font-semibold pt-1 border-t border-amber-200">
-                  <span className="text-amber-900">Margem Ajustada:</span>
-                  <span className="text-amber-700">
-                    {BRL.format(
-                      discountRecalc
-                        ? discountRecalc.marginAmount
-                        : totalValue * (rawPricingData?.marginSum || 0) -
-                            (totalValue * discount) / 100,
-                    )}{' '}
-                    (
-                    {discountRecalc
-                      ? (discountRecalc.marginPct * 100).toFixed(2)
-                      : ((rawPricingData?.marginSum || 0) * 100 - discount).toFixed(2)}
-                    %)
-                  </span>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-amber-700">
+                      {discountRecalc
+                        ? 'Custos (recalc. s/ venda c/ desconto):'
+                        : 'Desconto Aplicado:'}
+                    </span>
+                    <span className="font-medium text-destructive">
+                      -{' '}
+                      {BRL.format(
+                        discountRecalc ? discountRecalc.costsTotal : (totalValue * discount) / 100,
+                      )}
+                    </span>
+                  </div>
+                  {discountRecalc && (
+                    <div className="flex justify-between text-xs text-amber-700/80">
+                      <span>Venda com desconto:</span>
+                      <span>{BRL.format(discountRecalc.finalTotal)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm font-semibold pt-1 border-t border-amber-200">
+                    <span className="text-amber-900">Margem Ajustada:</span>
+                    <span className="text-amber-700">
+                      {BRL.format(
+                        discountRecalc
+                          ? discountRecalc.marginAmount
+                          : totalValue * (rawPricingData?.marginSum || 0) -
+                              (totalValue * discount) / 100,
+                      )}{' '}
+                      (
+                      {discountRecalc
+                        ? (discountRecalc.marginPct * 100).toFixed(2)
+                        : ((rawPricingData?.marginSum || 0) * 100 - discount).toFixed(2)}
+                      %)
+                    </span>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
             <div className="bg-muted/30 p-4 rounded-lg border space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Subtotal:</span>
                 <span className="font-medium">{BRL.format(totalValue)}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Desconto ({discount}%):</span>
-                <span className="font-medium text-destructive">
-                  - {BRL.format((totalValue * discount) / 100)}
-                </span>
-              </div>
+              {(discountRecalc ? discountRecalc.discountValue > 0 : discount > 0) && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    Desconto (
+                    {(discountRecalc ? discountRecalc.discountPercent : discount).toFixed(2)}%):
+                  </span>
+                  <span className="font-medium text-destructive">
+                    -{' '}
+                    {BRL.format(
+                      discountRecalc ? discountRecalc.discountValue : (totalValue * discount) / 100,
+                    )}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between text-base font-bold pt-2 border-t">
                 <span>Total Final:</span>
                 <span className="text-primary">
-                  {BRL.format(totalValue * (1 - discount / 100))}
+                  {BRL.format(
+                    discountRecalc ? discountRecalc.finalTotal : totalValue * (1 - discount / 100),
+                  )}
                 </span>
               </div>
             </div>
