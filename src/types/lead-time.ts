@@ -74,11 +74,9 @@ export function getDefaultLeadTime(items: CompanyLeadTimeItem[]): string {
  * Se apenas dias forem fornecidos -> "30 dias após assinatura do contrato" (ou apenas "30 dias")
  * Se o texto já contiver "dias", evita duplicação tipo "30 dias 30 dias...".
  */
-export function composeLeadTimeText(
-  days?: number | string | null,
-  text?: string | null,
-): string {
-  const dNum = days !== null && days !== undefined && String(days).trim() !== '' ? Number(days) : NaN
+export function composeLeadTimeText(days?: number | string | null, text?: string | null): string {
+  const dNum =
+    days !== null && days !== undefined && String(days).trim() !== '' ? Number(days) : NaN
   const hasDays = !isNaN(dNum) && dNum > 0
   const rawText = (text || '').trim()
 

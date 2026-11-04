@@ -25,6 +25,7 @@ import {
   CompanyLeadTimeItem,
   normalizeCompanyLeadTimes,
   getDefaultLeadTime,
+  composeLeadTimeText,
 } from '@/types/lead-time'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
@@ -250,14 +251,10 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
       // 2. proposal_settings (default_lead_time_days / default_lead_time_text da companhia)
       // 3. Item padrão dos prazos da empresa em companies (ou campo legado)
       let selectedLeadTime = (neg.installation_lead_time || '').trim()
-      const leadTimeDays = settings.default_lead_time_days
-      const leadTimeText = (settings.default_lead_time_text || '').trim()
-      let settingsLeadTime = ''
-      if (leadTimeDays && Number(leadTimeDays) > 0) {
-        settingsLeadTime = `${leadTimeDays} dias ${leadTimeText}`.trim()
-      } else if (leadTimeText) {
-        settingsLeadTime = leadTimeText
-      }
+      const settingsLeadTime = composeLeadTimeText(
+        settings.default_lead_time_days,
+        settings.default_lead_time_text,
+      )
 
       if (!selectedLeadTime && settingsLeadTime) {
         selectedLeadTime = settingsLeadTime
@@ -693,12 +690,15 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
         (tariffDetails as any)?.voltage ||
         ''
 
-      // Construir equipments array
+      // Construir equipments array (respeita o toggle de insumos do template ativo)
+      const includeSuppliesFlag =
+        !activeTplId || allTemplatesConfig?.[activeTplId]?.include_supplies !== false
       const equipmentsList = buildEquipmentsArray({
         module: rawPricingData?.rawModule,
         moduleQty: moduleQtyVal,
         inverters: rawPricingData?.rawInverters || neg.sizing?.inverters,
         supplies: rawPricingData?.kitComposition || rawPricingData?.supplies,
+        includeSupplies: includeSuppliesFlag,
       })
 
       const sizingPayload = {

@@ -45,6 +45,7 @@ import {
   CompanyLeadTimeItem,
   normalizeCompanyLeadTimes,
   getDefaultLeadTime,
+  composeLeadTimeText,
 } from '@/types/lead-time'
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -119,10 +120,24 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
             comp.installation_lead_time,
           )
           setCompanyLeadTimes(list)
-          // Se não havia prazo na proposta/snapshot, pré-seleciona o default da empresa
+          // Se não havia prazo na proposta/snapshot, pré-seleciona o prazo padrão:
+          // 1. proposal_settings (dias + texto) 2. item padrão dos prazos da empresa
           if (!snapshot?.installation_lead_time && !installationLeadTime) {
-            const def = getDefaultLeadTime(list)
-            if (def) setInstallationLeadTime(def)
+            const settingsRec = await pb
+              .collection('proposal_settings')
+              .getFirstListItem(`company_id = '${companyId}'`)
+              .catch(() => null)
+            const settingsLeadTime = settingsRec
+              ? composeLeadTimeText(
+                  (settingsRec as any).default_lead_time_days,
+                  (settingsRec as any).default_lead_time_text,
+                )
+              : ''
+            if (settingsLeadTime) setInstallationLeadTime(settingsLeadTime)
+            else {
+              const def = getDefaultLeadTime(list)
+              if (def) setInstallationLeadTime(def)
+            }
           }
         }
       })
@@ -258,6 +273,13 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           const resolvedTension =
             rawSizing.tension || rawSizing.voltage || fp?.tariffDetails?.voltage || ''
 
+          const editTplId =
+            updatedSnapshot.generator_template_id ||
+            updatedSnapshot.template ||
+            proposal.template_id ||
+            null
+          const includeSuppliesFlag =
+            !editTplId || updatedSnapshot.templates_config?.[editTplId]?.include_supplies !== false
           const equipmentsList = buildEquipmentsArray({
             module: updatedSnapshot.pricing_data?.rawModule,
             moduleQty: modQty,
@@ -265,6 +287,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
             supplies:
               updatedSnapshot.pricing_data?.kitComposition ||
               updatedSnapshot.pricing_data?.supplies,
+            includeSupplies: includeSuppliesFlag,
           })
 
           const sizingPayload = {

@@ -15,6 +15,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { ConfigurableFieldsForm } from '@/components/ConfigurableFieldsForm'
+import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
@@ -99,6 +100,7 @@ export default function ProposalSettings() {
   const [defaultPaymentMethods, setDefaultPaymentMethods] = useState<string[]>([])
   const [companyData, setCompanyData] = useState<Record<string, any>>({})
   const [previewingTemplateId, setPreviewingTemplateId] = useState<string | null>(null)
+  const [includeSupplies, setIncludeSupplies] = useState(true)
 
   const isAdmin =
     user?.role === 'User_elektra' || user?.role_company === 'admin' || user?.role === 'User_owner'
@@ -191,6 +193,9 @@ export default function ProposalSettings() {
   }, [user])
 
   if (!isAdmin && user) return <Navigate to="/dashboard" replace />
+
+  const isTemplate2 = (tpl: GeneratorTemplate | null | undefined) =>
+    Boolean(tpl && /template\s*2/i.test(tpl.name || ''))
 
   const getTemplateFields = (tpl: GeneratorTemplate): TemplateSchemaField[] => {
     if (tpl.variable_schema?.fixed && Array.isArray(tpl.variable_schema.fixed)) {
@@ -317,6 +322,7 @@ export default function ProposalSettings() {
     setSelectedTemplate(tpl)
     setFormValidationErrors({})
     setFieldErrors({})
+    setIncludeSupplies(templatesConfig[tpl.id]?.include_supplies !== false)
 
     const initial = buildTemplateData(tpl)
     setFixedData(initial)
@@ -386,9 +392,11 @@ export default function ProposalSettings() {
     setFormValidationErrors({})
 
     try {
+      const selectedCfg: Record<string, any> = { ...fixedData }
+      if (isTemplate2(selectedTemplate)) selectedCfg.include_supplies = includeSupplies
       const updatedTemplatesConfig = {
         ...templatesConfig,
-        [selectedTemplate.id]: fixedData,
+        [selectedTemplate.id]: selectedCfg,
       }
 
       const data = {
@@ -1033,6 +1041,18 @@ export default function ProposalSettings() {
           </DialogHeader>
 
           <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden w-full min-w-0 pr-1">
+            {selectedTemplate && isTemplate2(selectedTemplate) && (
+              <div className="flex items-center justify-between gap-4 rounded-lg border p-3 mb-3">
+                <div className="space-y-1">
+                  <Label>Enviar insumos na lista de equipamentos</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Quando desativado, a lista de equipamentos da proposta não inclui os insumos
+                    cadastrados no Kit PV.
+                  </p>
+                </div>
+                <Switch checked={includeSupplies} onCheckedChange={setIncludeSupplies} />
+              </div>
+            )}
             {selectedTemplate && (
               <ConfigurableFieldsForm
                 fields={getTemplateFields(selectedTemplate)}

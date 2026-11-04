@@ -16,6 +16,16 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Settings2 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { UserDiscountConfigModal } from '@/components/UserDiscountConfigModal'
 
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
@@ -38,6 +48,8 @@ export default function Settings() {
   const [systemSettings, setSystemSettings] = useState<any>(null)
   const [team, setTeam] = useState<TeamMember[]>([])
   const [loadingTeam, setLoadingTeam] = useState(false)
+  const [discountMember, setDiscountMember] = useState<TeamMember | null>(null)
+  const [discountModalOpen, setDiscountModalOpen] = useState(false)
 
   const loadCompany = async () => {
     if (user?.company_id && user.company_id.trim() !== '') {
@@ -314,6 +326,7 @@ export default function Settings() {
                         <TableHead>Email</TableHead>
                         <TableHead>Perfil</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead className="w-12"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -387,6 +400,23 @@ export default function Settings() {
                                 </Badge>
                               )}
                             </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                title="Configuração do usuário"
+                                aria-label={`Configuração do usuário ${member.name || member.email}`}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setDiscountMember(member)
+                                  setDiscountModalOpen(true)
+                                }}
+                                disabled={member.status === 'inactive'}
+                              >
+                                <Settings2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         ))
                       )}
@@ -395,6 +425,18 @@ export default function Settings() {
                 </div>
               </CardContent>
             </Card>
+          )}
+
+          {activeTab === 'team' && isOwner && (
+            <UserDiscountConfigModal
+              open={discountModalOpen}
+              onOpenChange={(open) => {
+                setDiscountModalOpen(open)
+                if (!open) setDiscountMember(null)
+              }}
+              member={discountMember}
+              onSaved={loadTeam}
+            />
           )}
 
           {activeTab === 'system' && user?.role === 'User_elektra' && (
