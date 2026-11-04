@@ -70,6 +70,8 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
       const appliedCosts = pricing.appliedCosts || []
       const kitPrice = pricing.kitPrice || 0
       const marginSumVal = pricing.marginSum || 0
+      const salePrice = pricing.salePrice || proposal.price || proposal.total_value || 0
+      const kitComposition = Array.isArray(pricing.kitComposition) ? pricing.kitComposition : []
       setMarginSum(marginSumVal)
 
       let costItems: CostItem[] = []

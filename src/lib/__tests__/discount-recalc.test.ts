@@ -26,9 +26,12 @@ describe('recalcPricingWithDiscount — exemplo do usuário', () => {
       pricing: { appliedCosts: USER_EXAMPLE.appliedCosts, kitPrice: 0 },
     })
     expect(r).not.toBeNull()
-    expect(r!.finalTotal).toBeCloseTo(20000 / 0.61 * 0.95, 6)
+    expect(r!.finalTotal).toBeCloseTo((20000 / 0.61) * 0.95, 6)
     // imposto 15% sobre 31.147,54 = 4.672,13
-    expect(r!.percentCostsTotal).toBeCloseTo((20000 / 0.61) * 0.95 * 0.15 + (20000 / 0.61) * 0.95 * 0.04, 6)
+    expect(r!.percentCostsTotal).toBeCloseTo(
+      (20000 / 0.61) * 0.95 * 0.15 + (20000 / 0.61) * 0.95 * 0.04,
+      6,
+    )
     expect(r!.costsTotal).toBeCloseTo(20000 + r!.percentCostsTotal, 6)
     expect(r!.marginAmount).toBeCloseTo(r!.finalTotal - 20000 - r!.percentCostsTotal, 6)
     // 16,79% da venda com desconto
