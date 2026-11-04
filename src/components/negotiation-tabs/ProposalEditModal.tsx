@@ -113,7 +113,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
     if (!companyId) return
     pb.collection('companies')
       .getOne(companyId)
-      .then((comp) => {
+      .then(async (comp) => {
         if (comp) {
           const list = normalizeCompanyLeadTimes(
             comp.installation_lead_times,
