@@ -462,7 +462,23 @@ routerAdd(
       const rawFinancial = body.financial || {}
 
       // Resolver nome do consultor responsável
-      let consultantName = rawNegotiation.consultant_name || rawNegotiation.seller_name || ''
+      // O fallback genérico do frontend ("Consultor Elektra") NÃO conta como nome
+      // real: nesse caso buscamos o nome verdadeiro do dono da negociação no banco.
+      var isGenericConsultantName = function (v) {
+        if (!v || typeof v !== 'string') return true
+        var normC = String(v)
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .trim()
+        return normC === '' || normC === 'consultor elektra'
+      }
+      let consultantName = isGenericConsultantName(rawNegotiation.consultant_name)
+        ? ''
+        : String(rawNegotiation.consultant_name).trim()
+      if (isGenericConsultantName(consultantName) && rawNegotiation.seller_name) {
+        consultantName = String(rawNegotiation.seller_name).trim()
+      }
       let proposalNumber = rawNegotiation.proposal_number || externalId || ''
       let proposalDate = rawNegotiation.proposal_date || ''
       let proposalCreatedRaw = null
@@ -635,6 +651,129 @@ routerAdd(
       }
       const occupiedAreaM2 = modQty > 0 ? Number((moduleUnitArea * modQty).toFixed(1)) : 0
 
+      // 8b. Equipamentos REAIS do catálogo: o frontend pode enviar linhas genéricas
+      // ("Módulo Fotovoltaico" / "Alta Eficiência" e "Inversor Solar" / "Inversor de
+      // Conexão à Rede") quando o pricing_data não estava carregado no momento da
+      // geração. Aqui reconstruímos módulo e inversores a partir dos registros reais
+      // do catálogo (pv_modules / pv_inverters) usando os ids presentes no payload,
+      // preservando os demais itens (insumos) que já vieram com nome real.
+      var normEquipKey = function (v) {
+        return String(v || '')
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .trim()
+      }
+      var GENERIC_MODULE_ITEM = 'modulo fotovoltaico'
+      var GENERIC_MODULE_SPEC = 'alta eficiencia'
+      var GENERIC_INVERTER_ITEM = 'inversor solar'
+      var GENERIC_INVERTER_SPEC = 'inversor de conexao a rede'
+
+      var incomingEquipments = Array.isArray(rawSizing.equipments) ? rawSizing.equipments : []
+      var catalogModuleRec = null
+      if (selectedModId) {
+        try {
+          catalogModuleRec = $app.findFirstRecordByFilter(
+            'pv_modules',
+            "id = '" + selectedModId + "'",
+          )
+        } catch (_) {}
+      }
+      var realModuleEntry = null
+      if (catalogModuleRec) {
+        var cmBrand = String(catalogModuleRec.getString('brand') || '').trim()
+        var cmName = String(catalogModuleRec.getString('name') || '').trim()
+        var cmPower = catalogModuleRec.getFloat('power') || 0
+        var cmFrame = String(catalogModuleRec.getString('frame') || '').trim()
+        var cmItemName = cmName || cmBrand || ''
+        if (cmBrand && cmName && normEquipKey(cmName).indexOf(normEquipKey(cmBrand)) === -1) {
+          cmItemName = cmBrand + ' ' + cmName
+        }
+        var cmSpecParts = []
+        if (cmPower > 0) cmSpecParts.push(cmPower + 'W')
+        if (cmFrame) cmSpecParts.push('Frame: ' + cmFrame)
+        var cmWarranty =
+          String(catalogModuleRec.getString('warranty_manufacturing') || '').trim() ||
+          String(catalogModuleRec.getString('warranty') || '').trim() ||
+          '25 anos'
+        realModuleEntry = {
+          item: cmItemName,
+          specification: cmSpecParts.join(' · '),
+          quantity: String(modQty > 0 ? modQty : 1),
+          warranty: cmWarranty,
+        }
+      }
+      var realInverterEntries = []
+      var sizingInvList = Array.isArray(rawSizing.inverters) ? rawSizing.inverters : []
+      for (var eqIi = 0; eqIi < sizingInvList.length; eqIi++) {
+        var invEntryRaw = sizingInvList[eqIi]
+        var invIdRaw = ''
+        var invQtyRaw = 1
+        if (typeof invEntryRaw === 'string') {
+          invIdRaw = invEntryRaw
+        } else if (invEntryRaw && typeof invEntryRaw === 'object') {
+          invIdRaw = invEntryRaw.id || invEntryRaw.inverter_id || ''
+          invQtyRaw = Number(invEntryRaw.qty || invEntryRaw.quantity || 1) || 1
+        }
+        if (!invIdRaw) continue
+        var invRecEquip = null
+        try {
+          invRecEquip = $app.findFirstRecordByFilter('pv_inverters', "id = '" + invIdRaw + "'")
+        } catch (_) {}
+        if (!invRecEquip) continue
+        var ciBrand = String(invRecEquip.getString('brand') || '').trim()
+        var ciName = String(invRecEquip.getString('name') || '').trim()
+        var ciPower = invRecEquip.getFloat('power') || 0
+        var ciType = String(invRecEquip.getString('type') || '').trim()
+        var ciVoltage = String(invRecEquip.getString('voltage') || '').trim()
+        var ciItemName = ciName || ciBrand || ''
+        if (ciBrand && ciName && normEquipKey(ciName).indexOf(normEquipKey(ciBrand)) === -1) {
+          ciItemName = ciBrand + ' ' + ciName
+        }
+        var ciSpecParts = []
+        if (ciPower > 0) ciSpecParts.push(ciPower + ' kW')
+        if (ciType) ciSpecParts.push(ciType)
+        if (ciVoltage) ciSpecParts.push(ciVoltage)
+        realInverterEntries.push({
+          item: ciItemName,
+          specification: ciSpecParts.join(' · '),
+          quantity: String(invQtyRaw),
+          warranty: String(invRecEquip.getString('warranty') || '').trim() || '10 anos',
+        })
+      }
+      var finalEquipments = incomingEquipments
+      if (realModuleEntry || realInverterEntries.length > 0) {
+        finalEquipments = []
+        if (realModuleEntry) finalEquipments.push(realModuleEntry)
+        for (var eqRi = 0; eqRi < realInverterEntries.length; eqRi++) {
+          finalEquipments.push(realInverterEntries[eqRi])
+        }
+        for (var eqOi = 0; eqOi < incomingEquipments.length; eqOi++) {
+          var incEntry = incomingEquipments[eqOi] || {}
+          var incName = normEquipKey(incEntry.item)
+          var incSpec = normEquipKey(incEntry.specification)
+          var isModuleRow =
+            incName === GENERIC_MODULE_ITEM ||
+            incSpec === GENERIC_MODULE_SPEC ||
+            (realModuleEntry && incName === normEquipKey(realModuleEntry.item))
+          var isInverterRow = incName === GENERIC_INVERTER_ITEM || incSpec === GENERIC_INVERTER_SPEC
+          var isDupInverter = false
+          for (var eqDi = 0; eqDi < realInverterEntries.length; eqDi++) {
+            if (incName === normEquipKey(realInverterEntries[eqDi].item)) {
+              isDupInverter = true
+              break
+            }
+          }
+          if (!isModuleRow && !isInverterRow && !isDupInverter) {
+            finalEquipments.push(incEntry)
+          }
+        }
+      }
+      // Substitui o array de equipamentos no payload pelo reconstruído
+      rawSizing.equipments = finalEquipments
+      var resolvedCommercialConditions =
+        rawNegotiation.commercial_conditions || rawSizing.commercial_conditions || []
+
       // Financeiro e novos cálculos
       const totInv = Number(
         rawFinancial.total_investment ||
@@ -775,6 +914,7 @@ routerAdd(
           installation_lead_time: rawNegotiation.installation_lead_time || '',
           notes: rawNegotiation.notes || '',
           description: rawNegotiation.description || '',
+          commercial_conditions: resolvedCommercialConditions,
         },
         sizing: {
           kit_power_kwp: kitPower,
@@ -794,6 +934,8 @@ routerAdd(
           module_qty: modQty,
           module_quantity: modQty,
           modules_count: modQty,
+          equipments: finalEquipments,
+          commercial_conditions: resolvedCommercialConditions,
           inverters: rawSizing.inverters || [],
           consumer_category: rawSizing.consumer_category || '',
           simultaneity_factor: rawSizing.simultaneity_factor || 0,
@@ -1089,6 +1231,8 @@ routerAdd(
             'nome vendedor',
             'nome do vendedor',
             'responsavel',
+            'consultor responsavel',
+            'nome do consultor responsavel',
             'consultor comercial',
           ],
           keywords: ['consultor', 'vendedor', 'consultant', 'seller'],
