@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { cn } from '@/lib/utils'
+import { recalcPricingWithDiscount } from '@/lib/discount-recalc'
 import { ChevronDown, ChevronRight, Package } from 'lucide-react'
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -24,6 +25,11 @@ interface CostItem {
   method: string
   percentage: string
   value: number
+}
+
+/** Percentual com 2 casas decimais (padrão de exibição de margem/custos). */
+function pct2(v: number): string {
+  return (Number(v) || 0).toFixed(2)
 }
 
 interface KitItem {
@@ -64,8 +70,6 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
       const appliedCosts = pricing.appliedCosts || []
       const kitPrice = pricing.kitPrice || 0
       const marginSumVal = pricing.marginSum || 0
-      const salePrice = pricing.salePrice || 0
-      const kitComposition = pricing.kitComposition || []
       setMarginSum(marginSumVal)
 
       let costItems: CostItem[] = []
@@ -136,6 +140,23 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
       return acc + (Number(c.value) || 0)
     }, 0)
   }, [costs, kitTotal, hasKitItems])
+
+  // Recálculo REAL de custos/margem com o desconto — o MESMO módulo usado no
+  // modal de edição da proposta, para os dois exibirem sempre o mesmo valor.
+  // Sem appliedCosts/somas no snapshot, o recálculo real não é possível e cai
+  // no comportamento anterior (fórmula simples).
+  const marginRecalc = useMemo(() => {
+    if (!(proposal?.discount_amount > 0) || marginSum <= 0) return null
+    const subtotal = proposal?.price || proposal?.total_value || 0
+    const billingModel = (snapshot?.pricing?.settings?.billing_model ||
+      snapshot?.settings?.billing_model) as string | undefined
+    return recalcPricingWithDiscount({
+      subtotal,
+      discountPercent: proposal.discount_amount,
+      pricing: snapshot?.pricing,
+      billingModel,
+    })
+  }, [proposal, marginSum, snapshot])
 
   const handleCostChange = (idx: number, val: number | null) => {
     const arr = [...costs]
@@ -348,16 +369,41 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
                   <div className="flex justify-between text-sm">
                     <span className="text-amber-700">Margem Original:</span>
                     <span className="font-medium text-amber-900">
-                      {BRL.format(total * marginSum)} ({(marginSum * 100).toFixed(1)}%)
+                      {BRL.format(total * marginSum)} ({pct2(marginSum * 100)}%)
                     </span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-amber-700">Margem Ajustada:</span>
-                    <span className="font-medium text-amber-700">
-                      {BRL.format(total * marginSum - (total * proposal.discount_amount) / 100)} (
-                      {Math.max(0, marginSum * 100 - proposal.discount_amount).toFixed(1)}%)
-                    </span>
-                  </div>
+                  {marginRecalc ? (
+                    <>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-amber-700">
+                          Custos (recalc. s/ venda c/ desconto):
+                        </span>
+                        <span className="font-medium text-destructive">
+                          - {BRL.format(marginRecalc.costsTotal)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs text-amber-700/80">
+                        <span>Venda com desconto:</span>
+                        <span>{BRL.format(marginRecalc.finalTotal)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm font-semibold pt-1 border-t border-amber-200">
+                        <span className="text-amber-900">Margem Ajustada:</span>
+                        <span className="font-medium text-amber-700">
+                          {BRL.format(marginRecalc.marginAmount)} (
+                          {pct2(marginRecalc.marginPct * 100)}%)
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-amber-700">Margem Ajustada:</span>
+                      <span className="font-medium text-amber-700">
+                        {BRL.format(total * marginSum - (total * proposal.discount_amount) / 100)} (
+                        {pct2(marginSum * 100 - proposal.discount_amount)}
+                        %)
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
               <div className="bg-muted/30 p-3 rounded-lg flex justify-between text-sm">

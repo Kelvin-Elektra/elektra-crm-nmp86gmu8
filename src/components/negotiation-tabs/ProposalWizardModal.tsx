@@ -576,15 +576,13 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
           name: 'Margens e Taxas Aplicadas',
           cost: 0,
           margin: 0,
+          // Margem real: pode ser negativa com desconto grande — sem travamento.
           price: discountRecalc
-            ? Math.max(
-                0,
-                discountRecalc.marginAmount -
-                  pricingDetails.kitPrice -
-                  pricingDetails.fixedCosts -
-                  pricingDetails.varCosts -
-                  kitPercentAmt,
-              )
+            ? discountRecalc.marginAmount -
+              pricingDetails.kitPrice -
+              pricingDetails.fixedCosts -
+              pricingDetails.varCosts -
+              kitPercentAmt
             : finalPrice -
               pricingDetails.kitPrice -
               pricingDetails.fixedCosts -
@@ -1329,8 +1327,15 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
                 <div className="flex justify-between text-sm">
                   <span className="text-amber-700">Margem Original:</span>
                   <span className="font-medium text-amber-900">
-                    {BRL.format(totalValue * (rawPricingData?.marginSum || 0))} (
-                    {((rawPricingData?.marginSum || 0) * 100).toFixed(1)}%)
+                    {BRL.format(
+                      discountRecalc
+                        ? discountRecalc.baseTotal -
+                            discountRecalc.fixedCostsTotal -
+                            discountRecalc.percentCostsTotal
+                        : totalValue * (rawPricingData?.marginSum || 0),
+                    )}{' '}
+                    ({((rawPricingData?.marginSum || 0) * 100).toFixed(2)}
+                    %)
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
@@ -1363,8 +1368,8 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
                     )}{' '}
                     (
                     {discountRecalc
-                      ? (discountRecalc.marginPct * 100).toFixed(1)
-                      : Math.max(0, (rawPricingData?.marginSum || 0) * 100 - discount).toFixed(1)}
+                      ? (discountRecalc.marginPct * 100).toFixed(2)
+                      : ((rawPricingData?.marginSum || 0) * 100 - discount).toFixed(2)}
                     %)
                   </span>
                 </div>

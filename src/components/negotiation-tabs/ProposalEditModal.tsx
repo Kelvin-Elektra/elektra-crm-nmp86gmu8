@@ -149,10 +149,10 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
 
   const discountValue = subtotal * (discountPercent / 100)
   const finalTotal = subtotal - discountValue
-  const originalMarginAmount = subtotal * marginSum
   // Recálculo REAL: custos percentuais sobre a venda incidem sobre o valor já
-  // descontado; margem real = venda_final − todos os custos. Sem custos aplicados
-  // no snapshot, cai no comportamento anterior (não há base para o cálculo real).
+  // descontado; margem real = venda_final − todos os custos (pode ser negativa).
+  // Sem custos aplicados no snapshot, cai no comportamento anterior (não há base
+  // para o cálculo real).
   const recalc = useMemo(
     () =>
       recalcPricingWithDiscount({
@@ -163,10 +163,24 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
       }),
     [subtotal, discountPercent, snapshot],
   )
+  // Margem ORIGINAL (sem desconto) pela mesma engenharia do recálculo, para os
+  // dois números saírem do mesmo módulo.
+  const originalRecalc = useMemo(
+    () =>
+      recalcPricingWithDiscount({
+        subtotal,
+        discountPercent: 0,
+        pricing: snapshot?.pricing,
+        billingModel: snapshot?.settings?.billing_model,
+      }),
+    [subtotal, snapshot],
+  )
+  const originalMarginAmount = originalRecalc ? originalRecalc.marginAmount : subtotal * marginSum
   const adjustedMarginAmount = recalc ? recalc.marginAmount : originalMarginAmount - discountValue
-  const adjustedMarginPct = recalc
-    ? recalc.marginPct * 100
-    : Math.max(0, marginSum * 100 - discountPercent)
+  // Margem ajustada em % — sem travamento em zero: com desconto grande ela é
+  // negativa em R$ e em %.
+  const adjustedMarginPct = recalc ? recalc.marginPct * 100 : marginSum * 100 - discountPercent
+  const marginSumPct = originalRecalc ? originalRecalc.marginPct * 100 : marginSum * 100
   const maxDiscount = (user as any)?.max_discount || 0
   const discountExceeded = discountPercent > maxDiscount
 
@@ -559,7 +573,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
               <div className="flex justify-between text-sm">
                 <span className="text-amber-700">Margem Original:</span>
                 <span className="font-medium text-amber-900">
-                  {BRL.format(originalMarginAmount)} ({(marginSum * 100).toFixed(1)}%)
+                  {BRL.format(originalMarginAmount)} ({marginSumPct.toFixed(2)}%)
                 </span>
               </div>
               <div className="flex justify-between text-sm">
@@ -579,7 +593,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
               <div className="flex justify-between text-sm font-semibold pt-1 border-t border-amber-200">
                 <span className="text-amber-900">Margem Ajustada:</span>
                 <span className="text-amber-700">
-                  {BRL.format(adjustedMarginAmount)} ({adjustedMarginPct.toFixed(1)}%)
+                  {BRL.format(adjustedMarginAmount)} ({adjustedMarginPct.toFixed(2)}%)
                 </span>
               </div>
             </div>
