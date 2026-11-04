@@ -39,6 +39,7 @@ import {
   buildEquipmentsArray,
   buildCommercialConditionsArray,
 } from '@/lib/solar-calculations'
+import { recalcPricingWithDiscount } from '@/lib/discount-recalc'
 import { Plus, Trash2 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -149,8 +150,23 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
   const discountValue = subtotal * (discountPercent / 100)
   const finalTotal = subtotal - discountValue
   const originalMarginAmount = subtotal * marginSum
-  const adjustedMarginAmount = originalMarginAmount - discountValue
-  const adjustedMarginPct = Math.max(0, marginSum * 100 - discountPercent)
+  // Recálculo REAL: custos percentuais sobre a venda incidem sobre o valor já
+  // descontado; margem real = venda_final − todos os custos. Sem custos aplicados
+  // no snapshot, cai no comportamento anterior (não há base para o cálculo real).
+  const recalc = useMemo(
+    () =>
+      recalcPricingWithDiscount({
+        subtotal,
+        discountPercent,
+        pricing: snapshot?.pricing,
+        billingModel: snapshot?.settings?.billing_model,
+      }),
+    [subtotal, discountPercent, snapshot],
+  )
+  const adjustedMarginAmount = recalc ? recalc.marginAmount : originalMarginAmount - discountValue
+  const adjustedMarginPct = recalc
+    ? recalc.marginPct * 100
+    : Math.max(0, marginSum * 100 - discountPercent)
   const maxDiscount = (user as any)?.max_discount || 0
   const discountExceeded = discountPercent > maxDiscount
 
@@ -223,6 +239,8 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           const consultantName =
             (proposal as any)?.consultant_name ||
             (proposal as any)?.expand?.negotiation_id?.expand?.owner_id?.name ||
+            (proposal as any)?.expand?.owner_id?.name ||
+            user?.name ||
             'Consultor Elektra'
           const proposalNumber = proposal.id || ''
           const proposalDate = formatProposalDate(proposal.created)
@@ -421,6 +439,22 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           }
 
           updatedSnapshot.calc_snapshot = calcSnapshot
+          // Persiste o recálculo REAL de custos/margem com o desconto aplicado
+          // (custos-base originais preservados em appliedCosts[].value)
+          if (recalc && updatedSnapshot.pricing) {
+            updatedSnapshot.pricing = {
+              ...updatedSnapshot.pricing,
+              appliedCosts: recalc.appliedCosts,
+              salePriceWithDiscount: recalc.finalTotal,
+              discount: {
+                percent: recalc.discountPercent,
+                value: recalc.discountValue,
+                base: recalc.baseTotal,
+              },
+              marginFinal: recalc.marginAmount,
+              marginFinalPct: recalc.marginPct,
+            }
+          }
           // Obter schemas dinâmicos se possível para filtrar o fixed_data e enriquecer semanticamente
           let templateFields: any[] | undefined = undefined
           let dynamicSchema: any = undefined
@@ -529,9 +563,19 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-amber-700">Desconto Aplicado:</span>
-                <span className="font-medium text-destructive">- {BRL.format(discountValue)}</span>
+                <span className="text-amber-700">
+                  {recalc ? 'Custos (recalc. s/ venda c/ desconto):' : 'Desconto Aplicado:'}
+                </span>
+                <span className="font-medium text-destructive">
+                  - {BRL.format(recalc ? recalc.costsTotal : discountValue)}
+                </span>
               </div>
+              {recalc && (
+                <div className="flex justify-between text-xs text-amber-700/80">
+                  <span>Venda com desconto:</span>
+                  <span>{BRL.format(recalc.finalTotal)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-sm font-semibold pt-1 border-t border-amber-200">
                 <span className="text-amber-900">Margem Ajustada:</span>
                 <span className="text-amber-700">

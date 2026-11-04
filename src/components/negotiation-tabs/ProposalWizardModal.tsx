@@ -38,6 +38,7 @@ import {
 } from '@/lib/financial-analysis'
 import { createGeneratorProposal, getTemplatesResponse } from '@/services/templates'
 import { enrichPayloadWithSemanticVariables } from '@/lib/semantic-mapper'
+import { recalcPricingWithDiscount } from '@/lib/discount-recalc'
 import {
   calculateConsumptionCoverage,
   calculateOccupiedArea,
@@ -450,6 +451,20 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
     setLoading(true)
     try {
       const finalPrice = totalValue * (1 - discount / 100)
+      // Recálculo REAL com desconto: custos percentuais sobre a venda (impostos,
+      // comissões) incidem sobre o valor JÁ descontado; margem real = venda_final
+      // − todos os custos. Sem custos aplicados, mantém o comportamento anterior.
+      const discountRecalc = recalcPricingWithDiscount({
+        subtotal: totalValue,
+        discountPercent: discount,
+        pricing: rawPricingData
+          ? {
+              ...rawPricingData,
+              kitPrice: pricingDetails?.kitPrice ?? rawPricingData?.autoKitPrice,
+            }
+          : undefined,
+        billingModel: rawPricingData?.settings?.billing_model,
+      })
 
       const consumerCategory = neg.sizing?.consumer_category || ''
       const simultaneityFactor =
@@ -497,6 +512,9 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
       const snapshotData = {
         sizing: neg.sizing || {},
         pricing: pricingDetails,
+        // Recálculo real de custos/margem com desconto (percentuais sobre a venda
+        // incidindo sobre o valor já descontado; margem real = resto)
+        pricing_recalc: discountRecalc,
         installation_lead_time: installationLeadTime,
         accepted_payment_methods: acceptedPaymentMethods,
         defined_payment_method: definedPaymentMethod,
@@ -543,12 +561,20 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
           name: 'Margens e Taxas Aplicadas',
           cost: 0,
           margin: 0,
-          price:
-            finalPrice -
-            pricingDetails.kitPrice -
-            pricingDetails.fixedCosts -
-            pricingDetails.varCosts -
-            kitPercentAmt,
+          price: discountRecalc
+            ? Math.max(
+                0,
+                discountRecalc.marginAmount -
+                  pricingDetails.kitPrice -
+                  pricingDetails.fixedCosts -
+                  pricingDetails.varCosts -
+                  kitPercentAmt,
+              )
+            : finalPrice -
+              pricingDetails.kitPrice -
+              pricingDetails.fixedCosts -
+              pricingDetails.varCosts -
+              kitPercentAmt,
         },
       ]
 
@@ -776,6 +802,21 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
       const calcSnapshot = {
         frozen_at: new Date().toISOString(),
         annual_degradation: annualDegradation,
+        // Recálculo real de custos/margem com desconto (percentuais sobre a venda
+        // recalculados sobre o valor já descontado; margem real = resto)
+        discount_recalc: discountRecalc
+          ? {
+              percent: discountRecalc.discountPercent,
+              value: discountRecalc.discountValue,
+              base_total: discountRecalc.baseTotal,
+              final_total: discountRecalc.finalTotal,
+              percent_costs_total: discountRecalc.percentCostsTotal,
+              fixed_costs_total: discountRecalc.fixedCostsTotal,
+              costs_total: discountRecalc.costsTotal,
+              margin_amount: discountRecalc.marginAmount,
+              margin_pct: discountRecalc.marginPct,
+            }
+          : null,
         annual_tariff_adjustment: annualTariffAdjustment,
         simultaneity_factor: simultaneityFactor,
         tariff_details: tariffDetails || {},
@@ -1274,18 +1315,37 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-amber-700">Desconto Aplicado:</span>
+                  <span className="text-amber-700">
+                    {discountRecalc
+                      ? 'Custos (recalc. s/ venda c/ desconto):'
+                      : 'Desconto Aplicado:'}
+                  </span>
                   <span className="font-medium text-destructive">
-                    - {BRL.format((totalValue * discount) / 100)}
+                    -{' '}
+                    {BRL.format(
+                      discountRecalc ? discountRecalc.costsTotal : (totalValue * discount) / 100,
+                    )}
                   </span>
                 </div>
+                {discountRecalc && (
+                  <div className="flex justify-between text-xs text-amber-700/80">
+                    <span>Venda com desconto:</span>
+                    <span>{BRL.format(discountRecalc.finalTotal)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm font-semibold pt-1 border-t border-amber-200">
                   <span className="text-amber-900">Margem Ajustada:</span>
                   <span className="text-amber-700">
                     {BRL.format(
-                      totalValue * (rawPricingData?.marginSum || 0) - (totalValue * discount) / 100,
+                      discountRecalc
+                        ? discountRecalc.marginAmount
+                        : totalValue * (rawPricingData?.marginSum || 0) -
+                            (totalValue * discount) / 100,
                     )}{' '}
-                    ({Math.max(0, (rawPricingData?.marginSum || 0) * 100 - discount).toFixed(1)}
+                    (
+                    {discountRecalc
+                      ? (discountRecalc.marginPct * 100).toFixed(1)
+                      : Math.max(0, (rawPricingData?.marginSum || 0) * 100 - discount).toFixed(1)}
                     %)
                   </span>
                 </div>
