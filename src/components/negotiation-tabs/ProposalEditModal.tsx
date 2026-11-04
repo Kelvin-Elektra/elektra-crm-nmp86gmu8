@@ -444,7 +444,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           if (recalc && updatedSnapshot.pricing) {
             updatedSnapshot.pricing = {
               ...updatedSnapshot.pricing,
-              appliedCosts: recalc.appliedCosts,
+              appliedCosts: recalc.appliedCosts as any,
               salePriceWithDiscount: recalc.finalTotal,
               discount: {
                 percent: recalc.discountPercent,

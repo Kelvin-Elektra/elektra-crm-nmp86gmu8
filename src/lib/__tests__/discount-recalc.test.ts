@@ -1,11 +1,18 @@
 import { describe, it, expect } from 'vitest'
 import { recalcPricingWithDiscount, isPercentOfSaleMethod } from '../discount-recalc'
+import type { PricingLike } from '../discount-recalc'
 
-const basePricing = {
+const basePricing: PricingLike = {
   kitPrice: 10000,
   marginSum: 0.25,
   appliedCosts: [
-    { name: 'Impostos', method: 'tax', value: 10, taxWeight: 100, calculatedAmount: 2000 },
+    {
+      name: 'Impostos',
+      method: 'tax',
+      value: 10,
+      taxWeight: 100,
+      calculatedAmount: 2000,
+    },
     { name: 'Comissão', method: 'commission', value: 5, calculatedAmount: 1000 },
     { name: 'Frete', method: 'fixed', calculatedAmount: 500 },
     { name: 'Insumos', method: 'kit_percent', value: 2, calculatedAmount: 200 },
@@ -44,7 +51,7 @@ describe('recalcPricingWithDiscount', () => {
   })
 
   it('imposto com peso incide proporcionalmente sobre a base descontada', () => {
-    const pricing = {
+    const pricing: PricingLike = {
       kitPrice: 0,
       appliedCosts: [
         { name: 'ICMS', method: 'tax', value: 12, taxWeight: 50, calculatedAmount: 600 },

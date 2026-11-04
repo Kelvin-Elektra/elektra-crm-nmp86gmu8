@@ -38,7 +38,7 @@ import {
 } from '@/lib/financial-analysis'
 import { createGeneratorProposal, getTemplatesResponse } from '@/services/templates'
 import { enrichPayloadWithSemanticVariables } from '@/lib/semantic-mapper'
-import { recalcPricingWithDiscount } from '@/lib/discount-recalc'
+import { recalcPricingWithDiscount, type DiscountRecalcResult } from '@/lib/discount-recalc'
 import {
   calculateConsumptionCoverage,
   calculateOccupiedArea,
@@ -76,6 +76,9 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
   const [totalValue, setTotalValue] = useState(0)
   const [pricingDetails, setPricingDetails] = useState<any>(null)
   const [rawPricingData, setRawPricingData] = useState<any>(null)
+  // Recálculo real de custos/margem com o desconto informado (null se não houver
+  // base de custos) — usado no resumo "Impacto na Margem Real".
+  const [discountRecalc, setDiscountRecalc] = useState<DiscountRecalcResult | null>(null)
 
   const [pricingMode, setPricingMode] = useState<'automatic' | 'manual'>('automatic')
   const [manualKitValue, setManualKitValue] = useState<number>(0)
@@ -176,7 +179,19 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
       kitPercentAmount,
       appliedCosts: updatedAppliedCosts,
     })
-  }, [rawPricingData, pricingMode, manualKitValue, neg.sizing])
+    // Recálculo real de custos/margem para o desconto atual (exibição no resumo)
+    setDiscountRecalc(
+      recalcPricingWithDiscount({
+        subtotal: salePrice,
+        discountPercent: discount,
+        pricing: {
+          ...rawPricingData,
+          kitPrice: safeKitPrice,
+        },
+        billingModel: settings?.billing_model,
+      }),
+    )
+  }, [rawPricingData, pricingMode, manualKitValue, neg.sizing, discount])
 
   const loadPricingData = async () => {
     try {
@@ -644,7 +659,11 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
       }
 
       const consultantName =
-        neg.owner_name || neg.expand?.owner_id?.name || user?.name || 'Consultor Elektra'
+        neg.owner_name ||
+        neg.expand?.owner_id?.name ||
+        (neg.owner_id && typeof neg.owner_id === 'string' ? neg.owner_id : '') ||
+        user?.name ||
+        'Consultor Elektra'
       const proposalDate = formatProposalDate(new Date())
       const validityDays = extractValidityDays(validity, new Date(), 10)
 
