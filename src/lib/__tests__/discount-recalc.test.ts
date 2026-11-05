@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { recalcPricingWithDiscount, isPercentOfSaleMethod } from '../discount-recalc'
+import { recalcPricingWithDiscount, isPercentOfSaleMethod, PricingLike } from '../discount-recalc'
 
 /**
  * Exemplo do usuário: margem 20%, comissão 4%, imposto 15%. Custos que não
@@ -151,5 +151,95 @@ describe('targetSalePrice direto', () => {
     expect(res?.finalTotal).toBe(100000)
     expect(res?.discountPercent).toBe(0)
     expect(res?.discountValue).toBe(0)
+  })
+})
+
+describe('Edição manual de custos em R$ (desembaraçamento de variáveis no motor 2)', () => {
+  it('exemplo numérico do usuário: kit+fixos 20.000, margem 20%, comissão 4%, imposto 15%, comissão editada para 900', () => {
+    // Venda original = 20.000 / (1 - 0.20 - 0.04 - 0.15) = 20.000 / 0.61 = 32.786,8852...
+    const originalSubtotal = 20000 / 0.61
+    const pricing: PricingLike = {
+      kitPrice: 20000,
+      marginSum: 0.2,
+      appliedCosts: [
+        { name: 'Comissão', method: 'commission', value: 4 },
+        { name: 'Impostos', method: 'tax', value: 15, taxWeight: 100 },
+        { name: 'Margem', method: 'margin', value: 20 },
+      ],
+    }
+
+    const res = recalcPricingWithDiscount({
+      subtotal: originalSubtotal,
+      pricing,
+      costOverrides: {
+        Comissão: 900,
+      },
+    })
+
+    expect(res).not.toBeNull()
+    // Nova Venda = (20.000 + 900) / (1 - 0.20 - 0.15) = 20.900 / 0.65 = 32.153,846...
+    expect(res!.finalTotal).toBeCloseTo(32153.85, 2)
+    // Margem = 32.153,85 * 0.20 = 6.430,77
+    expect(res!.marginAmount).toBeCloseTo(6430.77, 2)
+
+    // Detalhe do custo Comissão: deve ser exatamente 900
+    const comissaoItem = res!.appliedCosts.find((c) => c.name === 'Comissão')
+    expect(comissaoItem?.calculatedAmount).toBe(900)
+    expect(comissaoItem?.manualFixedAmount).toBe(900)
+    // Alíquota implícita gravada: 900 / 32.153,85 = 2.80%
+    expect(comissaoItem?.implicitRate).toBeCloseTo(2.8, 2)
+
+    // Imposto restante: 15% de 32.153,85 = 4.823,08
+    const impostoItem = res!.appliedCosts.find((c) => c.name === 'Impostos')
+    expect(impostoItem?.calculatedAmount).toBeCloseTo(4823.08, 2)
+
+    // Soma fecha no centavo: 20.000 + 900 + 4.823,08 + 6.430,77 = 32.153,85
+    const totalSoma = 20000 + 900 + impostoItem!.calculatedAmount! + res!.marginAmount
+    expect(totalSoma).toBeCloseTo(res!.finalTotal, 2)
+  })
+
+  it('guard do denominador: se alíquotas restantes somam >= 100%, bloqueia', () => {
+    const pricing: PricingLike = {
+      kitPrice: 20000,
+      marginSum: 0.5,
+      appliedCosts: [
+        { name: 'Taxa A', method: 'rate', value: 30 },
+        { name: 'Taxa B', method: 'rate', value: 20 },
+        { name: 'Comissão', method: 'commission', value: 10 },
+      ],
+    }
+    // remaining = 0.50 + 0.30 + 0.20 = 1.00 (100%) quando comissão é editada
+    const res = recalcPricingWithDiscount({
+      subtotal: 50000,
+      pricing,
+      costOverrides: {
+        Comissão: 100,
+      },
+    })
+    expect(res).toBeNull()
+  })
+
+  it('permite sobrescrita de item fixo em R$ recalculando a venda base', () => {
+    const pricing: PricingLike = {
+      kitPrice: 10000,
+      marginSum: 0.2,
+      appliedCosts: [
+        { name: 'Engenharia', method: 'fixed', value: 1000 },
+        { name: 'Imposto', method: 'tax', value: 10 },
+      ],
+    }
+    // original: (10000 + 1000) / 0.7 = 11000 / 0.7 = 15714.28
+    // com Engenharia = 2000: (10000 + 2000) / 0.7 = 12000 / 0.7 = 17142.86
+    const res = recalcPricingWithDiscount({
+      subtotal: 11000 / 0.7,
+      pricing,
+      costOverrides: {
+        Engenharia: 2000,
+      },
+    })
+    expect(res).not.toBeNull()
+    expect(res!.finalTotal).toBeCloseTo(17142.86, 2)
+    const engItem = res!.appliedCosts.find((c) => c.name === 'Engenharia')
+    expect(engItem?.calculatedAmount).toBe(2000)
   })
 })

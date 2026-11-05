@@ -33,6 +33,11 @@ export interface AppliedCostLike {
   calcBase?: string
   baseValue?: number
   taxWeight?: number
+  /** Se o custo foi editado manualmente em R$ (transformado em constante) */
+  manualFixedAmount?: number | null
+  /** Alíquota implícita gravada para auditoria quando item percentual foi editado em R$ */
+  implicitRate?: number | null
+  isOverridden?: boolean
 }
 
 export interface PricingLike {
@@ -49,13 +54,24 @@ export interface PricingLike {
   settings?: Record<string, any>
 }
 
+/** Sobrescrita manual por item de custo */
+export interface CostManualOverride {
+  /** Identificador do item (nome ou índice) */
+  costName: string
+  /** Novo valor total fixado em R$ */
+  manualAmount: number
+}
+
 export interface DiscountRecalcInput {
   subtotal: number
   discountPercent?: number
   targetSalePrice?: number
   pricing?: PricingLike | null
   billingModel?: string | null
+  /** Sobrescritas manuais de custos individuais em R$ */
+  costOverrides?: Record<string, number> | CostManualOverride[]
 }
+
 export interface DiscountRecalcResult {
   baseTotal: number
   discountPercent: number
@@ -79,7 +95,12 @@ export interface DiscountRecalcResult {
     label: string
     amount: number
     base: 'final_total' | 'kit' | 'fixed'
+    implicitRate?: number
+    isManual?: boolean
   }>
+  /** Informações sobre o recálculo com itens desembaraçados */
+  unresolvedSum?: number
+  denominatorWarning?: string | null
 }
 
 const safe = (v: any, fallback = 0): number => {
@@ -138,6 +159,40 @@ function percentValueOf(cost: AppliedCostLike, baseTotal: number): number {
  * Retorna null quando não há base de custos para recalcular (sem appliedCosts
  * e sem somas agregadas) — não inventa cálculo.
  */
+/** Normaliza o mapa de sobrescritas manuais (por nome ou objeto) */
+function normalizeOverrides(
+  overrides?: Record<string, number> | CostManualOverride[],
+): Map<string, number> {
+  const map = new Map<string, number>()
+  if (!overrides) return map
+  if (Array.isArray(overrides)) {
+    for (const item of overrides) {
+      if (item && item.costName) {
+        map.set(item.costName, safe(item.manualAmount))
+      }
+    }
+  } else if (typeof overrides === 'object') {
+    for (const [key, val] of Object.entries(overrides)) {
+      if (val !== null && val !== undefined) {
+        map.set(key, safe(val))
+      }
+    }
+  }
+  return map
+}
+
+/**
+ * Recalcula custos e margem sobre o valor JÁ descontado ou com itens editados
+ * manualmente em R$ (transformados em constantes no numerador).
+ *
+ * Aceita:
+ * 1) costOverrides: mapa de { nome_do_custo: valor_em_reais }
+ *    - Itens fixos: viram o novo valor no numerador
+ *    - Itens variáveis (R$ x kWp/mods): derivam valor total fixo no numerador
+ *    - Itens percentuais (% sobre venda): SAEM do denominador e ENTRAM no numerador como R$
+ *    - Denominador = 1 - soma(alíquotas restantes). GUARD: se soma >= 1 (ou denom <= 0.001) bloqueia.
+ * 2) Desconto via discountPercent ou targetSalePrice (sobre a venda base resultante)
+ */
 export function recalcPricingWithDiscount(input: DiscountRecalcInput): DiscountRecalcResult | null {
   const { subtotal } = input
   const pricing = input.pricing
@@ -145,36 +200,11 @@ export function recalcPricingWithDiscount(input: DiscountRecalcInput): DiscountR
   if (!pricing) return null
   if (!Number.isFinite(subtotal) || subtotal <= 0) return null
 
-  let finalTotal: number
-  let discountValue: number
-  let discountPercent: number
-
-  if (typeof input.targetSalePrice === 'number' && Number.isFinite(input.targetSalePrice)) {
-    // Modo valor de venda direto
-    finalTotal = input.targetSalePrice
-    discountValue = subtotal - finalTotal
-    discountPercent = subtotal > 0 ? (discountValue / subtotal) * 100 : 0
-  } else {
-    const rawPct =
-      typeof input.discountPercent === 'number' && Number.isFinite(input.discountPercent)
-        ? input.discountPercent
-        : 0
-    if (rawPct < 0) return null
-    discountPercent = rawPct
-    const scale = 1 - safe(discountPercent) / 100
-    finalTotal = subtotal * scale
-    discountValue = subtotal - finalTotal
-  }
-
-  const baseTotal = subtotal
   const billingModel = input.billingModel || pricing.settings?.billing_model || 'direct'
   const intermediated = billingModel === 'intermediated'
 
   // Kit: manual (pricing.kitPrice) tem precedência sobre o automático.
   let kitPrice = safe(pricing.kitPrice, NaN) || safe(pricing.autoKitPrice, 0) || 0
-
-  // Base de imposto: em modelo intermediado o imposto não incide sobre o kit.
-  const taxBaseOf = (sale: number) => (intermediated ? Math.max(0, sale - kitPrice) : sale)
 
   const costs = Array.isArray(pricing.appliedCosts) ? pricing.appliedCosts : []
   const aggPercent = safe(pricing.rateSum) + safe(pricing.taxSum) + safe(pricing.commissionSum)
@@ -187,17 +217,122 @@ export function recalcPricingWithDiscount(input: DiscountRecalcInput): DiscountR
     if (kitCost) kitPrice = fixedAmountOf(kitCost, 0)
   }
 
+  const overrideMap = normalizeOverrides(input.costOverrides)
+  const hasManualOverrides = overrideMap.size > 0
+
+  // Se há itens manuais, recalculamos a VENDA BASE via fórmula exata:
+  // Numerador C_num = Kit + kitPercentAmount + fixos + variáveis + itens_percentuais_desembaraçados(R$)
+  // Denominador = 1 - sum(alíquotas_restantes_sobre_venda) - marginSum
+  // Em modelo intermediado: impostos não incidem sobre o kit; se imposto NÃO foi desembaraçado,
+  // termo (1 - T_restante)*Kit entra no numerador.
+  let calculatedBaseSale = subtotal
+  let denominatorWarning: string | null = null
+
+  if (hasManualOverrides) {
+    let fixedNumerator = kitPrice
+    let remainingRateSum = 0
+    let remainingTaxSum = 0
+    let remainingMarginSum = marginSumVal
+
+    // Checa se o kit em si foi sobrescrito
+    if (overrideMap.has('kit') || overrideMap.has('Kit Fotovoltaico (Equipamentos e Insumos)')) {
+      const kitOv =
+        overrideMap.get('kit') ?? overrideMap.get('Kit Fotovoltaico (Equipamentos e Insumos)')!
+      kitPrice = kitOv
+      fixedNumerator = kitOv
+    }
+
+    for (let i = 0; i < costs.length; i++) {
+      const cost = costs[i]
+      if (cost.method === 'kit') continue
+
+      const isOverridden = cost.name ? overrideMap.has(cost.name) : false
+      const overrideVal = isOverridden ? overrideMap.get(cost.name!)! : 0
+
+      if (cost.method === 'margin') {
+        if (isOverridden) {
+          // Se a margem foi fixada em R$, sai do denominador e entra no numerador
+          fixedNumerator += overrideVal
+          remainingMarginSum = 0
+        }
+        continue
+      }
+
+      if (isPercentOfSaleMethod(cost.method)) {
+        if (isOverridden) {
+          // Desembaraçado: alíquota sai do denominador e vira termo constante no numerador!
+          fixedNumerator += overrideVal
+        } else {
+          const pct = percentValueOf(cost, subtotal) / 100
+          if (cost.method === 'tax') {
+            const weight = safe(cost.taxWeight, 100) / 100
+            remainingTaxSum += pct * weight
+          } else {
+            remainingRateSum += pct
+          }
+        }
+        continue
+      }
+
+      if (isFixedLikeMethod(cost.method)) {
+        if (isOverridden) {
+          fixedNumerator += overrideVal
+        } else {
+          fixedNumerator += fixedAmountOf(cost, kitPrice)
+        }
+      }
+    }
+
+    // Denominador restante
+    // Em modelo direto: Denom = 1 - remainingRateSum - remainingTaxSum - remainingMarginSum
+    // Em modelo intermediado: imposto não incide sobre o Kit.
+    // Venda = (fixed_sem_kit + (1 - T)*Kit + desembaraçados) / (1 - R - T - M)
+    const totalRemainingRate = remainingRateSum + remainingTaxSum + remainingMarginSum
+    const denominator = 1 - totalRemainingRate
+
+    if (denominator <= 0.001) {
+      denominatorWarning = `Soma das alíquotas restantes (${(totalRemainingRate * 100).toFixed(2)}%) é igual ou superior a 100%. A equação não possui solução positiva.`
+      return null
+    }
+
+    if (intermediated && remainingTaxSum > 0) {
+      // Numerador ajustado para intermediado:
+      // Venda = (outros_fixos + desembaraçados + (1 - remainingTaxSum)*Kit) / denominator
+      const nonKitFixed = fixedNumerator - kitPrice
+      calculatedBaseSale = (nonKitFixed + (1 - remainingTaxSum) * kitPrice) / denominator
+    } else {
+      calculatedBaseSale = fixedNumerator / denominator
+    }
+  }
+
+  const effectiveBaseSale = hasManualOverrides ? calculatedBaseSale : subtotal
+
+  let finalTotal: number
+  let discountValue: number
+  let discountPercent: number
+
+  if (typeof input.targetSalePrice === 'number' && Number.isFinite(input.targetSalePrice)) {
+    finalTotal = input.targetSalePrice
+    discountValue = effectiveBaseSale - finalTotal
+    discountPercent = effectiveBaseSale > 0 ? (discountValue / effectiveBaseSale) * 100 : 0
+  } else {
+    const rawPct =
+      typeof input.discountPercent === 'number' && Number.isFinite(input.discountPercent)
+        ? input.discountPercent
+        : 0
+    if (rawPct < 0) return null
+    discountPercent = rawPct
+    const scale = 1 - safe(discountPercent) / 100
+    finalTotal = effectiveBaseSale * scale
+    discountValue = effectiveBaseSale - finalTotal
+  }
+
+  // Base de imposto
+  const taxBaseOf = (sale: number) => (intermediated ? Math.max(0, sale - kitPrice) : sale)
+
   const detail: DiscountRecalcResult['detail'] = []
   const outCosts: AppliedCostLike[] = costs.map((c) => ({ ...c }))
 
-  /**
-   * Decomposição para uma dada venda (finalTotal ou baseTotal).
-   * percentCosts: taxas/impostos/comissões incidem sobre a venda corrente.
-   * fixedCostsTotal: TODOS os custos que não dependem da venda (kit incluído,
-   * contado UMA única vez — itens method 'kit' em appliedCosts são ignorados
-   * para não duplicar com pricing.kitPrice).
-   * margin: RESTO da venda — pode ser negativa.
-   */
   const decompose = (sale: number) => {
     let percentCosts = 0
     let fixedCosts = 0
@@ -205,67 +340,95 @@ export function recalcPricingWithDiscount(input: DiscountRecalcInput): DiscountR
     if (costs.length > 0) {
       for (let i = 0; i < costs.length; i++) {
         const cost = costs[i]
+        const isOverridden = cost.name ? overrideMap.has(cost.name) : false
+        const manualAmount = isOverridden ? overrideMap.get(cost.name!)! : null
+
+        if (cost.method === 'margin') continue
+        if (cost.method === 'kit') continue
+
         if (isPercentOfSaleMethod(cost.method)) {
-          const pctValue = percentValueOf(cost, baseTotal)
-          let amount: number
-          if (cost.method === 'tax') {
-            const weight = safe(cost.taxWeight, 100) / 100
-            amount = taxBaseOf(sale) * (pctValue / 100) * weight
+          if (isOverridden && manualAmount !== null) {
+            // Item desembaraçado vira CONSTANTE no cálculo
+            fixedCosts += manualAmount
+            const implicitRate = sale > 0 ? (manualAmount / sale) * 100 : 0
+            if (sale === finalTotal) {
+              outCosts[i].calculatedAmount = manualAmount
+              outCosts[i].manualFixedAmount = manualAmount
+              outCosts[i].implicitRate = implicitRate
+              outCosts[i].isOverridden = true
+              detail.push({
+                name: cost.name || cost.method,
+                label: `Fixo manual R$ ${manualAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (alíquota implícita: ${implicitRate.toFixed(2)}%)`,
+                amount: manualAmount,
+                base: 'fixed',
+                implicitRate,
+                isManual: true,
+              })
+            }
           } else {
-            // rate, commission
-            amount = sale * (pctValue / 100)
-          }
-          percentCosts += amount
-          if (sale === finalTotal) {
-            outCosts[i].calculatedAmount = amount
-            detail.push({
-              name: cost.name || cost.method,
-              label:
-                cost.method === 'tax'
-                  ? `${pctValue}%${safe(cost.taxWeight, 100) !== 100 ? ` (peso ${safe(cost.taxWeight)}%)` : ''} s/ venda c/ desconto`
-                  : `${pctValue}% s/ venda c/ desconto`,
-              amount,
-              base: 'final_total',
-            })
+            const pctValue = percentValueOf(cost, effectiveBaseSale)
+            let amount: number
+            if (cost.method === 'tax') {
+              const weight = safe(cost.taxWeight, 100) / 100
+              amount = taxBaseOf(sale) * (pctValue / 100) * weight
+            } else {
+              amount = sale * (pctValue / 100)
+            }
+            percentCosts += amount
+            if (sale === finalTotal) {
+              outCosts[i].calculatedAmount = amount
+              detail.push({
+                name: cost.name || cost.method,
+                label:
+                  cost.method === 'tax'
+                    ? `${pctValue.toFixed(2)}%${safe(cost.taxWeight, 100) !== 100 ? ` (peso ${safe(cost.taxWeight)}%)` : ''} s/ venda`
+                    : `${pctValue.toFixed(2)}% s/ venda`,
+                amount,
+                base: 'final_total',
+              })
+            }
           }
           continue
         }
-        // "margin" não é custo: a margem real é re-derivada como resto abaixo.
-        // "kit" também não: o kit entra uma única vez via pricing.kitPrice.
-        if (cost.method === 'margin' || cost.method === 'kit') continue
+
         if (isFixedLikeMethod(cost.method)) {
-          const amount = fixedAmountOf(cost, kitPrice)
+          const amount =
+            isOverridden && manualAmount !== null ? manualAmount : fixedAmountOf(cost, kitPrice)
           fixedCosts += amount
           if (sale === finalTotal) {
             outCosts[i].calculatedAmount = amount
+            if (isOverridden) {
+              outCosts[i].manualFixedAmount = manualAmount
+              outCosts[i].isOverridden = true
+            }
             detail.push({
               name: cost.name || cost.method,
               label:
                 cost.method === 'kit_percent'
-                  ? `${safe(cost.value)}% s/ kit (inalterado)`
-                  : 'Valor fixo (inalterado)',
+                  ? `${safe(cost.value).toFixed(2)}% s/ kit`
+                  : isOverridden
+                    ? 'Valor fixo manual'
+                    : 'Valor fixo',
               amount,
               base: cost.method === 'kit_percent' ? 'kit' : 'fixed',
+              isManual: isOverridden,
             })
           }
         }
       }
-      // O kit em si é custo fixo: entra uma única vez aqui.
       fixedCosts += kitPrice
     } else {
-      // Fallback sem appliedCosts: reconstrói pela engenharia de preço do motor
-      // (venda_base = custos_base / (1 − rate − tax − commission − margin)).
+      // Fallback sem appliedCosts
       const denominator = 1 - aggPercent - marginSumVal
       percentCosts =
         sale * (safe(pricing.rateSum) + safe(pricing.commissionSum)) +
         taxBaseOf(sale) * safe(pricing.taxSum)
-      // Custos fixos = parte da venda_base que não é percentual nem margem;
-      // no intermediado o imposto "poupa" o kit, então T×kit volta como custo.
-      fixedCosts = baseTotal * denominator + (intermediated ? safe(pricing.taxSum) * kitPrice : 0)
+      fixedCosts =
+        effectiveBaseSale * denominator + (intermediated ? safe(pricing.taxSum) * kitPrice : 0)
       if (sale === finalTotal) {
         detail.push({
           name: 'percentuais_agregados',
-          label: 'Taxas + impostos + comissões (soma agregada, s/ venda c/ desconto)',
+          label: 'Taxas + impostos + comissões',
           amount: percentCosts,
           base: 'final_total',
         })
@@ -273,18 +436,16 @@ export function recalcPricingWithDiscount(input: DiscountRecalcInput): DiscountR
     }
 
     const costsTotal = percentCosts + fixedCosts
-    // Margem real = RESTO. Sem travamento em zero: pode (e deve) ser negativa
-    // quando o desconto é grande — em R$ e em %.
     const marginAmount = sale - costsTotal
     const marginPct = sale > 0 ? marginAmount / sale : 0
     return { percentCosts, fixedCosts, costsTotal, marginAmount, marginPct }
   }
 
   const discounted = decompose(finalTotal)
-  const base = decompose(baseTotal)
+  const base = decompose(effectiveBaseSale)
 
   return {
-    baseTotal,
+    baseTotal: effectiveBaseSale,
     discountPercent: safe(discountPercent),
     discountValue,
     finalTotal,
@@ -297,5 +458,6 @@ export function recalcPricingWithDiscount(input: DiscountRecalcInput): DiscountR
     baseMarginPct: base.marginPct,
     appliedCosts: outCosts,
     detail,
+    denominatorWarning,
   }
 }
