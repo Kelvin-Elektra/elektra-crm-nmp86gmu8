@@ -228,6 +228,8 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
   const hasKitItems = kitItems.length > 0
 
   // Objeto PricingLike com os dados atuais da proposta
+  // Usa originalValue como baseline estável para que itens percentuais possam recalcular
+  // dinamicamente em tempo real sobre a nova base de venda sem perder a referência original
   const basePricingLike = useMemo(() => {
     const rawPricing = snapshot?.pricing || {}
     const rawSettings = rawPricing.settings || snapshot?.settings || {}
@@ -237,8 +239,8 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
       name: c.name,
       method: c.method as any,
       value: c.rawValue ?? c.value,
-      amount: c.value,
-      calculatedAmount: c.value,
+      amount: c.originalValue ?? c.value,
+      calculatedAmount: c.originalValue ?? c.value,
       taxWeight: c.taxWeight,
       multiplier: c.multiplier,
       calcBase: c.calcBase,
@@ -341,6 +343,23 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
     snapshot,
     manualCostOverrides,
   ])
+
+  // Map rápido com os valores recalculados em tempo real de cada custo (motor 2)
+  // Permite que a tabela de custos mostre na hora os novos valores dos itens percentuais
+  // (impostos, comissão, etc.) e os itens editados, enquanto fixos não-editados mantêm o valor.
+  const recalculatedAmountsMap = useMemo(() => {
+    const map = new Map<string, number>()
+    // Se há desconto ou recálculo ativo, usamos activeRecalc; senão recalcWithoutDiscount
+    const sourceRecalc = activeRecalc || recalcWithoutDiscount
+    if (sourceRecalc?.appliedCosts && sourceRecalc.appliedCosts.length > 0) {
+      sourceRecalc.appliedCosts.forEach((c) => {
+        if (c.name && c.calculatedAmount !== undefined && c.calculatedAmount !== null) {
+          map.set(c.name, c.calculatedAmount)
+        }
+      })
+    }
+    return map
+  }, [activeRecalc, recalcWithoutDiscount])
 
   // Desconto efetivo
   const effectiveDiscountPercent = activeRecalc
