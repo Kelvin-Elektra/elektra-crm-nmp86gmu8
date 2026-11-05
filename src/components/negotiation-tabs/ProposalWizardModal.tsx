@@ -42,7 +42,7 @@ import {
 import { createGeneratorProposal, getTemplatesResponse } from '@/services/templates'
 import { enrichPayloadWithSemanticVariables } from '@/lib/semantic-mapper'
 import { recalcPricingWithDiscount, type DiscountRecalcResult } from '@/lib/discount-recalc'
-import { isMarginOrCommission } from '@/components/negotiation-tabs/ProposalCostModal'
+import { isMarginOrCommission, brl2, pct2 } from '@/components/negotiation-tabs/ProposalCostModal'
 import {
   calculateConsumptionCoverage,
   calculateOccupiedArea,
@@ -490,10 +490,10 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
       const effectiveRate = ((Number(cost.value) || 0) / 100) * weight
       const calcAmount = calcBase * effectiveRate
       const weightLabel =
-        cost.method === 'tax' && cost.taxWeight != null ? ` • Peso: ${cost.taxWeight}%` : ''
-      return `${cost.value}%${weightLabel} (${BRL.format(calcAmount)})`
+        cost.method === 'tax' && cost.taxWeight != null ? ` • Peso: ${pct2(cost.taxWeight)}%` : ''
+      return `${pct2(cost.value)}%${weightLabel} (${brl2(calcAmount)})`
     }
-    return BRL.format(cost.amount || 0)
+    return brl2(cost.amount || 0)
   }
 
   const handlePercentChangeWizard = (val: number) => {
@@ -520,7 +520,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
       toast({
         variant: 'destructive',
         title: 'Desconto não permitido',
-        description: `O desconto de ${effectiveDiscountPercent.toFixed(2)}% excede o limite permitido (${maxDiscount.toFixed(2)}%)`,
+        description: `O desconto de ${pct2(effectiveDiscountPercent)}% excede o limite permitido (${pct2(maxDiscount)}%)`,
       })
       return
     }
@@ -1188,11 +1188,11 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
                           R$
                         </span>
-                        <Input
-                          type="number"
+                        <NumericInput
                           className="w-36 text-right pl-8 font-medium"
-                          value={manualKitValue || ''}
-                          onChange={(e) => setManualKitValue(Number(e.target.value))}
+                          value={manualKitValue || 0}
+                          precision={2}
+                          onChangeValue={(val) => setManualKitValue(val || 0)}
                           disabled={user?.role === 'user'}
                         />
                       </div>
@@ -1202,8 +1202,8 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
                       <span className="text-muted-foreground font-medium">
                         Custo Formado do Kit (Auto):
                       </span>
-                      <span className="font-semibold text-lg">
-                        {BRL.format(rawPricingData?.autoKitPrice || 0)}
+                      <span className="font-semibold text-lg tabular-nums">
+                        {brl2(rawPricingData?.autoKitPrice || 0)}
                       </span>
                     </div>
                   )}
@@ -1223,25 +1223,45 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
                         podem não ser calculados corretamente.
                       </p>
                     )}
-                    {[...rawPricingData.appliedCosts]
-                      .sort((a: any, b: any) =>
-                        String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR'),
-                      )
-                      .map((cost: any, idx: number) => (
-                        <div
-                          key={idx}
-                          className={cn(
-                            'flex justify-between text-sm py-1 border-b last:border-0',
-                            isMarginOrCommission(cost) && 'font-semibold text-primary',
-                          )}
-                        >
-                          <span className="text-muted-foreground">
-                            {isMarginOrCommission(cost) ? '★ ' : ''}
-                            {cost.name}
-                          </span>
-                          <span className="font-medium">{formatCostDisplay(cost)}</span>
-                        </div>
-                      ))}
+                    <div className="space-y-1">
+                      {[...rawPricingData.appliedCosts]
+                        .sort((a: any, b: any) =>
+                          String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR'),
+                        )
+                        .map((cost: any, idx: number) => {
+                          const highlightedRole = isMarginOrCommission(cost.name, cost.method)
+                          return (
+                            <div
+                              key={idx}
+                              className={cn(
+                                'flex items-center justify-between text-sm py-1.5 px-2 rounded border-b last:border-0 transition-colors',
+                                highlightedRole === 'margin' &&
+                                  'bg-emerald-50/60 dark:bg-emerald-950/20 font-medium',
+                                highlightedRole === 'commission' &&
+                                  'bg-blue-50/60 dark:bg-blue-950/20 font-medium',
+                                !highlightedRole && 'hover:bg-muted/10',
+                              )}
+                            >
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-foreground">{cost.name}</span>
+                                {highlightedRole === 'margin' && (
+                                  <span className="text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300">
+                                    Margem
+                                  </span>
+                                )}
+                                {highlightedRole === 'commission' && (
+                                  <span className="text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300">
+                                    Comissão
+                                  </span>
+                                )}
+                              </div>
+                              <span className="font-medium tabular-nums">
+                                {formatCostDisplay(cost)}
+                              </span>
+                            </div>
+                          )
+                        })}
+                    </div>
                   </div>
                 )}
 
@@ -1250,8 +1270,8 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
                   <span className="text-muted-foreground font-medium">
                     {isAdmin ? 'Preço de Venda Base Calculado:' : 'Valor da Venda:'}
                   </span>
-                  <span className="font-bold text-primary text-xl">
-                    {BRL.format(totalValue || 0)}
+                  <span className="font-bold text-primary text-xl tabular-nums">
+                    {brl2(totalValue || 0)}
                   </span>
                 </div>
                 {isAdmin && (
@@ -1390,7 +1410,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
                     <div className="flex items-center justify-between h-5">
                       <Label className="text-xs font-medium">Desconto (%)</Label>
                       <span className="text-[11px] text-muted-foreground tabular-nums">
-                        Máx: {(Number((user as any)?.max_discount) || 0).toFixed(2)}%
+                        Máx: {pct2(Number((user as any)?.max_discount) || 0)}%
                       </span>
                     </div>
                     <Input
@@ -1411,7 +1431,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
                       {discountMode === 'final_price' && (
                         <p className="text-[11px] text-muted-foreground tabular-nums">
                           Derivado:{' '}
-                          {(discountRecalc ? discountRecalc.discountPercent : discount).toFixed(2)}%
+                          {pct2(discountRecalc ? discountRecalc.discountPercent : discount)}%
                         </p>
                       )}
                     </div>
@@ -1421,7 +1441,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
                     <div className="flex items-center justify-between h-5">
                       <Label className="text-xs font-medium">Valor Final de Venda (R$)</Label>
                       <span className="text-[11px] text-muted-foreground tabular-nums">
-                        Base: {BRL.format(totalValue)}
+                        Base: {brl2(totalValue)}
                       </span>
                     </div>
                     <NumericInput
@@ -1439,7 +1459,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
                     <div className="h-4">
                       {discountRecalc && discountRecalc.discountValue > 0 && (
                         <p className="text-[11px] text-destructive tabular-nums">
-                          Diferença: - {BRL.format(discountRecalc.discountValue)}
+                          Diferença: - {brl2(discountRecalc.discountValue)}
                         </p>
                       )}
                     </div>
@@ -1453,9 +1473,9 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
                       <AlertTriangle className="w-4 h-4 shrink-0" />
                       <span>
                         Desconto de{' '}
-                        {(discountRecalc ? discountRecalc.discountPercent : discount).toFixed(2)}%
-                        excede o limite máximo permitido para seu usuário (
-                        {(Number((user as any)?.max_discount) || 0).toFixed(2)}%).
+                        {pct2(discountRecalc ? discountRecalc.discountPercent : discount)}% excede o
+                        limite máximo permitido para seu usuário (
+                        {pct2(Number((user as any)?.max_discount) || 0)}%).
                       </span>
                     </div>
                   )}
@@ -1465,20 +1485,19 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
               {isAdmin &&
                 (discountRecalc ? discountRecalc.discountPercent > 0 : discount > 0) &&
                 rawPricingData?.marginSum !== undefined && (
-                  <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-lg space-y-1.5 text-xs">
+                  <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-lg space-y-2 text-xs">
                     <h4 className="font-semibold text-xs text-amber-900">Impacto na Margem Real</h4>
                     <div className="flex justify-between">
                       <span className="text-amber-700">Margem Original:</span>
                       <span className="font-medium text-amber-900 tabular-nums">
-                        {BRL.format(
+                        {brl2(
                           discountRecalc
                             ? discountRecalc.baseTotal -
                                 discountRecalc.fixedCostsTotal -
                                 discountRecalc.percentCostsTotal
                             : totalValue * (rawPricingData?.marginSum || 0),
                         )}{' '}
-                        ({((rawPricingData?.marginSum || 0) * 100).toFixed(2)}
-                        %)
+                        ({pct2((rawPricingData?.marginSum || 0) * 100)}%)
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -1489,7 +1508,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
                       </span>
                       <span className="font-medium text-destructive tabular-nums">
                         -{' '}
-                        {BRL.format(
+                        {brl2(
                           discountRecalc
                             ? discountRecalc.costsTotal
                             : (totalValue * discount) / 100,
@@ -1499,27 +1518,92 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
                     {discountRecalc && (
                       <div className="flex justify-between text-[11px] text-amber-700/80">
                         <span>Venda com desconto:</span>
-                        <span className="tabular-nums">
-                          {BRL.format(discountRecalc.finalTotal)}
-                        </span>
+                        <span className="tabular-nums">{brl2(discountRecalc.finalTotal)}</span>
                       </div>
                     )}
                     <div className="flex justify-between font-semibold pt-1 border-t border-amber-200 text-xs">
                       <span className="text-amber-900">Margem Ajustada:</span>
-                      <span className="text-amber-700 tabular-nums">
-                        {BRL.format(
+                      <span
+                        className={cn(
+                          'tabular-nums font-semibold',
+                          (discountRecalc
+                            ? discountRecalc.marginAmount
+                            : totalValue * (rawPricingData?.marginSum || 0) -
+                              (totalValue * discount) / 100) >= 0
+                            ? 'text-emerald-700'
+                            : 'text-destructive',
+                        )}
+                      >
+                        {brl2(
                           discountRecalc
                             ? discountRecalc.marginAmount
                             : totalValue * (rawPricingData?.marginSum || 0) -
                                 (totalValue * discount) / 100,
                         )}{' '}
                         (
-                        {discountRecalc
-                          ? (discountRecalc.marginPct * 100).toFixed(2)
-                          : ((rawPricingData?.marginSum || 0) * 100 - discount).toFixed(2)}
+                        {pct2(
+                          discountRecalc
+                            ? discountRecalc.marginPct * 100
+                            : (rawPricingData?.marginSum || 0) * 100 - discount,
+                        )}
                         %)
                       </span>
                     </div>
+
+                    {/* Detalhamento de Custos Recalculados em Ordem Alfabética */}
+                    {discountRecalc &&
+                      discountRecalc.detail &&
+                      discountRecalc.detail.length > 0 && (
+                        <div className="rounded border border-amber-200/80 bg-white dark:bg-card overflow-hidden mt-2">
+                          <div className="p-2 bg-amber-100/50 dark:bg-amber-950/30 border-b border-amber-200/80 flex items-center justify-between text-[11px]">
+                            <span className="font-semibold text-amber-900">
+                              Custos Recalculados (Ordem Alfabética)
+                            </span>
+                            <span className="text-amber-800/80">
+                              {discountRecalc.detail.length} itens
+                            </span>
+                          </div>
+                          <div className="divide-y divide-amber-100 dark:divide-amber-950/40">
+                            {[...discountRecalc.detail]
+                              .sort((a, b) =>
+                                String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR'),
+                              )
+                              .map((item, idx) => {
+                                const highlightedRole = isMarginOrCommission(item.name)
+                                return (
+                                  <div
+                                    key={`wiz-recalc-${idx}`}
+                                    className={cn(
+                                      'flex items-center justify-between py-1.5 px-2 transition-colors text-xs',
+                                      highlightedRole === 'margin' &&
+                                        'bg-emerald-50/60 dark:bg-emerald-950/20 font-medium',
+                                      highlightedRole === 'commission' &&
+                                        'bg-blue-50/60 dark:bg-blue-950/20 font-medium',
+                                      !highlightedRole && 'hover:bg-muted/10',
+                                    )}
+                                  >
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="text-foreground">{item.name}</span>
+                                      {highlightedRole === 'margin' && (
+                                        <span className="text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300">
+                                          Margem
+                                        </span>
+                                      )}
+                                      {highlightedRole === 'commission' && (
+                                        <span className="text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300">
+                                          Comissão
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="font-medium tabular-nums text-foreground">
+                                      {brl2(item.amount)}
+                                    </span>
+                                  </div>
+                                )
+                              })}
+                          </div>
+                        </div>
+                      )}
                   </div>
                 )}
 
@@ -1527,17 +1611,17 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
               <div className="bg-muted/30 p-3.5 rounded-lg border space-y-1.5 text-xs">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Subtotal Base:</span>
-                  <span className="font-medium tabular-nums">{BRL.format(totalValue)}</span>
+                  <span className="font-medium tabular-nums">{brl2(totalValue)}</span>
                 </div>
                 {(discountRecalc ? discountRecalc.discountValue > 0 : discount > 0) && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">
-                      Desconto (
-                      {(discountRecalc ? discountRecalc.discountPercent : discount).toFixed(2)}%):
+                      Desconto ({pct2(discountRecalc ? discountRecalc.discountPercent : discount)}
+                      %):
                     </span>
                     <span className="font-medium text-destructive tabular-nums">
                       -{' '}
-                      {BRL.format(
+                      {brl2(
                         discountRecalc
                           ? discountRecalc.discountValue
                           : (totalValue * discount) / 100,
@@ -1548,7 +1632,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
                 <div className="flex justify-between text-sm font-bold pt-1.5 border-t">
                   <span>Total Final da Venda:</span>
                   <span className="text-primary tabular-nums">
-                    {BRL.format(
+                    {brl2(
                       discountRecalc
                         ? discountRecalc.finalTotal
                         : totalValue * (1 - discount / 100),
@@ -1637,7 +1721,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Valor Final:</span>
                   <span className="font-bold text-primary text-sm tabular-nums">
-                    {BRL.format(
+                    {brl2(
                       discountRecalc
                         ? discountRecalc.finalTotal
                         : totalValue * (1 - discount / 100),
@@ -1648,7 +1732,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
                   <div className="flex justify-between text-[11px] text-muted-foreground">
                     <span>Desconto:</span>
                     <span className="tabular-nums">
-                      {(discountRecalc ? discountRecalc.discountPercent : discount).toFixed(2)}%
+                      {pct2(discountRecalc ? discountRecalc.discountPercent : discount)}%
                     </span>
                   </div>
                 )}
