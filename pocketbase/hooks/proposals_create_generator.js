@@ -450,16 +450,236 @@ routerAdd(
         return curr
       }
 
-      const rawLead = body.lead || {}
+      // -------------------------------------------------------------------------
+      // BUSCA DE REGISTROS ATUAIS NO BANCO (Lead, Negotiation, Sizing, Financial)
+      // Quando a requisição for regeneração/update de proposta existente (externalId
+      // ou proposal_id presente no banco), lemos os dados ATUAIS das coleções reais
+      // do CRM (proposals, negotiations, leads, users) em vez de confiar apenas no
+      // payload estático enviado no momento da criação/edição.
+      // Se algum dado não existir no banco, usamos o raw* correspondente como fallback.
+      // -------------------------------------------------------------------------
+      let existingProposalRec = null
+      let existingNegotiationRec = null
+      let existingLeadRec = null
+      let existingOwnerRec = null
+
+      const targetProposalId = externalId || body.proposal_id || body.proposalNumber || ''
+      if (targetProposalId) {
+        try {
+          existingProposalRec = $app.findFirstRecordByFilter(
+            'proposals',
+            "id = '" + targetProposalId + "'",
+          )
+        } catch (_) {}
+      }
+
+      const targetNegotiationId =
+        (existingProposalRec && existingProposalRec.getString('negotiation_id')) ||
+        body.negotiation_id ||
+        (body.negotiation && body.negotiation.id) ||
+        ''
+      if (targetNegotiationId) {
+        try {
+          existingNegotiationRec = $app.findFirstRecordByFilter(
+            'negotiations',
+            "id = '" + targetNegotiationId + "'",
+          )
+        } catch (_) {}
+      }
+
+      const targetLeadId =
+        (existingNegotiationRec && existingNegotiationRec.getString('lead_id')) ||
+        (body.lead && body.lead.id) ||
+        ''
+      if (targetLeadId) {
+        try {
+          existingLeadRec = $app.findFirstRecordByFilter('leads', "id = '" + targetLeadId + "'")
+        } catch (_) {}
+      }
+
+      const targetOwnerId =
+        (existingNegotiationRec && existingNegotiationRec.getString('owner_id')) || ''
+      if (targetOwnerId) {
+        try {
+          existingOwnerRec = $app.findFirstRecordByFilter('users', "id = '" + targetOwnerId + "'")
+        } catch (_) {}
+      }
+
+      // Snapshot e calc_snapshot gravados na proposta atual
+      let propSnapshotData = {}
+      let propCalcSnapshot = {}
+      if (existingProposalRec) {
+        try {
+          const rawS = existingProposalRec.get('snapshot_data')
+          if (typeof rawS === 'string') propSnapshotData = JSON.parse(rawS)
+          else if (rawS && typeof rawS === 'object') propSnapshotData = rawS
+        } catch (_) {}
+        try {
+          const rawC = existingProposalRec.get('calc_snapshot')
+          if (typeof rawC === 'string') propCalcSnapshot = JSON.parse(rawC)
+          else if (rawC && typeof rawC === 'object') propCalcSnapshot = rawC
+        } catch (_) {}
+      }
+
+      // Sizing gravado na negociação
+      let negSizingData = {}
+      if (existingNegotiationRec) {
+        try {
+          const rawSz = existingNegotiationRec.get('sizing')
+          if (typeof rawSz === 'string') negSizingData = JSON.parse(rawSz)
+          else if (rawSz && typeof rawSz === 'object') negSizingData = rawSz
+        } catch (_) {}
+      }
+
+      // Extrair objetos raw enviados pelo body como baseline / fallback
+      const rawLeadInput = body.lead || {}
+      const rawNegotiationInput = body.negotiation || {}
+      const rawSizingInput = body.sizing || {}
+      const rawFinancialInput = body.financial || {}
+
+      // Resolver objeto rawLead: dados do registro 'leads' do banco sobrepostos com fallback do body
+      const rawLead = Object.assign({}, rawLeadInput)
+      if (existingLeadRec) {
+        const dbLeadName = existingLeadRec.getString('name')
+        const dbLeadDoc = existingLeadRec.getString('document')
+        const dbLeadEmail = existingLeadRec.getString('email')
+        const dbLeadPhone = existingLeadRec.getString('phone')
+        if (dbLeadName) rawLead.name = dbLeadName
+        if (dbLeadDoc) {
+          rawLead.document = dbLeadDoc
+          rawLead.cpf_cnpj = dbLeadDoc
+        }
+        if (dbLeadEmail) rawLead.email = dbLeadEmail
+        if (dbLeadPhone) {
+          rawLead.phone = dbLeadPhone
+          rawLead.whatsapp = dbLeadPhone
+        }
+      }
+      if (existingNegotiationRec) {
+        const dbNegAddr = existingNegotiationRec.getString('address')
+        const dbNegCity = existingNegotiationRec.getString('city')
+        const dbNegState = existingNegotiationRec.getString('state')
+        if (dbNegAddr && !rawLead.address) rawLead.address = dbNegAddr
+        if (dbNegCity && !rawLead.city) rawLead.city = dbNegCity
+        if (dbNegState && !rawLead.state) rawLead.state = dbNegState
+      }
+
       const leadDoc = rawLead.document || rawLead.cpf_cnpj || rawLead.cpf || rawLead.cnpj || ''
       const leadPhone = rawLead.phone || rawLead.whatsapp || rawLead.telefone || ''
       const leadName = rawLead.name || rawLead.client_name || 'Cliente'
       const leadEmail = rawLead.email || ''
       const leadAddress = rawLead.address || rawLead.endereco || ''
 
-      const rawNegotiation = body.negotiation || {}
-      const rawSizing = body.sizing || {}
-      const rawFinancial = body.financial || {}
+      // Resolver objeto rawNegotiation: dados de 'negotiations' e 'proposals' atuais
+      const rawNegotiation = Object.assign({}, rawNegotiationInput)
+      if (existingNegotiationRec) {
+        rawNegotiation.id = existingNegotiationRec.id
+        if (existingNegotiationRec.getString('title')) {
+          rawNegotiation.title = existingNegotiationRec.getString('title')
+        }
+        if (existingNegotiationRec.getInt('avg_consumption')) {
+          rawNegotiation.avg_consumption = existingNegotiationRec.getInt('avg_consumption')
+        }
+      }
+      if (existingProposalRec) {
+        rawNegotiation.proposal_number = existingProposalRec.id
+        const valDateStr = existingProposalRec.getString('validity_date')
+        if (valDateStr) {
+          rawNegotiation.validity_date = valDateStr
+          rawNegotiation.validity = valDateStr
+        }
+        const payTerms = existingProposalRec.getString('payment_terms')
+        if (payTerms) {
+          rawNegotiation.payment_terms = payTerms
+        }
+        const propNotes = existingProposalRec.getString('notes')
+        if (propNotes !== undefined && propNotes !== null) {
+          rawNegotiation.notes = propNotes
+        }
+      }
+
+      // Resolver objeto rawSizing: negSizingData do banco mesclado com snapshot_data.sizing e body
+      const rawSizing = Object.assign(
+        {},
+        propSnapshotData.sizing || {},
+        negSizingData || {},
+        rawSizingInput,
+      )
+      // Garantir campos prioritários da negociação / sizing gravados no banco
+      if (existingNegotiationRec) {
+        const dbAvgCons = existingNegotiationRec.getInt('avg_consumption')
+        if (dbAvgCons && !rawSizing.avg_consumption) {
+          rawSizing.avg_consumption = dbAvgCons
+        }
+        const dbConc = existingNegotiationRec.getString('concessionaire')
+        if (dbConc && !rawSizing.concessionaire) {
+          rawSizing.concessionaire = dbConc
+        }
+        const dbCat = existingNegotiationRec.getString('consumer_category')
+        if (dbCat && !rawSizing.consumer_category) {
+          rawSizing.consumer_category = dbCat
+        }
+        const dbSim = existingNegotiationRec.getFloat('simultaneity_factor')
+        if (dbSim && !rawSizing.simultaneity_factor) {
+          rawSizing.simultaneity_factor = dbSim
+        }
+      }
+
+      // Resolver objeto rawFinancial: dados financeiros atuais gravados em proposals e calc_snapshot
+      const rawFinancial = Object.assign(
+        {},
+        propSnapshotData.financial || {},
+        propSnapshotData.financialProjection || {},
+        rawFinancialInput,
+      )
+      if (existingProposalRec) {
+        const dbTotalVal = existingProposalRec.getFloat('total_value')
+        const dbPrice = existingProposalRec.getFloat('price')
+        const dbDiscount = existingProposalRec.getFloat('discount_amount')
+        const dbHasFinancing = existingProposalRec.getBool('has_financing')
+
+        if (dbTotalVal > 0) {
+          rawFinancial.total_investment = dbTotalVal
+          rawFinancial.investment = dbTotalVal
+          rawFinancial.price = dbTotalVal
+          rawFinancial.total_value = dbTotalVal
+          rawFinancial.sale_price = dbTotalVal
+        }
+        if (dbPrice > 0) {
+          rawFinancial.subtotal = dbPrice
+        }
+        if (dbDiscount !== null && dbDiscount !== undefined) {
+          rawFinancial.discount_amount = dbDiscount
+        }
+        rawFinancial.has_financing = dbHasFinancing
+        rawFinancial.contempla_financiamento = dbHasFinancing
+      }
+      // Se houver calc_snapshot no banco, enriquecer dados derivados (savings_25_years, payback, tir, múltiplo)
+      if (propCalcSnapshot && typeof propCalcSnapshot === 'object') {
+        if (propCalcSnapshot.savings_25_years && !rawFinancial.savings_25_years) {
+          rawFinancial.savings_25_years = propCalcSnapshot.savings_25_years
+          rawFinancial.total_savings_25y = propCalcSnapshot.savings_25_years
+        }
+        if (propCalcSnapshot.payback_years && !rawFinancial.payback_years) {
+          rawFinancial.payback_years = propCalcSnapshot.payback_years
+          rawFinancial.payback = propCalcSnapshot.payback_years
+        }
+        if (propCalcSnapshot.tir_pct && !rawFinancial.tir_pct) {
+          rawFinancial.tir_pct = propCalcSnapshot.tir_pct
+        }
+        if (propCalcSnapshot.investment_multiple && !rawFinancial.investment_multiple) {
+          rawFinancial.investment_multiple = propCalcSnapshot.investment_multiple
+        }
+        if (propCalcSnapshot.savings_projection_table && !rawFinancial.savings_projection_table) {
+          rawFinancial.savings_projection_table = propCalcSnapshot.savings_projection_table
+        }
+        if (propCalcSnapshot.annual_tariff_adjustment !== undefined) {
+          rawFinancial.annual_tariff_adjustment = propCalcSnapshot.annual_tariff_adjustment
+        }
+        if (propCalcSnapshot.annual_degradation !== undefined) {
+          rawFinancial.annual_degradation = propCalcSnapshot.annual_degradation
+        }
+      }
 
       // Resolver nome do consultor responsável
       // O fallback genérico do frontend ("Consultor Elektra") NÃO conta como nome
@@ -483,32 +703,11 @@ routerAdd(
       let proposalDate = rawNegotiation.proposal_date || ''
       let proposalCreatedRaw = null
 
-      if (externalId) {
-        try {
-          const propRec = $app.findFirstRecordByFilter('proposals', "id = '" + externalId + "'")
-          if (propRec) {
-            proposalCreatedRaw = propRec.getString('created')
-            const negId = propRec.getString('negotiation_id') || rawNegotiation.id
-            if (negId) {
-              const negRec = $app.findFirstRecordByFilter('negotiations', "id = '" + negId + "'")
-              if (negRec) {
-                const ownerId = negRec.getString('owner_id')
-                if (ownerId && !consultantName) {
-                  try {
-                    const userRec = $app.findFirstRecordByFilter('users', "id = '" + ownerId + "'")
-                    if (userRec) {
-                      consultantName = userRec.getString('name') || ''
-                    }
-                  } catch (_) {}
-                }
-                // Se avg_consumption da negociação tiver valor e sizing não tiver
-                if (!rawSizing.avg_consumption && negRec.getInt('avg_consumption')) {
-                  rawSizing.avg_consumption = negRec.getInt('avg_consumption')
-                }
-              }
-            }
-          }
-        } catch (_) {}
+      if (existingProposalRec) {
+        proposalCreatedRaw = existingProposalRec.getString('created')
+      }
+      if (existingOwnerRec && !consultantName) {
+        consultantName = existingOwnerRec.getString('name') || ''
       }
 
       if (!consultantName && e.auth) {
