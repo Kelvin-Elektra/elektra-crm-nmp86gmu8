@@ -347,29 +347,10 @@ routerAdd(
 
       // 2. Montar payload estritamente no padrão do contract:
       // payload_shape: ["template_id", "external_id", "fixed_data", "lead", "negotiation", "sizing", "financial"]
-      let rawFixedData = body.fixed_data || {}
-      if (
-        typeof listRes !== 'undefined' &&
-        listRes &&
-        listRes.json &&
-        Array.isArray(listRes.json.templates)
-      ) {
-        const matchingTpl = listRes.json.templates.find((t) => t.id === templateId)
-        if (
-          matchingTpl &&
-          matchingTpl.variable_schema &&
-          Array.isArray(matchingTpl.variable_schema.fixed)
-        ) {
-          const schemaKeys = matchingTpl.variable_schema.fixed.map((f) => f.key)
-          const filteredFixedData = {}
-          for (const k of schemaKeys) {
-            if (rawFixedData[k] !== undefined) {
-              filteredFixedData[k] = rawFixedData[k]
-            }
-          }
-          rawFixedData = filteredFixedData
-        }
-      }
+      // Conforme diretriz oficial do Gerador:
+      // O payload deve ser reenviado COMPLETO (campos alterados e não alterados).
+      // Não filtramos nem podamos campos de fixed_data para garantir integridade na regeneração.
+      let rawFixedData = Object.assign({}, body.fixed_data || {})
 
       // =========================================================================
       // MAPEADOR SEMÂNTICO DE VARIÁVEIS DINÂMICAS DO CONTRATO EXTERNO

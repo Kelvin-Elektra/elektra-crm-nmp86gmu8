@@ -188,23 +188,17 @@ export const previewTemplate = (
 
 export const createGeneratorProposal = (
   payload: CreateProposalPayload,
-  schemaFields?: TemplateSchemaField[],
+  _schemaFields?: TemplateSchemaField[],
 ): Promise<CreateProposalResponse> => {
-  let cleanedFixedData = payload.fixed_data
-  if (schemaFields && schemaFields.length > 0) {
-    cleanedFixedData = {}
-    for (const f of schemaFields) {
-      if (payload.fixed_data[f.key] !== undefined) {
-        cleanedFixedData[f.key] = payload.fixed_data[f.key]
-      }
-    }
-  }
-
+  // Conforme especificação oficial do suporte do Gerador:
+  // Para atualizar/gerar, envia-se o payload COMPLETO (campos alterados e não alterados)
+  // via POST /backend/v1/proposals com o mesmo external_id da criação.
+  // Nenhum campo de fixed_data deve ser omitido.
   return pb.send('/backend/v1/proposals/generate-external', {
     method: 'POST',
     body: JSON.stringify({
       ...payload,
-      fixed_data: cleanedFixedData,
+      fixed_data: payload.fixed_data || {},
     }),
     headers: { 'Content-Type': 'application/json; charset=utf-8' },
   })

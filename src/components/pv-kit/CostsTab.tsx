@@ -34,6 +34,7 @@ import {
   CheckCircle2,
   AlertCircle,
   HelpCircle,
+  ShieldCheck,
 } from 'lucide-react'
 import { TaxWeightTooltip } from '@/components/pv-kit/TaxWeightTooltip'
 import { useAuth } from '@/contexts/AuthContext'
@@ -59,6 +60,7 @@ interface PvCostRecord {
   user_id: string | null
   is_real_margin: boolean
   tax_weight: number | null
+  is_structural?: boolean
   created?: string
   updated?: string
 }
@@ -403,13 +405,26 @@ export function CostsTab() {
   }
 
   // Deletar item
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (item: PvCostRecord) => {
+    if (item.is_structural) {
+      toast({
+        variant: 'destructive',
+        title: 'Grupo Estrutural',
+        description:
+          'Itens de grupos estruturais (Imposto, Comissão e Margem) não podem ser excluídos.',
+      })
+      return
+    }
     try {
-      await pb.collection('pv_costs').delete(id)
+      await pb.collection('pv_costs').delete(item.id)
       toast({ title: 'Sucesso', description: 'Item removido.' })
       loadData()
-    } catch {
-      toast({ variant: 'destructive', title: 'Erro', description: 'Falha ao remover o item.' })
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: err?.message || 'Falha ao remover o item.',
+      })
     }
   }
 
@@ -824,14 +839,23 @@ export function CostsTab() {
                       >
                         <Pencil className="w-4 h-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => handleDelete(item.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {item.is_structural ? (
+                        <div
+                          className="h-8 w-8 flex items-center justify-center text-muted-foreground/60 cursor-not-allowed"
+                          title="Grupo estrutural da empresa (inapagável)"
+                        >
+                          <ShieldCheck className="w-4 h-4 text-emerald-600/70" />
+                        </div>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => handleDelete(item)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 )

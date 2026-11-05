@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-05T22:37:15.689Z",
+  "generatedAt": "2026-11-05T23:10:59.259Z",
   "collections": [
     {
       "name": "users",
@@ -1550,6 +1550,12 @@
         {
           "name": "tax_weight",
           "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_structural",
+          "type": "bool",
           "required": false,
           "system": false
         }
