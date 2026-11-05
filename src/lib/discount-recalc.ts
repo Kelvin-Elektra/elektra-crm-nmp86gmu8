@@ -70,6 +70,8 @@ export interface DiscountRecalcInput {
   billingModel?: string | null
   /** Sobrescritas manuais de custos individuais em R$ */
   costOverrides?: Record<string, number> | CostManualOverride[]
+  /** Callback opcional quando o denominador for <= 0.001 (soma das alíquotas >= 1) */
+  onDenominatorWarning?: (warning: string) => void
 }
 
 export interface DiscountRecalcResult {
@@ -292,6 +294,13 @@ export function recalcPricingWithDiscount(input: DiscountRecalcInput): DiscountR
 
     if (denominator <= 0.001) {
       denominatorWarning = `Soma das alíquotas restantes (${(totalRemainingRate * 100).toFixed(2)}%) é igual ou superior a 100%. A equação não possui solução positiva.`
+      if (typeof input.onDenominatorWarning === 'function') {
+        try {
+          input.onDenominatorWarning(denominatorWarning)
+        } catch {
+          /* ignore */
+        }
+      }
       return null
     }
 

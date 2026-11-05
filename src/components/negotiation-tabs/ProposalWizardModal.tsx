@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -65,6 +65,23 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
   const { toast } = useToast()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
+  const contentContainerRef = useRef<HTMLDivElement>(null)
+
+  const scrollToTop = () => {
+    if (contentContainerRef.current) {
+      contentContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }
+
+  const handleNext = () => {
+    setStep((s) => Math.min(3, s + 1))
+    setTimeout(scrollToTop, 50)
+  }
+
+  const handlePrev = () => {
+    setStep((s) => Math.max(1, s - 1))
+    setTimeout(scrollToTop, 50)
+  }
 
   const isAdmin =
     user?.role === 'User_elektra' || user?.role_company === 'admin' || user?.role === 'User_owner'
@@ -454,9 +471,6 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
       setLoading(false)
     }
   }
-
-  const handleNext = () => setStep(2)
-  const handlePrev = () => setStep(1)
 
   const formatCostDisplay = (cost: any) => {
     const isPercent = ['rate', 'tax', 'margin', 'kit_percent', 'commission'].includes(cost.method)
@@ -1088,479 +1102,558 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Gerador de Proposta - Passo {step} de 2</DialogTitle>
-          <DialogDescription>
-            {step === 1
-              ? 'Revisão do Dimensionamento Financeiro'
-              : 'Ajustes Financeiros e Condições'}
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-w-xl max-h-[90vh] flex flex-col p-0">
+        <div className="p-6 pb-2 border-b">
+          <DialogHeader>
+            <DialogTitle>Gerador de Proposta - Passo {step} de 3</DialogTitle>
+            <DialogDescription>
+              {step === 1
+                ? 'Revisão do Dimensionamento Financeiro'
+                : step === 2
+                  ? 'Ajustes Financeiros e Precificação'
+                  : 'Condições Comerciais e Pagamento'}
+            </DialogDescription>
+          </DialogHeader>
+        </div>
 
-        {step === 1 && (
-          <div className="space-y-4 py-4">
-            <div className="bg-muted/30 p-4 rounded-lg border space-y-2">
-              <h4 className="font-semibold text-sm border-b pb-2 mb-2">
-                Dados Técnicos do Dimensionamento
-              </h4>
-              <div className="flex justify-between border-b pb-2">
-                <span className="text-muted-foreground">Potência do Kit:</span>
-                <span className="font-semibold">
-                  {(neg.sizing?.kit_power_kwp || 0).toFixed(2)} kWp
-                </span>
-              </div>
-              <div className="flex justify-between pb-2">
-                <span className="text-muted-foreground">Qtd. Módulos:</span>
-                <span className="font-semibold">{neg.sizing?.module_qty || 0}</span>
-              </div>
-            </div>
-
-            {isAdmin && (
-              <div className="bg-primary/5 p-4 rounded-lg border border-primary/20 space-y-4">
-                <h4 className="font-semibold text-sm border-b border-primary/10 pb-2">
-                  Composição do Custo do Kit
+        <div ref={contentContainerRef} className="overflow-y-auto px-6 py-4 flex-1">
+          {step === 1 && (
+            <div className="space-y-4 py-1">
+              <div className="bg-muted/30 p-4 rounded-lg border space-y-2">
+                <h4 className="font-semibold text-sm border-b pb-2 mb-2">
+                  Dados Técnicos do Dimensionamento
                 </h4>
-
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Modo de Precificação:</span>
-                  <RadioGroup
-                    value={pricingMode}
-                    onValueChange={(v) => setPricingMode(v as 'automatic' | 'manual')}
-                    className="flex gap-4"
-                    disabled={user?.role === 'user'}
-                  >
-                    <div className="flex items-center space-x-1">
-                      <RadioGroupItem
-                        value="automatic"
-                        id="mode-auto"
-                        disabled={user?.role === 'user'}
-                      />
-                      <Label
-                        htmlFor="mode-auto"
-                        className={`cursor-pointer ${user?.role === 'user' ? 'opacity-50' : ''}`}
-                      >
-                        Automático
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <RadioGroupItem
-                        value="manual"
-                        id="mode-manual"
-                        disabled={user?.role === 'user'}
-                      />
-                      <Label
-                        htmlFor="mode-manual"
-                        className={`cursor-pointer ${user?.role === 'user' ? 'opacity-50' : ''}`}
-                      >
-                        Manual
-                      </Label>
-                    </div>
-                  </RadioGroup>
+                <div className="flex justify-between border-b pb-2">
+                  <span className="text-muted-foreground">Potência do Kit:</span>
+                  <span className="font-semibold">
+                    {(neg.sizing?.kit_power_kwp || 0).toFixed(2)} kWp
+                  </span>
                 </div>
+                <div className="flex justify-between pb-2">
+                  <span className="text-muted-foreground">Qtd. Módulos:</span>
+                  <span className="font-semibold">{neg.sizing?.module_qty || 0}</span>
+                </div>
+              </div>
 
-                {pricingMode === 'manual' ? (
-                  <div className="flex justify-between items-center bg-white p-3 rounded-md border shadow-sm">
-                    <span className="text-muted-foreground font-medium">
-                      Custo Base do Kit (Manual):
-                    </span>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                        R$
-                      </span>
-                      <Input
-                        type="number"
-                        className="w-36 text-right pl-8 font-medium"
-                        value={manualKitValue || ''}
-                        onChange={(e) => setManualKitValue(Number(e.target.value))}
-                        disabled={user?.role === 'user'}
-                      />
-                    </div>
+              {isAdmin && (
+                <div className="bg-primary/5 p-4 rounded-lg border border-primary/20 space-y-4">
+                  <h4 className="font-semibold text-sm border-b border-primary/10 pb-2">
+                    Composição do Custo do Kit
+                  </h4>
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Modo de Precificação:</span>
+                    <RadioGroup
+                      value={pricingMode}
+                      onValueChange={(v) => setPricingMode(v as 'automatic' | 'manual')}
+                      className="flex gap-4"
+                      disabled={user?.role === 'user'}
+                    >
+                      <div className="flex items-center space-x-1">
+                        <RadioGroupItem
+                          value="automatic"
+                          id="mode-auto"
+                          disabled={user?.role === 'user'}
+                        />
+                        <Label
+                          htmlFor="mode-auto"
+                          className={`cursor-pointer ${user?.role === 'user' ? 'opacity-50' : ''}`}
+                        >
+                          Automático
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <RadioGroupItem
+                          value="manual"
+                          id="mode-manual"
+                          disabled={user?.role === 'user'}
+                        />
+                        <Label
+                          htmlFor="mode-manual"
+                          className={`cursor-pointer ${user?.role === 'user' ? 'opacity-50' : ''}`}
+                        >
+                          Manual
+                        </Label>
+                      </div>
+                    </RadioGroup>
                   </div>
-                ) : (
-                  <div className="flex justify-between items-center bg-white p-3 rounded-md border shadow-sm">
-                    <span className="text-muted-foreground font-medium">
-                      Custo Formado do Kit (Auto):
-                    </span>
-                    <span className="font-semibold text-lg">
-                      {BRL.format(rawPricingData?.autoKitPrice || 0)}
-                    </span>
+
+                  {pricingMode === 'manual' ? (
+                    <div className="flex justify-between items-center bg-white p-3 rounded-md border shadow-sm">
+                      <span className="text-muted-foreground font-medium">
+                        Custo Base do Kit (Manual):
+                      </span>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                          R$
+                        </span>
+                        <Input
+                          type="number"
+                          className="w-36 text-right pl-8 font-medium"
+                          value={manualKitValue || ''}
+                          onChange={(e) => setManualKitValue(Number(e.target.value))}
+                          disabled={user?.role === 'user'}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between items-center bg-white p-3 rounded-md border shadow-sm">
+                      <span className="text-muted-foreground font-medium">
+                        Custo Formado do Kit (Auto):
+                      </span>
+                      <span className="font-semibold text-lg">
+                        {BRL.format(rawPricingData?.autoKitPrice || 0)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {isAdmin &&
+                rawPricingData?.appliedCosts &&
+                rawPricingData.appliedCosts.length > 0 && (
+                  <div className="bg-muted/30 p-4 rounded-lg border space-y-2">
+                    <h4 className="font-semibold text-sm border-b pb-2">
+                      Detalhamento de Custos Aplicados
+                    </h4>
+                    {!rawPricingData?.hasSizing && (
+                      <p className="text-xs text-destructive font-medium">
+                        ⚠ Esta negociação não possui dimensionamento completo. Custos variáveis
+                        podem não ser calculados corretamente.
+                      </p>
+                    )}
+                    {rawPricingData.appliedCosts.map((cost: any, idx: number) => (
+                      <div
+                        key={idx}
+                        className="flex justify-between text-sm py-1 border-b last:border-0"
+                      >
+                        <span className="text-muted-foreground">{cost.name}</span>
+                        <span className="font-medium">{formatCostDisplay(cost)}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
-              </div>
-            )}
 
-            {isAdmin && rawPricingData?.appliedCosts && rawPricingData.appliedCosts.length > 0 && (
-              <div className="bg-muted/30 p-4 rounded-lg border space-y-2">
-                <h4 className="font-semibold text-sm border-b pb-2">
-                  Detalhamento de Custos Aplicados
-                </h4>
-                {!rawPricingData?.hasSizing && (
-                  <p className="text-xs text-destructive font-medium">
-                    ⚠ Esta negociação não possui dimensionamento completo. Custos variáveis podem
-                    não ser calculados corretamente.
+              <div className="bg-muted/30 p-4 rounded-lg border">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground font-medium">
+                    {isAdmin ? 'Preço de Venda Base Calculado:' : 'Valor da Venda:'}
+                  </span>
+                  <span className="font-bold text-primary text-xl">
+                    {BRL.format(totalValue || 0)}
+                  </span>
+                </div>
+                {isAdmin && (
+                  <p className="text-xs text-muted-foreground mt-2 italic">
+                    A formação de preços utiliza os insumos, regras de custo, impostos e margens
+                    configurados no painel de administração.
                   </p>
                 )}
-                {rawPricingData.appliedCosts.map((cost: any, idx: number) => (
-                  <div
-                    key={idx}
-                    className="flex justify-between text-sm py-1 border-b last:border-0"
-                  >
-                    <span className="text-muted-foreground">{cost.name}</span>
-                    <span className="font-medium">{formatCostDisplay(cost)}</span>
-                  </div>
-                ))}
               </div>
-            )}
-
-            <div className="bg-muted/30 p-4 rounded-lg border">
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground font-medium">
-                  {isAdmin ? 'Preço de Venda Base Calculado:' : 'Valor da Venda:'}
-                </span>
-                <span className="font-bold text-primary text-xl">
-                  {BRL.format(totalValue || 0)}
-                </span>
-              </div>
-              {isAdmin && (
-                <p className="text-xs text-muted-foreground mt-2 italic">
-                  A formação de preços utiliza os insumos, regras de custo, impostos e margens
-                  configurados no painel de administração.
-                </p>
-              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => onOpenChange(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleNext} disabled={loading}>
+                  Avançar <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </DialogFooter>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleNext} disabled={loading}>
-                Avançar <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </DialogFooter>
-          </div>
-        )}
+          )}
 
-        {step === 2 && (
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Descrição da Proposta</Label>
-              <Input
-                placeholder="Ex: Sistema 10 kWp - Telhado Cerâmico"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {step === 2 && (
+            <div className="space-y-4 py-1">
               <div className="space-y-2">
-                <Label>Validade da Proposta</Label>
-                <Input type="date" value={validity} onChange={(e) => setValidity(e.target.value)} />
+                <Label className="text-xs font-semibold">Descrição da Proposta</Label>
+                <Input
+                  placeholder="Ex: Sistema 10 kWp - Telhado Cerâmico"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
               </div>
-            </div>
-
-            {/* Ajuste de Preço: Desconto % vs Valor Final R$ */}
-            <div className="border rounded-lg p-3.5 bg-muted/20 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <Label className="font-semibold text-sm">Ajuste de Preço</Label>
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="w-4 h-4 text-muted-foreground cursor-pointer hover:text-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs text-xs">
-                        Informe o % de desconto ou digite o valor final da venda em R$. A margem
-                        absorve o ajuste e os custos percentuais são recalculados.
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <div className="flex items-center gap-1 bg-muted p-1 rounded text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setDiscountMode('percent')}
-                    className={cn(
-                      'px-2.5 py-1 rounded transition-colors font-medium',
-                      discountMode === 'percent'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground',
-                    )}
-                  >
-                    Por Desconto (%)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDiscountMode('final_price')}
-                    className={cn(
-                      'px-2.5 py-1 rounded transition-colors font-medium',
-                      discountMode === 'final_price'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground',
-                    )}
-                  >
-                    Por Valor Final (R$)
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-medium">Desconto (%)</Label>
-                    <span className="text-[11px] text-muted-foreground">
-                      Máx: {(Number((user as any)?.max_discount) || 0).toFixed(2)}%
-                    </span>
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold">Validade da Proposta</Label>
                   <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max={isAdmin ? 100 : (user as any)?.max_discount || 0}
-                    value={discount || ''}
-                    disabled={discountMode !== 'percent'}
-                    onChange={(e) => handlePercentChangeWizard(Number(e.target.value))}
-                    className={cn(
-                      'text-sm',
-                      discountMode !== 'percent' && 'bg-muted/50 cursor-not-allowed',
-                    )}
-                    placeholder="0,00"
+                    type="date"
+                    value={validity}
+                    onChange={(e) => setValidity(e.target.value)}
                   />
-                  {discountMode === 'final_price' && (
-                    <p className="text-[11px] text-muted-foreground">
-                      Derivado:{' '}
-                      {(discountRecalc ? discountRecalc.discountPercent : discount).toFixed(2)}%
-                    </p>
-                  )}
                 </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold">Prazo de Instalação</Label>
+                  {companyLeadTimes.length > 0 ? (
+                    <div className="space-y-1.5">
+                      <Select
+                        value={
+                          companyLeadTimes.some((lt) => lt.label === installationLeadTime)
+                            ? installationLeadTime
+                            : '__custom__'
+                        }
+                        onValueChange={(val) => {
+                          if (val !== '__custom__') {
+                            setInstallationLeadTime(val)
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o prazo de instalação" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {companyLeadTimes.map((item) => (
+                            <SelectItem key={item.id} value={item.label}>
+                              {item.label} {item.is_default ? '(padrão)' : ''}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="__custom__">Outro prazo personalizado...</SelectItem>
+                        </SelectContent>
+                      </Select>
 
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-medium">Valor Final de Venda (R$)</Label>
-                    <span className="text-[11px] text-muted-foreground">
-                      Base: {BRL.format(totalValue)}
-                    </span>
-                  </div>
-                  <NumericInput
-                    value={
-                      discountRecalc ? discountRecalc.finalTotal : finalPriceInput || totalValue
-                    }
-                    precision={2}
-                    disabled={discountMode !== 'final_price'}
-                    onChangeValue={(val) => handleFinalPriceChangeWizard(val || 0)}
-                    className={cn(
-                      'text-sm font-semibold',
-                      discountMode !== 'final_price' && 'bg-muted/50 cursor-not-allowed',
-                    )}
-                  />
-                  {discountRecalc && discountRecalc.discountValue > 0 && (
-                    <p className="text-[11px] text-destructive">
-                      Diferença: - {BRL.format(discountRecalc.discountValue)}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {(discountRecalc ? discountRecalc.discountPercent : discount) >
-                (Number((user as any)?.max_discount) || 0) + 0.01 &&
-                !isAdmin && (
-                  <div className="flex items-center gap-2 p-2.5 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-xs">
-                    <AlertTriangle className="w-4 h-4 shrink-0" />
-                    <span>
-                      Desconto de{' '}
-                      {(discountRecalc ? discountRecalc.discountPercent : discount).toFixed(2)}%
-                      excede o limite máximo permitido para seu usuário (
-                      {(Number((user as any)?.max_discount) || 0).toFixed(2)}%).
-                    </span>
-                  </div>
-                )}
-            </div>
-
-            {/* Toggle de Financiamento */}
-            <div className="flex items-center justify-between p-3.5 rounded-lg border bg-muted/40">
-              <div className="space-y-0.5">
-                <Label
-                  htmlFor="toggle-has-financing"
-                  className="text-sm font-semibold cursor-pointer"
-                >
-                  Proposta contempla financiamento?
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Destaca na proposta e no documento gerado que o cliente possui opção de
-                  financiamento bancário.
-                </p>
-              </div>
-              <Switch
-                id="toggle-has-financing"
-                checked={hasFinancing}
-                onCheckedChange={setHasFinancing}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Prazo de Instalação</Label>
-              {companyLeadTimes.length > 0 ? (
-                <div className="space-y-1.5">
-                  <Select
-                    value={
-                      companyLeadTimes.some((lt) => lt.label === installationLeadTime)
-                        ? installationLeadTime
-                        : '__custom__'
-                    }
-                    onValueChange={(val) => {
-                      if (val !== '__custom__') {
-                        setInstallationLeadTime(val)
-                      }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o prazo de instalação" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {companyLeadTimes.map((item) => (
-                        <SelectItem key={item.id} value={item.label}>
-                          {item.label} {item.is_default ? '(padrão)' : ''}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value="__custom__">Outro prazo personalizado...</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  {/* Se o valor atual for personalizado ou o usuário escolheu outro */}
-                  {(!companyLeadTimes.some((lt) => lt.label === installationLeadTime) ||
-                    installationLeadTime === '') && (
+                      {(!companyLeadTimes.some((lt) => lt.label === installationLeadTime) ||
+                        installationLeadTime === '') && (
+                        <Input
+                          placeholder="Digite o prazo personalizado"
+                          value={installationLeadTime}
+                          onChange={(e) => setInstallationLeadTime(e.target.value)}
+                          className="text-sm mt-1.5"
+                        />
+                      )}
+                    </div>
+                  ) : (
                     <Input
-                      placeholder="Digite o prazo personalizado"
+                      placeholder="Ex: Até 30 dias após aprovação do projeto"
                       value={installationLeadTime}
                       onChange={(e) => setInstallationLeadTime(e.target.value)}
-                      className="text-sm mt-1.5"
                     />
                   )}
                 </div>
-              ) : (
-                <Input
-                  placeholder="Ex: Até 30 dias após aprovação do projeto"
-                  value={installationLeadTime}
-                  onChange={(e) => setInstallationLeadTime(e.target.value)}
-                />
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label>Formas de Pagamento Aceitas</Label>
-              <Textarea
-                rows={2}
-                placeholder="Ex: Entrada de 30% + 12x sem juros no cartão. PIX com 5% desconto."
-                value={acceptedPaymentMethods}
-                onChange={(e) => setAcceptedPaymentMethods(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Observações Internas (Não sai no PDF)</Label>
-              <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
-            </div>
+              </div>
 
-            {/* Forma de Pagamento Definida: movido para o final do formulário, antes do rodapé financeiro */}
-            <div className="space-y-2">
-              <Label>Forma de Pagamento Definida</Label>
-              <Input
-                placeholder="Ex: PIX, Boleto, Cartão de Crédito"
-                value={definedPaymentMethod}
-                onChange={(e) => setDefinedPaymentMethod(e.target.value)}
-              />
-            </div>
-            {isAdmin &&
-              (discountRecalc ? discountRecalc.discountPercent > 0 : discount > 0) &&
-              rawPricingData?.marginSum !== undefined && (
-                <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg space-y-2">
-                  <h4 className="font-semibold text-sm text-amber-900">Impacto na Margem Real</h4>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-amber-700">Margem Original:</span>
-                    <span className="font-medium text-amber-900">
-                      {BRL.format(
-                        discountRecalc
-                          ? discountRecalc.baseTotal -
-                              discountRecalc.fixedCostsTotal -
-                              discountRecalc.percentCostsTotal
-                          : totalValue * (rawPricingData?.marginSum || 0),
-                      )}{' '}
-                      ({((rawPricingData?.marginSum || 0) * 100).toFixed(2)}
-                      %)
-                    </span>
+              {/* Ajuste de Preço: Desconto % vs Valor Final R$ — ALINHAMENTO REFEITO */}
+              <div className="border rounded-lg p-4 bg-muted/20 space-y-3.5">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-1 border-b">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-sm text-foreground">Ajuste de Preço</span>
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="w-4 h-4 text-muted-foreground cursor-pointer hover:text-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs text-xs">
+                          Informe o % de desconto ou digite o valor final da venda em R$. A margem
+                          absorve o ajuste e os custos percentuais são recalculados.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-amber-700">
-                      {discountRecalc
-                        ? 'Custos (recalc. s/ venda c/ desconto):'
-                        : 'Desconto Aplicado:'}
+                  <div className="inline-flex items-center bg-muted p-1 rounded-md text-xs self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setDiscountMode('percent')}
+                      className={cn(
+                        'px-3 py-1 rounded transition-colors font-medium',
+                        discountMode === 'percent'
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      Por Desconto (%)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDiscountMode('final_price')}
+                      className={cn(
+                        'px-3 py-1 rounded transition-colors font-medium',
+                        discountMode === 'final_price'
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      Por Valor Final (R$)
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between h-5">
+                      <Label className="text-xs font-medium">Desconto (%)</Label>
+                      <span className="text-[11px] text-muted-foreground tabular-nums">
+                        Máx: {(Number((user as any)?.max_discount) || 0).toFixed(2)}%
+                      </span>
+                    </div>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max={isAdmin ? 100 : (user as any)?.max_discount || 0}
+                      value={discount || ''}
+                      disabled={discountMode !== 'percent'}
+                      onChange={(e) => handlePercentChangeWizard(Number(e.target.value))}
+                      className={cn(
+                        'text-sm h-9',
+                        discountMode !== 'percent' && 'bg-muted/50 cursor-not-allowed',
+                      )}
+                      placeholder="0,00"
+                    />
+                    <div className="h-4">
+                      {discountMode === 'final_price' && (
+                        <p className="text-[11px] text-muted-foreground tabular-nums">
+                          Derivado:{' '}
+                          {(discountRecalc ? discountRecalc.discountPercent : discount).toFixed(2)}%
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between h-5">
+                      <Label className="text-xs font-medium">Valor Final de Venda (R$)</Label>
+                      <span className="text-[11px] text-muted-foreground tabular-nums">
+                        Base: {BRL.format(totalValue)}
+                      </span>
+                    </div>
+                    <NumericInput
+                      value={
+                        discountRecalc ? discountRecalc.finalTotal : finalPriceInput || totalValue
+                      }
+                      precision={2}
+                      disabled={discountMode !== 'final_price'}
+                      onChangeValue={(val) => handleFinalPriceChangeWizard(val || 0)}
+                      className={cn(
+                        'text-sm font-semibold h-9',
+                        discountMode !== 'final_price' && 'bg-muted/50 cursor-not-allowed',
+                      )}
+                    />
+                    <div className="h-4">
+                      {discountRecalc && discountRecalc.discountValue > 0 && (
+                        <p className="text-[11px] text-destructive tabular-nums">
+                          Diferença: - {BRL.format(discountRecalc.discountValue)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {(discountRecalc ? discountRecalc.discountPercent : discount) >
+                  (Number((user as any)?.max_discount) || 0) + 0.01 &&
+                  !isAdmin && (
+                    <div className="flex items-center gap-2 p-2.5 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-xs">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                      <span>
+                        Desconto de{' '}
+                        {(discountRecalc ? discountRecalc.discountPercent : discount).toFixed(2)}%
+                        excede o limite máximo permitido para seu usuário (
+                        {(Number((user as any)?.max_discount) || 0).toFixed(2)}%).
+                      </span>
+                    </div>
+                  )}
+              </div>
+
+              {/* Impacto na Margem Real (se houver desconto) */}
+              {isAdmin &&
+                (discountRecalc ? discountRecalc.discountPercent > 0 : discount > 0) &&
+                rawPricingData?.marginSum !== undefined && (
+                  <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-lg space-y-1.5 text-xs">
+                    <h4 className="font-semibold text-xs text-amber-900">Impacto na Margem Real</h4>
+                    <div className="flex justify-between">
+                      <span className="text-amber-700">Margem Original:</span>
+                      <span className="font-medium text-amber-900 tabular-nums">
+                        {BRL.format(
+                          discountRecalc
+                            ? discountRecalc.baseTotal -
+                                discountRecalc.fixedCostsTotal -
+                                discountRecalc.percentCostsTotal
+                            : totalValue * (rawPricingData?.marginSum || 0),
+                        )}{' '}
+                        ({((rawPricingData?.marginSum || 0) * 100).toFixed(2)}
+                        %)
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-amber-700">
+                        {discountRecalc
+                          ? 'Custos (recalc. s/ venda c/ desconto):'
+                          : 'Desconto Aplicado:'}
+                      </span>
+                      <span className="font-medium text-destructive tabular-nums">
+                        -{' '}
+                        {BRL.format(
+                          discountRecalc
+                            ? discountRecalc.costsTotal
+                            : (totalValue * discount) / 100,
+                        )}
+                      </span>
+                    </div>
+                    {discountRecalc && (
+                      <div className="flex justify-between text-[11px] text-amber-700/80">
+                        <span>Venda com desconto:</span>
+                        <span className="tabular-nums">
+                          {BRL.format(discountRecalc.finalTotal)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-semibold pt-1 border-t border-amber-200 text-xs">
+                      <span className="text-amber-900">Margem Ajustada:</span>
+                      <span className="text-amber-700 tabular-nums">
+                        {BRL.format(
+                          discountRecalc
+                            ? discountRecalc.marginAmount
+                            : totalValue * (rawPricingData?.marginSum || 0) -
+                                (totalValue * discount) / 100,
+                        )}{' '}
+                        (
+                        {discountRecalc
+                          ? (discountRecalc.marginPct * 100).toFixed(2)
+                          : ((rawPricingData?.marginSum || 0) * 100 - discount).toFixed(2)}
+                        %)
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+              {/* Resumo da Precificação */}
+              <div className="bg-muted/30 p-3.5 rounded-lg border space-y-1.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Subtotal Base:</span>
+                  <span className="font-medium tabular-nums">{BRL.format(totalValue)}</span>
+                </div>
+                {(discountRecalc ? discountRecalc.discountValue > 0 : discount > 0) && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">
+                      Desconto (
+                      {(discountRecalc ? discountRecalc.discountPercent : discount).toFixed(2)}%):
                     </span>
-                    <span className="font-medium text-destructive">
+                    <span className="font-medium text-destructive tabular-nums">
                       -{' '}
                       {BRL.format(
-                        discountRecalc ? discountRecalc.costsTotal : (totalValue * discount) / 100,
+                        discountRecalc
+                          ? discountRecalc.discountValue
+                          : (totalValue * discount) / 100,
                       )}
                     </span>
                   </div>
-                  {discountRecalc && (
-                    <div className="flex justify-between text-xs text-amber-700/80">
-                      <span>Venda com desconto:</span>
-                      <span>{BRL.format(discountRecalc.finalTotal)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-sm font-semibold pt-1 border-t border-amber-200">
-                    <span className="text-amber-900">Margem Ajustada:</span>
-                    <span className="text-amber-700">
-                      {BRL.format(
-                        discountRecalc
-                          ? discountRecalc.marginAmount
-                          : totalValue * (rawPricingData?.marginSum || 0) -
-                              (totalValue * discount) / 100,
-                      )}{' '}
-                      (
-                      {discountRecalc
-                        ? (discountRecalc.marginPct * 100).toFixed(2)
-                        : ((rawPricingData?.marginSum || 0) * 100 - discount).toFixed(2)}
-                      %)
-                    </span>
-                  </div>
-                </div>
-              )}
-
-            <div className="bg-muted/30 p-4 rounded-lg border space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Subtotal:</span>
-                <span className="font-medium">{BRL.format(totalValue)}</span>
-              </div>
-              {(discountRecalc ? discountRecalc.discountValue > 0 : discount > 0) && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">
-                    Desconto (
-                    {(discountRecalc ? discountRecalc.discountPercent : discount).toFixed(2)}%):
-                  </span>
-                  <span className="font-medium text-destructive">
-                    -{' '}
+                )}
+                <div className="flex justify-between text-sm font-bold pt-1.5 border-t">
+                  <span>Total Final da Venda:</span>
+                  <span className="text-primary tabular-nums">
                     {BRL.format(
-                      discountRecalc ? discountRecalc.discountValue : (totalValue * discount) / 100,
+                      discountRecalc
+                        ? discountRecalc.finalTotal
+                        : totalValue * (1 - discount / 100),
                     )}
                   </span>
                 </div>
-              )}
-              <div className="flex justify-between text-base font-bold pt-2 border-t">
-                <span>Total Final:</span>
-                <span className="text-primary">
-                  {BRL.format(
-                    discountRecalc ? discountRecalc.finalTotal : totalValue * (1 - discount / 100),
-                  )}
-                </span>
               </div>
+
+              <DialogFooter className="mt-4">
+                <Button variant="outline" onClick={handlePrev}>
+                  <ArrowLeft className="w-4 h-4 mr-2" /> Voltar
+                </Button>
+                <Button onClick={handleNext} disabled={loading}>
+                  Avançar <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </DialogFooter>
             </div>
-            <DialogFooter className="mt-6">
-              <Button variant="outline" onClick={handlePrev}>
-                <ArrowLeft className="w-4 h-4 mr-2" /> Voltar
-              </Button>
-              <Button onClick={handleGenerate} disabled={loading}>
-                <FileText className="w-4 h-4 mr-2" /> Gerar Proposta
-              </Button>
-            </DialogFooter>
-          </div>
-        )}
+          )}
+
+          {step === 3 && (
+            <div className="space-y-4 py-1">
+              {/* Toggle de Financiamento */}
+              <div className="flex items-center justify-between p-3.5 rounded-lg border bg-muted/40">
+                <div className="space-y-0.5">
+                  <Label
+                    htmlFor="toggle-has-financing"
+                    className="text-sm font-semibold cursor-pointer"
+                  >
+                    Proposta contempla financiamento?
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Destaca na proposta e no documento gerado que o cliente possui opção de
+                    financiamento bancário.
+                  </p>
+                </div>
+                <Switch
+                  id="toggle-has-financing"
+                  checked={hasFinancing}
+                  onCheckedChange={setHasFinancing}
+                />
+              </div>
+
+              {/* Formas de Pagamento Aceitas */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold">Formas de Pagamento Aceitas</Label>
+                <Textarea
+                  rows={2}
+                  placeholder="Ex: Entrada de 30% + 12x sem juros no cartão. PIX com 5% desconto."
+                  value={acceptedPaymentMethods}
+                  onChange={(e) => setAcceptedPaymentMethods(e.target.value)}
+                />
+              </div>
+
+              {/* Forma de Pagamento Definida */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold">Forma de Pagamento Definida</Label>
+                <Input
+                  placeholder="Ex: PIX, Boleto, Cartão de Crédito"
+                  value={definedPaymentMethod}
+                  onChange={(e) => setDefinedPaymentMethod(e.target.value)}
+                />
+              </div>
+
+              {/* Observações Internas */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold">
+                  Observações Internas (Não sai no PDF)
+                </Label>
+                <Textarea
+                  rows={2}
+                  placeholder="Anotações internas para a equipe comercial"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+              </div>
+
+              {/* Resumo Final antes de Gerar */}
+              <div className="bg-primary/5 p-3.5 rounded-lg border border-primary/20 space-y-1.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Sistema:</span>
+                  <span className="font-semibold text-foreground">
+                    {(neg.sizing?.kit_power_kwp || 0).toFixed(2)} kWp •{' '}
+                    {neg.sizing?.module_qty || 0} módulos
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Valor Final:</span>
+                  <span className="font-bold text-primary text-sm tabular-nums">
+                    {BRL.format(
+                      discountRecalc
+                        ? discountRecalc.finalTotal
+                        : totalValue * (1 - discount / 100),
+                    )}
+                  </span>
+                </div>
+                {(discountRecalc ? discountRecalc.discountPercent > 0 : discount > 0) && (
+                  <div className="flex justify-between text-[11px] text-muted-foreground">
+                    <span>Desconto:</span>
+                    <span className="tabular-nums">
+                      {(discountRecalc ? discountRecalc.discountPercent : discount).toFixed(2)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter className="mt-4">
+                <Button variant="outline" onClick={handlePrev}>
+                  <ArrowLeft className="w-4 h-4 mr-2" /> Voltar
+                </Button>
+                <Button onClick={handleGenerate} disabled={loading}>
+                  <FileText className="w-4 h-4 mr-2" /> Gerar Proposta
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   )

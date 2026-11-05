@@ -635,12 +635,12 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start pt-1">
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between h-5">
                   <Label className="text-xs font-medium">Desconto (%)</Label>
-                  <span className="text-[11px] text-muted-foreground">
-                    Máx. permitido: {maxDiscount.toFixed(2)}%
+                  <span className="text-[11px] text-muted-foreground tabular-nums">
+                    Máx: {maxDiscount.toFixed(2)}%
                   </span>
                 </div>
                 <Input
@@ -652,22 +652,24 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
                   disabled={discountMode !== 'percent'}
                   onChange={(e) => handlePercentChange(Number(e.target.value))}
                   className={cn(
-                    'text-sm',
+                    'text-sm h-9',
                     discountMode !== 'percent' && 'bg-muted/50 cursor-not-allowed',
                   )}
                   placeholder="0,00"
                 />
-                {discountMode === 'final_price' && (
-                  <p className="text-[11px] text-muted-foreground">
-                    Derivado: {effectiveDiscountPercent.toFixed(2)}%
-                  </p>
-                )}
+                <div className="h-4">
+                  {discountMode === 'final_price' && (
+                    <p className="text-[11px] text-muted-foreground tabular-nums">
+                      Derivado: {effectiveDiscountPercent.toFixed(2)}%
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between h-5">
                   <Label className="text-xs font-medium">Valor Final de Venda (R$)</Label>
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-[11px] text-muted-foreground tabular-nums">
                     Base: {BRL.format(subtotal)}
                   </span>
                 </div>
@@ -677,15 +679,17 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
                   disabled={discountMode !== 'final_price'}
                   onChangeValue={(val) => handleFinalPriceChange(val || 0)}
                   className={cn(
-                    'text-sm font-semibold',
+                    'text-sm font-semibold h-9',
                     discountMode !== 'final_price' && 'bg-muted/50 cursor-not-allowed',
                   )}
                 />
-                {effectiveDiscountValue > 0 && (
-                  <p className="text-[11px] text-destructive">
-                    Diferença: - {BRL.format(effectiveDiscountValue)}
-                  </p>
-                )}
+                <div className="h-4">
+                  {effectiveDiscountValue > 0 && (
+                    <p className="text-[11px] text-destructive tabular-nums">
+                      Diferença: - {BRL.format(effectiveDiscountValue)}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 

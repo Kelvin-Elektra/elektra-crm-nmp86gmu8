@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, Fragment } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -17,8 +17,16 @@ import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { cn } from '@/lib/utils'
-import { recalcPricingWithDiscount } from '@/lib/discount-recalc'
-import { ChevronDown, ChevronRight, Package, Info, AlertTriangle } from 'lucide-react'
+import { recalcPricingWithDiscount, isPercentOfSaleMethod } from '@/lib/discount-recalc'
+import {
+  ChevronDown,
+  ChevronRight,
+  Package,
+  RotateCcw,
+  AlertTriangle,
+  Receipt,
+  Layers,
+} from 'lucide-react'
 
 const BRL = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -28,10 +36,18 @@ const BRL = new Intl.NumberFormat('pt-BR', {
 })
 
 interface CostItem {
+  id: string
   name: string
   method: string
   percentage: string
+  rawValue?: number
   value: number
+  originalValue: number
+  taxWeight?: number
+  isOverridden?: boolean
+  multiplier?: number
+  calcBase?: string
+  baseValue?: number
 }
 
 function pct2(v: number): string {
@@ -50,21 +66,29 @@ interface KitItem {
   ruleApplied?: boolean
 }
 
-export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }: any) {
+export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any) {
   const { user } = useAuth()
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
-  const [costs, setCosts] = useState<CostItem[]>([])
+
+  // Subgrupos de custos
+  const [negotiationCosts, setNegotiationCosts] = useState<CostItem[]>([])
+  const [kitTotalCost, setKitTotalCost] = useState<number>(0)
   const [kitItems, setKitItems] = useState<KitItem[]>([])
   const [snapshot, setSnapshot] = useState<any>(null)
-  const [expandedKit, setExpandedKit] = useState(true)
-  const [marginSum, setMarginSum] = useState(0)
 
-  // Controle de blocos recolhíveis
-  const [expandedPreDiscount, setExpandedPreDiscount] = useState(true)
+  // Controle de blocos recolhíveis:
+  // Bloco principal "Composição de Custos" inicia RECOLHIDO por padrão (preferência do usuário)
+  const [expandedComposition, setExpandedComposition] = useState(false)
+  const [expandedKit, setExpandedKit] = useState(true)
+  const [expandedNegotiationCosts, setExpandedNegotiationCosts] = useState(true)
   const [expandedPostDiscount, setExpandedPostDiscount] = useState(true)
 
-  // Modo duplo de entrada: 'percent' ou 'final_price'
+  // Sobrescritas manuais em R$ por nome de custo
+  const [manualCostOverrides, setManualCostOverrides] = useState<Record<string, number>>({})
+  const [denominatorError, setDenominatorError] = useState<string | null>(null)
+
+  // Modo duplo de entrada de desconto: 'percent' ou 'final_price'
   const [inputMode, setInputMode] = useState<'percent' | 'final_price'>('percent')
   const [discountPercentInput, setDiscountPercentInput] = useState<number>(0)
   const [finalPriceInput, setFinalPriceInput] = useState<number>(0)
@@ -74,6 +98,7 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
 
   const maxDiscount = Number((user as any)?.max_discount) || 0
 
+  // Inicializa o estado a partir da proposta e do snapshot
   useEffect(() => {
     if (open && proposal) {
       let snap: any = {}
@@ -88,30 +113,35 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
       setSnapshot(snap)
 
       const pricing = snap.pricing || {}
-      const appliedCosts = pricing.appliedCosts || []
-      const kitPrice = pricing.kitPrice || 0
-      const marginSumVal = pricing.marginSum || 0
-      const salePrice = pricing.salePrice || proposal.price || proposal.total_value || 0
+      const appliedCosts = Array.isArray(pricing.appliedCosts) ? pricing.appliedCosts : []
+      const kitPrice = Number(pricing.kitPrice) || 0
+      const salePrice =
+        Number(pricing.salePrice) || Number(proposal.price) || Number(proposal.total_value) || 0
       const kitComposition = Array.isArray(pricing.kitComposition) ? pricing.kitComposition : []
-      setMarginSum(marginSumVal)
 
-      let costItems: CostItem[] = []
+      // Monta Kit
+      setKitTotalCost(kitPrice)
+      setKitItems(kitComposition.map((item: any) => ({ ...item })))
+
+      // Monta Custos Negociação sem duplicação (deduplica por nome)
+      const seenNames = new Set<string>()
+      const negItems: CostItem[] = []
 
       if (appliedCosts.length > 0) {
-        costItems.push({
-          name: 'Kit Fotovoltaico (Equipamentos e Insumos)',
-          method: 'kit',
-          percentage: '—',
-          value: kitPrice,
-        })
-        appliedCosts.forEach((c: any) => {
-          const isPercent = ['rate', 'tax', 'margin', 'kit_percent', 'commission'].includes(
-            c.method,
-          )
+        appliedCosts.forEach((c: any, idx: number) => {
+          if (!c) return
+          if (c.method === 'kit') return // O Kit fica em seu próprio subgrupo
+          const name = c.name || `Custo #${idx + 1}`
+          if (seenNames.has(name)) return // Garante unicidade
+          seenNames.add(name)
+
+          const isPercent =
+            isPercentOfSaleMethod(c.method) || c.method === 'margin' || c.method === 'kit_percent'
           const weightLabel =
             c.method === 'tax' && c.taxWeight != null ? ` • Peso: ${pct2(c.taxWeight)}%` : ''
-          let displayValue = c.calculatedAmount || c.amount || 0
-          if (c.method === 'tax') {
+
+          let displayValue = Number(c.calculatedAmount ?? c.amount ?? 0)
+          if (c.method === 'tax' && (!displayValue || displayValue === 0)) {
             const rate = (Number(c.value) || 0) / 100
             const weight = (Number(c.taxWeight) || 100) / 100
             const billingModel =
@@ -120,11 +150,19 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
               billingModel === 'intermediated' ? Math.max(0, salePrice - kitPrice) : salePrice
             displayValue = totalBase * rate * weight
           }
-          costItems.push({
-            name: c.name,
+
+          negItems.push({
+            id: `cost-${idx}-${name}`,
+            name,
             method: c.method,
             percentage: isPercent ? `${pct2(c.value)}%${weightLabel}` : '—',
+            rawValue: Number(c.value) || 0,
             value: displayValue,
+            originalValue: displayValue,
+            taxWeight: c.taxWeight != null ? Number(c.taxWeight) : undefined,
+            multiplier: c.multiplier != null ? Number(c.multiplier) : undefined,
+            calcBase: c.calcBase,
+            baseValue: c.baseValue != null ? Number(c.baseValue) : undefined,
           })
         })
       } else {
@@ -136,40 +174,122 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
             breakdown = []
           }
         }
-        costItems = breakdown.map((c: any) => ({
-          name: c.name,
-          method: 'fixed',
-          percentage: '—',
-          value: c.price || c.cost || 0,
-        }))
+        if (Array.isArray(breakdown)) {
+          breakdown.forEach((c: any, idx: number) => {
+            if (!c) return
+            const name = c.name || `Custo #${idx + 1}`
+            // Se for o kit fotovoltaico salvo no breakdown antigo, não duplicar em custos de negociação
+            if (name.toLowerCase().includes('kit fotovoltaico')) {
+              if (kitPrice === 0) setKitTotalCost(Number(c.price || c.cost || 0))
+              return
+            }
+            if (seenNames.has(name)) return
+            seenNames.add(name)
+
+            const val = Number(c.price ?? c.cost ?? 0)
+            negItems.push({
+              id: `breakdown-${idx}-${name}`,
+              name,
+              method: 'fixed',
+              percentage: '—',
+              value: val,
+              originalValue: val,
+            })
+          })
+        }
       }
 
-      setCosts(costItems)
-      setKitItems(kitComposition.map((item: any) => ({ ...item })))
-      setExpandedKit(true)
+      setNegotiationCosts(negItems)
+      setManualCostOverrides({})
+      setDenominatorError(null)
 
       const initialDiscount = Number(proposal.discount_amount) || 0
       setDiscountPercentInput(initialDiscount)
       const initialTotal = Number(proposal.total_value || proposal.price) || 0
       setFinalPriceInput(initialTotal)
       setInputMode('percent')
+
+      // Mantém Composição de Custos recolhida por padrão
+      setExpandedComposition(false)
+      setExpandedKit(true)
+      setExpandedNegotiationCosts(true)
+      setExpandedPostDiscount(true)
     }
   }, [open, proposal])
 
-  const kitTotal = useMemo(
-    () => kitItems.reduce((acc, item) => acc + (Number(item.total) || 0), 0),
-    [kitItems],
-  )
+  // Total do Kit: se tem itens detalhados soma eles, senão usa kitTotalCost
+  const kitTotal = useMemo(() => {
+    if (kitItems.length > 0) {
+      return kitItems.reduce((acc, item) => acc + (Number(item.total) || 0), 0)
+    }
+    return kitTotalCost
+  }, [kitItems, kitTotalCost])
 
   const hasKitItems = kitItems.length > 0
 
-  // Subtotal base (pré-desconto)
+  // Objeto PricingLike com os dados atuais da proposta
+  const basePricingLike = useMemo(() => {
+    const rawPricing = snapshot?.pricing || {}
+    const rawSettings = rawPricing.settings || snapshot?.settings || {}
+
+    // Converte negotiationCosts de volta para appliedCosts estruturados
+    const appliedCosts = negotiationCosts.map((c) => ({
+      name: c.name,
+      method: c.method as any,
+      value: c.rawValue ?? c.value,
+      amount: c.value,
+      calculatedAmount: c.value,
+      taxWeight: c.taxWeight,
+      multiplier: c.multiplier,
+      calcBase: c.calcBase,
+      baseValue: c.baseValue,
+    }))
+
+    return {
+      autoKitPrice: rawPricing.autoKitPrice || kitTotal,
+      kitPrice: kitTotal,
+      fixedCosts: rawPricing.fixedCosts || 0,
+      varCosts: rawPricing.varCosts || 0,
+      rateSum: rawPricing.rateSum || 0,
+      taxSum: rawPricing.taxSum || 0,
+      marginSum: rawPricing.marginSum || 0,
+      kitPercentSum: rawPricing.kitPercentSum || 0,
+      commissionSum: rawPricing.commissionSum || 0,
+      appliedCosts,
+      settings: rawSettings,
+    }
+  }, [snapshot, kitTotal, negotiationCosts])
+
+  // Subtotal base (pré-desconto) calculado pelo motor 2 respeitando manual overrides se existirem
+  const recalcWithoutDiscount = useMemo(() => {
+    const billingModel = (snapshot?.pricing?.settings?.billing_model ||
+      snapshot?.settings?.billing_model) as string | undefined
+
+    const fallbackSubtotal =
+      kitTotal + negotiationCosts.reduce((acc, c) => acc + (Number(c.value) || 0), 0)
+
+    const initialSubtotal =
+      Number(snapshot?.pricing?.salePrice) ||
+      Number(proposal?.price) ||
+      Number(proposal?.total_value) ||
+      fallbackSubtotal
+
+    return recalcPricingWithDiscount({
+      subtotal: initialSubtotal > 0 ? initialSubtotal : fallbackSubtotal,
+      discountPercent: 0,
+      pricing: basePricingLike,
+      billingModel,
+      costOverrides: manualCostOverrides,
+    })
+  }, [basePricingLike, kitTotal, negotiationCosts, snapshot, proposal, manualCostOverrides])
+
+  // Subtotal base pré-desconto real
   const baseSubtotal = useMemo(() => {
-    return costs.reduce((acc, c) => {
-      if (c.method === 'kit' && hasKitItems) return acc + kitTotal
-      return acc + (Number(c.value) || 0)
-    }, 0)
-  }, [costs, kitTotal, hasKitItems])
+    if (recalcWithoutDiscount && recalcWithoutDiscount.baseTotal > 0) {
+      return recalcWithoutDiscount.baseTotal
+    }
+    return kitTotal + negotiationCosts.reduce((acc, c) => acc + (Number(c.value) || 0), 0)
+  }, [recalcWithoutDiscount, kitTotal, negotiationCosts])
 
   // Sincroniza o modo de entrada
   const handleDiscountPercentChange = (val: number) => {
@@ -189,7 +309,7 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
     }
   }
 
-  // Recálculo ativo com desconto ou targetSalePrice
+  // Recálculo ativo com desconto e eventuais overrides manuais
   const activeRecalc = useMemo(() => {
     if (baseSubtotal <= 0) return null
     const billingModel = (snapshot?.pricing?.settings?.billing_model ||
@@ -199,18 +319,28 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
       return recalcPricingWithDiscount({
         subtotal: baseSubtotal,
         targetSalePrice: finalPriceInput,
-        pricing: snapshot?.pricing,
+        pricing: basePricingLike,
         billingModel,
+        costOverrides: manualCostOverrides,
       })
     } else {
       return recalcPricingWithDiscount({
         subtotal: baseSubtotal,
         discountPercent: discountPercentInput,
-        pricing: snapshot?.pricing,
+        pricing: basePricingLike,
         billingModel,
+        costOverrides: manualCostOverrides,
       })
     }
-  }, [baseSubtotal, inputMode, finalPriceInput, discountPercentInput, snapshot])
+  }, [
+    baseSubtotal,
+    inputMode,
+    finalPriceInput,
+    discountPercentInput,
+    basePricingLike,
+    snapshot,
+    manualCostOverrides,
+  ])
 
   // Desconto efetivo
   const effectiveDiscountPercent = activeRecalc
@@ -223,23 +353,96 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
     ? activeRecalc.finalTotal
     : baseSubtotal - effectiveDiscountValue
 
-  // Validação de limite
+  // Validação de limite de desconto
   const discountExceeded = !isAdmin && effectiveDiscountPercent > maxDiscount + 0.01
 
-  const handleCostChange = (idx: number, val: number | null) => {
-    const arr = [...costs]
-    arr[idx].value = val || 0
-    setCosts(arr)
+  // Há desconto lançado? (seja percentual ou valor)
+  const hasDiscountApplied = effectiveDiscountPercent > 0.001 || effectiveDiscountValue > 0.01
+
+  // Edição manual de um custo de negociação em R$
+  const handleNegotiationCostChange = (idx: number, costName: string, val: number | null) => {
+    const newVal = val ?? 0
+    const nextOverrides = {
+      ...manualCostOverrides,
+      [costName]: newVal,
+    }
+
+    // Tenta recalcular para validar se não atinge o guard de alíquota >= 1
+    const billingModel = (snapshot?.pricing?.settings?.billing_model ||
+      snapshot?.settings?.billing_model) as string | undefined
+
+    let warningEncountered: string | null = null
+    const testRecalc = recalcPricingWithDiscount({
+      subtotal: baseSubtotal,
+      discountPercent: discountPercentInput,
+      pricing: basePricingLike,
+      billingModel,
+      costOverrides: nextOverrides,
+      onDenominatorWarning: (msg) => {
+        warningEncountered = msg
+      },
+    })
+
+    if (!testRecalc && warningEncountered) {
+      setDenominatorError(warningEncountered)
+      toast({
+        variant: 'destructive',
+        title: 'Ajuste bloqueado',
+        description: warningEncountered,
+      })
+      return
+    }
+
+    setDenominatorError(null)
+    setManualCostOverrides(nextOverrides)
+
+    // Atualiza a visualização local do item
+    setNegotiationCosts((prev) => {
+      const copy = [...prev]
+      copy[idx] = {
+        ...copy[idx],
+        value: newVal,
+        isOverridden: true,
+      }
+      return copy
+    })
   }
 
+  // Edição de item do kit
   const handleKitItemChange = (idx: number, val: number | null) => {
     const arr = [...kitItems]
-    arr[idx].total = val || 0
+    arr[idx] = { ...arr[idx], total: val || 0 }
     setKitItems(arr)
   }
 
+  // Edição direta do total do kit (quando não tem kitItems)
+  const handleKitTotalChange = (val: number | null) => {
+    setKitTotalCost(val || 0)
+  }
+
+  // "Recalcular do zero": limpa os ajustes manuais e restaura os valores originais da regra da companhia
+  const handleResetToRule = useCallback(() => {
+    setManualCostOverrides({})
+    setDenominatorError(null)
+
+    // Restaura valores originais de negotiationCosts
+    setNegotiationCosts((prev) =>
+      prev.map((c) => ({
+        ...c,
+        value: c.originalValue,
+        isOverridden: false,
+      })),
+    )
+
+    toast({
+      title: 'Custos recomputados pela regra original',
+      description: 'Ajustes manuais foram removidos.',
+    })
+  }, [toast])
+
+  // Salvar proposta atualizada
   const handleSave = async () => {
-    if (discountExceeded) return
+    if (discountExceeded || denominatorError) return
     setLoading(true)
     try {
       const newSubtotal = baseSubtotal
@@ -247,31 +450,47 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
       const finalDiscountPct =
         effectiveDiscountPercent > 0 ? Number(effectiveDiscountPercent.toFixed(2)) : 0
 
-      const cost_breakdown = costs.map((c) => {
-        if (c.method === 'kit' && hasKitItems) {
-          return { name: c.name, cost: kitTotal, margin: 0, price: kitTotal }
-        }
-        return { name: c.name, cost: c.value, margin: 0, price: c.value }
-      })
+      // Breakdown estruturado sem duplicação
+      const cost_breakdown = [
+        {
+          name: 'Kit Fotovoltaico (Equipamentos e Insumos)',
+          cost: kitTotal,
+          margin: 0,
+          price: kitTotal,
+        },
+        ...negotiationCosts.map((c) => ({
+          name: c.name,
+          cost: c.value,
+          margin: 0,
+          price: c.value,
+        })),
+      ]
 
       const updatedSnapshot = { ...snapshot }
       if (updatedSnapshot.pricing) {
+        updatedSnapshot.pricing.kitPrice = kitTotal
         if (hasKitItems) {
-          updatedSnapshot.pricing.kitPrice = kitTotal
           updatedSnapshot.pricing.kitComposition = kitItems
         }
         updatedSnapshot.pricing.salePrice = newSubtotal
+
         if (updatedSnapshot.pricing.appliedCosts) {
           updatedSnapshot.pricing.appliedCosts = updatedSnapshot.pricing.appliedCosts.map(
             (c: any) => {
-              const updated = costs.find((nc) => nc.name === c.name && nc.method !== 'kit')
+              const updated = negotiationCosts.find((nc) => nc.name === c.name)
               if (updated) {
-                return { ...c, calculatedAmount: updated.value, amount: updated.value }
+                return {
+                  ...c,
+                  calculatedAmount: updated.value,
+                  amount: updated.value,
+                  isOverridden: !!manualCostOverrides[c.name],
+                }
               }
               return c
             },
           )
         }
+
         if (activeRecalc) {
           updatedSnapshot.pricing.salePriceWithDiscount = activeRecalc.finalTotal
           updatedSnapshot.pricing.discount = {
@@ -281,6 +500,9 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
           }
           updatedSnapshot.pricing.marginFinal = activeRecalc.marginAmount
           updatedSnapshot.pricing.marginFinalPct = activeRecalc.marginPct
+          if (activeRecalc.appliedCosts) {
+            updatedSnapshot.pricing.appliedCosts = activeRecalc.appliedCosts
+          }
         }
       }
 
@@ -292,16 +514,17 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
         snapshot_data: updatedSnapshot,
       })
 
-      toast({ title: 'Custos atualizados e preço recalculado' })
-      reload()
+      toast({ title: 'Custos atualizados e preço recalculado com sucesso' })
+      reload?.()
       onOpenChange(false)
     } catch (e: any) {
-      toast({ variant: 'destructive', title: 'Erro', description: e.message })
+      toast({ variant: 'destructive', title: 'Erro ao salvar', description: e.message })
     } finally {
       setLoading(false)
     }
   }
 
+  // Não-administradores visualizam apenas o valor total
   if (!isAdmin) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -328,174 +551,281 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
     )
   }
 
+  const hasManualAdjustments = Object.keys(manualCostOverrides).length > 0
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Custos e Precificação da Proposta</DialogTitle>
+          <div className="flex items-center justify-between pr-6">
+            <DialogTitle>Custos e Precificação da Proposta</DialogTitle>
+            {hasManualAdjustments && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleResetToRule}
+                className="h-8 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1.5"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Recalcular do zero</span>
+              </Button>
+            )}
+          </div>
           <VisuallyHidden>
             <DialogDescription>
-              Visualize a composição de custos pré-desconto, configure desconto ou valor final
-              direto, e confira os custos recalculados.
+              Visualize a composição de custos da proposta, ajuste descontos ou valores manuais e
+              confira o recálculo final.
             </DialogDescription>
           </VisuallyHidden>
         </DialogHeader>
 
         <TooltipProvider delayDuration={200}>
-          <div className="space-y-4 py-3">
-            {/* Bloco 1: Composição de Custos Pré-Desconto */}
+          <div className="space-y-4 py-2">
+            {/* Aviso se o denominador tiver atingido o guard */}
+            {denominatorError && (
+              <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-xs">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{denominatorError}</span>
+              </div>
+            )}
+
+            {/* BLOCO RECOLHÍVEL POR PADRÃO: "Composição de Custos" (sem "(pré-desconto)") */}
             <div className="border rounded-lg overflow-hidden bg-card">
               <button
                 type="button"
                 className="w-full flex items-center justify-between p-3.5 bg-muted/40 hover:bg-muted/60 transition-colors font-semibold text-sm text-foreground text-left"
-                onClick={() => setExpandedPreDiscount(!expandedPreDiscount)}
+                onClick={() => setExpandedComposition(!expandedComposition)}
               >
                 <div className="flex items-center gap-2">
-                  {expandedPreDiscount ? (
+                  {expandedComposition ? (
                     <ChevronDown className="w-4 h-4 text-muted-foreground" />
                   ) : (
                     <ChevronRight className="w-4 h-4 text-muted-foreground" />
                   )}
-                  <span>Composição de Custos (Pré-Desconto)</span>
+                  <span>Composição de Custos</span>
+                  {hasManualAdjustments && (
+                    <span className="text-[11px] font-normal px-2 py-0.5 rounded bg-primary/10 text-primary">
+                      Ajuste manual
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground font-normal">Subtotal base:</span>
+                  <span className="text-xs text-muted-foreground font-normal">Subtotal:</span>
                   <span className="text-sm font-bold text-foreground tabular-nums">
                     {brl2(baseSubtotal)}
                   </span>
                 </div>
               </button>
 
-              {expandedPreDiscount && (
-                <div className="border-t">
-                  {costs.length === 0 ? (
-                    <p className="text-muted-foreground text-center p-6 text-sm">
-                      Nenhum detalhamento de custo salvo para esta proposta.
-                    </p>
-                  ) : (
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted/30 border-b text-xs text-muted-foreground">
-                        <tr>
-                          <th className="text-left p-3 font-medium">Descrição</th>
-                          <th className="text-center p-3 font-medium w-32">Percentual (%)</th>
-                          <th className="text-right p-3 font-medium w-40">Valor (R$)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {costs.map((c, idx) => {
-                          const isKit = c.method === 'kit'
-                          const kitReadOnly = isKit && hasKitItems
-                          return (
-                            <Fragment key={`cost-${idx}`}>
-                              <tr className="border-b last:border-0 hover:bg-muted/20 transition-colors">
-                                <td className="p-3">
-                                  {isKit ? (
-                                    <button
-                                      type="button"
-                                      className="flex items-center gap-1.5 font-medium text-foreground hover:text-primary transition-colors"
-                                      onClick={() => setExpandedKit(!expandedKit)}
-                                    >
-                                      {expandedKit ? (
-                                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                                      ) : (
-                                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                                      )}
-                                      <Package className="w-4 h-4 text-primary" />
-                                      {c.name}
-                                    </button>
-                                  ) : (
-                                    <span className="font-medium text-foreground">{c.name}</span>
-                                  )}
-                                </td>
-                                <td className="p-3 text-center text-muted-foreground tabular-nums text-xs">
-                                  {c.percentage}
-                                </td>
-                                <td className="p-3 text-right">
-                                  <div className="flex items-center justify-end gap-1">
-                                    <span className="text-muted-foreground text-xs">R$</span>
-                                    <NumericInput
-                                      value={kitReadOnly ? kitTotal : (c.value ?? 0)}
-                                      onChangeValue={(val) => handleCostChange(idx, val)}
-                                      readOnly={kitReadOnly}
-                                      precision={2}
-                                      className={cn(
-                                        'w-36 text-right font-medium text-sm',
-                                        kitReadOnly &&
-                                          'bg-muted cursor-not-allowed text-muted-foreground',
-                                      )}
-                                    />
-                                  </div>
-                                </td>
-                              </tr>
-                              {isKit &&
-                                expandedKit &&
-                                hasKitItems &&
-                                kitItems.map((item, kIdx) => (
-                                  <tr
-                                    key={`kit-${kIdx}`}
-                                    className="bg-muted/10 border-b last:border-0"
-                                  >
-                                    <td className="p-2.5 pl-10 text-muted-foreground">
-                                      <span className="text-xs">{item.name}</span>
-                                      <span className="ml-2 text-[11px] text-muted-foreground/70">
-                                        (
-                                        {item.qty?.toLocaleString('pt-BR', {
-                                          maximumFractionDigits: 2,
-                                        })}
-                                        x)
-                                      </span>
+              {expandedComposition && (
+                <div className="border-t p-4 space-y-4">
+                  {/* SUBGRUPO 1: Kit Fotovoltaico */}
+                  <div className="border rounded-md overflow-hidden bg-background">
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between p-3 bg-muted/20 hover:bg-muted/30 transition-colors text-xs font-semibold text-foreground text-left"
+                      onClick={() => setExpandedKit(!expandedKit)}
+                    >
+                      <div className="flex items-center gap-2">
+                        {expandedKit ? (
+                          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+                        )}
+                        <Package className="w-4 h-4 text-primary" />
+                        <span>Kit Fotovoltaico</span>
+                        {hasKitItems && (
+                          <span className="text-[11px] text-muted-foreground font-normal">
+                            ({kitItems.length} {kitItems.length === 1 ? 'item' : 'itens'})
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-bold text-foreground tabular-nums">
+                        {brl2(kitTotal)}
+                      </span>
+                    </button>
+
+                    {expandedKit && (
+                      <div className="p-3 border-t">
+                        {hasKitItems ? (
+                          <div className="space-y-2">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="text-muted-foreground border-b text-[11px]">
+                                  <th className="text-left pb-1.5 font-medium">
+                                    Equipamento / Insumo
+                                  </th>
+                                  <th className="text-center pb-1.5 font-medium w-24">Qtd.</th>
+                                  <th className="text-right pb-1.5 font-medium w-36">Total (R$)</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {kitItems.map((item, kIdx) => (
+                                  <tr key={`kit-item-${kIdx}`} className="border-b last:border-0">
+                                    <td className="py-2 text-foreground font-medium">
+                                      {item.name}
                                     </td>
-                                    <td className="p-2.5 text-center text-muted-foreground/40 text-xs">
-                                      —
+                                    <td className="py-2 text-center text-muted-foreground tabular-nums">
+                                      {item.qty?.toLocaleString('pt-BR', {
+                                        maximumFractionDigits: 2,
+                                      })}
                                     </td>
-                                    <td className="p-2.5 text-right">
+                                    <td className="py-2 text-right">
                                       <div className="flex items-center justify-end gap-1">
                                         <span className="text-muted-foreground text-xs">R$</span>
                                         <NumericInput
                                           value={item.total ?? 0}
                                           onChangeValue={(val) => handleKitItemChange(kIdx, val)}
                                           precision={2}
-                                          className="w-36 text-right text-xs"
+                                          className="w-32 text-right text-xs h-8"
                                         />
                                       </div>
                                     </td>
                                   </tr>
                                 ))}
-                            </Fragment>
-                          )
-                        })}
-                      </tbody>
-                      <tfoot>
-                        <tr className="bg-primary/5 font-semibold border-t">
-                          <td className="p-3 text-right text-muted-foreground" colSpan={2}>
-                            Subtotal Base (Pré-Desconto):
-                          </td>
-                          <td className="p-3 text-right text-foreground font-bold tabular-nums">
-                            {brl2(baseSubtotal)}
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  )}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between py-1">
+                            <span className="text-xs text-muted-foreground">
+                              Custo do Kit Fotovoltaico:
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <span className="text-muted-foreground text-xs">R$</span>
+                              <NumericInput
+                                value={kitTotalCost}
+                                onChangeValue={handleKitTotalChange}
+                                precision={2}
+                                className="w-36 text-right text-xs h-8 font-medium"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* SUBGRUPO 2: Custos Negociação */}
+                  <div className="border rounded-md overflow-hidden bg-background">
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between p-3 bg-muted/20 hover:bg-muted/30 transition-colors text-xs font-semibold text-foreground text-left"
+                      onClick={() => setExpandedNegotiationCosts(!expandedNegotiationCosts)}
+                    >
+                      <div className="flex items-center gap-2">
+                        {expandedNegotiationCosts ? (
+                          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+                        )}
+                        <Receipt className="w-4 h-4 text-primary" />
+                        <span>Custos Negociação</span>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="text-[11px] text-muted-foreground cursor-help font-normal">
+                              ({negotiationCosts.length}{' '}
+                              {negotiationCosts.length === 1 ? 'item' : 'itens'})
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent className="text-xs max-w-xs">
+                            Impostos, comissões, fixos e variáveis da regra da companhia
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <span className="font-bold text-foreground tabular-nums">
+                        {brl2(negotiationCosts.reduce((acc, c) => acc + (Number(c.value) || 0), 0))}
+                      </span>
+                    </button>
+
+                    {expandedNegotiationCosts && (
+                      <div className="border-t">
+                        {negotiationCosts.length === 0 ? (
+                          <p className="text-muted-foreground text-center p-4 text-xs">
+                            Nenhum custo de negociação cadastrado.
+                          </p>
+                        ) : (
+                          <table className="w-full text-xs">
+                            <thead className="bg-muted/20 border-b text-[11px] text-muted-foreground">
+                              <tr>
+                                <th className="text-left p-2.5 font-medium">Descrição</th>
+                                <th className="text-center p-2.5 font-medium w-28">Alíquota (%)</th>
+                                <th className="text-right p-2.5 font-medium w-36">Valor (R$)</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {negotiationCosts.map((c, idx) => {
+                                const isOverridden = !!manualCostOverrides[c.name]
+                                return (
+                                  <tr
+                                    key={c.id}
+                                    className="border-b last:border-0 hover:bg-muted/10 transition-colors"
+                                  >
+                                    <td className="p-2.5 font-medium text-foreground">
+                                      <div className="flex items-center gap-1.5">
+                                        <span>{c.name}</span>
+                                        {isOverridden && (
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.2 rounded font-normal">
+                                                editado
+                                              </span>
+                                            </TooltipTrigger>
+                                            <TooltipContent className="text-xs">
+                                              Item desembaraçado: fixado em R$ no numerador
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="p-2.5 text-center text-muted-foreground tabular-nums">
+                                      {c.percentage}
+                                    </td>
+                                    <td className="p-2.5 text-right">
+                                      <div className="flex items-center justify-end gap-1">
+                                        <span className="text-muted-foreground text-xs">R$</span>
+                                        <NumericInput
+                                          value={c.value ?? 0}
+                                          onChangeValue={(val) =>
+                                            handleNegotiationCostChange(idx, c.name, val)
+                                          }
+                                          precision={2}
+                                          className={cn(
+                                            'w-32 text-right text-xs h-8',
+                                            isOverridden &&
+                                              'border-primary/50 bg-primary/5 font-semibold text-primary',
+                                          )}
+                                        />
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Bloco 2: Configuração de Desconto / Valor Final Direto */}
-            <div className="border rounded-lg p-4 bg-muted/20 space-y-3">
+            {/* BLOCO: Ajuste de Preço de Venda (Desconto % vs Valor Final R$) */}
+            <div className="border rounded-lg p-3.5 bg-muted/20 space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <h4 className="font-semibold text-sm text-foreground">
                     Ajuste de Preço de Venda
                   </h4>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Info className="w-4 h-4 text-muted-foreground cursor-pointer hover:text-foreground" />
+                      <Layers className="w-3.5 h-3.5 text-muted-foreground cursor-pointer hover:text-foreground" />
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs text-xs">
-                      Escolha entre definir o percentual de desconto ou o valor final em reais. Em
-                      ambos os casos a margem absorve o ajuste e os custos percentuais são
-                      recalculados.
+                      Desconto em % ou valor final em R$. A margem absorve o ajuste e custos
+                      percentuais se recalculam.
                     </TooltipContent>
                   </Tooltip>
                 </div>
@@ -532,7 +862,7 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-medium">Desconto (%)</Label>
                     <span className="text-[11px] text-muted-foreground">
-                      Máx. permitido: {pct2(maxDiscount)}%
+                      Máx: {pct2(maxDiscount)}%
                     </span>
                   </div>
                   <Input
@@ -585,98 +915,90 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
                 <div className="flex items-center gap-2 p-2.5 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-xs">
                   <AlertTriangle className="w-4 h-4 shrink-0" />
                   <span>
-                    Desconto de {pct2(effectiveDiscountPercent)}% excede o limite máximo permitido
-                    para seu usuário ({pct2(maxDiscount)}%).
+                    Desconto de {pct2(effectiveDiscountPercent)}% excede o limite máximo permitido (
+                    {pct2(maxDiscount)}%).
                   </span>
                 </div>
               )}
             </div>
 
-            {/* Bloco 3: Custos e Margem Recalculados Após o Desconto (Recolhível) */}
-            <div className="border rounded-lg overflow-hidden bg-card">
-              <button
-                type="button"
-                className="w-full flex items-center justify-between p-3.5 bg-muted/40 hover:bg-muted/60 transition-colors font-semibold text-sm text-foreground text-left"
-                onClick={() => setExpandedPostDiscount(!expandedPostDiscount)}
-              >
-                <div className="flex items-center gap-2">
-                  {expandedPostDiscount ? (
-                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                  )}
-                  <span>Após o Desconto (Custos e Margem Recalculados)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground font-normal">Venda final:</span>
-                  <span className="text-sm font-bold text-primary tabular-nums">
-                    {brl2(effectiveFinalTotal)}
-                  </span>
-                </div>
-              </button>
+            {/* BLOCO CONDICIONAL: "Após o Desconto" — SÓ aparece quando HÁ desconto aplicado */}
+            {hasDiscountApplied && (
+              <div className="border rounded-lg overflow-hidden bg-card">
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between p-3.5 bg-muted/40 hover:bg-muted/60 transition-colors font-semibold text-sm text-foreground text-left"
+                  onClick={() => setExpandedPostDiscount(!expandedPostDiscount)}
+                >
+                  <div className="flex items-center gap-2">
+                    {expandedPostDiscount ? (
+                      <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    )}
+                    <span>Após o Desconto</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground font-normal">Venda final:</span>
+                    <span className="text-sm font-bold text-primary tabular-nums">
+                      {brl2(effectiveFinalTotal)}
+                    </span>
+                  </div>
+                </button>
 
-              {expandedPostDiscount && (
-                <div className="p-4 space-y-3 border-t">
-                  {activeRecalc ? (
-                    <>
-                      {/* Tabela resumida de custos recalculados */}
-                      {activeRecalc.detail && activeRecalc.detail.length > 0 && (
-                        <div className="border rounded-md overflow-hidden text-xs">
-                          <table className="w-full">
-                            <thead className="bg-muted/40 border-b text-muted-foreground">
-                              <tr>
-                                <th className="text-left p-2.5 font-medium">Item Recalculado</th>
-                                <th className="text-left p-2.5 font-medium">Base de Incidência</th>
-                                <th className="text-right p-2.5 font-medium w-36">
-                                  Novo Valor (R$)
-                                </th>
+                {expandedPostDiscount && (
+                  <div className="p-4 space-y-3 border-t">
+                    {activeRecalc && activeRecalc.detail && activeRecalc.detail.length > 0 && (
+                      <div className="border rounded-md overflow-hidden text-xs">
+                        <table className="w-full">
+                          <thead className="bg-muted/30 border-b text-muted-foreground text-[11px]">
+                            <tr>
+                              <th className="text-left p-2.5 font-medium">Item Recalculado</th>
+                              <th className="text-left p-2.5 font-medium">Base de Incidência</th>
+                              <th className="text-right p-2.5 font-medium w-32">Novo Valor (R$)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {activeRecalc.detail.map((item, idx) => (
+                              <tr
+                                key={`recalc-detail-${idx}`}
+                                className="border-b last:border-0 hover:bg-muted/10"
+                              >
+                                <td className="p-2.5 font-medium text-foreground">{item.name}</td>
+                                <td className="p-2.5 text-muted-foreground">{item.label}</td>
+                                <td className="p-2.5 text-right tabular-nums text-foreground">
+                                  {brl2(item.amount)}
+                                </td>
                               </tr>
-                            </thead>
-                            <tbody>
-                              {activeRecalc.detail.map((item, idx) => (
-                                <tr
-                                  key={`recalc-detail-${idx}`}
-                                  className="border-b last:border-0 hover:bg-muted/10"
-                                >
-                                  <td className="p-2.5 font-medium text-foreground">{item.name}</td>
-                                  <td className="p-2.5 text-muted-foreground">{item.label}</td>
-                                  <td className="p-2.5 text-right tabular-nums text-foreground">
-                                    {brl2(item.amount)}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
 
-                      {/* Quadro consolidado de impacto financeiro */}
-                      <div className="bg-amber-50/70 border border-amber-200 p-3.5 rounded-lg space-y-2 text-xs">
+                    {activeRecalc && (
+                      <div className="bg-amber-50/70 border border-amber-200 p-3.5 rounded-lg space-y-1.5 text-xs">
                         <div className="flex justify-between">
-                          <span className="text-amber-800">Venda Base (Pré-Desconto):</span>
+                          <span className="text-amber-800">Venda Base:</span>
                           <span className="font-semibold text-amber-950 tabular-nums">
                             {brl2(activeRecalc.baseTotal)}
                           </span>
                         </div>
-                        {activeRecalc.discountValue > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-amber-800">
-                              Desconto Aplicado ({pct2(activeRecalc.discountPercent)}%):
-                            </span>
-                            <span className="font-semibold text-destructive tabular-nums">
-                              - {brl2(activeRecalc.discountValue)}
-                            </span>
-                          </div>
-                        )}
                         <div className="flex justify-between">
                           <span className="text-amber-800">
-                            Total de Custos (Fixos + Percentuais Recalc.):
+                            Desconto Aplicado ({pct2(activeRecalc.discountPercent)}%):
                           </span>
+                          <span className="font-semibold text-destructive tabular-nums">
+                            - {brl2(activeRecalc.discountValue)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-amber-800">Total de Custos Recalculados:</span>
                           <span className="font-semibold text-destructive tabular-nums">
                             - {brl2(activeRecalc.costsTotal)}
                           </span>
                         </div>
-                        <div className="flex justify-between pt-2 border-t border-amber-200 text-sm font-bold">
+                        <div className="flex justify-between pt-1.5 border-t border-amber-200 text-sm font-bold">
                           <span className="text-amber-950">Margem Real Resultante:</span>
                           <span
                             className={cn(
@@ -691,48 +1013,62 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload, neg }:
                           </span>
                         </div>
                       </div>
-                    </>
-                  ) : (
-                    <div className="p-4 bg-muted/30 rounded-lg text-center text-xs text-muted-foreground">
-                      Custos pré e pós-desconto são idênticos sem desconto ou custos percentuais
-                      aplicados.
-                    </div>
-                  )}
-
-                  {/* Resumo de Fechamento */}
-                  <div className="bg-muted/40 p-3.5 rounded-lg border space-y-1.5 text-sm">
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Subtotal Base:</span>
-                      <span className="tabular-nums font-medium text-foreground">
-                        {brl2(baseSubtotal)}
-                      </span>
-                    </div>
-                    {effectiveDiscountValue > 0 && (
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>Desconto ({pct2(effectiveDiscountPercent)}%):</span>
-                        <span className="tabular-nums font-medium text-destructive">
-                          - {brl2(effectiveDiscountValue)}
-                        </span>
-                      </div>
                     )}
-                    <div className="flex justify-between text-base font-bold pt-2 border-t text-foreground">
-                      <span>Total Final da Proposta:</span>
-                      <span className="text-primary tabular-nums">{brl2(effectiveFinalTotal)}</span>
-                    </div>
                   </div>
+                )}
+              </div>
+            )}
+
+            {/* Resumo Final de Fechamento */}
+            <div className="bg-muted/40 p-3.5 rounded-lg border space-y-1.5 text-sm">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Subtotal Base:</span>
+                <span className="tabular-nums font-medium text-foreground">
+                  {brl2(baseSubtotal)}
+                </span>
+              </div>
+              {hasDiscountApplied && (
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Desconto ({pct2(effectiveDiscountPercent)}%):</span>
+                  <span className="tabular-nums font-medium text-destructive">
+                    - {brl2(effectiveDiscountValue)}
+                  </span>
                 </div>
               )}
+              <div className="flex justify-between text-base font-bold pt-2 border-t text-foreground">
+                <span>Total Final da Proposta:</span>
+                <span className="text-primary tabular-nums">{brl2(effectiveFinalTotal)}</span>
+              </div>
             </div>
           </div>
         </TooltipProvider>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button onClick={handleSave} disabled={loading || costs.length === 0 || discountExceeded}>
-            Salvar
-          </Button>
+        <DialogFooter className="flex items-center justify-between sm:justify-between w-full">
+          <div>
+            {hasManualAdjustments && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleResetToRule}
+                className="text-xs text-muted-foreground flex items-center gap-1.5"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Recalcular do zero</span>
+              </Button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={loading || discountExceeded || !!denominatorError}
+            >
+              Salvar
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
