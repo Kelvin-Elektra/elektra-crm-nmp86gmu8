@@ -94,6 +94,8 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
   const [negotiationCosts, setNegotiationCosts] = useState<CostItem[]>([])
   const [kitTotalCost, setKitTotalCost] = useState<number>(0)
   const [kitItems, setKitItems] = useState<KitItem[]>([])
+  const [originalKitItems, setOriginalKitItems] = useState<KitItem[]>([])
+  const [originalKitPrice, setOriginalKitPrice] = useState<number>(0)
   const [snapshot, setSnapshot] = useState<any>(null)
 
   // Controle de blocos recolhíveis:
@@ -141,6 +143,8 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
       // Monta Kit
       setKitTotalCost(kitPrice)
       setKitItems(kitComposition.map((item: any) => ({ ...item })))
+      setOriginalKitItems(kitComposition.map((item: any) => ({ ...item })))
+      setOriginalKitPrice(kitPrice)
 
       // Monta Custos Negociação sem duplicação (deduplica por nome)
       const seenNames = new Set<string>()
