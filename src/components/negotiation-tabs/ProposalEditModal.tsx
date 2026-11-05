@@ -268,6 +268,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
         null
 
       let updatedViewUrl = proposal.view_url || updatedSnapshot.view_url || null
+      let generatorSyncFailed = false
 
       if (templateId) {
         try {
@@ -554,6 +555,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
               sizing: enriched.sizing,
               financial: enriched.financial,
               dynamic: enriched.dynamic,
+              manual_mappings: updatedSnapshot.manual_mappings || undefined,
             },
             templateFields,
           )
@@ -563,6 +565,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           }
         } catch (genErr) {
           console.warn('Aviso: Não foi possível atualizar no gerador remoto:', genErr)
+          generatorSyncFailed = true
         }
       }
 
@@ -580,7 +583,16 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
         ...(updatedViewUrl ? { view_url: updatedViewUrl } : {}),
       })
       await createProposalHistory(proposal.id, updatedSnapshot)
-      toast({ title: 'Proposta atualizada' })
+      if (generatorSyncFailed) {
+        toast({
+          variant: 'destructive',
+          title: 'Proposta atualizada no CRM, mas não no Gerador',
+          description:
+            'O documento gerado ainda mostra os valores antigos. Edite e salve novamente para sincronizar.',
+        })
+      } else {
+        toast({ title: 'Proposta atualizada' })
+      }
       reload()
       onOpenChange(false)
     } catch (e: any) {

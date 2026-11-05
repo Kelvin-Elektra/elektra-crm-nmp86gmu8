@@ -42,6 +42,7 @@ import {
 import { createGeneratorProposal, getTemplatesResponse } from '@/services/templates'
 import { enrichPayloadWithSemanticVariables } from '@/lib/semantic-mapper'
 import { recalcPricingWithDiscount, type DiscountRecalcResult } from '@/lib/discount-recalc'
+import { isMarginOrCommission } from '@/components/negotiation-tabs/ProposalCostModal'
 import {
   calculateConsumptionCoverage,
   calculateOccupiedArea,
@@ -1222,15 +1223,25 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
                         podem não ser calculados corretamente.
                       </p>
                     )}
-                    {rawPricingData.appliedCosts.map((cost: any, idx: number) => (
-                      <div
-                        key={idx}
-                        className="flex justify-between text-sm py-1 border-b last:border-0"
-                      >
-                        <span className="text-muted-foreground">{cost.name}</span>
-                        <span className="font-medium">{formatCostDisplay(cost)}</span>
-                      </div>
-                    ))}
+                    {[...rawPricingData.appliedCosts]
+                      .sort((a: any, b: any) =>
+                        String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR'),
+                      )
+                      .map((cost: any, idx: number) => (
+                        <div
+                          key={idx}
+                          className={cn(
+                            'flex justify-between text-sm py-1 border-b last:border-0',
+                            isMarginOrCommission(cost) && 'font-semibold text-primary',
+                          )}
+                        >
+                          <span className="text-muted-foreground">
+                            {isMarginOrCommission(cost) ? '★ ' : ''}
+                            {cost.name}
+                          </span>
+                          <span className="font-medium">{formatCostDisplay(cost)}</span>
+                        </div>
+                      ))}
                   </div>
                 )}
 
