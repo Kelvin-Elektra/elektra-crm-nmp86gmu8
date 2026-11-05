@@ -52,7 +52,20 @@ import {
   composeLeadTimeText,
 } from '@/types/lead-time'
 
-const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+const BRL = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
+function pct2(v: number): string {
+  return (Number(v) || 0).toFixed(2)
+}
+
+function brl2(v: number): string {
+  return BRL.format(Number(v) || 0)
+}
 
 function parsePaymentMethods(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.filter((m: any) => typeof m === 'string' && m.trim() !== '')
@@ -640,7 +653,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
                 <div className="flex items-center justify-between h-5">
                   <Label className="text-xs font-medium">Desconto (%)</Label>
                   <span className="text-[11px] text-muted-foreground tabular-nums">
-                    Máx: {maxDiscount.toFixed(2)}%
+                    Máx: {pct2(maxDiscount)}%
                   </span>
                 </div>
                 <Input
@@ -660,7 +673,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
                 <div className="h-4">
                   {discountMode === 'final_price' && (
                     <p className="text-[11px] text-muted-foreground tabular-nums">
-                      Derivado: {effectiveDiscountPercent.toFixed(2)}%
+                      Derivado: {pct2(effectiveDiscountPercent)}%
                     </p>
                   )}
                 </div>
@@ -670,7 +683,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
                 <div className="flex items-center justify-between h-5">
                   <Label className="text-xs font-medium">Valor Final de Venda (R$)</Label>
                   <span className="text-[11px] text-muted-foreground tabular-nums">
-                    Base: {BRL.format(subtotal)}
+                    Base: {brl2(subtotal)}
                   </span>
                 </div>
                 <NumericInput
@@ -686,7 +699,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
                 <div className="h-4">
                   {effectiveDiscountValue > 0 && (
                     <p className="text-[11px] text-destructive tabular-nums">
-                      Diferença: - {BRL.format(effectiveDiscountValue)}
+                      Diferença: - {brl2(effectiveDiscountValue)}
                     </p>
                   )}
                 </div>
@@ -697,8 +710,8 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
               <div className="flex items-center gap-2 p-2.5 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-xs">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
                 <span>
-                  Desconto de {effectiveDiscountPercent.toFixed(2)}% excede o limite máximo
-                  permitido para seu usuário ({maxDiscount.toFixed(2)}%).
+                  Desconto de {pct2(effectiveDiscountPercent)}% excede o limite máximo permitido
+                  para seu usuário ({pct2(maxDiscount)}%).
                 </span>
               </div>
             )}
@@ -710,7 +723,7 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
               <div className="flex justify-between text-sm">
                 <span className="text-amber-700">Margem Original:</span>
                 <span className="font-medium text-amber-900">
-                  {BRL.format(originalMarginAmount)} ({marginSumPct.toFixed(2)}%)
+                  {brl2(originalMarginAmount)} ({pct2(marginSumPct)}%)
                 </span>
               </div>
               <div className="flex justify-between text-sm">
@@ -718,19 +731,19 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
                   {recalc ? 'Custos (recalc. s/ venda c/ desconto):' : 'Desconto Aplicado:'}
                 </span>
                 <span className="font-medium text-destructive">
-                  - {BRL.format(recalc ? recalc.costsTotal : effectiveDiscountValue)}
+                  - {brl2(recalc ? recalc.costsTotal : effectiveDiscountValue)}
                 </span>
               </div>
               {recalc && (
                 <div className="flex justify-between text-xs text-amber-700/80">
                   <span>Venda com desconto:</span>
-                  <span>{BRL.format(recalc.finalTotal)}</span>
+                  <span>{brl2(recalc.finalTotal)}</span>
                 </div>
               )}
               <div className="flex justify-between text-sm font-semibold pt-1 border-t border-amber-200">
                 <span className="text-amber-900">Margem Ajustada:</span>
                 <span className="font-medium text-amber-700">
-                  {BRL.format(adjustedMarginAmount)} ({adjustedMarginPct.toFixed(2)}%)
+                  {brl2(adjustedMarginAmount)} ({pct2(adjustedMarginPct)}%)
                 </span>
               </div>
             </div>
@@ -739,24 +752,23 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           <div className="bg-muted/30 p-4 rounded-lg border space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Subtotal:</span>
-              <span className="font-medium">{BRL.format(subtotal)}</span>
+              <span className="font-medium">{brl2(subtotal)}</span>
             </div>
             {effectiveDiscountValue > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">
-                  Desconto ({effectiveDiscountPercent.toFixed(2)}%):
+                  Desconto ({pct2(effectiveDiscountPercent)}%):
                 </span>
                 <span className="font-medium text-destructive">
-                  - {BRL.format(effectiveDiscountValue)}
+                  - {brl2(effectiveDiscountValue)}
                 </span>
               </div>
             )}
             <div className="flex justify-between text-base font-bold pt-2 border-t">
-              <span>Total Final:</span>
-              <span className="text-primary">{BRL.format(effectiveFinalTotal)}</span>
+              <span>Total da Proposta:</span>
+              <span className="text-primary">{brl2(effectiveFinalTotal)}</span>
             </div>
           </div>
-
           {/* Toggle de Financiamento */}
           <div className="flex items-center justify-between p-3.5 rounded-lg border bg-muted/40">
             <div className="space-y-0.5">

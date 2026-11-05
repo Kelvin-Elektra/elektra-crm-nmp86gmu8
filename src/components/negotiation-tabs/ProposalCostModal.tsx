@@ -26,6 +26,8 @@ import {
   AlertTriangle,
   Receipt,
   Layers,
+  Pencil,
+  Loader2,
 } from 'lucide-react'
 
 const BRL = new Intl.NumberFormat('pt-BR', {
@@ -50,12 +52,29 @@ interface CostItem {
   baseValue?: number
 }
 
-function pct2(v: number): string {
+export function pct2(v: number): string {
   return (Number(v) || 0).toFixed(2)
 }
 
-function brl2(v: number): string {
+export function brl2(v: number): string {
   return BRL.format(Number(v) || 0)
+}
+
+export function isMarginOrCommission(
+  name: string = '',
+  method: string = '',
+): 'margin' | 'commission' | null {
+  const norm = name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+  if (method === 'margin' || norm.includes('margem') || norm.includes('lucro')) {
+    return 'margin'
+  }
+  if (method === 'commission' || norm.includes('comissao') || norm.includes('comiss')) {
+    return 'commission'
+  }
+  return null
 }
 
 interface KitItem {
@@ -217,6 +236,10 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
     }
   }, [open, proposal])
 
+  // Estado para indicar feedback de recálculo em andamento (spinner / lápis)
+  const [isCalculating, setIsCalculating] = useState(false)
+  const [editingCostName, setEditingCostName] = useState<string | null>(null)
+
   // Total do Kit: se tem itens detalhados soma eles, senão usa kitTotalCost
   const kitTotal = useMemo(() => {
     if (kitItems.length > 0) {
@@ -227,25 +250,43 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
 
   const hasKitItems = kitItems.length > 0
 
+  // Lista ordenada alfabeticamente para o Kit Fotovoltaico
+  const sortedKitItems = useMemo(() => {
+    return [...kitItems].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'))
+  }, [kitItems])
+
+  // Lista ordenada alfabeticamente para os Custos de Negociação
+  const sortedNegotiationCosts = useMemo(() => {
+    return [...negotiationCosts].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'))
+  }, [negotiationCosts])
+
   // Objeto PricingLike com os dados atuais da proposta
   // Usa originalValue como baseline estável para que itens percentuais possam recalcular
   // dinamicamente em tempo real sobre a nova base de venda sem perder a referência original
+  // Fixos e variáveis mantêm seu valor pois não dependem do preço de venda
   const basePricingLike = useMemo(() => {
     const rawPricing = snapshot?.pricing || {}
     const rawSettings = rawPricing.settings || snapshot?.settings || {}
 
     // Converte negotiationCosts de volta para appliedCosts estruturados
-    const appliedCosts = negotiationCosts.map((c) => ({
-      name: c.name,
-      method: c.method as any,
-      value: c.rawValue ?? c.value,
-      amount: c.originalValue ?? c.value,
-      calculatedAmount: c.originalValue ?? c.value,
-      taxWeight: c.taxWeight,
-      multiplier: c.multiplier,
-      calcBase: c.calcBase,
-      baseValue: c.baseValue,
-    }))
+    const appliedCosts = negotiationCosts.map((c) => {
+      // Se tiver override manual neste custo, usa o override; senão usa originalValue
+      const overriddenVal = manualCostOverrides[c.name]
+      const effectiveAmount =
+        overriddenVal !== undefined ? overriddenVal : (c.originalValue ?? c.value)
+
+      return {
+        name: c.name,
+        method: c.method as any,
+        value: c.rawValue ?? c.value,
+        amount: effectiveAmount,
+        calculatedAmount: effectiveAmount,
+        taxWeight: c.taxWeight,
+        multiplier: c.multiplier,
+        calcBase: c.calcBase,
+        baseValue: c.baseValue,
+      }
+    })
 
     return {
       autoKitPrice: rawPricing.autoKitPrice || kitTotal,
@@ -260,7 +301,7 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
       appliedCosts,
       settings: rawSettings,
     }
-  }, [snapshot, kitTotal, negotiationCosts])
+  }, [snapshot, kitTotal, negotiationCosts, manualCostOverrides])
 
   // Subtotal base (pré-desconto) calculado pelo motor 2 respeitando manual overrides se existirem
   const recalcWithoutDiscount = useMemo(() => {
@@ -379,12 +420,15 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
   const hasDiscountApplied = effectiveDiscountPercent > 0.001 || effectiveDiscountValue > 0.01
 
   // Edição manual de um custo de negociação em R$
-  const handleNegotiationCostChange = (idx: number, costName: string, val: number | null) => {
+  const handleNegotiationCostChange = (costName: string, val: number | null) => {
     const newVal = val ?? 0
     const nextOverrides = {
       ...manualCostOverrides,
       [costName]: newVal,
     }
+
+    setEditingCostName(costName)
+    setIsCalculating(true)
 
     // Tenta recalcular para validar se não atinge o guard de alíquota >= 1
     const billingModel = (snapshot?.pricing?.settings?.billing_model ||
@@ -404,6 +448,7 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
 
     if (!testRecalc && warningEncountered) {
       setDenominatorError(warningEncountered)
+      setIsCalculating(false)
       toast({
         variant: 'destructive',
         title: 'Ajuste bloqueado',
@@ -416,22 +461,29 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
     setManualCostOverrides(nextOverrides)
 
     // Atualiza a visualização local do item
-    setNegotiationCosts((prev) => {
-      const copy = [...prev]
-      copy[idx] = {
-        ...copy[idx],
-        value: newVal,
-        isOverridden: true,
-      }
-      return copy
-    })
+    setNegotiationCosts((prev) =>
+      prev.map((item) =>
+        item.name === costName
+          ? {
+              ...item,
+              value: newVal,
+              isOverridden: true,
+            }
+          : item,
+      ),
+    )
+
+    // Breve feedback visual de cálculo concluído
+    setTimeout(() => {
+      setIsCalculating(false)
+    }, 250)
   }
 
   // Edição de item do kit
-  const handleKitItemChange = (idx: number, val: number | null) => {
-    const arr = [...kitItems]
-    arr[idx] = { ...arr[idx], total: val || 0 }
-    setKitItems(arr)
+  const handleKitItemChange = (itemName: string, val: number | null) => {
+    setKitItems((prev) =>
+      prev.map((item) => (item.name === itemName ? { ...item, total: val || 0 } : item)),
+    )
   }
 
   // Edição direta do total do kit (quando não tem kitItems)
@@ -630,6 +682,12 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
                   )}
                 </div>
                 <div className="flex items-center gap-2">
+                  {isCalculating && (
+                    <span className="flex items-center gap-1 text-[11px] text-primary font-normal">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Recalculando...
+                    </span>
+                  )}
                   <span className="text-xs text-muted-foreground font-normal">Subtotal:</span>
                   <span className="text-sm font-bold text-foreground tabular-nums">
                     {brl2(baseSubtotal)}
@@ -680,8 +738,11 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
                                 </tr>
                               </thead>
                               <tbody>
-                                {kitItems.map((item, kIdx) => (
-                                  <tr key={`kit-item-${kIdx}`} className="border-b last:border-0">
+                                {sortedKitItems.map((item, kIdx) => (
+                                  <tr
+                                    key={`kit-item-${item.name}-${kIdx}`}
+                                    className="border-b last:border-0"
+                                  >
                                     <td className="py-2 text-foreground font-medium">
                                       {item.name}
                                     </td>
@@ -695,7 +756,9 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
                                         <span className="text-muted-foreground text-xs">R$</span>
                                         <NumericInput
                                           value={item.total ?? 0}
-                                          onChangeValue={(val) => handleKitItemChange(kIdx, val)}
+                                          onChangeValue={(val) =>
+                                            handleKitItemChange(item.name, val)
+                                          }
                                           precision={2}
                                           className="w-32 text-right text-xs h-8"
                                         />
@@ -774,20 +837,49 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
                               </tr>
                             </thead>
                             <tbody>
-                              {negotiationCosts.map((c, idx) => {
+                              {sortedNegotiationCosts.map((c) => {
                                 const isOverridden = !!manualCostOverrides[c.name]
+                                const highlightedRole = isMarginOrCommission(c.name, c.method)
+                                const isBeingEdited = editingCostName === c.name
+
+                                // Valor recalculado em tempo real:
+                                // Se o item foi editado manualmente, usa o valor sobrescrito;
+                                // Se for percentual, lê do recalculatedAmountsMap (derivado do recálculo live);
+                                // Senão, mantém o valor original
+                                const liveValue =
+                                  manualCostOverrides[c.name] !== undefined
+                                    ? manualCostOverrides[c.name]
+                                    : (recalculatedAmountsMap.get(c.name) ?? c.value)
+
                                 return (
                                   <tr
                                     key={c.id}
-                                    className="border-b last:border-0 hover:bg-muted/10 transition-colors"
+                                    className={cn(
+                                      'border-b last:border-0 transition-colors',
+                                      highlightedRole === 'margin' &&
+                                        'bg-emerald-50/60 dark:bg-emerald-950/20 font-medium',
+                                      highlightedRole === 'commission' &&
+                                        'bg-blue-50/60 dark:bg-blue-950/20 font-medium',
+                                      !highlightedRole && 'hover:bg-muted/10',
+                                    )}
                                   >
                                     <td className="p-2.5 font-medium text-foreground">
-                                      <div className="flex items-center gap-1.5">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
                                         <span>{c.name}</span>
+                                        {highlightedRole === 'margin' && (
+                                          <span className="text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300">
+                                            Margem
+                                          </span>
+                                        )}
+                                        {highlightedRole === 'commission' && (
+                                          <span className="text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300">
+                                            Comissão
+                                          </span>
+                                        )}
                                         {isOverridden && (
                                           <Tooltip>
                                             <TooltipTrigger asChild>
-                                              <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.2 rounded font-normal">
+                                              <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded font-normal">
                                                 editado
                                               </span>
                                             </TooltipTrigger>
@@ -803,17 +895,24 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
                                     </td>
                                     <td className="p-2.5 text-right">
                                       <div className="flex items-center justify-end gap-1">
+                                        {isBeingEdited && (
+                                          <Pencil className="w-3 h-3 text-primary animate-pulse" />
+                                        )}
                                         <span className="text-muted-foreground text-xs">R$</span>
                                         <NumericInput
-                                          value={c.value ?? 0}
+                                          value={liveValue ?? 0}
                                           onChangeValue={(val) =>
-                                            handleNegotiationCostChange(idx, c.name, val)
+                                            handleNegotiationCostChange(c.name, val)
                                           }
                                           precision={2}
                                           className={cn(
                                             'w-32 text-right text-xs h-8',
                                             isOverridden &&
                                               'border-primary/50 bg-primary/5 font-semibold text-primary',
+                                            highlightedRole === 'margin' &&
+                                              'border-emerald-300/60 dark:border-emerald-700/60',
+                                            highlightedRole === 'commission' &&
+                                              'border-blue-300/60 dark:border-blue-700/60',
                                           )}
                                         />
                                       </div>
@@ -978,18 +1077,42 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
                             </tr>
                           </thead>
                           <tbody>
-                            {activeRecalc.detail.map((item, idx) => (
-                              <tr
-                                key={`recalc-detail-${idx}`}
-                                className="border-b last:border-0 hover:bg-muted/10"
-                              >
-                                <td className="p-2.5 font-medium text-foreground">{item.name}</td>
-                                <td className="p-2.5 text-muted-foreground">{item.label}</td>
-                                <td className="p-2.5 text-right tabular-nums text-foreground">
-                                  {brl2(item.amount)}
-                                </td>
-                              </tr>
-                            ))}
+                            {activeRecalc.detail.map((item, idx) => {
+                              const highlightedRole = isMarginOrCommission(item.name)
+                              return (
+                                <tr
+                                  key={`recalc-detail-${idx}`}
+                                  className={cn(
+                                    'border-b last:border-0 transition-colors',
+                                    highlightedRole === 'margin' &&
+                                      'bg-emerald-50/60 dark:bg-emerald-950/20 font-medium',
+                                    highlightedRole === 'commission' &&
+                                      'bg-blue-50/60 dark:bg-blue-950/20 font-medium',
+                                    !highlightedRole && 'hover:bg-muted/10',
+                                  )}
+                                >
+                                  <td className="p-2.5 font-medium text-foreground">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span>{item.name}</span>
+                                      {highlightedRole === 'margin' && (
+                                        <span className="text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300">
+                                          Margem
+                                        </span>
+                                      )}
+                                      {highlightedRole === 'commission' && (
+                                        <span className="text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300">
+                                          Comissão
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="p-2.5 text-muted-foreground">{item.label}</td>
+                                  <td className="p-2.5 text-right tabular-nums text-foreground">
+                                    {brl2(item.amount)}
+                                  </td>
+                                </tr>
+                              )
+                            })}
                           </tbody>
                         </table>
                       </div>

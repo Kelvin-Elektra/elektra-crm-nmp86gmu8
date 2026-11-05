@@ -48,7 +48,15 @@ export const NumericInput = React.forwardRef<HTMLInputElement, NumericInputProps
   ) => {
     const [display, setDisplay] = React.useState<string>(() => {
       if (value === null || value === undefined || value === '') return ''
-      return String(value).replace('.', ',')
+      const num = typeof value === 'number' ? value : Number(String(value).replace(',', '.'))
+      if (isNaN(num)) return ''
+      if (precision !== undefined) {
+        return num.toLocaleString('pt-BR', {
+          minimumFractionDigits: precision,
+          maximumFractionDigits: precision,
+        })
+      }
+      return String(num).replace('.', ',')
     })
 
     // Sincroniza quando o valor externo muda (e não estamos digitando ativamente caso o valor coincida)
@@ -58,11 +66,18 @@ export const NumericInput = React.forwardRef<HTMLInputElement, NumericInputProps
       if (numValue !== parsedCurrent) {
         if (numValue === null || isNaN(numValue)) {
           setDisplay('')
+        } else if (precision !== undefined) {
+          setDisplay(
+            numValue.toLocaleString('pt-BR', {
+              minimumFractionDigits: precision,
+              maximumFractionDigits: precision,
+            }),
+          )
         } else {
           setDisplay(String(numValue).replace('.', ','))
         }
       }
-    }, [value])
+    }, [value, precision])
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const raw = e.target.value
