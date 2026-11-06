@@ -70,6 +70,8 @@ export interface DiscountRecalcInput {
   billingModel?: string | null
   /** Sobrescritas manuais de custos individuais em R$ */
   costOverrides?: Record<string, number> | CostManualOverride[]
+  /** Força o recálculo/resolução da equação da venda mesmo sem nenhum override manual */
+  recomputeBaseSale?: boolean
   /** Callback opcional quando o denominador for <= 0.001 (soma das alíquotas >= 1) */
   onDenominatorWarning?: (warning: string) => void
 }
@@ -221,8 +223,9 @@ export function recalcPricingWithDiscount(input: DiscountRecalcInput): DiscountR
 
   const overrideMap = normalizeOverrides(input.costOverrides)
   const hasManualOverrides = overrideMap.size > 0
+  const shouldRecomputeBase = hasManualOverrides || input.recomputeBaseSale === true
 
-  // Se há itens manuais, recalculamos a VENDA BASE via fórmula exata:
+  // Se há itens manuais ou foi solicitado recomputeBaseSale, recalculamos a VENDA BASE via fórmula exata:
   // Numerador C_num = Kit + kitPercentAmount + fixos + variáveis + itens_percentuais_desembaraçados(R$)
   // Denominador = 1 - sum(alíquotas_restantes_sobre_venda) - marginSum
   // Em modelo intermediado: impostos não incidem sobre o kit; se imposto NÃO foi desembaraçado,
@@ -230,7 +233,7 @@ export function recalcPricingWithDiscount(input: DiscountRecalcInput): DiscountR
   let calculatedBaseSale = subtotal
   let denominatorWarning: string | null = null
 
-  if (hasManualOverrides) {
+  if (shouldRecomputeBase) {
     let fixedNumerator = kitPrice
     let remainingRateSum = 0
     let remainingTaxSum = 0
@@ -314,7 +317,7 @@ export function recalcPricingWithDiscount(input: DiscountRecalcInput): DiscountR
     }
   }
 
-  const effectiveBaseSale = hasManualOverrides ? calculatedBaseSale : subtotal
+  const effectiveBaseSale = shouldRecomputeBase ? calculatedBaseSale : subtotal
 
   let finalTotal: number
   let discountValue: number

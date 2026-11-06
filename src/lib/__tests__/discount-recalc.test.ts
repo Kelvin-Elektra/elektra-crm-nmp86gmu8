@@ -242,4 +242,74 @@ describe('Edição manual de custos em R$ (desembaraçamento de variáveis no mo
     const engItem = res!.appliedCosts.find((c) => c.name === 'Engenharia')
     expect(engItem?.calculatedAmount).toBe(2000)
   })
+
+  it('(a) kit alterado sem overrides resolve a nova venda quando recomputeBaseSale: true', () => {
+    // Cenário: Kit original 20.000, margem 20%, comissão 4%, imposto 15% (soma alíquotas = 39%, denom = 0.61)
+    // Venda original = 20.000 / 0.61 = 32.786,885...
+    // Usuário altera o kit para 25.000 no modal de custos (sem nenhum override em custos de negociação)
+    const pricing: PricingLike = {
+      kitPrice: 25000,
+      marginSum: 0.2,
+      appliedCosts: [
+        { name: 'Comissão', method: 'commission', value: 4 },
+        { name: 'Impostos', method: 'tax', value: 15, taxWeight: 100 },
+        { name: 'Margem', method: 'margin', value: 20 },
+      ],
+    }
+
+    // Sem a flag recomputeBaseSale (e sem overrides), devolve o subtotal original passado
+    const resWithoutFlag = recalcPricingWithDiscount({
+      subtotal: 20000 / 0.61,
+      pricing,
+      discountPercent: 0,
+    })
+    expect(resWithoutFlag).not.toBeNull()
+    expect(resWithoutFlag!.finalTotal).toBeCloseTo(20000 / 0.61, 2)
+
+    // Com recomputeBaseSale: true, a nova venda é calculada: 25.000 / 0.61 = 40.983,606...
+    const resWithFlag = recalcPricingWithDiscount({
+      subtotal: 20000 / 0.61,
+      pricing,
+      discountPercent: 0,
+      recomputeBaseSale: true,
+    })
+    expect(resWithFlag).not.toBeNull()
+    expect(resWithFlag!.finalTotal).toBeCloseTo(25000 / 0.61, 2)
+    expect(resWithFlag!.baseTotal).toBeCloseTo(25000 / 0.61, 2)
+
+    // Imposto recalcula na hora sobre a nova venda: 15% de 40.983,61 = 6.147,54
+    const impostoItem = resWithFlag!.appliedCosts.find((c) => c.name === 'Impostos')
+    expect(impostoItem?.calculatedAmount).toBeCloseTo((25000 / 0.61) * 0.15, 2)
+
+    // Comissão recalcula na hora: 4% de 40.983,61 = 1.639,34
+    const comissaoItem = resWithFlag!.appliedCosts.find((c) => c.name === 'Comissão')
+    expect(comissaoItem?.calculatedAmount).toBeCloseTo((25000 / 0.61) * 0.04, 2)
+
+    // Margem recalcula: 20% de 40.983,61 = 8.196,72
+    expect(resWithFlag!.marginAmount).toBeCloseTo((25000 / 0.61) * 0.2, 2)
+    expect(resWithFlag!.marginPct).toBeCloseTo(0.2, 4)
+  })
+
+  it('(b) guard continua bloqueando com recomputeBaseSale: true quando alíquotas >= 100%', () => {
+    let warningMsg = ''
+    const pricing: PricingLike = {
+      kitPrice: 15000,
+      marginSum: 0.5,
+      appliedCosts: [
+        { name: 'Taxa A', method: 'rate', value: 30 },
+        { name: 'Taxa B', method: 'rate', value: 20 },
+      ],
+    }
+    // remaining = 0.50 (margem) + 0.30 + 0.20 = 1.00 (100%)
+    const res = recalcPricingWithDiscount({
+      subtotal: 30000,
+      pricing,
+      recomputeBaseSale: true,
+      onDenominatorWarning: (msg) => {
+        warningMsg = msg
+      },
+    })
+    expect(res).toBeNull()
+    expect(warningMsg).toContain('igual ou superior a 100%')
+  })
 })

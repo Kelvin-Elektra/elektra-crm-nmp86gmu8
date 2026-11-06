@@ -15,7 +15,7 @@ import { NumericInput } from '@/components/ui/numeric-input'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/contexts/AuthContext'
-import pb from '@/lib/pocketbase/client'
+import { saveAndRegenerateProposal } from '@/services/proposal-regenerator'
 import { cn } from '@/lib/utils'
 import { recalcPricingWithDiscount, isPercentOfSaleMethod } from '@/lib/discount-recalc'
 import {
@@ -307,7 +307,13 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
     }
   }, [snapshot, kitTotal, negotiationCosts, manualCostOverrides])
 
+  // Detecta se o kit foi alterado em relação ao original
+  const isKitModified = useMemo(() => {
+    return Math.abs(kitTotal - originalKitPrice) > 0.01
+  }, [kitTotal, originalKitPrice])
+
   // Subtotal base (pré-desconto) calculado pelo motor 2 respeitando manual overrides se existirem
+  // ou forçando o recálculo quando o kit foi alterado (recomputeBaseSale: true)
   const recalcWithoutDiscount = useMemo(() => {
     const billingModel = (snapshot?.pricing?.settings?.billing_model ||
       snapshot?.settings?.billing_model) as string | undefined
@@ -327,8 +333,17 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
       pricing: basePricingLike,
       billingModel,
       costOverrides: manualCostOverrides,
+      recomputeBaseSale: isKitModified,
     })
-  }, [basePricingLike, kitTotal, negotiationCosts, snapshot, proposal, manualCostOverrides])
+  }, [
+    basePricingLike,
+    kitTotal,
+    negotiationCosts,
+    snapshot,
+    proposal,
+    manualCostOverrides,
+    isKitModified,
+  ])
 
   // Subtotal base pré-desconto real
   const baseSubtotal = useMemo(() => {
@@ -369,6 +384,7 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
         pricing: basePricingLike,
         billingModel,
         costOverrides: manualCostOverrides,
+        recomputeBaseSale: isKitModified,
       })
     } else {
       return recalcPricingWithDiscount({
@@ -377,6 +393,7 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
         pricing: basePricingLike,
         billingModel,
         costOverrides: manualCostOverrides,
+        recomputeBaseSale: isKitModified,
       })
     }
   }, [
@@ -387,6 +404,7 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
     basePricingLike,
     snapshot,
     manualCostOverrides,
+    isKitModified,
   ])
 
   // Map rápido com os valores recalculados em tempo real de cada custo (motor 2)
@@ -485,20 +503,34 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
 
   // Edição de item do kit
   const handleKitItemChange = (itemName: string, val: number | null) => {
+    setEditingCostName(itemName)
+    setIsCalculating(true)
     setKitItems((prev) =>
       prev.map((item) => (item.name === itemName ? { ...item, total: val || 0 } : item)),
     )
+    setTimeout(() => {
+      setIsCalculating(false)
+    }, 250)
   }
 
   // Edição direta do total do kit (quando não tem kitItems)
   const handleKitTotalChange = (val: number | null) => {
+    setEditingCostName('Kit Fotovoltaico')
+    setIsCalculating(true)
     setKitTotalCost(val || 0)
+    setTimeout(() => {
+      setIsCalculating(false)
+    }, 250)
   }
 
   // "Recalcular do zero": limpa os ajustes manuais e restaura os valores originais da regra da companhia
   const handleResetToRule = useCallback(() => {
     setManualCostOverrides({})
     setDenominatorError(null)
+
+    // Restaura valores originais de kitItems e kitTotalCost
+    setKitItems(originalKitItems.map((item) => ({ ...item })))
+    setKitTotalCost(originalKitPrice)
 
     // Restaura valores originais de negotiationCosts
     setNegotiationCosts((prev) =>
@@ -513,7 +545,7 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
       title: 'Custos recomputados pela regra original',
       description: 'Ajustes manuais foram removidos.',
     })
-  }, [toast])
+  }, [originalKitItems, originalKitPrice, toast])
 
   // Salvar proposta atualizada
   const handleSave = async () => {
@@ -581,15 +613,29 @@ export function ProposalCostModal({ open, onOpenChange, proposal, reload }: any)
         }
       }
 
-      await pb.collection('proposals').update(proposal.id, {
-        cost_breakdown,
-        discount_amount: finalDiscountPct,
-        price: newSubtotal,
-        total_value: newFinal,
-        snapshot_data: updatedSnapshot,
+      updatedSnapshot.cost_breakdown = cost_breakdown
+
+      const { generatorSyncFailed } = await saveAndRegenerateProposal({
+        proposal,
+        updatedSnapshot,
+        saveFinalTotal: newFinal,
+        subtotal: newSubtotal,
+        saveDiscountPct: finalDiscountPct,
+        costBreakdown: cost_breakdown,
+        user,
       })
 
-      toast({ title: 'Custos atualizados e preço recalculado com sucesso' })
+      if (generatorSyncFailed) {
+        toast({
+          variant: 'destructive',
+          title: 'Custos salvos no CRM, mas não no Gerador',
+          description:
+            'Os dados foram atualizados no banco, mas houve falha ao sincronizar o documento no Gerador.',
+        })
+      } else {
+        toast({ title: 'Custos atualizados e proposta regenerada com sucesso' })
+      }
+
       reload?.()
       onOpenChange(false)
     } catch (e: any) {
