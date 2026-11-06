@@ -313,14 +313,39 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           const proposalDate = formatProposalDate(proposal.created)
           const validityDays = extractValidityDays(validityDate, proposal.created, 10)
 
+          const rawSizing = updatedSnapshot.sizing || {}
+
+          const resolvedModule =
+            updatedSnapshot.rawModule ||
+            updatedSnapshot.pricing?.rawModule ||
+            updatedSnapshot.pricing_data?.rawModule ||
+            null
+
+          const resolvedInverters =
+            updatedSnapshot.rawInverters ||
+            updatedSnapshot.pricing?.rawInverters ||
+            updatedSnapshot.pricing_data?.rawInverters ||
+            rawSizing.inverters ||
+            []
+
+          const resolvedSupplies =
+            updatedSnapshot.pricing?.kitComposition ||
+            updatedSnapshot.pricing?.supplies ||
+            updatedSnapshot.kitComposition ||
+            updatedSnapshot.supplies ||
+            updatedSnapshot.pricing_data?.kitComposition ||
+            updatedSnapshot.pricing_data?.supplies ||
+            []
+
           const commercialConditions = buildCommercialConditionsArray({
             paymentTerms,
             definedPaymentMethod,
             acceptedPaymentMethods: paymentMethods.join(', '),
             validityDays,
             installationLeadTime,
-            moduleWarranty: updatedSnapshot.pricing_data?.rawModule?.warranty,
-            inverterWarranty: updatedSnapshot.pricing_data?.rawInverters?.[0]?.warranty,
+            moduleWarranty:
+              resolvedModule?.warranty || resolvedModule?.warranty_manufacturing || undefined,
+            inverterWarranty: resolvedInverters?.[0]?.warranty || undefined,
           })
 
           const negotiationPayload = {
@@ -338,8 +363,6 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
             notes: notes || '',
             commercial_conditions: commercialConditions,
           }
-
-          const rawSizing = updatedSnapshot.sizing || {}
           const kitPower = Number(rawSizing.kit_power_kwp) || 0
           const avgCons =
             Number(rawSizing.avg_consumption) || Number(updatedSnapshot.avg_consumption) || 0
@@ -366,12 +389,10 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           const includeSuppliesFlag =
             !editTplId || updatedSnapshot.templates_config?.[editTplId]?.include_supplies !== false
           const equipmentsList = buildEquipmentsArray({
-            module: updatedSnapshot.pricing_data?.rawModule,
+            module: resolvedModule,
             moduleQty: modQty,
-            inverters: updatedSnapshot.pricing_data?.rawInverters || rawSizing.inverters,
-            supplies:
-              updatedSnapshot.pricing_data?.kitComposition ||
-              updatedSnapshot.pricing_data?.supplies,
+            inverters: resolvedInverters,
+            supplies: resolvedSupplies,
             includeSupplies: includeSuppliesFlag,
           })
 
@@ -430,7 +451,9 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
               ? Number(prevCalcSnap.annual_degradation)
               : fp?.annual_degradation != null
                 ? Number(fp.annual_degradation)
-                : Number(updatedSnapshot.pricing_data?.rawModule?.annual_degradation) || 0.5
+                : Number(resolvedModule?.annual_degradation) ||
+                  Number(updatedSnapshot.pricing_data?.rawModule?.annual_degradation) ||
+                  0.5
 
           const detailedProjectionTable = calculateDetailed25YearsProjection({
             annualConsumptionKwh: avgCons * 12,
@@ -545,6 +568,24 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
             financial: financialPayload,
           })
 
+          // 1. Gravar PRIMEIRO no banco de dados para que o hook do Gerador leia
+          // os valores e snapshot ATUAIS e frescos em vez do estado anterior.
+          await pb.collection('proposals').update(proposal.id, {
+            discount_amount: saveDiscountPct,
+            total_value: saveFinalTotal,
+            price: subtotal,
+            payment_terms: paymentTerms,
+            has_financing: hasFinancing,
+            notes: notes,
+            validity_date: validityDate ? new Date(validityDate).toISOString() : null,
+            snapshot_data: updatedSnapshot,
+            calc_snapshot: updatedSnapshot.calc_snapshot || null,
+            external_id: proposal.id,
+            ...(updatedViewUrl ? { view_url: updatedViewUrl } : {}),
+          })
+          await createProposalHistory(proposal.id, updatedSnapshot)
+
+          // 2. Chamar o Gerador DEPOIS da gravação no banco, com o mesmo external_id
           const genRes = await createGeneratorProposal(
             {
               template_id: templateId,
@@ -562,27 +603,33 @@ export function ProposalEditModal({ open, onOpenChange, proposal, reload }: any)
           if (genRes?.view_url) {
             updatedViewUrl = genRes.view_url
             updatedSnapshot.view_url = genRes.view_url
+            // Atualiza view_url e snapshot se retornado novo link
+            await pb.collection('proposals').update(proposal.id, {
+              view_url: updatedViewUrl,
+              snapshot_data: updatedSnapshot,
+            })
           }
         } catch (genErr) {
           console.warn('Aviso: Não foi possível atualizar no gerador remoto:', genErr)
           generatorSyncFailed = true
         }
+      } else {
+        // Se não possui templateId do Gerador, salva diretamente no banco
+        await pb.collection('proposals').update(proposal.id, {
+          discount_amount: saveDiscountPct,
+          total_value: saveFinalTotal,
+          price: subtotal,
+          payment_terms: paymentTerms,
+          has_financing: hasFinancing,
+          notes: notes,
+          validity_date: validityDate ? new Date(validityDate).toISOString() : null,
+          snapshot_data: updatedSnapshot,
+          calc_snapshot: updatedSnapshot.calc_snapshot || null,
+          external_id: proposal.id,
+          ...(updatedViewUrl ? { view_url: updatedViewUrl } : {}),
+        })
+        await createProposalHistory(proposal.id, updatedSnapshot)
       }
-
-      await pb.collection('proposals').update(proposal.id, {
-        discount_amount: saveDiscountPct,
-        total_value: saveFinalTotal,
-        price: subtotal,
-        payment_terms: paymentTerms,
-        has_financing: hasFinancing,
-        notes: notes,
-        validity_date: validityDate ? new Date(validityDate).toISOString() : null,
-        snapshot_data: updatedSnapshot,
-        calc_snapshot: updatedSnapshot.calc_snapshot || null,
-        external_id: proposal.id,
-        ...(updatedViewUrl ? { view_url: updatedViewUrl } : {}),
-      })
-      await createProposalHistory(proposal.id, updatedSnapshot)
       if (generatorSyncFailed) {
         toast({
           variant: 'destructive',
