@@ -905,7 +905,6 @@ routerAdd(
         var ciName = String(invRecEquip.getString('name') || '').trim()
         var ciPower = invRecEquip.getFloat('power') || 0
         var ciType = String(invRecEquip.getString('type') || '').trim()
-        var ciVoltage = String(invRecEquip.getString('voltage') || '').trim()
         var ciItemName = ciName || ciBrand || ''
         if (ciBrand && ciName && normEquipKey(ciName).indexOf(normEquipKey(ciBrand)) === -1) {
           ciItemName = ciBrand + ' ' + ciName
@@ -913,7 +912,6 @@ routerAdd(
         var ciSpecParts = []
         if (ciPower > 0) ciSpecParts.push(ciPower + ' kW')
         if (ciType) ciSpecParts.push(ciType)
-        if (ciVoltage) ciSpecParts.push(ciVoltage)
         realInverterEntries.push({
           item: ciItemName,
           specification: ciSpecParts.join(' · '),
@@ -1987,6 +1985,139 @@ routerAdd(
         }
       } else if (templateDynamicSchema && typeof templateDynamicSchema === 'object') {
         dynamicKeysToResolve = Object.keys(templateDynamicSchema)
+      }
+
+      // -------------------------------------------------------------------------
+      // TEMPLATE 4: payload específico — equipamentos resumidos (módulo qtd × Wp,
+      // potência total kWp, inversor kW/marca/modelo, insumos; SEM tensões do
+      // inversor), projeção de economia nos marcos Hoje/5/10/15/20/25 anos,
+      // conta mínima após solar e geração anual em MWh. Detectado pelas
+      // variáveis dinâmicas exclusivas do template 4 no schema do Gerador.
+      // -------------------------------------------------------------------------
+      var isTemplate4 = false
+      for (var t4i = 0; t4i < dynamicKeysToResolve.length; t4i++) {
+        var t4Key = String(dynamicKeysToResolve[t4i])
+        if (t4Key === 'min_bill_after_solar' || t4Key === 'annual_generation_mwh') {
+          isTemplate4 = true
+          break
+        }
+      }
+      if (!isTemplate4 && templateId && String(templateId).indexOf('4') !== -1) {
+        isTemplate4 = true
+      }
+      if (isTemplate4) {
+        var tpl4Equipments = []
+        if (realModuleEntry) {
+          var t4ModQty = Number(modQty) || 0
+          var t4ModPower = Number(cmPower) || 0
+          var t4ModSpec =
+            t4ModQty > 0 && t4ModPower > 0
+              ? t4ModQty + ' × ' + t4ModPower + ' Wp'
+              : realModuleEntry.specification
+          tpl4Equipments.push({
+            item: realModuleEntry.item,
+            specification: t4ModSpec,
+            quantity: String(t4ModQty > 0 ? t4ModQty : 1),
+            warranty: realModuleEntry.warranty || '25 anos',
+          })
+        }
+        if (Number(kitPower) > 0) {
+          tpl4Equipments.push({
+            item: 'Potência instalada',
+            specification: Number(Number(kitPower).toFixed(2)) + ' kWp',
+            quantity: '1 sistema',
+            warranty: 'Performance garantida',
+          })
+        }
+        for (var t4e = 0; t4e < realInverterEntries.length; t4e++) {
+          tpl4Equipments.push(realInverterEntries[t4e])
+        }
+        for (var t4s = 0; t4s < incomingEquipments.length; t4s++) {
+          var t4Inc = incomingEquipments[t4s] || {}
+          var t4IncName = normEquipKey(t4Inc.item)
+          var t4Skip = false
+          if (realModuleEntry && t4IncName === normEquipKey(realModuleEntry.item)) t4Skip = true
+          if (t4IncName === 'potencia instalada') t4Skip = true
+          for (var t4d = 0; t4d < realInverterEntries.length; t4d++) {
+            if (t4IncName === normEquipKey(realInverterEntries[t4d].item)) t4Skip = true
+          }
+          if (!t4Skip && t4Inc.item) tpl4Equipments.push(t4Inc)
+        }
+        rawSizing.equipments = tpl4Equipments
+        enrichedSizing.equipments = tpl4Equipments
+        semanticContext.sizing.equipments = tpl4Equipments
+
+        // Conta mínima após solar / conta atual / geração anual em MWh
+        var t4MinBill = Number(
+          rawFinancial.futureMonthlyBill ||
+            rawFinancial.future_monthly_bill ||
+            rawFinancial.min_bill_after_solar ||
+            0,
+        )
+        var t4CurrentBill = Number(
+          rawFinancial.currentMonthlyCost || rawFinancial.current_monthly_bill || 0,
+        )
+        var t4AnnualMwh = estGen > 0 ? Number(((estGen * 12) / 1000).toFixed(1)) : 0
+        rawFinancial.min_bill_after_solar = t4MinBill
+        rawFinancial.current_monthly_bill = t4CurrentBill
+        rawFinancial.annual_generation_mwh = t4AnnualMwh
+        enrichedFinancial.min_bill_after_solar = t4MinBill
+        enrichedFinancial.current_monthly_bill = t4CurrentBill
+        enrichedFinancial.annual_generation_mwh = t4AnnualMwh
+        semanticContext.financial.min_bill_after_solar = t4MinBill
+        semanticContext.financial.current_monthly_bill = t4CurrentBill
+        semanticContext.financial.annual_generation_mwh = t4AnnualMwh
+
+        // Projeção de economia nos marcos Hoje/5/10/15/20/25 anos
+        function tpl4FmtMil(rawV) {
+          var sign = rawV < 0 ? '-' : '+'
+          return sign + Math.round(Math.abs(rawV) / 1000) + ' mil'
+        }
+        var t4Tbl = Array.isArray(rawFinancial.savings_projection_table)
+          ? rawFinancial.savings_projection_table
+          : []
+        var t4Proj = []
+        var t4Cum0 = -Math.abs(Number(totInv) || 0)
+        t4Proj.push({
+          year: 'Hoje',
+          value: Number(totInv) > 0 ? tpl4FmtMil(t4Cum0) : 'R$ 0',
+          rawValue: t4Cum0,
+          annualSavings: 0,
+          cumulativeSavings: t4Cum0,
+        })
+        var t4Milestones = [5, 10, 15, 20, 25]
+        for (var t4m = 0; t4m < t4Milestones.length; t4m++) {
+          var t4Year = t4Milestones[t4m]
+          var t4Row = null
+          for (var t4r = 0; t4r < t4Tbl.length; t4r++) {
+            if (Number(t4Tbl[t4r] && t4Tbl[t4r].year) === t4Year) {
+              t4Row = t4Tbl[t4r]
+              break
+            }
+          }
+          if (t4Row) {
+            var t4Cum = Number(t4Row.cumulativeSavings) || 0
+            t4Proj.push({
+              year: t4Year + ' anos',
+              value: tpl4FmtMil(t4Cum),
+              rawValue: t4Cum,
+              annualSavings: Number(t4Row.annualSavings) || 0,
+              cumulativeSavings: t4Cum,
+            })
+          } else if (annSav > 0) {
+            var t4CumF = Number((annSav * t4Year).toFixed(2))
+            t4Proj.push({
+              year: t4Year + ' anos',
+              value: tpl4FmtMil(t4CumF),
+              rawValue: t4CumF,
+              annualSavings: Number(annSav.toFixed(2)),
+              cumulativeSavings: t4CumF,
+            })
+          }
+        }
+        rawFinancial.savings_projection = t4Proj
+        enrichedFinancial.savings_projection = t4Proj
+        semanticContext.financial.savings_projection = t4Proj
       }
 
       // Raiz completa de dados da negociação para suporte a dot-notation manual
