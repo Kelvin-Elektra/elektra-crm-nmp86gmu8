@@ -97,6 +97,9 @@ export default function ProposalSettings() {
   const [defaultLeadTimeDays, setDefaultLeadTimeDays] = useState<string>('')
   const [defaultLeadTimeText, setDefaultLeadTimeText] = useState<string>('')
   const [defaultValidityDays, setDefaultValidityDays] = useState<string>('')
+  const [equipmentListStyle, setEquipmentListStyle] = useState<'compact' | 'full' | 'generic'>(
+    'full',
+  )
   const [defaultPaymentMethods, setDefaultPaymentMethods] = useState<string[]>([])
   const [companyData, setCompanyData] = useState<Record<string, any>>({})
   const [previewingTemplateId, setPreviewingTemplateId] = useState<string | null>(null)
@@ -163,6 +166,9 @@ export default function ProposalSettings() {
         if (record.branding) setFixedData(record.branding as any)
         if (record.templates_config && typeof record.templates_config === 'object') {
           setTemplatesConfig(record.templates_config as Record<string, Record<string, any>>)
+        }
+        if (record.pricing?.equipment_list_style) {
+          setEquipmentListStyle(record.pricing.equipment_list_style)
         }
         if (record.pricing?.simultaneity_factors) {
           const f = record.pricing.simultaneity_factors
@@ -447,6 +453,7 @@ export default function ProposalSettings() {
         templates_config: templatesConfig,
         pages_layout: pagesLayout,
         pricing: {
+          equipment_list_style: equipmentListStyle,
           simultaneity_factors: {
             Residencial: Number(simultaneityFactors.Residencial) || 30,
             Industrial: Number(simultaneityFactors.Industrial) || 60,
@@ -930,6 +937,33 @@ export default function ProposalSettings() {
             <CardContent className="space-y-6 max-w-lg">
               <div className="space-y-4">
                 <div>
+                  <h4 className="font-semibold text-sm mb-1">Estilo da Lista de Equipamentos</h4>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Define como os equipamentos serão exibidos na proposta comercial gerada
+                    (Templates 2 e 4).
+                  </p>
+                  <Select
+                    value={equipmentListStyle}
+                    onValueChange={(val: 'compact' | 'full' | 'generic') =>
+                      setEquipmentListStyle(val)
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione o estilo da lista" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="compact">
+                        Lista compacta — só módulos e inversores
+                      </SelectItem>
+                      <SelectItem value="full">Lista de insumos completa (padrão)</SelectItem>
+                      <SelectItem value="generic">
+                        Item genérico — proteção e materiais complementares
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="pt-2 border-t">
                   <h4 className="font-semibold text-sm mb-3">Prazo de Instalação Padrão</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="space-y-2">
