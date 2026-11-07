@@ -16,6 +16,13 @@ import {
 } from '@/components/ui/dialog'
 import { ConfigurableFieldsForm } from '@/components/ConfigurableFieldsForm'
 import { Switch } from '@/components/ui/switch'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useAuth } from '@/contexts/AuthContext'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'

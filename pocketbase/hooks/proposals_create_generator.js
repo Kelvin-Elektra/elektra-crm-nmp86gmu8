@@ -175,39 +175,40 @@ routerAdd(
       }
 
       let manualDynamicMappings = {}
+      let companyProposalSettingsRecord = null
 
       // 1. Prioridade: Se o frontend enviou manual_mappings explicitamente no body
       if (body.manual_mappings && typeof body.manual_mappings === 'object') {
         manualDynamicMappings = Object.assign({}, body.manual_mappings)
       }
 
-      // 2. Se não veio no body ou estiver vazio, busca no proposal_settings da empresa
-      if (Object.keys(manualDynamicMappings).length === 0 && companyId) {
+      // 2. Busca proposal_settings da empresa para dynamic_mappings e pricing.equipment_list_style
+      if (companyId) {
         try {
           const pSettings = $app.findFirstRecordByFilter(
             'proposal_settings',
             "company_id = '" + companyId + "'",
           )
           if (pSettings) {
-            let dm = pSettings.get('dynamic_mappings')
-            if (typeof dm === 'string') {
-              try {
-                dm = JSON.parse(dm)
-              } catch (_) {}
-            }
-            if (dm && typeof dm === 'object') {
-              if (dm[templateId] && typeof dm[templateId] === 'object') {
-                manualDynamicMappings = dm[templateId]
-              } else if (!dm[templateId] && !dm['default']) {
-                manualDynamicMappings = dm
+            companyProposalSettingsRecord = pSettings
+            if (Object.keys(manualDynamicMappings).length === 0) {
+              let dm = pSettings.get('dynamic_mappings')
+              if (typeof dm === 'string') {
+                try {
+                  dm = JSON.parse(dm)
+                } catch (_) {}
+              }
+              if (dm && typeof dm === 'object') {
+                if (dm[templateId] && typeof dm[templateId] === 'object') {
+                  manualDynamicMappings = dm[templateId]
+                } else if (!dm[templateId] && !dm['default']) {
+                  manualDynamicMappings = dm
+                }
               }
             }
           }
         } catch (settingsFetchErr) {
-          safeLogWarn(
-            'Aviso ao buscar dynamic_mappings em proposal_settings',
-            String(settingsFetchErr),
-          )
+          safeLogWarn('Aviso ao buscar proposal_settings da empresa', String(settingsFetchErr))
         }
       }
 
@@ -919,33 +920,96 @@ routerAdd(
           warranty: String(invRecEquip.getString('warranty') || '').trim() || '10 anos',
         })
       }
-      var finalEquipments = incomingEquipments
+      // Leitura do estilo de lista de equipamentos (pricing.equipment_list_style)
+      var activeEquipmentListStyle = 'full'
+      if (companyProposalSettingsRecord) {
+        var pPricing = companyProposalSettingsRecord.get('pricing')
+        if (typeof pPricing === 'string') {
+          try {
+            pPricing = JSON.parse(pPricing)
+          } catch (_) {}
+        }
+        if (pPricing && typeof pPricing === 'object' && pPricing.equipment_list_style) {
+          activeEquipmentListStyle = String(pPricing.equipment_list_style).toLowerCase()
+        }
+      }
+
+      // Função auxiliar para montar a lista de equipamentos de acordo com o estilo configurado:
+      // - "compact": apenas módulos e inversores
+      // - "full": módulos + inversores + insumos detalhados
+      // - "generic": módulos + inversores + UM item genérico ("Proteção e materiais complementares" / "Incluso na proposta")
+      function formatEquipmentsByStyle(style, moduleEntry, inverterEntries, otherEntries) {
+        var res = []
+        if (moduleEntry) res.push(moduleEntry)
+        for (var mInv = 0; mInv < inverterEntries.length; mInv++) {
+          res.push(inverterEntries[mInv])
+        }
+
+        if (style === 'compact') {
+          return res
+        }
+
+        if (style === 'generic') {
+          res.push({
+            item: 'Proteção e materiais complementares',
+            specification: 'Incluso na proposta',
+            quantity: '1 conjunto',
+            warranty: 'Conforme fabricante',
+          })
+          return res
+        }
+
+        // Default: "full" (ou qualquer outro valor)
+        for (var mOth = 0; mOth < otherEntries.length; mOth++) {
+          var oEnt = otherEntries[mOth] || {}
+          var oName = normEquipKey(oEnt.item)
+          if (oName === 'potencia instalada') continue
+          res.push(oEnt)
+        }
+        return res
+      }
+
+      var nonCoreEntries = []
+      for (var eqOi = 0; eqOi < incomingEquipments.length; eqOi++) {
+        var incEntry = incomingEquipments[eqOi] || {}
+        var incName = normEquipKey(incEntry.item)
+        var incSpec = normEquipKey(incEntry.specification)
+        if (incName === 'potencia instalada') continue
+        var isModuleRow =
+          incName === GENERIC_MODULE_ITEM ||
+          incSpec === GENERIC_MODULE_SPEC ||
+          (realModuleEntry && incName === normEquipKey(realModuleEntry.item))
+        var isInverterRow = incName === GENERIC_INVERTER_ITEM || incSpec === GENERIC_INVERTER_SPEC
+        var isDupInverter = false
+        for (var eqDi = 0; eqDi < realInverterEntries.length; eqDi++) {
+          if (incName === normEquipKey(realInverterEntries[eqDi].item)) {
+            isDupInverter = true
+            break
+          }
+        }
+        if (!isModuleRow && !isInverterRow && !isDupInverter) {
+          nonCoreEntries.push(incEntry)
+        }
+      }
+
+      var finalEquipments = []
       if (realModuleEntry || realInverterEntries.length > 0) {
-        finalEquipments = []
-        if (realModuleEntry) finalEquipments.push(realModuleEntry)
-        for (var eqRi = 0; eqRi < realInverterEntries.length; eqRi++) {
-          finalEquipments.push(realInverterEntries[eqRi])
-        }
-        for (var eqOi = 0; eqOi < incomingEquipments.length; eqOi++) {
-          var incEntry = incomingEquipments[eqOi] || {}
-          var incName = normEquipKey(incEntry.item)
-          var incSpec = normEquipKey(incEntry.specification)
-          var isModuleRow =
-            incName === GENERIC_MODULE_ITEM ||
-            incSpec === GENERIC_MODULE_SPEC ||
-            (realModuleEntry && incName === normEquipKey(realModuleEntry.item))
-          var isInverterRow = incName === GENERIC_INVERTER_ITEM || incSpec === GENERIC_INVERTER_SPEC
-          var isDupInverter = false
-          for (var eqDi = 0; eqDi < realInverterEntries.length; eqDi++) {
-            if (incName === normEquipKey(realInverterEntries[eqDi].item)) {
-              isDupInverter = true
-              break
-            }
-          }
-          if (!isModuleRow && !isInverterRow && !isDupInverter) {
-            finalEquipments.push(incEntry)
+        finalEquipments = formatEquipmentsByStyle(
+          activeEquipmentListStyle,
+          realModuleEntry,
+          realInverterEntries,
+          nonCoreEntries,
+        )
+      } else {
+        // Fallback caso não haja catálogo vinculado
+        var filteredIncoming = []
+        for (var fi = 0; fi < incomingEquipments.length; fi++) {
+          var fEntry = incomingEquipments[fi] || {}
+          if (normEquipKey(fEntry.item) !== 'potencia instalada') {
+            filteredIncoming.push(fEntry)
           }
         }
+        finalEquipments = filteredIncoming
       }
       // Substitui o array de equipamentos no payload pelo reconstruído
       rawSizing.equipments = finalEquipments
@@ -1842,6 +1906,24 @@ routerAdd(
           keywords: ['condicoes', 'comerciais', 'commercial', 'conditions'],
           negativeKeywords: ['equipamentos', 'equipments'],
         },
+        {
+          concept: 'trees_equivalent',
+          targetCategory: 'financial',
+          targetField: 'trees_equivalent',
+          synonyms: [
+            'trees equivalent',
+            'trees_equivalent',
+            'trees planted',
+            'arvores equivalentes',
+            'arvores preservadas',
+            'arvores plantadas',
+            'arvores',
+            'trees',
+            'preservacao arvores',
+          ],
+          keywords: ['arvores', 'arvore', 'trees', 'tree'],
+          negativeKeywords: [],
+        },
       ]
       function resolveSemanticValue(rawKey) {
         if (!rawKey || typeof rawKey !== 'string') return { resolved: false }
@@ -2006,7 +2088,7 @@ routerAdd(
         isTemplate4 = true
       }
       if (isTemplate4) {
-        var tpl4Equipments = []
+        var t4ModuleEntry = null
         if (realModuleEntry) {
           var t4ModQty = Number(modQty) || 0
           var t4ModPower = Number(cmPower) || 0
@@ -2014,38 +2096,54 @@ routerAdd(
             t4ModQty > 0 && t4ModPower > 0
               ? t4ModQty + ' × ' + t4ModPower + ' Wp'
               : realModuleEntry.specification
-          tpl4Equipments.push({
+          t4ModuleEntry = {
             item: realModuleEntry.item,
             specification: t4ModSpec,
             quantity: String(t4ModQty > 0 ? t4ModQty : 1),
             warranty: realModuleEntry.warranty || '25 anos',
-          })
+          }
         }
-        if (Number(kitPower) > 0) {
-          tpl4Equipments.push({
-            item: 'Potência instalada',
-            specification: Number(Number(kitPower).toFixed(2)) + ' kWp',
-            quantity: '1 sistema',
-            warranty: 'Performance garantida',
-          })
-        }
-        for (var t4e = 0; t4e < realInverterEntries.length; t4e++) {
-          tpl4Equipments.push(realInverterEntries[t4e])
-        }
+
+        var t4NonCoreEntries = []
         for (var t4s = 0; t4s < incomingEquipments.length; t4s++) {
           var t4Inc = incomingEquipments[t4s] || {}
           var t4IncName = normEquipKey(t4Inc.item)
-          var t4Skip = false
-          if (realModuleEntry && t4IncName === normEquipKey(realModuleEntry.item)) t4Skip = true
-          if (t4IncName === 'potencia instalada') t4Skip = true
+          var t4IncSpec = normEquipKey(t4Inc.specification)
+          if (t4IncName === 'potencia instalada') continue
+          var t4IsMod =
+            t4IncName === GENERIC_MODULE_ITEM ||
+            t4IncSpec === GENERIC_MODULE_SPEC ||
+            (realModuleEntry && t4IncName === normEquipKey(realModuleEntry.item))
+          var t4IsInv = t4IncName === GENERIC_INVERTER_ITEM || t4IncSpec === GENERIC_INVERTER_SPEC
+          var t4IsDupInv = false
           for (var t4d = 0; t4d < realInverterEntries.length; t4d++) {
-            if (t4IncName === normEquipKey(realInverterEntries[t4d].item)) t4Skip = true
+            if (t4IncName === normEquipKey(realInverterEntries[t4d].item)) {
+              t4IsDupInv = true
+              break
+            }
           }
-          if (!t4Skip && t4Inc.item) tpl4Equipments.push(t4Inc)
+          if (!t4IsMod && !t4IsInv && !t4IsDupInv && t4Inc.item) {
+            t4NonCoreEntries.push(t4Inc)
+          }
         }
+
+        var tpl4Equipments = formatEquipmentsByStyle(
+          activeEquipmentListStyle,
+          t4ModuleEntry,
+          realInverterEntries,
+          t4NonCoreEntries,
+        )
+
         rawSizing.equipments = tpl4Equipments
         enrichedSizing.equipments = tpl4Equipments
         semanticContext.sizing.equipments = tpl4Equipments
+
+        // Árvores equivalentes preservadas (CO2 evitado em toneladas × 7)
+        var t4Co2Base = Number(co2AvoidedTon) || 0
+        if (t4Co2Base <= 0 && estGen > 0) {
+          t4Co2Base = Number((estGen * 12 * 0.0000385).toFixed(2))
+        }
+        var t4TreesEquivalent = Math.round(t4Co2Base * 7)
 
         // Conta mínima após solar / conta atual / geração anual em MWh
         var t4MinBill = Number(
@@ -2061,12 +2159,15 @@ routerAdd(
         rawFinancial.min_bill_after_solar = t4MinBill
         rawFinancial.current_monthly_bill = t4CurrentBill
         rawFinancial.annual_generation_mwh = t4AnnualMwh
+        rawFinancial.trees_equivalent = t4TreesEquivalent
         enrichedFinancial.min_bill_after_solar = t4MinBill
         enrichedFinancial.current_monthly_bill = t4CurrentBill
         enrichedFinancial.annual_generation_mwh = t4AnnualMwh
+        enrichedFinancial.trees_equivalent = t4TreesEquivalent
         semanticContext.financial.min_bill_after_solar = t4MinBill
         semanticContext.financial.current_monthly_bill = t4CurrentBill
         semanticContext.financial.annual_generation_mwh = t4AnnualMwh
+        semanticContext.financial.trees_equivalent = t4TreesEquivalent
 
         // Projeção de economia nos marcos Hoje/5/10/15/20/25 anos
         function tpl4FmtMil(rawV) {
