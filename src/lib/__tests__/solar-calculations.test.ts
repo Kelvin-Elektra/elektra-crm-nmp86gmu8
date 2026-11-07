@@ -252,7 +252,7 @@ describe('solar-calculations', () => {
     it('deve calcular a mecânica comparativa Sem Solar x Com Solar x Economia ano a ano com inflação energética', () => {
       const table = calculateDetailed25YearsProjection(defaultParams)
 
-      // Ano 1 vs Ano 2: tarifas e custos sem solar devem subir pela inflação energética (6%)
+      // Ano 1 vs Ano 2: tarifas e custos sem solar devem subir pela inflação energética
       expect(table[1].effectiveTariff).toBeGreaterThan(table[0].effectiveTariff)
       expect(table[1].costWithoutSolar).toBeGreaterThan(table[0].costWithoutSolar)
 
@@ -267,6 +267,25 @@ describe('solar-calculations', () => {
           1,
         )
       })
+
+      // Validação das regras da Parte 2:
+      // 1. Custo sem Solar ano seguinte = ano anterior × (1 + inflacao)
+      // Note que a taxa de iluminação pública é fixa, então a parcela de consumo inflaciona
+      const infl = 1 + defaultParams.annualTariffAdjustmentPct / 100
+      const consumptionCostYear1 =
+        table[0].costWithoutSolar - defaultParams.publicLightingFeeMonthly * 12
+      const consumptionCostYear2 =
+        table[1].costWithoutSolar - defaultParams.publicLightingFeeMonthly * 12
+      expect(consumptionCostYear2).toBeCloseTo(consumptionCostYear1 * infl, 1)
+
+      // 2. Após 2029 (Fio B constante em 100%), o custo do Fio B cresce unicamente pela inflação
+      const row2029 = table.find((r) => r.calendarYear === 2029)!
+      const row2030 = table.find((r) => r.calendarYear === 2030)!
+      expect(row2029).toBeDefined()
+      expect(row2030).toBeDefined()
+      expect(row2029.fioBPercent).toBe(100)
+      expect(row2030.fioBPercent).toBe(100)
+      expect(row2030.fioBRate).toBeCloseTo(row2029.fioBRate * infl, 2)
     })
 
     it('deve acumular saldo de créditos na UC e transitar para anos seguintes', () => {

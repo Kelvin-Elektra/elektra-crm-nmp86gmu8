@@ -538,8 +538,10 @@ export function calculateDetailed25YearsProjection(
     const yearTUSD = baseTUSD * tariffFactor
     const yearFioBBase = baseFioBValue * tariffFactor
 
-    // 3. Fio B da Lei 14.300 por ano civil (cronologia definitiva):
-    // 2025: 60%, 2026: 60%, 2027: 75%, 2028: 90%, 2029+: 100%
+    // 3. Fio B da Lei 14.300 por ano civil (cronologia definitiva do usuário):
+    // 2025-2026: 60%, 2027: 75%, 2028: 90%, 2029+: 100%
+    // O valor do kWh e do Fio B sobem ano a ano com a inflação energética da concessionária (yearFioBBase),
+    // e o escalonamento do Fio B cresce seu percentual até 2029, incidindo por cima da inflação.
     let fioBPercent = 1.0
     if (calendarYear <= 2026) fioBPercent = 0.6
     else if (calendarYear === 2027) fioBPercent = 0.75

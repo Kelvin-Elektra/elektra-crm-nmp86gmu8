@@ -81,14 +81,19 @@ export function FinancialAnalysisCard({
   const [consumerCategory, setConsumerCategory] = useState(
     neg.consumer_category || neg.sizing?.consumer_category || '',
   )
-  const [simultaneityFactor, setSimultaneityFactor] = useState(
-    neg.simultaneity_factor != null
-      ? neg.simultaneity_factor
-      : neg.sizing?.simultaneity_factor != null
-        ? neg.sizing?.simultaneity_factor
-        : DEFAULT_SIMULTANEITY_FACTORS[neg.consumer_category || neg.sizing?.consumer_category] ||
-          30,
-  )
+  const [simultaneityFactor, setSimultaneityFactor] = useState(() => {
+    const rawFactor =
+      neg.simultaneity_factor != null
+        ? neg.simultaneity_factor
+        : neg.sizing?.simultaneity_factor != null
+          ? neg.sizing?.simultaneity_factor
+          : null
+    if (rawFactor !== null && rawFactor !== undefined && Number(rawFactor) > 0) {
+      return Number(rawFactor)
+    }
+    const cat = neg.consumer_category || neg.sizing?.consumer_category || 'Residencial'
+    return DEFAULT_SIMULTANEITY_FACTORS[cat] || 30
+  })
   const [publicLightingFee, setPublicLightingFee] = useState(
     neg.public_lighting_fee != null ? neg.public_lighting_fee : 0,
   )
@@ -136,14 +141,33 @@ export function FinancialAnalysisCard({
       .getFirstListItem(`company_id='${neg.company_id}'`)
       .then((record: any) => {
         if (record.pricing?.simultaneity_factors) {
-          setDefaultFactors({
+          const factors = {
             ...DEFAULT_SIMULTANEITY_FACTORS,
             ...record.pricing.simultaneity_factors,
-          })
+          }
+          setDefaultFactors(factors)
+
+          // Se a negociação ainda não possui fator de simultaneidade explicitamente preenchido/maior que 0,
+          // inicializa o campo na tela com o fator do perfil de consumo da companhia
+          const hasExplicitFactor =
+            (neg.simultaneity_factor != null && Number(neg.simultaneity_factor) > 0) ||
+            (neg.sizing?.simultaneity_factor != null && Number(neg.sizing.simultaneity_factor) > 0)
+
+          if (!hasExplicitFactor) {
+            const cat = neg.consumer_category || neg.sizing?.consumer_category || 'Residencial'
+            const companyFactor = factors[cat] ?? DEFAULT_SIMULTANEITY_FACTORS[cat] ?? 30
+            setSimultaneityFactor(companyFactor)
+          }
         }
       })
       .catch(() => {})
-  }, [neg.company_id])
+  }, [
+    neg.company_id,
+    neg.simultaneity_factor,
+    neg.sizing?.simultaneity_factor,
+    neg.consumer_category,
+    neg.sizing?.consumer_category,
+  ])
 
   // Buscar a taxa de degradação do módulo selecionado no dimensionamento (pv_modules)
   useEffect(() => {
@@ -202,14 +226,19 @@ export function FinancialAnalysisCard({
   const negKey = JSON.stringify(neg.sizing || {})
   useEffect(() => {
     setConsumerCategory(neg.consumer_category || neg.sizing?.consumer_category || '')
-    setSimultaneityFactor(
-      neg.simultaneity_factor != null
-        ? neg.simultaneity_factor
-        : neg.sizing?.simultaneity_factor != null
-          ? neg.sizing?.simultaneity_factor
-          : DEFAULT_SIMULTANEITY_FACTORS[neg.consumer_category || neg.sizing?.consumer_category] ||
-            30,
-    )
+    const explicitFactor =
+      neg.simultaneity_factor != null && Number(neg.simultaneity_factor) > 0
+        ? Number(neg.simultaneity_factor)
+        : neg.sizing?.simultaneity_factor != null && Number(neg.sizing.simultaneity_factor) > 0
+          ? Number(neg.sizing.simultaneity_factor)
+          : null
+    if (explicitFactor !== null) {
+      setSimultaneityFactor(explicitFactor)
+    } else {
+      const cat = neg.consumer_category || neg.sizing?.consumer_category || 'Residencial'
+      const fallback = defaultFactors[cat] ?? DEFAULT_SIMULTANEITY_FACTORS[cat] ?? 30
+      setSimultaneityFactor(fallback)
+    }
     setPublicLightingFee(neg.public_lighting_fee != null ? neg.public_lighting_fee : 0)
     const hasNegAdj =
       neg.annual_tariff_adjustment !== null &&
