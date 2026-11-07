@@ -299,9 +299,7 @@ export function buildEquipmentsArray(params: {
 
       const powerStr = inv.power ? `${inv.power} kW` : ''
       const typeStr = inv.type ? String(inv.type) : ''
-      const voltStr = inv.voltage ? String(inv.voltage) : ''
-      const spec =
-        [powerStr, typeStr, voltStr].filter(Boolean).join(' · ') || 'Inversor de Conexão à Rede'
+      const spec = [powerStr, typeStr].filter(Boolean).join(' · ') || 'Inversor de Conexão à Rede'
 
       const invWarranty = formatWarrantyYears(inv.warranty, '10 anos')
 
