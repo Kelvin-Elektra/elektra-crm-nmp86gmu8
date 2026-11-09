@@ -97,27 +97,17 @@ export function FinancialAnalysisCard({
   const [publicLightingFee, setPublicLightingFee] = useState(
     neg.public_lighting_fee != null ? neg.public_lighting_fee : 0,
   )
+  // Regra permanente: o reajuste tarifário anual é POR CONCESSIONÁRIA. O valor
+  // salvo na negociação só prevalece quando é um override explícito (> 0);
+  // caso contrário vale o valor da concessionária da negociação.
   const [annualTariffAdjustment, setAnnualTariffAdjustment] = useState<number | ''>(() => {
-    if (
-      neg.annual_tariff_adjustment !== null &&
-      neg.annual_tariff_adjustment !== undefined &&
-      neg.annual_tariff_adjustment !== ''
-    ) {
-      return Number(neg.annual_tariff_adjustment)
-    }
-    if (
-      neg.sizing?.annual_tariff_adjustment !== null &&
-      neg.sizing?.annual_tariff_adjustment !== undefined &&
-      neg.sizing?.annual_tariff_adjustment !== ''
-    ) {
-      return Number(neg.sizing?.annual_tariff_adjustment)
-    }
-    if (
-      neg.expand?.utility_id?.annual_tariff_adjustment !== null &&
-      neg.expand?.utility_id?.annual_tariff_adjustment !== undefined &&
-      !isNaN(Number(neg.expand?.utility_id?.annual_tariff_adjustment))
-    ) {
-      return Number(neg.expand.utility_id.annual_tariff_adjustment)
+    const negAdj = Number(neg.annual_tariff_adjustment)
+    if (!isNaN(negAdj) && negAdj > 0) return negAdj
+    const sizingAdj = Number(neg.sizing?.annual_tariff_adjustment)
+    if (!isNaN(sizingAdj) && sizingAdj > 0) return sizingAdj
+    if (neg.expand?.utility_id?.annual_tariff_adjustment != null) {
+      const utilAdj = Number(neg.expand.utility_id.annual_tariff_adjustment)
+      if (!isNaN(utilAdj)) return utilAdj
     }
     return ''
   })
@@ -131,9 +121,28 @@ export function FinancialAnalysisCard({
   })
   const [systemPrice, setSystemPrice] = useState(0)
   const [tariffFound, setTariffFound] = useState(true)
+  const [companyTariffAdjustment, setCompanyTariffAdjustment] = useState<number | null>(null)
   const [defaultFactors, setDefaultFactors] = useState<Record<string, number>>(
     DEFAULT_SIMULTANEITY_FACTORS,
   )
+
+  // Resolução do reajuste anual: (1) override explícito na negociação (> 0),
+  // (2) reajuste da concessionária da negociação, (3) fallback da companhia.
+  const resolveTariffAdjustment = (
+    details: TariffDetails | null,
+    companyAdj: number | null,
+  ): number | '' => {
+    const negAdj = Number(neg.annual_tariff_adjustment)
+    if (!isNaN(negAdj) && negAdj > 0) return negAdj
+    const sizingAdj = Number(neg.sizing?.annual_tariff_adjustment)
+    if (!isNaN(sizingAdj) && sizingAdj > 0) return sizingAdj
+    if (details?.annual_tariff_adjustment != null) {
+      const utilAdj = Number(details.annual_tariff_adjustment)
+      if (!isNaN(utilAdj)) return utilAdj
+    }
+    if (companyAdj != null && !isNaN(Number(companyAdj))) return Number(companyAdj)
+    return ''
+  }
 
   useEffect(() => {
     if (!neg.company_id) return
@@ -190,32 +199,25 @@ export function FinancialAnalysisCard({
       setTariffDetails(details)
       setTariffFound(details.found !== false)
 
-      // Prioridade obrigatória:
-      // (a) valor salvo na negociação
-      // (b) pv_utilities.annual_tariff_adjustment da concessionária da negociação
-      // (c) vazio/0 — NUNCA 1% fixo
-      const hasNegAdj =
-        neg.annual_tariff_adjustment !== null &&
-        neg.annual_tariff_adjustment !== undefined &&
-        neg.annual_tariff_adjustment !== ''
-      const hasSizingAdj =
-        neg.sizing?.annual_tariff_adjustment !== null &&
-        neg.sizing?.annual_tariff_adjustment !== undefined &&
-        neg.sizing?.annual_tariff_adjustment !== ''
-
-      if (hasNegAdj) {
-        setAnnualTariffAdjustment(Number(neg.annual_tariff_adjustment))
-      } else if (
-        details.annual_tariff_adjustment !== undefined &&
-        details.annual_tariff_adjustment !== null &&
-        !isNaN(Number(details.annual_tariff_adjustment))
-      ) {
-        setAnnualTariffAdjustment(Number(details.annual_tariff_adjustment))
-      } else if (hasSizingAdj) {
-        setAnnualTariffAdjustment(Number(neg.sizing?.annual_tariff_adjustment))
-      } else {
-        setAnnualTariffAdjustment('')
+      // Regra: reajuste POR CONCESSIONÁRIA da negociação, com fallback para o
+      // valor cadastrado na companhia. Valor salvo na negociação só prevalece
+      // quando é override explícito (> 0).
+      let compAdj: number | null = null
+      if (neg.company_id) {
+        try {
+          const compRec: any = await pb.collection('companies').getOne(neg.company_id)
+          if (
+            compRec?.annual_tariff_adjustment !== null &&
+            compRec?.annual_tariff_adjustment !== undefined
+          ) {
+            compAdj = Number(compRec.annual_tariff_adjustment)
+          }
+        } catch {
+          compAdj = null
+        }
       }
+      setCompanyTariffAdjustment(compAdj)
+      setAnnualTariffAdjustment(resolveTariffAdjustment(details, compAdj))
 
       const price = await fetchLatestProposalPrice(neg.id)
       setSystemPrice(price || (Number(neg.sizing?.kit_power_kwp) || 0) * 4000)
@@ -240,28 +242,7 @@ export function FinancialAnalysisCard({
       setSimultaneityFactor(fallback)
     }
     setPublicLightingFee(neg.public_lighting_fee != null ? neg.public_lighting_fee : 0)
-    const hasNegAdj =
-      neg.annual_tariff_adjustment !== null &&
-      neg.annual_tariff_adjustment !== undefined &&
-      neg.annual_tariff_adjustment !== ''
-    const hasSizingAdj =
-      neg.sizing?.annual_tariff_adjustment !== null &&
-      neg.sizing?.annual_tariff_adjustment !== undefined &&
-      neg.sizing?.annual_tariff_adjustment !== ''
-
-    if (hasNegAdj) {
-      setAnnualTariffAdjustment(Number(neg.annual_tariff_adjustment))
-    } else if (
-      tariffDetails.annual_tariff_adjustment !== undefined &&
-      tariffDetails.annual_tariff_adjustment !== null &&
-      !isNaN(Number(tariffDetails.annual_tariff_adjustment))
-    ) {
-      setAnnualTariffAdjustment(Number(tariffDetails.annual_tariff_adjustment))
-    } else if (hasSizingAdj) {
-      setAnnualTariffAdjustment(Number(neg.sizing?.annual_tariff_adjustment))
-    } else {
-      setAnnualTariffAdjustment('')
-    }
+    setAnnualTariffAdjustment(resolveTariffAdjustment(tariffDetails, companyTariffAdjustment))
   }, [
     neg.consumer_category,
     neg.simultaneity_factor,
@@ -269,6 +250,8 @@ export function FinancialAnalysisCard({
     neg.annual_tariff_adjustment,
     neg.sizing?.annual_tariff_adjustment,
     negKey,
+    tariffDetails,
+    companyTariffAdjustment,
   ])
 
   const handleCategoryChange = (category: string) => {
@@ -488,9 +471,8 @@ export function FinancialAnalysisCard({
                 placeholder="Ex: 8"
               />
             ) : (
-              <div className="h-10 px-3 py-2 rounded-md border bg-muted/40 text-sm font-medium flex items-center justify-between text-muted-foreground">
+              <div className="h-10 px-3 py-2 rounded-md border bg-muted/40 text-sm font-medium flex items-center text-muted-foreground">
                 <span>{annualTariffAdjustment !== '' ? `${annualTariffAdjustment}%` : '0%'}</span>
-                <span className="text-[11px] text-muted-foreground">Somente leitura</span>
               </div>
             )}
             <p className="text-xs text-muted-foreground truncate">
