@@ -238,14 +238,55 @@ export async function saveAndRegenerateProposal(
       const co2AvoidedTon = calculateCo2Avoided(estGen)
 
       const prevCalcSnap = proposal.calc_snapshot || updatedSnapshot.calc_snapshot || {}
-      const annualTariffAdjustment =
-        prevCalcSnap.annual_tariff_adjustment != null
-          ? Number(prevCalcSnap.annual_tariff_adjustment)
-          : fp?.tariffDetails?.annual_tariff_adjustment != null
-            ? Number(fp.tariffDetails.annual_tariff_adjustment)
-            : fp?.annual_tariff_adjustment != null
-              ? Number(fp.annual_tariff_adjustment)
-              : Number(rawSizing.annual_tariff_adjustment) || 0
+      // O calc_snapshot congelado pode ter annual_tariff_adjustment: 0 gravado;
+      // ele NÃO deve prevalecer. Resolução na MESMA ordem da FinancialAnalysisCard:
+      // (a) override explícito na negociação (> 0), (b) reajuste da concessionária
+      // da negociação (pv_utilities), (c) fallback companies.annual_tariff_adjustment.
+      let annualTariffAdjustment = 0
+      let resolvedAdjustmentSource: string | null = null
+
+      const negAdjRaw = Number(proposal?.expand?.negotiation_id?.annual_tariff_adjustment)
+      const sizingAdjRaw = Number(rawSizing.annual_tariff_adjustment)
+      if (!isNaN(negAdjRaw) && negAdjRaw > 0) {
+        annualTariffAdjustment = negAdjRaw
+        resolvedAdjustmentSource = 'negotiation_override'
+      } else if (!isNaN(sizingAdjRaw) && sizingAdjRaw > 0) {
+        annualTariffAdjustment = sizingAdjRaw
+        resolvedAdjustmentSource = 'negotiation_sizing_override'
+      }
+
+      if (resolvedAdjustmentSource === null) {
+        const utilityId = proposal?.expand?.negotiation_id?.utility_id || null
+        if (utilityId) {
+          try {
+            const utilRec: any = await pb.collection('pv_utilities').getOne(utilityId)
+            const utilAdj = Number(utilRec?.annual_tariff_adjustment)
+            if (!isNaN(utilAdj) && utilRec?.annual_tariff_adjustment != null) {
+              annualTariffAdjustment = utilAdj
+              resolvedAdjustmentSource = 'pv_utilities'
+            }
+          } catch {
+            /* concessionária não encontrada: segue para o fallback da companhia */
+          }
+        }
+      }
+
+      if (resolvedAdjustmentSource === null) {
+        const companyId =
+          proposal.company_id || proposal?.expand?.negotiation_id?.company_id || null
+        if (companyId) {
+          try {
+            const compRec: any = await pb.collection('companies').getOne(companyId)
+            const compAdj = Number(compRec?.annual_tariff_adjustment)
+            if (!isNaN(compAdj) && compRec?.annual_tariff_adjustment != null) {
+              annualTariffAdjustment = compAdj
+              resolvedAdjustmentSource = 'companies'
+            }
+          } catch {
+            /* companhia não encontrada: mantém 0 */
+          }
+        }
+      }
       const annualDegradation =
         prevCalcSnap.annual_degradation != null
           ? Number(prevCalcSnap.annual_degradation)
@@ -254,6 +295,11 @@ export async function saveAndRegenerateProposal(
             : Number(resolvedModule?.annual_degradation) ||
               Number(updatedSnapshot.pricing_data?.rawModule?.annual_degradation) ||
               0.5
+      // Diagnóstico do reajuste resolvido (visível no console do navegador
+      // durante a regeneração, sem quebrar o fluxo em produção).
+      console.info(
+        `[proposal-regenerator] annual_tariff_adjustment resolvido: ${annualTariffAdjustment} (fonte: ${resolvedAdjustmentSource ?? 'nenhuma/0'})`,
+      )
 
       const detailedProjectionTable = calculateDetailed25YearsProjection({
         annualConsumptionKwh: avgCons * 12,
