@@ -42,6 +42,9 @@ export default function NegotiationProposalPage() {
   const [proposals, setProposals] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null)
+  // Registros de catálogo reais (pv_modules / pv_inverters) para exibir a marca correta
+  const [catalogModule, setCatalogModule] = useState<any>(null)
+  const [catalogInverters, setCatalogInverters] = useState<Record<string, any>>({})
 
   // Modais de ação na proposta
   const [editModalOpen, setEditModalOpen] = useState<any>(null)
@@ -83,6 +86,44 @@ export default function NegotiationProposalPage() {
   useEffect(() => {
     loadData()
   }, [id])
+
+  // Carrega marca/modelo reais do catálogo (pv_modules / pv_inverters) para a aba Resumo,
+  // pois sizing.inverters[] guarda apenas {id, qty} e não há selected_module_name persistido.
+  useEffect(() => {
+    const siz = neg?.sizing || {}
+    const modId = siz.selected_module_id
+    const invIds = Array.isArray(siz.inverters)
+      ? siz.inverters.map((i: any) => i.id).filter(Boolean)
+      : []
+
+    if (modId) {
+      pb.collection('pv_modules')
+        .getOne(modId)
+        .then((m) => setCatalogModule(m))
+        .catch(() => setCatalogModule(null))
+    } else {
+      setCatalogModule(null)
+    }
+
+    if (invIds.length > 0) {
+      Promise.all(
+        invIds.map((invId: string) =>
+          pb
+            .collection('pv_inverters')
+            .getOne(invId)
+            .catch(() => null),
+        ),
+      ).then((recs) => {
+        const map: Record<string, any> = {}
+        recs.forEach((r) => {
+          if (r) map[r.id] = r
+        })
+        setCatalogInverters(map)
+      })
+    } else {
+      setCatalogInverters({})
+    }
+  }, [neg?.id, neg?.sizing?.selected_module_id, JSON.stringify(neg?.sizing?.inverters || [])])
 
   useRealtime('negotiations', (e) => {
     if (e.record.id === id) loadData()
@@ -471,10 +512,14 @@ export default function NegotiationProposalPage() {
                 <div className="flex justify-between border-b pb-2">
                   <span className="text-muted-foreground">Módulo Fotovoltaico:</span>
                   <span className="font-medium text-right">
-                    {sizing.selected_module_name ||
-                      (snapshot.pricing_data?.rawModule
+                    {catalogModule
+                      ? `${catalogModule.brand} ${catalogModule.name || ''}`.trim() ||
+                        `${moduleQty}x Módulos de Alta Eficiência`
+                      : snapshot.pricing_data?.rawModule
                         ? `${snapshot.pricing_data.rawModule.brand} ${snapshot.pricing_data.rawModule.name || ''}`
-                        : `${moduleQty}x Módulos de Alta Eficiência`)}
+                        : sizing.selected_module_name
+                          ? sizing.selected_module_name
+                          : `${moduleQty}x Módulos de Alta Eficiência`}
                   </span>
                 </div>
                 <div className="flex justify-between border-b pb-2">
@@ -486,9 +531,13 @@ export default function NegotiationProposalPage() {
                   <span className="font-medium text-right">
                     {Array.isArray(sizing.inverters) && sizing.inverters.length > 0
                       ? sizing.inverters
-                          .map((inv: any) =>
-                            `${inv.brand || ''} ${inv.power ? inv.power + 'kW' : ''} (x${inv.qty || 1})`.trim(),
-                          )
+                          .map((inv: any) => {
+                            const cat = catalogInverters[inv.id]
+                            const brandModel = cat
+                              ? `${cat.brand || ''} ${cat.name || ''}`.trim()
+                              : ''
+                            return `${brandModel || 'Inversor'} ${inv.power || cat?.power ? (inv.power || cat?.power) + 'kW' : ''} (x${inv.qty || 1})`.trim()
+                          })
                           .join(', ')
                       : 'Inversor dimensionado para o kit'}
                   </span>

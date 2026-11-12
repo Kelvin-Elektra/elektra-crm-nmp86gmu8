@@ -993,7 +993,11 @@ routerAdd(
       }
 
       var finalEquipments = []
-      if (realModuleEntry || realInverterEntries.length > 0) {
+      var omitEquipments = activeEquipmentListStyle === 'none'
+      if (omitEquipments) {
+        // Estilo "none": não enviar lista de equipamentos ao Gerador
+        finalEquipments = []
+      } else if (realModuleEntry || realInverterEntries.length > 0) {
         finalEquipments = formatEquipmentsByStyle(
           activeEquipmentListStyle,
           realModuleEntry,
@@ -1012,7 +1016,12 @@ routerAdd(
         finalEquipments = filteredIncoming
       }
       // Substitui o array de equipamentos no payload pelo reconstruído
-      rawSizing.equipments = finalEquipments
+      if (omitEquipments) {
+        // Estilo "none": omite completamente o campo equipments do payload
+        delete rawSizing.equipments
+      } else {
+        rawSizing.equipments = finalEquipments
+      }
       var resolvedCommercialConditions =
         rawNegotiation.commercial_conditions || rawSizing.commercial_conditions || []
 
@@ -1219,6 +1228,10 @@ routerAdd(
           tariff_tusd: Number(tariffDetails.tusd || 0),
           savings_projection: savingsProjection,
         },
+      }
+      if (omitEquipments) {
+        // Estilo "none": remover equipments do contexto semântico/enriquecido
+        delete semanticContext.sizing.equipments
       }
 
       // Catálogo Semântico Centralizado
@@ -2127,16 +2140,24 @@ routerAdd(
           }
         }
 
-        var tpl4Equipments = formatEquipmentsByStyle(
-          activeEquipmentListStyle,
-          t4ModuleEntry,
-          realInverterEntries,
-          t4NonCoreEntries,
-        )
+        var tpl4Equipments = []
+        if (activeEquipmentListStyle === 'none') {
+          // Estilo "none": não enviar lista de equipamentos ao Gerador
+          delete rawSizing.equipments
+          delete enrichedSizing.equipments
+          delete semanticContext.sizing.equipments
+        } else {
+          tpl4Equipments = formatEquipmentsByStyle(
+            activeEquipmentListStyle,
+            t4ModuleEntry,
+            realInverterEntries,
+            t4NonCoreEntries,
+          )
 
-        rawSizing.equipments = tpl4Equipments
-        enrichedSizing.equipments = tpl4Equipments
-        semanticContext.sizing.equipments = tpl4Equipments
+          rawSizing.equipments = tpl4Equipments
+          enrichedSizing.equipments = tpl4Equipments
+          semanticContext.sizing.equipments = tpl4Equipments
+        }
 
         // Árvores equivalentes preservadas (CO2 evitado em toneladas × 7)
         var t4Co2Base = Number(co2AvoidedTon) || 0
@@ -2219,6 +2240,11 @@ routerAdd(
         rawFinancial.savings_projection = t4Proj
         enrichedFinancial.savings_projection = t4Proj
         semanticContext.financial.savings_projection = t4Proj
+      }
+
+      if (omitEquipments) {
+        // Estilo "none": enriquecido também sem equipments
+        delete enrichedSizing.equipments
       }
 
       // Raiz completa de dados da negociação para suporte a dot-notation manual

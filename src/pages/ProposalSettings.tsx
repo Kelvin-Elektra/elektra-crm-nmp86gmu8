@@ -104,9 +104,9 @@ export default function ProposalSettings() {
   const [defaultLeadTimeDays, setDefaultLeadTimeDays] = useState<string>('')
   const [defaultLeadTimeText, setDefaultLeadTimeText] = useState<string>('')
   const [defaultValidityDays, setDefaultValidityDays] = useState<string>('')
-  const [equipmentListStyle, setEquipmentListStyle] = useState<'compact' | 'full' | 'generic'>(
-    'full',
-  )
+  const [equipmentListStyle, setEquipmentListStyle] = useState<
+    'compact' | 'full' | 'generic' | 'none'
+  >('full')
   const [defaultPaymentMethods, setDefaultPaymentMethods] = useState<string[]>([])
   const [companyData, setCompanyData] = useState<Record<string, any>>({})
   const [previewingTemplateId, setPreviewingTemplateId] = useState<string | null>(null)
@@ -951,7 +951,7 @@ export default function ProposalSettings() {
                   </p>
                   <Select
                     value={equipmentListStyle}
-                    onValueChange={(val: 'compact' | 'full' | 'generic') =>
+                    onValueChange={(val: 'compact' | 'full' | 'generic' | 'none') =>
                       setEquipmentListStyle(val)
                     }
                   >
@@ -965,6 +965,9 @@ export default function ProposalSettings() {
                       <SelectItem value="full">Lista de insumos completa (padrão)</SelectItem>
                       <SelectItem value="generic">
                         Item genérico — proteção e materiais complementares
+                      </SelectItem>
+                      <SelectItem value="none">
+                        Nenhuma — não enviar lista de equipamentos
                       </SelectItem>
                     </SelectContent>
                   </Select>
