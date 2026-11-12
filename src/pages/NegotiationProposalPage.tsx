@@ -42,9 +42,10 @@ export default function NegotiationProposalPage() {
   const [proposals, setProposals] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null)
-  // Registros de catálogo reais (pv_modules / pv_inverters) para exibir a marca correta
+  // Registros de catálogo reais (pv_modules / pv_inverters / pv_installations) para exibir a marca correta
   const [catalogModule, setCatalogModule] = useState<any>(null)
   const [catalogInverters, setCatalogInverters] = useState<Record<string, any>>({})
+  const [installationName, setInstallationName] = useState<string | null>(null)
 
   // Modais de ação na proposta
   const [editModalOpen, setEditModalOpen] = useState<any>(null)
@@ -123,7 +124,19 @@ export default function NegotiationProposalPage() {
     } else {
       setCatalogInverters({})
     }
-  }, [neg?.id, neg?.sizing?.selected_module_id, JSON.stringify(neg?.sizing?.inverters || [])])
+
+    // Telhado: nome do catálogo pv_installations a partir de sizing.installation_id || sizing.installation_type
+    // (negotiations não tem coluna installation_type — o dado vive no JSON sizing)
+    const instId = siz.installation_id || siz.installation_type
+    if (instId) {
+      pb.collection('pv_installations')
+        .getOne(instId)
+        .then((inst: any) => setInstallationName(inst?.name || null))
+        .catch(() => setInstallationName(null))
+    } else {
+      setInstallationName(null)
+    }
+  }, [neg?.id, neg?.sizing?.selected_module_id, JSON.stringify(neg?.sizing?.inverters || []), neg?.sizing?.installation_id, neg?.sizing?.installation_type])
 
   useRealtime('negotiations', (e) => {
     if (e.record.id === id) loadData()
@@ -205,10 +218,10 @@ export default function NegotiationProposalPage() {
                   }
                 >
                   {activeProposal.status === 'accepted'
-                    ? 'Venda Aprovada'
-                    : activeProposal.status === 'draft'
-                      ? 'Rascunho'
-                      : activeProposal.status || 'Gerada'}
+                    ? 'Vendida'
+                    : activeProposal.status === 'draft' || activeProposal.status === 'Gerada'
+                        ? 'Gerada'
+                        : activeProposal.status || 'Gerada'}
                 </Badge>
               )}
             </div>
@@ -322,7 +335,7 @@ export default function NegotiationProposalPage() {
                       {activeProposal.description || `Proposta #${activeProposal.id}`}
                     </span>
                     <Badge variant="outline" className="text-xs bg-white">
-                      Status: {activeProposal.status || 'Gerada'}
+                      Status: {activeProposal.status === 'accepted' ? 'Vendida' : activeProposal.status === 'draft' || activeProposal.status === 'Gerada' ? 'Gerada' : activeProposal.status || 'Gerada'}
                     </Badge>
                     {(activeProposal.has_financing ||
                       activeProposal.snapshot_data?.has_financing ||
@@ -533,10 +546,9 @@ export default function NegotiationProposalPage() {
                       ? sizing.inverters
                           .map((inv: any) => {
                             const cat = catalogInverters[inv.id]
-                            const brandModel = cat
-                              ? `${cat.brand || ''} ${cat.name || ''}`.trim()
-                              : ''
-                            return `${brandModel || 'Inversor'} ${inv.power || cat?.power ? (inv.power || cat?.power) + 'kW' : ''} (x${inv.qty || 1})`.trim()
+                            const modelo = cat?.name || inv.model || inv.power || ''
+                            const marca = cat?.brand || inv.brand || ''
+                            return `${inv.qty || 1} x inversor(es) ${modelo} ${marca}`.replace(/\s+/g, ' ').trim()
                           })
                           .join(', ')
                       : 'Inversor dimensionado para o kit'}
@@ -545,7 +557,8 @@ export default function NegotiationProposalPage() {
                 <div className="flex justify-between border-b pb-2">
                   <span className="text-muted-foreground">Tipo de Telhado / Estrutura:</span>
                   <span className="text-right">
-                    {sizing.roof_type ||
+                    {installationName ||
+                      sizing.roof_type ||
                       sizing.structure_type ||
                       neg.roof_type ||
                       'Telhado Convencional'}

@@ -63,7 +63,7 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
       )
       for (const other of othersSold) {
         await pb.collection('proposals').update(other.id, {
-          status: 'Gerada',
+          status: 'draft',
           closing_date: '',
         })
       }
@@ -95,7 +95,7 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
     if (!confirm('Deseja desfazer a venda desta proposta?')) return
     try {
       await pb.collection('proposals').update(p.id, {
-        status: 'Gerada',
+        status: 'draft',
         closing_date: '',
       })
       toast({ title: 'Venda desfeita' })
@@ -185,7 +185,13 @@ export function ProposalsTab({ proposals, neg, reload }: any) {
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Badge variant="secondary">{p.status || 'Gerada'}</Badge>
+                    <Badge variant="secondary">
+                      {p.status === 'accepted'
+                        ? 'Vendida'
+                        : p.status === 'draft' || !p.status || p.status === 'Gerada'
+                          ? 'Gerada'
+                          : p.status}
+                    </Badge>
                   </div>
                 </div>
               </CardHeader>
