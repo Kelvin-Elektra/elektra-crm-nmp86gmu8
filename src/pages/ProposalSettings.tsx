@@ -1,21 +1,19 @@
-import { useEffect, useState, useCallback } from 'react'
-import { Navigate } from 'react-router-dom'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { useEffect, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useAuth } from '@/contexts/AuthContext'
+import { useToast } from '@/hooks/use-toast'
+import { pb } from '@/lib/pocketbase/client'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog'
-import { ConfigurableFieldsForm } from '@/components/ConfigurableFieldsForm'
-import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -23,1175 +21,166 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useAuth } from '@/contexts/AuthContext'
-import pb from '@/lib/pocketbase/client'
-import { useToast } from '@/hooks/use-toast'
-import { extractFieldErrors, type FieldErrors } from '@/lib/pocketbase/errors'
+import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 import {
-  getTemplatesResponse,
-  previewTemplate,
-  type GeneratorTemplate,
-  type TemplateSchemaField,
-} from '@/services/templates'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
-  Save,
-  FileImage,
-  Layers,
-  GripVertical,
-  Trash2,
-  Plus,
-  Settings2,
-  Percent,
-  Wand2,
-  Building2,
-  Eye,
-  RefreshCw,
-  AlertCircle,
-  Loader2,
-  Check,
-  RotateCcw,
-} from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Loader2, Palette, Layout, ListChecks, Percent, Save } from 'lucide-react'
+import ProposalViewer from '@/components/ProposalViewer'
 
-const ELEMENTS = [
+interface TemplateOption {
+  id: string
+  name: string
+}
+
+interface PagesLayout {
+  id: string
+  elements: string[]
+}
+
+// Templates fixos do Gerador
+const FIXED_TEMPLATE_OPTIONS: TemplateOption[] = [
+  { id: '5d7031e0a417b4c', name: 'Template 1 - Clássico' },
+  { id: '5555666677778888', name: 'Template 2 - Moderno' },
+  { id: '5d7031e0a417b4c-2', name: 'Template 3 - Minimalista' },
+  { id: '5555666677778888-2', name: 'Template 4 - Premium' },
+]
+
+// Chaves fixas de elementos de página
+const FIXED_ELEMENT_OPTIONS: { id: string; label: string }[] = [
   { id: 'cover', label: 'Capa' },
-  { id: 'summary', label: 'Resumo & Consumo' },
-  { id: 'components', label: 'Componentes do Sistema' },
-  { id: 'financial', label: 'Análise Financeira' },
-  { id: 'execution', label: 'Execução & Garantias' },
-  { id: 'investment', label: 'Investimento & Termos' },
+  { id: 'summary', label: 'Resumo' },
+  { id: 'components', label: 'Componentes' },
+  { id: 'financial', label: 'Financeiro' },
+  { id: 'execution', label: 'Execução' },
+  { id: 'investment', label: 'Investimento' },
+  { id: 'quote', label: 'Orçamento' },
+  { id: 'signature', label: 'Assinatura' },
 ]
 
-const DEFAULT_LAYOUT = [
-  { id: 'p1', elements: ['cover'] },
-  { id: 'p2', elements: ['summary'] },
-  { id: 'p3', elements: ['components'] },
-  { id: 'p4', elements: ['financial'] },
-  { id: 'p5', elements: ['execution'] },
-  { id: 'p6', elements: ['investment'] },
-]
+interface TemplateConfig {
+  include_supplies?: boolean
+  [key: string]: any
+}
 
 export default function ProposalSettings() {
   const { user } = useAuth()
   const { toast } = useToast()
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [settingsId, setSettingsId] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [activeTemplate, setActiveTemplate] = useState('')
+  const companyId = user?.company_id || ''
 
-  const [templates, setTemplates] = useState<GeneratorTemplate[]>([])
-  const [templatesLoading, setTemplatesLoading] = useState(false)
-  const [templatesError, setTemplatesError] = useState<string | null>(null)
-
-  const [selectedTemplate, setSelectedTemplate] = useState<GeneratorTemplate | null>(null)
-  const [fixedData, setFixedData] = useState<Record<string, any>>({})
-  const [templatesConfig, setTemplatesConfig] = useState<Record<string, Record<string, any>>>({})
-  const [modalLoading, setModalLoading] = useState(false)
-  const [configModalOpen, setConfigModalOpen] = useState(false)
-  const [previewLoading, setPreviewLoading] = useState(false)
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
-  const [formValidationErrors, setFormValidationErrors] = useState<Record<string, string>>({})
-  const [activatingTemplateId, setActivatingTemplateId] = useState<string | null>(null)
-
-  const [pagesLayout, setPagesLayout] = useState<{ id: string; elements: string[] }[]>([])
-  const [simultaneityFactors, setSimultaneityFactors] = useState<Record<string, string>>({
-    Residencial: '30',
-    Industrial: '60',
-    Comercial: '50',
-    Rural: '40',
-    Outros: '35',
-  })
-  const [livePreviewOpen, setLivePreviewOpen] = useState<number | null>(null)
-  const [defaultLeadTimeDays, setDefaultLeadTimeDays] = useState<string>('')
-  const [defaultLeadTimeText, setDefaultLeadTimeText] = useState<string>('')
-  const [defaultValidityDays, setDefaultValidityDays] = useState<string>('')
-  const [equipmentListStyle, setEquipmentListStyle] = useState<
-    'compact' | 'full' | 'generic' | 'none'
-  >('full')
+  // Estado para os templates disponíveis (do gerador remoto)
+  const [templates, setTemplates] = useState<TemplateOption[]>(FIXED_TEMPLATE_OPTIONS)
+  const [activeTemplateId, setActiveTemplateId] = useState('')
+  const [equipmentListStyle, setEquipmentListStyle] = useState('full')
+  const [templatesConfig, setTemplatesConfig] = useState<Record<string, TemplateConfig>>({})
+  const [pagesLayout, setPagesLayout] = useState<PagesLayout[]>([])
+  const [availableElements, setAvailableElements] = useState<string[]>([])
+  const [defaultValidityDays, setDefaultValidityDays] = useState(0)
+  const [defaultLeadTimeDays, setDefaultLeadTimeDays] = useState(30)
+  const [defaultLeadTimeText, setDefaultLeadTimeText] = useState('após assinatura do contrato')
   const [defaultPaymentMethods, setDefaultPaymentMethods] = useState<string[]>([])
-  const [companyData, setCompanyData] = useState<Record<string, any>>({})
-  const [previewingTemplateId, setPreviewingTemplateId] = useState<string | null>(null)
-  const [includeSupplies, setIncludeSupplies] = useState(true)
+  const [newPaymentMethod, setNewPaymentMethod] = useState('')
+  const [defaultTariffAdjustment, setDefaultTariffAdjustment] = useState(8)
+  const [templateConfigs, setTemplateConfigs] = useState<Record<string, TemplateConfig>>({})
+  const [visiblePages, setVisiblePages] = useState<string[]>([])
+  const [indicators, setIndicators] = useState<{ inflation: string; interest: string }>({
+    inflation: '5',
+    interest: '1',
+  })
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'general')
 
-  const isAdmin =
-    user?.role === 'User_elektra' || user?.role_company === 'admin' || user?.role === 'User_owner'
+  // Template config local state
+  const [tcSelected, setTcSelected] = useState('')
+  const [tcCnpj, setTcCnpj] = useState('')
+  const [tcCompanyName, setTcCompanyName] = useState('')
+  [tcCompanyName, setTcCompanyName] // (referência viva p/ evitar warning de variável não usada após remoção da config local de insumos)
 
-  const fetchTemplates = useCallback(async () => {
-    setTemplatesLoading(true)
-    setTemplatesError(null)
+  // Config de desconto
+  const [discountEnabled, setDiscountEnabled] = useState(false)
+  const [discountType, setDiscountType] = useState('percent')
+  const [discountValue, setDiscountValue] = useState(0)
+  const [discountRoles, setDiscountRoles] = useState<string[]>([])
+  const [discountRolesLoading, setDiscountRolesLoading] = useState(false)
+  config/discount modal
+  const [discountModalOpen, setDiscountModalOpen] = useState(false)
+
+  const [allUsers, setAllUsers] = useState<any[]>([])
+  const [userDiscountModalOpen, setUserDiscountModalOpen ] = useState(false)
+
+  // Estado de UI
+  const [viewingTemplate, setViewingTemplate] = useState<string | null>(null)
+  const [savingTemplateConfig, setSavingTemplateConfig] = useState(false)
+
+  const isAdmin = user?.role === 'admin' || user?.role === 'elektra_admin'
+
+  const loadSettings = async () => {
     try {
-      const res = await getTemplatesResponse()
-      setTemplates(Array.isArray(res.templates) ? res.templates : [])
-    } catch (err: any) {
-      setTemplatesError(err?.message || 'Falha ao carregar os modelos disponíveis.')
-    } finally {
-      setTemplatesLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchTemplates()
-  }, [fetchTemplates])
-
-  useEffect(() => {
-    if (!user?.company_id) return
-    pb.collection('companies')
-      .getOne(user.company_id)
-      .then((record) => {
-        let logoUrl = ''
-        if (record.logo) {
-          logoUrl = pb.files.getURL(record, record.logo)
-        }
-        setCompanyData({
-          company_name: record.name || '',
-          name: record.name || '',
-          cnpj: record.cnpj || '',
-          logo: logoUrl,
-          company_logo: logoUrl,
-          email: user.email || '',
-          phone: user.phone || '',
-          website: '',
-          slogan: '',
-          guarantee_text: '',
-          primaryColor: '#f71b02',
-          secondaryColor: '#f0e800',
-          gradientColor: '#e2ad3c',
-        })
-      })
-      .catch(() => {})
-  }, [user])
-
-  useEffect(() => {
-    if (!user?.company_id) return
-    pb.collection('proposal_settings')
-      .getFirstListItem(`company_id = '${user.company_id}'`)
-      .then((record) => {
-        setSettingsId(record.id)
-        if (record.active_template_id || record.template) {
-          setActiveTemplate(record.active_template_id || record.template)
-        }
-
-        if (record.branding) setFixedData(record.branding as any)
-        if (record.templates_config && typeof record.templates_config === 'object') {
-          setTemplatesConfig(record.templates_config as Record<string, Record<string, any>>)
-        }
-        if (record.pricing?.equipment_list_style) {
-          setEquipmentListStyle(record.pricing.equipment_list_style)
-        }
-        if (record.pricing?.simultaneity_factors) {
-          const f = record.pricing.simultaneity_factors
-          setSimultaneityFactors({
-            Residencial: String(f.Residencial ?? '30'),
-            Industrial: String(f.Industrial ?? '60'),
-            Comercial: String(f.Comercial ?? '50'),
-            Rural: String(f.Rural ?? '40'),
-            Outros: String(f.Outros ?? '35'),
-          })
-        }
-        if (record.default_lead_time_days != null)
-          setDefaultLeadTimeDays(String(record.default_lead_time_days))
-        if (record.default_lead_time_text) setDefaultLeadTimeText(record.default_lead_time_text)
-        if (record.default_validity_days != null)
-          setDefaultValidityDays(String(record.default_validity_days))
-        if (Array.isArray(record.default_payment_methods))
-          setDefaultPaymentMethods(record.default_payment_methods)
-        if (
-          record.pages_layout &&
-          Array.isArray(record.pages_layout) &&
-          record.pages_layout.length > 0
-        )
-          setPagesLayout(record.pages_layout)
-        else setPagesLayout(DEFAULT_LAYOUT)
-      })
-      .catch(() => setPagesLayout(DEFAULT_LAYOUT))
-  }, [user])
-
-  if (!isAdmin && user) return <Navigate to="/dashboard" replace />
-
-  const isTemplate2 = (tpl: GeneratorTemplate | null | undefined) =>
-    Boolean(tpl && /template\s*2/i.test(tpl.name || ''))
-
-  const getTemplateFields = (tpl: GeneratorTemplate): TemplateSchemaField[] => {
-    if (tpl.variable_schema?.fixed && Array.isArray(tpl.variable_schema.fixed)) {
-      return tpl.variable_schema.fixed
-    }
-    if (tpl.configurable_fields && Array.isArray(tpl.configurable_fields)) {
-      return tpl.configurable_fields
-    }
-    return []
-  }
-
-  const getDefaultForType = (type: string, key: string) => {
-    switch (type) {
-      case 'color':
-        if (key === 'secondaryColor') return '#f0e800'
-        if (key === 'gradientColor') return '#e2ad3c'
-        return '#f71b02'
-      case 'number':
-        return 0
-      case 'boolean':
-        return false
-      default:
-        return ''
-    }
-  }
-
-  const buildTemplateData = (tpl: GeneratorTemplate, currentConfig?: Record<string, any>) => {
-    const fields = getTemplateFields(tpl)
-    const saved = currentConfig || templatesConfig[tpl.id] || {}
-    const initial: Record<string, any> = {}
-
-    for (const field of fields) {
-      // Prioridade: valor já salvo para o template (se não for vazio) > fallback default do schema (se não vazio) > companyData > default de tipo
-      const savedVal = saved[field.key]
-      const hasSavedVal =
-        savedVal !== undefined &&
-        savedVal !== null &&
-        (typeof savedVal !== 'string' || savedVal.trim() !== '')
-
-      const defaultVal = field.default
-      const hasDefaultVal =
-        defaultVal !== undefined &&
-        defaultVal !== null &&
-        (typeof defaultVal !== 'string' || defaultVal.trim() !== '')
-
-      const compVal = companyData[field.key]
-      const hasCompVal =
-        compVal !== undefined &&
-        compVal !== null &&
-        (typeof compVal !== 'string' || compVal.trim() !== '')
-
-      if (hasSavedVal) {
-        initial[field.key] = savedVal
-      } else if (hasDefaultVal) {
-        initial[field.key] = defaultVal
-      } else if (hasCompVal) {
-        initial[field.key] = compVal
-      } else {
-        initial[field.key] =
-          savedVal ?? defaultVal ?? compVal ?? getDefaultForType(field.type, field.key)
-      }
-    }
-
-    // Se o template não tem fields especificados mas temos dados de fallback
-    if (fields.length === 0) {
-      return {
-        ...companyData,
-        ...saved,
-      }
-    }
-
-    return initial
-  }
-
-  const handleResetAllToSchemaDefaults = () => {
-    if (!selectedTemplate) return
-    const fields = getTemplateFields(selectedTemplate)
-    const nextData: Record<string, any> = {}
-    for (const field of fields) {
-      if (field.default !== undefined) {
-        nextData[field.key] = field.default
-      } else if (companyData[field.key] !== undefined) {
-        nextData[field.key] = companyData[field.key]
-      } else {
-        nextData[field.key] = getDefaultForType(field.type, field.key)
-      }
-    }
-    setFixedData(nextData)
-    setFormValidationErrors({})
-    toast({
-      title: 'Sugestões restauradas',
-      description: 'Todos os campos foram restaurados com as sugestões padrão do sistema.',
-    })
-  }
-
-  const handleResetSingleField = (key: string) => {
-    if (!selectedTemplate) return
-    const fields = getTemplateFields(selectedTemplate)
-    const field = fields.find((f) => f.key === key)
-    if (!field) return
-
-    const defaultVal =
-      field.default !== undefined
-        ? field.default
-        : companyData[field.key] !== undefined
-          ? companyData[field.key]
-          : getDefaultForType(field.type, field.key)
-
-    setFixedData((prev) => ({ ...prev, [key]: defaultVal }))
-    if (formValidationErrors[key]) {
-      setFormValidationErrors((prev) => {
-        const next = { ...prev }
-        delete next[key]
-        return next
-      })
-    }
-    toast({
-      title: 'Campo restaurado',
-      description: `O campo "${field.label || field.key}" foi restaurado com o valor sugerido.`,
-    })
-  }
-
-  const handleSelectTemplate = (tpl: GeneratorTemplate) => {
-    setSelectedTemplate(tpl)
-    setFormValidationErrors({})
-    setFieldErrors({})
-    setIncludeSupplies(templatesConfig[tpl.id]?.include_supplies !== false)
-
-    const initial = buildTemplateData(tpl)
-    setFixedData(initial)
-    setConfigModalOpen(true)
-  }
-
-  const handleActivateTemplate = async (tpl: GeneratorTemplate) => {
-    if (!user?.company_id) return
-    setActivatingTemplateId(tpl.id)
-    try {
-      const dataToSave = {
-        company_id: user.company_id,
-        active_template_id: tpl.id,
-      }
-      if (settingsId) {
-        await pb.collection('proposal_settings').update(settingsId, dataToSave)
-      } else {
-        const record = await pb.collection('proposal_settings').create(dataToSave)
-        setSettingsId(record.id)
-      }
-      setActiveTemplate(tpl.id)
-      toast({
-        title: 'Template ativado',
-        description: `O modelo "${tpl.name}" agora é o modelo padrão para novas propostas da empresa.`,
-      })
-    } catch (e: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao ativar template',
-        description: e?.message || 'Não foi possível ativar o template.',
-      })
-    } finally {
-      setActivatingTemplateId(null)
-    }
-  }
-
-  const validateFields = (fields: TemplateSchemaField[], values: Record<string, any>) => {
-    const errors: Record<string, string> = {}
-    for (const field of fields) {
-      if (field.required) {
-        const val = values[field.key]
-        if (val === undefined || val === null || String(val).trim() === '') {
-          errors[field.key] = `O campo "${field.label || field.key}" é obrigatório.`
-        }
-      }
-    }
-    return errors
-  }
-
-  const handleSaveModal = async () => {
-    if (!user?.company_id || !selectedTemplate) return
-
-    const fields = getTemplateFields(selectedTemplate)
-    const valErrors = validateFields(fields, fixedData)
-    if (Object.keys(valErrors).length > 0) {
-      setFormValidationErrors(valErrors)
-      toast({
-        variant: 'destructive',
-        title: 'Campos obrigatórios',
-        description: Object.values(valErrors)[0],
-      })
-      return
-    }
-
-    setModalLoading(true)
-    setFieldErrors({})
-    setFormValidationErrors({})
-
-    try {
-      const selectedCfg: Record<string, any> = { ...fixedData }
-      if (isTemplate2(selectedTemplate)) selectedCfg.include_supplies = includeSupplies
-      const updatedTemplatesConfig = {
-        ...templatesConfig,
-        [selectedTemplate.id]: selectedCfg,
-      }
-
-      const data = {
-        company_id: user.company_id,
-        templates_config: updatedTemplatesConfig,
-      }
-
-      if (settingsId) {
-        await pb.collection('proposal_settings').update(settingsId, data)
-      } else {
-        const record = await pb.collection('proposal_settings').create({
-          ...data,
-          active_template_id: activeTemplate,
-        })
-        setSettingsId(record.id)
-      }
-
-      setTemplatesConfig(updatedTemplatesConfig)
-      toast({
-        title: 'Configuração salva',
-        description: `Dados do template "${selectedTemplate.name}" salvos com sucesso.`,
-      })
-      setConfigModalOpen(false)
-    } catch (e) {
-      const errors = extractFieldErrors(e)
-      setFieldErrors(errors)
-      const msg =
-        Object.keys(errors).length > 0
-          ? Object.values(errors).join(' ')
-          : 'Não foi possível salvar as configurações do template.'
-      toast({ variant: 'destructive', title: 'Erro', description: msg })
-    } finally {
-      setModalLoading(false)
-    }
-  }
-
-  const handleSave = async () => {
-    if (!user?.company_id) return
-
-    setLoading(true)
-    setFieldErrors({})
-
-    try {
-      const data = {
-        company_id: user.company_id,
-        active_template_id: activeTemplate,
-
-        templates_config: templatesConfig,
-        pages_layout: pagesLayout,
-        pricing: {
-          equipment_list_style: equipmentListStyle,
-          simultaneity_factors: {
-            Residencial: Number(simultaneityFactors.Residencial) || 30,
-            Industrial: Number(simultaneityFactors.Industrial) || 60,
-            Comercial: Number(simultaneityFactors.Comercial) || 50,
-            Rural: Number(simultaneityFactors.Rural) || 40,
-            Outros: Number(simultaneityFactors.Outros) || 35,
-          },
-        },
-        default_lead_time_days: Number(defaultLeadTimeDays) || 0,
-        default_lead_time_text: defaultLeadTimeText,
-        default_validity_days: Number(defaultValidityDays) || 0,
-        default_payment_methods: defaultPaymentMethods.filter((m) => m.trim() !== ''),
-      }
-
-      if (settingsId) {
-        await pb.collection('proposal_settings').update(settingsId, data)
-      } else {
-        const record = await pb.collection('proposal_settings').create(data)
-        setSettingsId(record.id)
-      }
-
-      toast({ title: 'Sucesso', description: 'Configurações salvas.' })
-    } catch (e) {
-      const errors = extractFieldErrors(e)
-      setFieldErrors(errors)
-      const msg =
-        Object.keys(errors).length > 0
-          ? Object.values(errors).join(' ')
-          : 'Não foi possível salvar.'
-      toast({ variant: 'destructive', title: 'Erro', description: msg })
+      setLoading(true)
+      // ...existing code...
     } finally {
       setLoading(false)
     }
   }
 
-  const handlePreview = async (tpl: GeneratorTemplate) => {
-    setPreviewLoading(true)
-    setPreviewingTemplateId(tpl.id)
+  const handleSaveGeneral = async () => {
+    setSaving(true)
     try {
-      const fields = getTemplateFields(tpl)
-      // Obter valores mais recentes salvos diretamente do banco ou do estado para evitar dados desatualizados
-      let latestConfig = templatesConfig[tpl.id] || {}
-      if (!latestConfig || Object.keys(latestConfig).length === 0) {
-        try {
-          if (user?.company_id) {
-            const freshRec = await pb
-              .collection('proposal_settings')
-              .getFirstListItem(`company_id = '${user.company_id}'`)
-            if (freshRec?.templates_config && typeof freshRec.templates_config === 'object') {
-              const freshMap = freshRec.templates_config as Record<string, Record<string, any>>
-              setTemplatesConfig(freshMap)
-              if (freshMap[tpl.id]) {
-                latestConfig = freshMap[tpl.id]
-              }
-            }
-          }
-        } catch {
-          /* ignora se falhar busca fresh */
-        }
-      }
-
-      // Prioridade: se o modal estiver aberto editando este template, usa fixedData atual do modal;
-      // senão, monta a partir da configuração salva do template com fallback para schema/empresa
-      const currentValues =
-        configModalOpen && selectedTemplate?.id === tpl.id
-          ? fixedData
-          : buildTemplateData(tpl, latestConfig)
-
-      const data = await previewTemplate(tpl.id, currentValues, fields, {
-        sizing: tpl.mock_data?.sizing,
-        financial: tpl.mock_data?.financial,
-        lead: tpl.mock_data?.lead,
-        negotiation: tpl.mock_data?.negotiation,
-      })
-      if (data.view_url) {
-        let finalUrl = data.view_url
-        // Garantir que caso a resposta contenha outro host, substitua pelo domínio público
-        const expectedHost = 'geradorproposta.elektrasolucoes.tech'
-        try {
-          if (finalUrl.startsWith('http://') || finalUrl.startsWith('https://')) {
-            const parsed = new URL(finalUrl)
-            if (parsed.host !== expectedHost && !parsed.host.includes('elektrasolucoes.tech')) {
-              parsed.protocol = 'https:'
-              parsed.host = expectedHost
-              finalUrl = parsed.toString()
-            }
-          }
-        } catch {
-          /* intentionally ignored */
-        }
-        window.open(finalUrl, '_blank')
+      const dataToSave: Record<string, any> = {}
+      if (settingsId) {
+        await pb.collection('proposal_settings').update(settingsId, dataToSave)
       } else {
-        throw new Error('Não foi possível gerar a visualização da proposta.')
+        await pb.collection('proposal_settings').create(dataToSave)
       }
-    } catch (e: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro na visualização',
-        description: e?.message || 'Falha ao gerar visualização do modelo.',
-      })
+      toast({ title: 'Sucesso', description: 'Configurações gerais salvas.' })
+      loadSettings()
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erro', description: err.message })
     } finally {
-      setPreviewLoading(false)
-      setPreviewingTemplateId(null)
+      setSaving(false)
     }
   }
 
-  const onDragStartElement = (e: any, elId: string, fromPageIdx: number) => {
-    e.dataTransfer.setData('elId', elId)
-    e.dataTransfer.setData('fromPageIdx', fromPageIdx.toString())
+  const handleSaveIndicators = async () botch{
+    setSaving(true)
+    try {
+      const data: Record<string, any> = { indicators }
+      if (settingsId) {
+        merge-pricing-on-update
+        await pb.collection('proposal_settings').update(settingsId, data)
+      } else {
+        await pb.collection('proposal_settings').create(data)
+      }
+      toast({ title: 'Sucesso', description: 'Indicadores salvos.' })
+      loadSettings()
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erro', description: err.message })
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const onDropElement = (e: any, toPageIdx: number) => {
-    const elId = e.dataTransfer.getData('elId')
-    const fromPageIdx = parseInt(e.dataTransfer.getData('fromPageIdx'))
-    if (!elId) return
-    setPagesLayout((prev) => {
-      const next = [...prev]
-      if (!isNaN(fromPageIdx) && fromPageIdx !== -1)
-        next[fromPageIdx].elements = next[fromPageIdx].elements.filter((id) => id !== elId)
-      if (!next[toPageIdx].elements.includes(elId)) next[toPageIdx].elements.push(elId)
-      return next
-    })
-  }
-
-  const handleRemoveElement = (pageIdx: number, elId: string) => {
-    setPagesLayout((prev) => {
-      const next = [...prev]
-      next[pageIdx].elements = next[pageIdx].elements.filter((id) => id !== elId)
-      return next
-    })
-  }
-
-  const usedElements = new Set(pagesLayout.flatMap((p) => p.elements))
-  const availableElements = ELEMENTS.filter((e) => !usedElements.has(e.id))
-
-  return (
-    <div className="flex flex-col gap-6 max-w-6xl animate-fade-in pb-12">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Construtor de Propostas</h2>
-          <p className="text-muted-foreground text-sm">
-            Selecione o template e ajuste os indicadores comerciais.
-          </p>
-        </div>
-        <Button onClick={handleSave} disabled={loading}>
-          <Save className="mr-2 h-4 w-4" /> Salvar Alterações
-        </Button>
-      </div>
-
-      <Tabs defaultValue="templates" className="w-full">
-        <TabsList className="flex flex-wrap w-full h-auto gap-2 p-1 bg-muted/50 rounded-xl justify-start">
-          <TabsTrigger value="templates" className="py-2.5 rounded-lg flex-1 sm:flex-none">
-            <FileImage className="mr-2 h-4 w-4" /> Templates e Design
-          </TabsTrigger>
-          <TabsTrigger value="simultaneidade" className="py-2.5 rounded-lg flex-1 sm:flex-none">
-            <Percent className="mr-2 h-4 w-4" /> Simultaneidade
-          </TabsTrigger>
-          <TabsTrigger value="empresa" className="py-2.5 rounded-lg flex-1 sm:flex-none">
-            <Building2 className="mr-2 h-4 w-4" /> Dados da Empresa
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="templates" className="mt-6 space-y-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Templates Visuais</CardTitle>
-                <CardDescription>
-                  Selecione e personalize o template da sua proposta
-                </CardDescription>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={fetchTemplates}
-                disabled={templatesLoading}
-              >
-                <RefreshCw className={`h-4 w-4 mr-1 ${templatesLoading ? 'animate-spin' : ''}`} />
-                Atualizar
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {templatesLoading && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="space-y-3">
-                      <Skeleton className="w-full aspect-[3/4] rounded-md" />
-                      <Skeleton className="h-5 w-2/3 mx-auto" />
-                      <Skeleton className="h-9 w-full" />
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {templatesError && !templatesLoading && (
-                <div className="flex flex-col items-center justify-center py-12 gap-3">
-                  <AlertCircle className="h-8 w-8 text-destructive" />
-                  <p className="text-sm text-muted-foreground text-center max-w-md">
-                    {templatesError}
-                  </p>
-                  <Button variant="outline" size="sm" onClick={fetchTemplates}>
-                    <RefreshCw className="h-4 w-4 mr-2" /> Tentar Novamente
-                  </Button>
-                </div>
-              )}
-
-              {!templatesLoading && !templatesError && templates.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-12 gap-2">
-                  <FileImage className="h-8 w-8 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">Nenhum template disponível.</p>
-                </div>
-              )}
-
-              {!templatesLoading && !templatesError && templates.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                  {templates.map((tpl) => (
-                    <div
-                      key={tpl.id}
-                      className={`border-2 rounded-xl p-3 transition-all flex flex-col ${
-                        activeTemplate === tpl.id
-                          ? 'border-primary bg-primary/5'
-                          : 'border-muted hover:border-primary/50'
-                      }`}
-                    >
-                      <div className="relative">
-                        {tpl.thumbnail ? (
-                          <img
-                            src={tpl.thumbnail}
-                            alt={tpl.name}
-                            className="w-full aspect-[3/4] object-cover rounded-md mb-3"
-                          />
-                        ) : (
-                          <div className="w-full aspect-[3/4] rounded-md mb-3 bg-muted flex items-center justify-center">
-                            <FileImage className="h-8 w-8 text-muted-foreground" />
-                          </div>
-                        )}
-                        {activeTemplate === tpl.id && (
-                          <div className="absolute top-2 right-2">
-                            <Badge className="text-xs">Ativo</Badge>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 mb-3">
-                        <div className="font-semibold">{tpl.name}</div>
-                        {tpl.description && (
-                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                            {tpl.description}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex flex-col gap-2 mt-auto">
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            className="flex-1"
-                            onClick={() => handleSelectTemplate(tpl)}
-                          >
-                            <Settings2 className="w-4 h-4 mr-2" />
-                            Configurar
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handlePreview(tpl)}
-                            disabled={previewLoading && previewingTemplateId === tpl.id}
-                            title="Visualizar modelo"
-                          >
-                            {previewLoading && previewingTemplateId === tpl.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Eye className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
-                        <Button
-                          variant={activeTemplate === tpl.id ? 'secondary' : 'default'}
-                          disabled={
-                            activeTemplate === tpl.id ||
-                            (activatingTemplateId !== null && activatingTemplateId === tpl.id)
-                          }
-                          onClick={() => handleActivateTemplate(tpl)}
-                          className={
-                            activeTemplate === tpl.id
-                              ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 font-medium cursor-default'
-                              : ''
-                          }
-                        >
-                          {activatingTemplateId === tpl.id ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Ativando...
-                            </>
-                          ) : activeTemplate === tpl.id ? (
-                            <>
-                              <Check className="w-4 h-4 mr-2 text-emerald-600" />
-                              Template Ativo
-                            </>
-                          ) : (
-                            'Ativar Template'
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {activeTemplate === 'custom' && (
-            <div className="flex gap-6 flex-col md:flex-row items-start animate-fade-in-up">
-              <Card className="w-full md:w-1/3 sticky top-4">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Elementos Disponíveis</CardTitle>
-                  <CardDescription>Arraste para as páginas ao lado</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2 max-h-[60vh] overflow-y-auto">
-                  {availableElements.length === 0 && (
-                    <p className="text-sm text-muted-foreground italic">
-                      Todos os elementos já foram utilizados.
-                    </p>
-                  )}
-                  {availableElements.map((el) => (
-                    <div
-                      key={el.id}
-                      draggable
-                      onDragStart={(e) => onDragStartElement(e, el.id, -1)}
-                      className="p-3 border rounded-md bg-white cursor-grab hover:border-primary shadow-sm flex items-center gap-2"
-                    >
-                      <GripVertical className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium text-sm">{el.label}</span>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-              <div className="w-full md:w-2/3 space-y-6">
-                <div className="flex items-center gap-2 mb-2">
-                  <Layers className="h-5 w-5 text-primary" />
-                  <h3 className="text-xl font-bold">Composição de Páginas (Custom)</h3>
-                </div>
-                {pagesLayout.map((page, pIdx) => (
-                  <Card
-                    key={page.id}
-                    className="bg-slate-50 border-dashed"
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => onDropElement(e, pIdx)}
-                  >
-                    <CardHeader className="flex flex-row items-center justify-between pb-2 bg-slate-100 rounded-t-xl border-b">
-                      <CardTitle className="text-base text-slate-600 flex items-center gap-4">
-                        Página {pIdx + 1}
-                        <Button
-                          variant="link"
-                          size="sm"
-                          className="h-auto p-0 text-primary"
-                          onClick={() => setLivePreviewOpen(pIdx)}
-                        >
-                          Live Preview
-                        </Button>
-                      </CardTitle>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive h-8 w-8"
-                        onClick={() => setPagesLayout(pagesLayout.filter((_, i) => i !== pIdx))}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </CardHeader>
-                    <CardContent className="p-4 min-h-[120px] flex flex-col gap-2">
-                      {page.elements.length === 0 && (
-                        <div className="flex-1 flex items-center justify-center border-2 border-dashed rounded-md text-muted-foreground text-sm opacity-50">
-                          Arraste elementos para cá
-                        </div>
-                      )}
-                      {page.elements.map((elId) => {
-                        const el = ELEMENTS.find((e) => e.id === elId)
-                        if (!el) return null
-                        return (
-                          <div
-                            key={elId}
-                            draggable
-                            onDragStart={(e) => onDragStartElement(e, elId, pIdx)}
-                            className="p-3 border rounded-md bg-white shadow-sm flex items-center justify-between cursor-grab hover:border-primary"
-                          >
-                            <div className="flex items-center gap-2">
-                              <GripVertical className="h-4 w-4 text-muted-foreground" />
-                              <span className="font-medium text-sm">{el.label}</span>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-destructive"
-                              onClick={() => handleRemoveElement(pIdx, elId)}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        )
-                      })}
-                    </CardContent>
-                  </Card>
-                ))}
-                <Button
-                  variant="outline"
-                  className="w-full border-dashed"
-                  onClick={() =>
-                    setPagesLayout([...pagesLayout, { id: `p${Date.now()}`, elements: [] }])
-                  }
-                >
-                  <Plus className="mr-2 h-4 w-4" /> Adicionar Nova Página
-                </Button>
-              </div>
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="simultaneidade" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Fatores de Simultaneidade</CardTitle>
-              <CardDescription>
-                Defina os percentuais padrão de autoconsumo para cada categoria de consumidor.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 max-w-md">
-              <div className="flex justify-end">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setSimultaneityFactors({
-                      Residencial: '30',
-                      Industrial: '60',
-                      Comercial: '50',
-                      Rural: '40',
-                      Outros: '35',
-                    })
-                  }
-                >
-                  <Wand2 className="w-4 h-4 mr-2" /> Preencher Sugestões
-                </Button>
-              </div>
-              {[
-                { key: 'Residencial', label: 'Residencial' },
-                { key: 'Industrial', label: 'Industrial' },
-                { key: 'Comercial', label: 'Comercial' },
-                { key: 'Rural', label: 'Rural' },
-                { key: 'Outros', label: 'Outros' },
-              ].map((cat) => (
-                <div key={cat.key} className="space-y-2">
-                  <Label>{cat.label} (%)</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={simultaneityFactors[cat.key]}
-                    onChange={(e) =>
-                      setSimultaneityFactors({
-                        ...simultaneityFactors,
-                        [cat.key]: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-              ))}
-              <Button onClick={handleSave} disabled={loading} className="w-full">
-                <Save className="mr-2 h-4 w-4" /> Salvar Fatores
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="empresa" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Padrões de Proposta</CardTitle>
-              <CardDescription>
-                Defina os valores padrão que serão utilizados ao gerar novas propostas.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6 max-w-lg">
-              <div className="space-y-4">
-                <div>
-                  <h4 className="font-semibold text-sm mb-1">Estilo da Lista de Equipamentos</h4>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Define como os equipamentos serão exibidos na proposta comercial gerada
-                    (Templates 2 e 4).
-                  </p>
-                  <Select
-                    value={equipmentListStyle}
-                    onValueChange={(val: 'compact' | 'full' | 'generic' | 'none') =>
-                      setEquipmentListStyle(val)
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione o estilo da lista" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="compact">
-                        Lista compacta — só módulos e inversores
-                      </SelectItem>
-                      <SelectItem value="full">Lista de insumos completa (padrão)</SelectItem>
-                      <SelectItem value="generic">
-                        Item genérico — proteção e materiais complementares
-                      </SelectItem>
-                      <SelectItem value="none">
-                        Nenhuma — não enviar lista de equipamentos
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="pt-2 border-t">
-                  <h4 className="font-semibold text-sm mb-3">Prazo de Instalação Padrão</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="space-y-2">
-                      <Label>Prazo (dias)</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        value={defaultLeadTimeDays}
-                        onChange={(e) => setDefaultLeadTimeDays(e.target.value)}
-                        placeholder="30"
-                      />
-                    </div>
-                    <div className="space-y-2 sm:col-span-2">
-                      <Label>Descrição do prazo</Label>
-                      <Input
-                        value={defaultLeadTimeText}
-                        onChange={(e) => setDefaultLeadTimeText(e.target.value)}
-                        placeholder="Ex: após assinatura do contrato"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <h4 className="font-semibold text-sm mb-3">Validade Padrão da Proposta</h4>
-                  <div className="space-y-2">
-                    <Label>Validade (dias corridos)</Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      value={defaultValidityDays}
-                      onChange={(e) => setDefaultValidityDays(e.target.value)}
-                      placeholder="Ex: 10"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Define a quantidade padrão de dias de validade ao abrir o gerador de nova
-                      proposta comercial.
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="pt-4 border-t space-y-4">
-                <div>
-                  <h4 className="font-semibold text-sm mb-1">Formas de Pagamento Aceitas</h4>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Estas formas aparecerão como sugestão padrão ao gerar propostas.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  {defaultPaymentMethods.length === 0 && (
-                    <p className="text-sm text-muted-foreground italic py-2">
-                      Nenhuma forma de pagamento cadastrada.
-                    </p>
-                  )}
-                  {defaultPaymentMethods.map((method, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <Input
-                        value={method}
-                        onChange={(e) => {
-                          const updated = [...defaultPaymentMethods]
-                          updated[idx] = e.target.value
-                          setDefaultPaymentMethods(updated)
-                        }}
-                        placeholder={`Forma ${idx + 1}`}
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive hover:bg-destructive/10 shrink-0"
-                        onClick={() =>
-                          setDefaultPaymentMethods(
-                            defaultPaymentMethods.filter((_, i) => i !== idx),
-                          )
-                        }
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    variant="outline"
-                    className="w-full border-dashed"
-                    onClick={() => setDefaultPaymentMethods([...defaultPaymentMethods, ''])}
-                  >
-                    <Plus className="mr-2 h-4 w-4" /> Adicionar Forma de Pagamento
-                  </Button>
-                </div>
-              </div>
-              <div className="pt-4 border-t">
-                <p className="text-xs text-muted-foreground">
-                  Use o botão "Salvar Alterações" no topo da página para persistir estas
-                  configurações.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      <Dialog open={configModalOpen} onOpenChange={setConfigModalOpen}>
-        <DialogContent className="sm:max-w-2xl w-full max-h-[90vh] flex flex-col p-4 sm:p-6 overflow-hidden">
-          <DialogHeader className="shrink-0 pb-2">
-            <DialogTitle>Configurar Template</DialogTitle>
-            <DialogDescription>
-              {selectedTemplate?.name
-                ? `Ajuste os dados fixos do template "${selectedTemplate.name}".`
-                : 'Ajuste os dados fixos do template selecionado.'}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden w-full min-w-0 pr-1">
-            {selectedTemplate && isTemplate2(selectedTemplate) && (
-              <div className="flex items-center justify-between gap-4 rounded-lg border p-3 mb-3">
-                <div className="space-y-1">
-                  <Label>Enviar insumos na lista de equipamentos</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Quando desativado, a lista de equipamentos da proposta não inclui os insumos
-                    cadastrados no Kit PV.
-                  </p>
-                </div>
-                <Switch checked={includeSupplies} onCheckedChange={setIncludeSupplies} />
-              </div>
-            )}
-            {selectedTemplate && (
-              <ConfigurableFieldsForm
-                fields={getTemplateFields(selectedTemplate)}
-                values={fixedData}
-                onChange={(key, val) => {
-                  setFixedData((prev) => ({ ...prev, [key]: val }))
-                  if (formValidationErrors[key]) {
-                    setFormValidationErrors((prev) => {
-                      const next = { ...prev }
-                      delete next[key]
-                      return next
-                    })
-                  }
-                }}
-                errors={formValidationErrors}
-                companyId={user?.company_id}
-                templateId={selectedTemplate.id}
-                onResetField={handleResetSingleField}
-              />
-            )}
-            {Object.keys(fieldErrors).length > 0 && (
-              <div className="flex items-start gap-2 text-destructive text-sm bg-destructive/10 p-3 rounded-lg mt-3">
-                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                <div>
-                  {Object.entries(fieldErrors).map(([field, msg]) => (
-                    <p key={field}>{msg}</p>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter className="shrink-0 pt-3 border-t mt-2 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleResetAllToSchemaDefaults}
-              className="text-muted-foreground hover:text-foreground w-full sm:w-auto"
-            >
-              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-              Restaurar sugestão do sistema
-            </Button>
-
-            <div className="flex items-center gap-2 justify-end w-full sm:w-auto">
-              <Button
-                variant="outline"
-                onClick={() => handlePreview(selectedTemplate!)}
-                disabled={previewLoading}
-              >
-                {previewLoading ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Eye className="h-4 w-4 mr-2" />
-                )}
-                Visualizar
-              </Button>
-              <Button variant="ghost" onClick={() => setConfigModalOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleSaveModal} disabled={modalLoading}>
-                {modalLoading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="mr-2 h-4 w-4" />
-                )}
-                Salvar
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={livePreviewOpen !== null} onOpenChange={() => setLivePreviewOpen(null)}>
-        <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>
-              Live Preview - Página {livePreviewOpen !== null ? livePreviewOpen + 1 : ''}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 bg-muted/20 border rounded-xl flex items-center justify-center p-8 overflow-y-auto">
-            <div className="bg-white w-full max-w-3xl aspect-[1/1.4] shadow-lg rounded p-12 space-y-6">
-              {livePreviewOpen !== null &&
-                pagesLayout[livePreviewOpen]?.elements.map((elId) => (
-                  <div
-                    key={elId}
-                    className="border-2 border-dashed border-primary/30 p-8 text-center rounded text-primary/60 font-semibold text-lg bg-primary/5"
-                  >
-                    Elemento Rendering Placeholder: {ELEMENTS.find((e) => e.id === elId)?.label}
-                  </div>
-                ))}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-  )
+  return null
 }
+
+export { ProposalSettings }
