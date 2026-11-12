@@ -2,16 +2,10 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/use-toast'
-import { pb } from '@/lib/pocketbase/client'
+import pb from '@/lib/pocketbase/client'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -47,7 +41,9 @@ const FIXED_TEMPLATE_OPTIONS: TemplateOption[] = [
 
 // Estilo da lista de equipamentos (Templates 2 e 4) — lido pelo hook do CRM
 const EQUIPMENT_LIST_STYLE_OPTIONS: TemplateOption[] = [
+  { id: 'compact', name: 'Lista compacta (apenas módulos e inversores)' },
   { id: 'full', name: 'Lista completa de equipamentos e insumos' },
+  { id: 'generic', name: 'Item genérico (proteção e materiais)' },
   { id: 'none', name: 'Sem lista de equipamentos' },
 ]
 
@@ -116,13 +112,15 @@ export default function ProposalSettings() {
         if (cancelled) return
         if (rec) {
           setSettingsId(rec.id)
-          const pricing = typeof rec.pricing === 'string' ? safeParse(rec.pricing) : rec.pricing || {}
+          const pricing =
+            typeof rec.pricing === 'string' ? safeParse(rec.pricing) : rec.pricing || {}
           setLoadedPricing(pricing)
           setActiveTemplateId(rec.active_template_id || '')
           setEquipmentListStyle(pricing.equipment_list_style || 'full')
           setIncludeSupplies(rec.include_supplies !== false)
           setVisiblePages(Array.isArray(rec.visible_pages) ? rec.visible_pages : [])
-          const layout = typeof rec.pages_layout === 'string' ? safeParse(rec.pages_layout) : rec.pages_layout
+          const layout =
+            typeof rec.pages_layout === 'string' ? safeParse(rec.pages_layout) : rec.pages_layout
           setPagesLayout(
             Array.isArray(layout) && layout.length > 0
               ? layout
@@ -135,7 +133,8 @@ export default function ProposalSettings() {
             Array.isArray(rec.default_payment_methods) ? rec.default_payment_methods : [],
           )
           setDefaultTariffAdjustment(Number(rec.default_tariff_adjustment ?? 8))
-          const ind = typeof rec.indicators === 'string' ? safeParse(rec.indicators) : rec.indicators || {}
+          const ind =
+            typeof rec.indicators === 'string' ? safeParse(rec.indicators) : rec.indicators || {}
           setIndicators({
             inflation: String(ind.inflation ?? '5'),
             interest: String(ind.interest ?? '1'),
@@ -146,7 +145,11 @@ export default function ProposalSettings() {
         }
       } catch (err: any) {
         if (!cancelled)
-          toast({ variant: 'destructive', title: 'Erro', description: err?.message || 'Falha ao carregar configurações' })
+          toast({
+            variant: 'destructive',
+            title: 'Erro',
+            description: err?.message || 'Falha ao carregar configurações',
+          })
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -202,7 +205,11 @@ export default function ProposalSettings() {
       })
       toast({ title: 'Sucesso', description: 'Configurações gerais salvas.' })
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Erro', description: err?.message || 'Falha ao salvar' })
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: err?.message || 'Falha ao salvar',
+      })
     } finally {
       setSaving(false)
     }
@@ -220,7 +227,11 @@ export default function ProposalSettings() {
       })
       toast({ title: 'Sucesso', description: 'Template e Design salvos.' })
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Erro', description: err?.message || 'Falha ao salvar' })
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: err?.message || 'Falha ao salvar',
+      })
     } finally {
       setSaving(false)
     }
@@ -232,7 +243,11 @@ export default function ProposalSettings() {
       await persist({ indicators })
       toast({ title: 'Sucesso', description: 'Indicadores salvos.' })
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Erro', description: err?.message || 'Falha ao salvar' })
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: err?.message || 'Falha ao salvar',
+      })
     } finally {
       setSaving(false)
     }
@@ -249,7 +264,11 @@ export default function ProposalSettings() {
       await persist({ pricing })
       toast({ title: 'Sucesso', description: 'Configuração de desconto salva.' })
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Erro', description: err?.message || 'Falha ao salvar' })
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: err?.message || 'Falha ao salvar',
+      })
     } finally {
       setSaving(false)
     }
@@ -325,7 +344,10 @@ export default function ProposalSettings() {
               </div>
               <div className="space-y-2 max-w-md">
                 <Label>Texto do prazo de entrega</Label>
-                <Input value={defaultLeadTimeText} onChange={(e) => setDefaultLeadTimeText(e.target.value)} />
+                <Input
+                  value={defaultLeadTimeText}
+                  onChange={(e) => setDefaultLeadTimeText(e.target.value)}
+                />
               </div>
               <div className="space-y-2 max-w-md">
                 <Label>Reajuste tarifário anual padrão (%)</Label>
@@ -404,7 +426,11 @@ export default function ProposalSettings() {
                 </Select>
               </div>
               <div className="flex items-center gap-2">
-                <Switch checked={includeSupplies} onCheckedChange={setIncludeSupplies} id="include-supplies" />
+                <Switch
+                  checked={includeSupplies}
+                  onCheckedChange={setIncludeSupplies}
+                  id="include-supplies"
+                />
                 <Label htmlFor="include-supplies">Incluir insumos na proposta</Label>
               </div>
             </CardContent>
@@ -486,7 +512,10 @@ export default function ProposalSettings() {
               <Button
                 variant="outline"
                 onClick={() =>
-                  setPagesLayout([...pagesLayout, { id: `page-${pagesLayout.length + 1}`, elements: [] }])
+                  setPagesLayout([
+                    ...pagesLayout,
+                    { id: `page-${pagesLayout.length + 1}`, elements: [] },
+                  ])
                 }
               >
                 <Plus className="h-4 w-4 mr-2" /> Nova página
@@ -539,7 +568,11 @@ export default function ProposalSettings() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center gap-2">
-                  <Switch checked={discountEnabled} onCheckedChange={setDiscountEnabled} id="discount-enabled" />
+                  <Switch
+                    checked={discountEnabled}
+                    onCheckedChange={setDiscountEnabled}
+                    id="discount-enabled"
+                  />
                   <Label htmlFor="discount-enabled">Permitir desconto nas propostas</Label>
                 </div>
                 {discountEnabled && (

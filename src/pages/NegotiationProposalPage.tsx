@@ -136,7 +136,13 @@ export default function NegotiationProposalPage() {
     } else {
       setInstallationName(null)
     }
-  }, [neg?.id, neg?.sizing?.selected_module_id, JSON.stringify(neg?.sizing?.inverters || []), neg?.sizing?.installation_id, neg?.sizing?.installation_type])
+  }, [
+    neg?.id,
+    neg?.sizing?.selected_module_id,
+    JSON.stringify(neg?.sizing?.inverters || []),
+    neg?.sizing?.installation_id,
+    neg?.sizing?.installation_type,
+  ])
 
   useRealtime('negotiations', (e) => {
     if (e.record.id === id) loadData()
@@ -220,7 +226,9 @@ export default function NegotiationProposalPage() {
                   {activeProposal.status === 'accepted'
                     ? 'Vendida'
                     : activeProposal.status === 'draft' || activeProposal.status === 'Gerada'
-                        ? 'Gerada'
+                      ? 'Gerada'
+                      : activeProposal.status === 'sent'
+                        ? 'Enviada'
                         : activeProposal.status || 'Gerada'}
                 </Badge>
               )}
@@ -335,7 +343,14 @@ export default function NegotiationProposalPage() {
                       {activeProposal.description || `Proposta #${activeProposal.id}`}
                     </span>
                     <Badge variant="outline" className="text-xs bg-white">
-                      Status: {activeProposal.status === 'accepted' ? 'Vendida' : activeProposal.status === 'draft' || activeProposal.status === 'Gerada' ? 'Gerada' : activeProposal.status || 'Gerada'}
+                      Status:{' '}
+                      {activeProposal.status === 'accepted'
+                        ? 'Vendida'
+                        : activeProposal.status === 'sent'
+                          ? 'Enviada'
+                          : activeProposal.status === 'draft' || activeProposal.status === 'Gerada'
+                            ? 'Gerada'
+                            : activeProposal.status || 'Gerada'}
                     </Badge>
                     {(activeProposal.has_financing ||
                       activeProposal.snapshot_data?.has_financing ||
@@ -548,7 +563,9 @@ export default function NegotiationProposalPage() {
                             const cat = catalogInverters[inv.id]
                             const modelo = cat?.name || inv.model || inv.power || ''
                             const marca = cat?.brand || inv.brand || ''
-                            return `${inv.qty || 1} x inversor(es) ${modelo} ${marca}`.replace(/\s+/g, ' ').trim()
+                            return `${inv.qty || 1} x ${modelo || 'Inversor'}${marca ? ` - ${marca}` : ''}`
+                              .replace(/\s+/g, ' ')
+                              .trim()
                           })
                           .join(', ')
                       : 'Inversor dimensionado para o kit'}
