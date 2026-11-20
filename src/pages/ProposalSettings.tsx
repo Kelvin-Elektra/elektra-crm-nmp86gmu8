@@ -19,6 +19,13 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Loader2, Plus, X } from 'lucide-react'
 import { UserDiscountConfigModal } from '@/components/UserDiscountConfigModal'
+import { TemplateFixedFieldsModal } from '@/components/proposal-settings/TemplateFixedFieldsModal'
+import {
+  fetchTemplatesWithSchema,
+  getFixedFields,
+  deepMerge,
+} from '@/components/proposal-settings/templates-config'
+import type { GeneratorTemplate } from '@/services/templates'
 
 interface TemplateOption {
   id: string
@@ -94,6 +101,11 @@ export default function ProposalSettings() {
   const [userDiscountModalOpen, setUserDiscountModalOpen] = useState(false)
   const [selectedMember, setSelectedMember] = useState<any>(null)
 
+  // Campos fixos por template (variable_schema do Gerador) — gravados em templates_config
+  const [generatorTemplates, setGeneratorTemplates] = useState<GeneratorTemplate[]>([])
+  const [loadedTemplatesConfig, setLoadedTemplatesConfig] = useState<Record<string, any>>({})
+  const [fixedFieldsModalTpl, setFixedFieldsModalTpl] = useState<GeneratorTemplate | null>(null)
+
   const isAdmin =
     user?.role === 'User_elektra' || user?.role_company === 'admin' || user?.role === 'User_owner'
 
@@ -139,6 +151,11 @@ export default function ProposalSettings() {
           setDiscountEnabled(pricing.discount_enabled === true)
           setDiscountType(pricing.discount_type || 'percent')
           setDiscountValue(Number(pricing.discount_value ?? 0))
+          const tc =
+            typeof rec.templates_config === 'string'
+              ? safeParse(rec.templates_config)
+              : rec.templates_config
+          setLoadedTemplatesConfig(tc && typeof tc === 'object' ? tc : {})
         }
       } catch (err: any) {
         if (!cancelled)
@@ -155,6 +172,19 @@ export default function ProposalSettings() {
       cancelled = true
     }
   }, [companyId])
+
+  // Templates do Gerador com variable_schema (mesma chamada usada pelo hook de preview)
+  useEffect(() => {
+    let cancelled = false
+    fetchTemplatesWithSchema()
+      .then((tpls) => {
+        if (!cancelled) setGeneratorTemplates(tpls)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Equipe da companhia (para configuração de desconto por usuário)
   useEffect(() => {
@@ -227,6 +257,28 @@ export default function ProposalSettings() {
         variant: 'destructive',
         title: 'Erro',
         description: err?.message || 'Falha ao salvar',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Salva os campos fixos de UM template em templates_config[templateId] com MERGE
+  // profundo (nunca substitui proposal_settings nem toca em pricing).
+  const handleSaveTemplateFixedFields = async (templateId: string, values: Record<string, any>) => {
+    setSaving(true)
+    try {
+      const nextConfig = deepMerge(loadedTemplatesConfig, {
+        [templateId]: { ...loadedTemplatesConfig[templateId], ...values },
+      })
+      await persist({ templates_config: nextConfig })
+      setLoadedTemplatesConfig(nextConfig)
+      toast({ title: 'Sucesso', description: 'Campos fixos do template salvos.' })
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: err?.message || 'Falha ao salvar campos fixos',
       })
     } finally {
       setSaving(false)
@@ -424,6 +476,35 @@ export default function ProposalSettings() {
             </CardContent>
           </Card>
 
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Campos fixos por template</CardTitle>
+              <CardDescription>
+                Valores padrão de cada template, usados quando o campo não vem do cliente.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {generatorTemplates.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Não foi possível carregar os templates do Gerador.
+                </p>
+              )}
+              {generatorTemplates.map((tpl) => (
+                <div key={tpl.id} className="flex items-center justify-between border-b py-2">
+                  <div>
+                    <p className="text-sm font-medium">{tpl.name || tpl.id}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {getFixedFields(tpl).length} campo(s) fixo(s)
+                    </p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setFixedFieldsModalTpl(tpl)}>
+                    Configurar
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
           <Button onClick={handleSaveDesign} disabled={saving}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Salvar Template e Design
           </Button>
@@ -546,6 +627,21 @@ export default function ProposalSettings() {
         open={userDiscountModalOpen}
         onOpenChange={setUserDiscountModalOpen}
         member={selectedMember}
+      />
+
+      <TemplateFixedFieldsModal
+        open={!!fixedFieldsModalTpl}
+        onOpenChange={(o) => {
+          if (!o) setFixedFieldsModalTpl(null)
+        }}
+        templateName={fixedFieldsModalTpl?.name || fixedFieldsModalTpl?.id || ''}
+        fields={getFixedFields(fixedFieldsModalTpl)}
+        currentConfig={(fixedFieldsModalTpl && loadedTemplatesConfig[fixedFieldsModalTpl.id]) || {}}
+        onSave={async (values) => {
+          if (fixedFieldsModalTpl) {
+            await handleSaveTemplateFixedFields(fixedFieldsModalTpl.id, values)
+          }
+        }}
       />
     </div>
   )
