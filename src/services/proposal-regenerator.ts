@@ -352,6 +352,12 @@ export async function saveAndRegenerateProposal(
         economy_monthly: monthlySav,
         estimated_monthly_savings: monthlySav,
         payback_years: paybackYearsVal,
+        // Conta atual e conta mínima após instalação (crus, numéricos) — lidas
+        // pelo hook proposals_create_generator.js para os templates 2/4.
+        current_monthly_bill: Number(fp?.currentMonthlyCost) || 0,
+        current_monthly_cost: Number(fp?.currentMonthlyCost) || 0,
+        future_monthly_bill: Number(fp?.futureMonthlyBill) || 0,
+        min_bill_after_solar: Number(fp?.futureMonthlyBill) || 0,
         payback_months: Number(fp?.roiMonths) || 0,
         payback: paybackYearsVal,
         annual_savings: annualSavingsVal,

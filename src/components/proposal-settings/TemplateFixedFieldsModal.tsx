@@ -78,7 +78,9 @@ export function TemplateFixedFieldsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      {/* max-h + overflow-hidden anulam o scroll externo do DialogContent base
+          (overflow-y-auto max-h-screen): o único scroll é o interno do form. */}
+      <DialogContent className="sm:max-w-lg max-h-[95vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle>Campos fixos — {templateName}</DialogTitle>
           <DialogDescription>

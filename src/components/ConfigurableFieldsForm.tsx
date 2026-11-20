@@ -399,6 +399,39 @@ function extractItemSubfields(field: TemplateSchemaField): TemplateSchemaField[]
     })
   }
 
+  // 5. Item único objeto: um objeto solto (não array) com chaves textuais —
+  // o Gerador envia objetos de exemplo como default para campos de lista.
+  if (field.default && typeof field.default === 'object' && !Array.isArray(field.default)) {
+    return Object.keys(field.default).map((key) => {
+      const val = field.default[key]
+      let inferredType = 'text'
+      if (typeof val === 'number') inferredType = 'number'
+      else if (typeof val === 'boolean') inferredType = 'boolean'
+      else if (typeof val === 'string') {
+        if (/^#(?:[0-9a-fA-F]{3}){1,2}$/.test(val)) inferredType = 'color'
+        else if (key.toLowerCase().includes('cor') || key.toLowerCase().includes('color'))
+          inferredType = 'color'
+        else if (
+          key.toLowerCase().includes('img') ||
+          key.toLowerCase().includes('image') ||
+          key.toLowerCase().includes('icone') ||
+          key.toLowerCase().includes('icon') ||
+          key.toLowerCase().includes('foto') ||
+          key.toLowerCase().includes('logo') ||
+          key.toLowerCase().includes('logotipo') ||
+          key.toLowerCase().includes('marca')
+        )
+          inferredType = 'image'
+      }
+      return {
+        key,
+        label: key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+        type: inferredType,
+        default: val,
+      }
+    })
+  }
+
   // Fallback padrão se for array de strings primitivas
   return [{ key: 'value', label: 'Item', type: 'text' }]
 }

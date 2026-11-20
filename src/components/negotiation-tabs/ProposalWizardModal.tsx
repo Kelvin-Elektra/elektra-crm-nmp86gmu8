@@ -919,6 +919,12 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
         monthly_savings: monthlySavingsVal,
         economy_monthly: monthlySavingsVal,
         estimated_monthly_savings: monthlySavingsVal,
+        // Conta atual e conta mínima após instalação (crus, numéricos) — lidas
+        // pelo hook proposals_create_generator.js para os templates 2/4.
+        current_monthly_bill: Number(financialProjection?.currentMonthlyCost) || 0,
+        current_monthly_cost: Number(financialProjection?.currentMonthlyCost) || 0,
+        future_monthly_bill: Number(financialProjection?.futureMonthlyBill) || 0,
+        min_bill_after_solar: Number(financialProjection?.futureMonthlyBill) || 0,
         payback_years: paybackYearsVal,
         payback_months: Number(financialProjection?.roiMonths) || 0,
         payback: paybackYearsVal,
