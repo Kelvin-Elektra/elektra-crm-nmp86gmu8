@@ -17,7 +17,6 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Loader2, Plus, X } from 'lucide-react'
 import { UserDiscountConfigModal } from '@/components/UserDiscountConfigModal'
 
@@ -422,93 +421,6 @@ export default function ProposalSettings() {
                   </SelectContent>
                 </Select>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Páginas Visíveis</CardTitle>
-              <CardDescription>Elementos exibidos na proposta gerada.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {FIXED_ELEMENT_OPTIONS.map((el) => (
-                  <label key={el.id} className="flex items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={visiblePages.includes(el.id)}
-                      onCheckedChange={(v) =>
-                        setVisiblePages(
-                          v ? [...visiblePages, el.id] : visiblePages.filter((x) => x !== el.id),
-                        )
-                      }
-                    />
-                    {el.label}
-                  </label>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Layout de Páginas</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {pagesLayout.map((page, pIdx) => (
-                <div key={page.id} className="rounded-lg border p-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Input
-                      className="max-w-xs"
-                      value={page.id}
-                      onChange={(e) => {
-                        const next = [...pagesLayout]
-                        next[pIdx] = { ...page, id: e.target.value }
-                        setPagesLayout(next)
-                      }}
-                    />
-                    {pagesLayout.length > 1 && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setPagesLayout(pagesLayout.filter((_, i) => i !== pIdx))}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {FIXED_ELEMENT_OPTIONS.map((el) => (
-                      <label key={el.id} className="flex items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={page.elements.includes(el.id)}
-                          onCheckedChange={(v) => {
-                            const next = [...pagesLayout]
-                            next[pIdx] = {
-                              ...page,
-                              elements: v
-                                ? [...page.elements, el.id]
-                                : page.elements.filter((x) => x !== el.id),
-                            }
-                            setPagesLayout(next)
-                          }}
-                        />
-                        {el.label}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              ))}
-              <Button
-                variant="outline"
-                onClick={() =>
-                  setPagesLayout([
-                    ...pagesLayout,
-                    { id: `page-${pagesLayout.length + 1}`, elements: [] },
-                  ])
-                }
-              >
-                <Plus className="h-4 w-4 mr-2" /> Nova página
-              </Button>
             </CardContent>
           </Card>
 
