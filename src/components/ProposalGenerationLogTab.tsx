@@ -263,7 +263,7 @@ export const ProposalGenerationLogTab: React.FC<ProposalGenerationLogTabProps> =
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="draft">Rascunho</SelectItem>
+                      <SelectItem value="draft">Gerada</SelectItem>
                       <SelectItem value="sent">Enviada</SelectItem>
                       <SelectItem value="accepted">Aceita</SelectItem>
                       <SelectItem value="rejected">Recusada</SelectItem>
@@ -328,7 +328,11 @@ export const ProposalGenerationLogTab: React.FC<ProposalGenerationLogTabProps> =
                           variant={prop.status === 'accepted' ? 'default' : 'outline'}
                           className="text-[10px] uppercase font-mono px-1.5 py-0 shrink-0"
                         >
-                          {prop.status || 'draft'}
+                          {prop.status === 'accepted'
+                            ? 'Vendida'
+                            : prop.status === 'sent'
+                              ? 'Enviada'
+                              : 'Gerada'}
                         </Badge>
                       </div>
 
