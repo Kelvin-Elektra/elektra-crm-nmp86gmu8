@@ -8,9 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Loader2 } from 'lucide-react'
+import { ConfigurableFieldsForm } from '@/components/ConfigurableFieldsForm'
 import type { TemplateSchemaField } from '@/services/templates'
 
 interface TemplateFixedFieldsModalProps {
@@ -20,13 +19,11 @@ interface TemplateFixedFieldsModalProps {
   fields: TemplateSchemaField[]
   /** Config atual salva para este template (templates_config[templateId]). */
   currentConfig: Record<string, any>
+  /** id da companhia — necessário para o upload de imagens (template_assets). */
+  companyId?: string
+  /** id do template — usado para vincular o asset enviado ao template. */
+  templateId?: string
   onSave: (values: Record<string, any>) => Promise<void> | void
-}
-
-function fieldLabel(f: TemplateSchemaField): string {
-  if (f.label) return f.label
-  const words = f.key.replace(/_/g, ' ').split(' ')
-  return words.map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w)).join(' ')
 }
 
 export function TemplateFixedFieldsModal({
@@ -35,6 +32,8 @@ export function TemplateFixedFieldsModal({
   templateName,
   fields,
   currentConfig,
+  companyId,
+  templateId,
   onSave,
 }: TemplateFixedFieldsModalProps) {
   const [values, setValues] = useState<Record<string, any>>({})
@@ -46,12 +45,18 @@ export function TemplateFixedFieldsModal({
     const next: Record<string, any> = {}
     for (const f of fields) {
       const v = currentConfig?.[f.key]
-      if (v !== undefined && v !== null && typeof v !== 'object') {
-        next[f.key] = String(v)
-      } else if (typeof v === 'object' && v !== null) {
-        next[f.key] = JSON.stringify(v, null, 2)
+      if (v === undefined || v === null) {
+        // Sem valor salvo: parte do default do schema (mantém o tipo original)
+        next[f.key] =
+          f.default !== undefined && f.default !== null
+            ? Array.isArray(f.default)
+              ? JSON.parse(JSON.stringify(f.default))
+              : typeof f.default === 'object'
+                ? JSON.parse(JSON.stringify(f.default))
+                : f.default
+            : ''
       } else {
-        next[f.key] = ''
+        next[f.key] = v
       }
     }
     setValues(next)
@@ -67,7 +72,9 @@ export function TemplateFixedFieldsModal({
     }
   }
 
-  const setValue = (key: string, v: string) => setValues((prev) => ({ ...prev, [key]: v }))
+  const handleChange = (key: string, v: any) => {
+    setValues((prev) => ({ ...prev, [key]: v }))
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -80,30 +87,13 @@ export function TemplateFixedFieldsModal({
           </DialogDescription>
         </DialogHeader>
 
-        {fields.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-4">
-            Este template não possui campos fixos configuráveis.
-          </p>
-        ) : (
-          <div className="grid gap-4 py-2">
-            {fields.map((f) => (
-              <div key={f.key} className="space-y-2">
-                <Label htmlFor={`tplf-${f.key}`}>
-                  {fieldLabel(f)}
-                  {f.required && <span className="text-destructive ml-1">*</span>}
-                </Label>
-                <Input
-                  id={`tplf-${f.key}`}
-                  value={values[f.key] ?? ''}
-                  placeholder={
-                    f.default !== undefined && f.default !== null ? String(f.default) : ''
-                  }
-                  onChange={(e) => setValue(f.key, e.target.value)}
-                />
-              </div>
-            ))}
-          </div>
-        )}
+        <ConfigurableFieldsForm
+          fields={fields}
+          values={values}
+          onChange={handleChange}
+          companyId={companyId}
+          templateId={templateId}
+        />
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>

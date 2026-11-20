@@ -637,6 +637,8 @@ export default function ProposalSettings() {
         templateName={fixedFieldsModalTpl?.name || fixedFieldsModalTpl?.id || ''}
         fields={getFixedFields(fixedFieldsModalTpl)}
         currentConfig={(fixedFieldsModalTpl && loadedTemplatesConfig[fixedFieldsModalTpl.id]) || {}}
+        companyId={companyId}
+        templateId={fixedFieldsModalTpl?.id || undefined}
         onSave={async (values) => {
           if (fixedFieldsModalTpl) {
             await handleSaveTemplateFixedFields(fixedFieldsModalTpl.id, values)
