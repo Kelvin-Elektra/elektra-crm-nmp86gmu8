@@ -574,15 +574,13 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
       })
 
       const activeTplId = pricingDetails?.settings?.active_template_id || null
-      const allTemplatesConfig = pricingDetails?.settings?.templates_config || {}
-      const activeTemplateFixedData =
-        activeTplId && allTemplatesConfig[activeTplId]
-          ? allTemplatesConfig[activeTplId]
-          : pricingDetails?.settings?.branding || {}
+      const activeTemplateFixedData = pricingDetails?.settings?.branding || {}
 
       const snapshotData = {
         sizing: neg.sizing || {},
         pricing: pricingDetails,
+        // Estilo GLOBAL da lista de equipamentos (pricing.equipment_list_style)
+        equipment_list_style: pricingDetails?.settings?.pricing?.equipment_list_style || 'full',
         // Recálculo real de custos/margem com desconto (percentuais sobre a venda
         // incidindo sobre o valor já descontado; margem real = resto)
         pricing_recalc: discountRecalc,
@@ -600,7 +598,6 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
         template: activeTplId || pricingDetails?.settings?.template || 'modern',
         branding: activeTemplateFixedData,
         fixed_data: activeTemplateFixedData,
-        templates_config: allTemplatesConfig,
         pages_layout: pricingDetails?.settings?.pages_layout || [],
         rawCosts: pricingDetails?.rawCosts || [],
         rawModule: pricingDetails?.rawModule || null,
@@ -789,15 +786,14 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
         (tariffDetails as any)?.voltage ||
         ''
 
-      // Construir equipments array (respeita o toggle de insumos do template ativo)
-      const includeSuppliesFlag =
-        !activeTplId || allTemplatesConfig?.[activeTplId]?.include_supplies !== false
+      // Construir equipments array — o estilo é GLOBAL (pricing.equipment_list_style);
+      // o hook reconstrói a lista conforme compact/full/generic/none.
       const equipmentsList = buildEquipmentsArray({
         module: rawPricingData?.rawModule,
         moduleQty: moduleQtyVal,
         inverters: rawPricingData?.rawInverters || neg.sizing?.inverters,
         supplies: rawPricingData?.kitComposition || rawPricingData?.supplies,
-        includeSupplies: includeSuppliesFlag,
+        includeSupplies: true,
       })
 
       const sizingPayload = {

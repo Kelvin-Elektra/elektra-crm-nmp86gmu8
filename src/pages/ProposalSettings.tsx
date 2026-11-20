@@ -39,7 +39,7 @@ const FIXED_TEMPLATE_OPTIONS: TemplateOption[] = [
   { id: '5555666677778888-2', name: 'Template 4 - Premium' },
 ]
 
-// Estilo da lista de equipamentos (Templates 2 e 4) — lido pelo hook do CRM
+// Estilo da lista de equipamentos — config GLOBAL, lida pelo hook do CRM para qualquer template
 const EQUIPMENT_LIST_STYLE_OPTIONS: TemplateOption[] = [
   { id: 'compact', name: 'Lista compacta (apenas módulos e inversores)' },
   { id: 'full', name: 'Lista completa de equipamentos e insumos' },
@@ -73,7 +73,6 @@ export default function ProposalSettings() {
 
   const [activeTemplateId, setActiveTemplateId] = useState('')
   const [equipmentListStyle, setEquipmentListStyle] = useState('full')
-  const [includeSupplies, setIncludeSupplies] = useState(true)
   const [pagesLayout, setPagesLayout] = useState<PagesLayout[]>([])
   const [visiblePages, setVisiblePages] = useState<string[]>([])
   const [defaultValidityDays, setDefaultValidityDays] = useState(30)
@@ -117,7 +116,6 @@ export default function ProposalSettings() {
           setLoadedPricing(pricing)
           setActiveTemplateId(rec.active_template_id || '')
           setEquipmentListStyle(pricing.equipment_list_style || 'full')
-          setIncludeSupplies(rec.include_supplies !== false)
           setVisiblePages(Array.isArray(rec.visible_pages) ? rec.visible_pages : [])
           const layout =
             typeof rec.pages_layout === 'string' ? safeParse(rec.pages_layout) : rec.pages_layout
@@ -221,7 +219,6 @@ export default function ProposalSettings() {
       const pricing = mergePricing({ equipment_list_style: equipmentListStyle })
       await persist({
         pricing,
-        include_supplies: includeSupplies,
         visible_pages: visiblePages,
         pages_layout: pagesLayout,
       })
@@ -407,11 +404,11 @@ export default function ProposalSettings() {
         <TabsContent value="design" className="mt-4 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Lista de Equipamentos (Templates 2 e 4)</CardTitle>
+              <CardTitle className="text-base">Lista de Equipamentos</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2 max-w-md">
-                <Label>Estilo da lista</Label>
+                <Label>Define como os equipamentos serão exibidos na proposta comercial</Label>
                 <Select value={equipmentListStyle} onValueChange={setEquipmentListStyle}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o estilo" />
@@ -424,14 +421,6 @@ export default function ProposalSettings() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={includeSupplies}
-                  onCheckedChange={setIncludeSupplies}
-                  id="include-supplies"
-                />
-                <Label htmlFor="include-supplies">Incluir insumos na proposta</Label>
               </div>
             </CardContent>
           </Card>

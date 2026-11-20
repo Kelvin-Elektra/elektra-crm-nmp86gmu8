@@ -182,19 +182,14 @@ export async function saveAndRegenerateProposal(
       const resolvedTension =
         rawSizing.tension || rawSizing.voltage || fp?.tariffDetails?.voltage || ''
 
-      const editTplId =
-        updatedSnapshot.generator_template_id ||
-        updatedSnapshot.template ||
-        proposal.template_id ||
-        null
-      const includeSuppliesFlag =
-        !editTplId || updatedSnapshot.templates_config?.[editTplId]?.include_supplies !== false
+      // Estilo da lista é GLOBAL (pricing.equipment_list_style); o hook reconstrói
+      // a lista conforme compact/full/generic/none — não há config por template.
       const equipmentsList = buildEquipmentsArray({
         module: resolvedModule,
         moduleQty: modQty,
         inverters: resolvedInverters,
         supplies: resolvedSupplies,
-        includeSupplies: includeSuppliesFlag,
+        includeSupplies: true,
       })
 
       const sizingPayload: Record<string, any> = {
