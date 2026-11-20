@@ -383,7 +383,10 @@ function extractItemSubfields(field: TemplateSchemaField): TemplateSchemaField[]
           key.toLowerCase().includes('image') ||
           key.toLowerCase().includes('icone') ||
           key.toLowerCase().includes('icon') ||
-          key.toLowerCase().includes('foto')
+          key.toLowerCase().includes('foto') ||
+          key.toLowerCase().includes('logo') ||
+          key.toLowerCase().includes('logotipo') ||
+          key.toLowerCase().includes('marca')
         )
           inferredType = 'image'
       }

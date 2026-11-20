@@ -18,6 +18,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Loader2, Plus, X } from 'lucide-react'
+import { previewTemplate } from '@/services/templates'
 import { UserDiscountConfigModal } from '@/components/UserDiscountConfigModal'
 import { TemplateFixedFieldsModal } from '@/components/proposal-settings/TemplateFixedFieldsModal'
 import {
@@ -105,6 +106,8 @@ export default function ProposalSettings() {
   const [generatorTemplates, setGeneratorTemplates] = useState<GeneratorTemplate[]>([])
   const [loadedTemplatesConfig, setLoadedTemplatesConfig] = useState<Record<string, any>>({})
   const [fixedFieldsModalTpl, setFixedFieldsModalTpl] = useState<GeneratorTemplate | null>(null)
+  const [previewingTplId, setPreviewingTplId] = useState<string | null>(null)
+  const [activatingTplId, setActivatingTplId] = useState<string | null>(null)
 
   const isAdmin =
     user?.role === 'User_elektra' || user?.role_company === 'admin' || user?.role === 'User_owner'
@@ -282,6 +285,56 @@ export default function ProposalSettings() {
       })
     } finally {
       setSaving(false)
+    }
+  }
+
+  // Preview mockado: reusa previewTemplate → hook templates_preview.js (devolve view_url).
+  // O hook já aplica templates_config[templateId] da companhia por cima dos dados de exemplo.
+  const handlePreviewTemplate = async (tpl: GeneratorTemplate) => {
+    setPreviewingTplId(tpl.id)
+    try {
+      const sampleFixed: Record<string, any> = {}
+      for (const f of getFixedFields(tpl)) {
+        if (f.default !== undefined) sampleFixed[f.key] = f.default
+      }
+      const res = await previewTemplate(tpl.id, sampleFixed, companyId)
+      const url = res?.view_url || res?.preview_url
+      if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer')
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Prévia indisponível',
+          description: 'O Gerador não retornou a prévia deste template.',
+        })
+      }
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro na visualização',
+        description: err?.message || 'Falha ao solicitar a prévia do template.',
+      })
+    } finally {
+      setPreviewingTplId(null)
+    }
+  }
+
+  // Ativa o template da companhia: mesmo save com MERGE da aba Geral —
+  // grava SOMENTE active_template_id (nunca pricing, nunca templates_config).
+  const handleActivateTemplate = async (templateId: string) => {
+    setActivatingTplId(templateId)
+    try {
+      await persist({ active_template_id: templateId })
+      setActiveTemplateId(templateId)
+      toast({ title: 'Sucesso', description: 'Template ativado para a companhia.' })
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: err?.message || 'Falha ao ativar template',
+      })
+    } finally {
+      setActivatingTplId(null)
     }
   }
 
@@ -489,19 +542,58 @@ export default function ProposalSettings() {
                   Não foi possível carregar os templates do Gerador.
                 </p>
               )}
-              {generatorTemplates.map((tpl) => (
-                <div key={tpl.id} className="flex items-center justify-between border-b py-2">
-                  <div>
-                    <p className="text-sm font-medium">{tpl.name || tpl.id}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {getFixedFields(tpl).length} campo(s) fixo(s)
-                    </p>
+              {generatorTemplates.map((tpl) => {
+                const isActive = activeTemplateId === tpl.id
+                return (
+                  <div
+                    key={tpl.id}
+                    className={`flex items-center justify-between border-b py-2 ${
+                      isActive ? 'bg-primary/5 -mx-2 px-2 rounded' : ''
+                    }`}
+                  >
+                    <div>
+                      <p className="text-sm font-medium flex items-center gap-2">
+                        {tpl.name || tpl.id}
+                        {isActive && <Badge>Ativo</Badge>}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {getFixedFields(tpl).length} campo(s) fixo(s)
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={previewingTplId === tpl.id}
+                        onClick={() => handlePreviewTemplate(tpl)}
+                      >
+                        {previewingTplId === tpl.id && (
+                          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                        )}
+                        Visualizar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isActive || activatingTplId === tpl.id}
+                        onClick={() => handleActivateTemplate(tpl.id)}
+                      >
+                        {activatingTplId === tpl.id && (
+                          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                        )}
+                        {isActive ? 'Ativo' : 'Ativar'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFixedFieldsModalTpl(tpl)}
+                      >
+                        Configurar
+                      </Button>
+                    </div>
                   </div>
-                  <Button variant="outline" size="sm" onClick={() => setFixedFieldsModalTpl(tpl)}>
-                    Configurar
-                  </Button>
-                </div>
-              ))}
+                )
+              })}
             </CardContent>
           </Card>
 
