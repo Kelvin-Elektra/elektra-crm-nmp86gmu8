@@ -2,6 +2,46 @@ routerAdd(
   'GET',
   '/backend/v1/templates/list',
   (e) => {
+    // Detecção robusta do template 4: NUNCA pelo substring '4' no id (ids são
+    // aleatórios — o template 4 ativo 'b04lnty24fpa1oj' não contém '4').
+    // Critérios, em ordem: campos de identidade (template_key/number/slug),
+    // nome ("Template 4"/"Modelo 4") e chaves exclusivas no schema/mock.
+    function looksLikeTemplate4(tpl) {
+      if (!tpl || typeof tpl !== 'object') return false
+      var identityFields = [
+        tpl.template_key,
+        tpl.key,
+        tpl.slug,
+        tpl.number,
+        tpl.template_number,
+        tpl.code,
+      ]
+      for (var i4 = 0; i4 < identityFields.length; i4++) {
+        var v4 = String(identityFields[i4] == null ? '' : identityFields[i4])
+          .toLowerCase()
+          .replace(/[\s_-]/g, '')
+        if (v4 === '4' || v4 === 'template4' || v4 === 'modelo4') return true
+      }
+      var n4 = String(tpl.name || '').toLowerCase()
+      if (/(^|[^0-9])(template|modelo)\s*4([^0-9]|$)/.test(n4)) return true
+      var markerBlob4 = ''
+      try {
+        markerBlob4 = (
+          JSON.stringify(tpl.variable_schema || {}) +
+          ' ' +
+          JSON.stringify(tpl.mock_data || {})
+        ).toLowerCase()
+      } catch (_) {}
+      if (
+        markerBlob4.indexOf('min_bill_after_solar') !== -1 ||
+        markerBlob4.indexOf('annual_generation_mwh') !== -1 ||
+        markerBlob4.indexOf('savings_projection') !== -1
+      ) {
+        return true
+      }
+      return false
+    }
+
     let generatorUrl = ''
     try {
       const record = $app.findFirstRecordByFilter('system_settings', 'id != ""')
@@ -87,7 +127,7 @@ routerAdd(
       if (Array.isArray(result.templates)) {
         for (var ti = 0; ti < result.templates.length; ti++) {
           var tpl = result.templates[ti]
-          if (!tpl || String(tpl.id || '').indexOf('4') === -1) continue
+          if (!tpl || !looksLikeTemplate4(tpl)) continue
           if (!tpl.variable_schema || typeof tpl.variable_schema !== 'object') {
             tpl.variable_schema = { fixed: [], dynamic: {} }
           }

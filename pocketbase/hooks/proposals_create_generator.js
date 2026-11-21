@@ -385,11 +385,32 @@ routerAdd(
 
       // Template 4: o contrato do Gerador não declara o campo fixo 'logo', mas o
       // template usa ({logo} no HTML). Garantimos que o valor salvo pelo usuário
-      // (upload em template_assets via Campos fixos) chegue no payload. Fallback:
-      // logo da empresa / branding salvo em proposal_settings.templates_config.
+      // (upload em template_assets via Campos fixos) chegue no payload. Fallbacks:
+      // 1) proposal_settings.templates_config[templateId].logo
+      // 2) registro mais recente de template_assets da empresa (field_key='logo')
+      // 3) logo da empresa (coleção companies)
+      // Detecção do template 4: via contrato (variáveis exclusivas) — nunca substring '4'.
+      var isTemplate4Gen = false
       try {
-        var t4IdStr = String(templateId || '')
-        if (t4IdStr.indexOf('4') !== -1) {
+        if (
+          listRes &&
+          listRes.json &&
+          Array.isArray(listRes.json.templates) &&
+          typeof looksLikeTemplate4 === 'function'
+        ) {
+          for (var t4g = 0; t4g < listRes.json.templates.length; t4g++) {
+            var t4gt = listRes.json.templates[t4g]
+            if (t4gt && t4gt.id === templateId && looksLikeTemplate4(t4gt)) {
+              isTemplate4Gen = true
+              break
+            }
+          }
+        }
+      } catch (t4gErr) {
+        safeLogWarn('Aviso ao detectar template 4 via contrato', String(t4gErr))
+      }
+      try {
+        if (isTemplate4Gen) {
           var hasLogoValue = false
           for (var lk = 0; lk < Object.keys(rawFixedData).length; lk++) {
             if (Object.keys(rawFixedData)[lk] === 'logo' && rawFixedData['logo']) {
@@ -420,6 +441,35 @@ routerAdd(
             } catch (_) {}
             if (t4LogoFallback) {
               rawFixedData['logo'] = t4LogoFallback
+            }
+          }
+        }
+        if (isTemplate4Gen && (!hasLogoValue || !rawFixedData['logo'])) {
+          // Fallback 2: registro mais recente de template_assets da empresa (field_key='logo')
+          if (companyId) {
+            try {
+              var t4Assets = $app.findRecordsByFilter(
+                'template_assets',
+                "company_id = '" + companyId + "' && field_key = 'logo'",
+                '-created',
+                1,
+              )
+              if (t4Assets && t4Assets.length > 0 && t4Assets[0].getString('file')) {
+                rawFixedData['logo'] = $app.fileUrl(t4Assets[0], t4Assets[0].getString('file'))
+              }
+            } catch (t4AssetErr) {
+              safeLogWarn('Aviso ao buscar logo em template_assets', String(t4AssetErr))
+            }
+          }
+          // Fallback 3: logo da própria empresa (coleção companies)
+          if (companyId && !rawFixedData['logo']) {
+            try {
+              var t4CompRec = $app.findFirstRecordByFilter('companies', "id = '" + companyId + "'")
+              if (t4CompRec && t4CompRec.getString('logo')) {
+                rawFixedData['logo'] = $app.fileUrl(t4CompRec, t4CompRec.getString('logo'))
+              }
+            } catch (t4CompErr) {
+              safeLogWarn('Aviso ao buscar logo da empresa', String(t4CompErr))
             }
           }
         }
@@ -2171,7 +2221,9 @@ routerAdd(
           break
         }
       }
-      if (!isTemplate4 && templateId && String(templateId).indexOf('4') !== -1) {
+      // Detecção via contrato (mesmo critério do proxy templates_list): NUNCA
+      // substring '4' no id (ids são aleatórios — 'b04lnty24fpa1oj' não contém '4').
+      if (!isTemplate4 && typeof isTemplate4Gen !== 'undefined' && isTemplate4Gen) {
         isTemplate4 = true
       }
       if (isTemplate4) {
@@ -2264,6 +2316,13 @@ routerAdd(
         semanticContext.financial.annual_generation_mwh = t4AnnualMwh
         semanticContext.financial.trees_equivalent = t4TreesEquivalent
 
+        // reduction_pct: % de redução na conta elétrica — fallback cobertur
+        // a de consumo (o contrato do template 4 não declara consumo_coverage_pct)
+        var t4ReductionPct = Number(consumptionCoveragePct) || 0
+        rawFinancial.reduction_pct = t4ReductionPct
+        enrichedFinancial.reduction_pct = t4ReductionPct
+        semanticContext.financial.reduction_pct = t4ReductionPct
+
         // Projeção de economia nos marcos Hoje/5/10/15/20/25 anos
         function tpl4FmtMil(rawV) {
           var sign = rawV < 0 ? '-' : '+'
@@ -2314,6 +2373,13 @@ routerAdd(
         rawFinancial.savings_projection = t4Proj
         enrichedFinancial.savings_projection = t4Proj
         semanticContext.financial.savings_projection = t4Proj
+
+        // reduction_pct: % de redução na conta elétrica — fallback: cobertura de
+        // consumo (o contrato do template 4 não declara consumo_coverage_pct)
+        var t4ReductionPct = Number(consumptionCoveragePct) || 0
+        rawFinancial.reduction_pct = t4ReductionPct
+        enrichedFinancial.reduction_pct = t4ReductionPct
+        semanticContext.financial.reduction_pct = t4ReductionPct
       }
 
       if (omitEquipments) {
@@ -2402,6 +2468,53 @@ routerAdd(
       }
 
       // Espelhar variáveis dinâmicas em fixed_data se o schema fixed do template as declarar
+      if (isTemplate4 && typeof isTemplate4 === 'boolean') {
+        // Template 4: sem schema fixed declarado no contrato, mas o Gerador usa
+        // primaryColor/secondaryColor/company_name/cnpj/email/useful_life_years/
+        // included_items/premises_notes — puxar de templates_config[templateId]
+        // (salvos em Campos fixos) e logo da empresa como fallback.
+        try {
+          var t4CfgRaw = companyProposalSettingsRecord
+            ? companyProposalSettingsRecord.get('templates_config')
+            : null
+          if (typeof t4CfgRaw === 'string') {
+            try {
+              t4CfgRaw = JSON.parse(t4CfgRaw)
+            } catch (_) {}
+          }
+          if (t4CfgRaw && typeof t4CfgRaw === 'object') {
+            var t4Cfg = t4CfgRaw[templateId] || t4CfgRaw
+            if (t4Cfg && typeof t4Cfg === 'object') {
+              var t4FixedKeys = [
+                'logo',
+                'primaryColor',
+                'secondaryColor',
+                'company_name',
+                'cnpj',
+                'email',
+                'useful_life_years',
+                'included_items',
+                'premises_notes',
+              ]
+              for (var t4fk = 0; t4fk < t4FixedKeys.length; t4fk++) {
+                var t4fkKey = t4FixedKeys[t4fk]
+                if (
+                  (rawFixedData[t4fkKey] === undefined || rawFixedData[t4fkKey] === '') &&
+                  t4Cfg[t4fkKey] !== undefined
+                ) {
+                  rawFixedData[t4fkKey] = t4Cfg[t4fkKey]
+                }
+              }
+            }
+          }
+        } catch (t4CfgErr) {
+          safeLogWarn('Aviso ao ler templates_config p/ fixed_data do t4', String(t4CfgErr))
+        }
+        // primary/secondary color default se nem o schema nem o config trouxeram
+        if (!rawFixedData['primaryColor']) rawFixedData['primaryColor'] = '#16a34a'
+        if (!rawFixedData['secondaryColor']) rawFixedData['secondaryColor'] = '#22c55e'
+        if (!rawFixedData['useful_life_years']) rawFixedData['useful_life_years'] = '25 anos'
+      }
       if (
         currentTpl &&
         currentTpl.variable_schema &&
