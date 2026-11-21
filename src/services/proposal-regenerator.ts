@@ -2,6 +2,7 @@ import pb from '@/lib/pocketbase/client'
 import { createProposalHistory } from '@/services/proposal-history'
 import { createGeneratorProposal, getTemplatesResponse } from '@/services/templates'
 import { enrichPayloadWithSemanticVariables } from '@/lib/semantic-mapper'
+import { roundFinancialDeep, roundFinancialPayload, roundTo2 } from '@/lib/financial-rounding'
 import {
   calculateConsumptionCoverage,
   calculateOccupiedArea,
@@ -403,14 +404,16 @@ export async function saveAndRegenerateProposal(
       // os valores e snapshot ATUAIS e frescos em vez do estado anterior.
       const proposalUpdatePayload: Record<string, any> = {
         discount_amount: saveDiscountPct,
-        total_value: saveFinalTotal,
+        total_value: roundTo2(saveFinalTotal),
         price: subtotal,
         payment_terms: paymentTerms,
         has_financing: hasFinancing,
         notes: notes,
         validity_date: validityDate ? new Date(validityDate).toISOString() : null,
-        snapshot_data: updatedSnapshot,
-        calc_snapshot: updatedSnapshot.calc_snapshot || null,
+        snapshot_data: roundFinancialDeep(updatedSnapshot),
+        calc_snapshot: updatedSnapshot.calc_snapshot
+          ? roundFinancialDeep(updatedSnapshot.calc_snapshot)
+          : null,
         external_id: proposal.id,
         ...(updatedViewUrl ? { view_url: updatedViewUrl } : {}),
       }
@@ -419,7 +422,7 @@ export async function saveAndRegenerateProposal(
       }
 
       await pb.collection('proposals').update(proposal.id, proposalUpdatePayload)
-      await createProposalHistory(proposal.id, updatedSnapshot)
+      await createProposalHistory(proposal.id, roundFinancialDeep(updatedSnapshot))
 
       // 2. Chamar o Gerador DEPOIS da gravação no banco, com o mesmo external_id
       const genRes = await createGeneratorProposal(
@@ -430,7 +433,7 @@ export async function saveAndRegenerateProposal(
           lead: enriched.lead,
           negotiation: enriched.negotiation,
           sizing: enriched.sizing,
-          financial: enriched.financial,
+          financial: roundFinancialPayload(enriched.financial),
           dynamic: enriched.dynamic,
           manual_mappings: updatedSnapshot.manual_mappings || undefined,
         },
@@ -442,7 +445,7 @@ export async function saveAndRegenerateProposal(
         updatedSnapshot.view_url = genRes.view_url
         await pb.collection('proposals').update(proposal.id, {
           view_url: updatedViewUrl,
-          snapshot_data: updatedSnapshot,
+          snapshot_data: roundFinancialDeep(updatedSnapshot),
         })
       }
     } catch (genErr) {
@@ -453,14 +456,16 @@ export async function saveAndRegenerateProposal(
     // Se não possui templateId do Gerador, salva diretamente no banco
     const proposalUpdatePayload: Record<string, any> = {
       discount_amount: saveDiscountPct,
-      total_value: saveFinalTotal,
+      total_value: roundTo2(saveFinalTotal),
       price: subtotal,
       payment_terms: paymentTerms,
       has_financing: hasFinancing,
       notes: notes,
       validity_date: validityDate ? new Date(validityDate).toISOString() : null,
-      snapshot_data: updatedSnapshot,
-      calc_snapshot: updatedSnapshot.calc_snapshot || null,
+      snapshot_data: roundFinancialDeep(updatedSnapshot),
+      calc_snapshot: updatedSnapshot.calc_snapshot
+        ? roundFinancialDeep(updatedSnapshot.calc_snapshot)
+        : null,
       external_id: proposal.id,
       ...(updatedViewUrl ? { view_url: updatedViewUrl } : {}),
     }
@@ -469,7 +474,7 @@ export async function saveAndRegenerateProposal(
     }
 
     await pb.collection('proposals').update(proposal.id, proposalUpdatePayload)
-    await createProposalHistory(proposal.id, updatedSnapshot)
+    await createProposalHistory(proposal.id, roundFinancialDeep(updatedSnapshot))
   }
 
   return {

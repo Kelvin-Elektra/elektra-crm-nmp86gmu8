@@ -33,6 +33,36 @@ routerAdd(
         } catch (_) {}
       }
 
+      // Garantia final: arredonda TODOS os valores financeiros a no máximo 2 casas
+      // decimais antes de enviar ao Gerador / gravar no snapshot_data (sem Buffer,
+      // sem toSorted — JS puro compatível com Goja).
+      function roundFinancialDeepJS(value, depth) {
+        var d = typeof depth === 'number' ? depth : 0
+        if (value == null) return value
+        if (typeof value === 'number') {
+          if (!isFinite(value)) return value
+          return Math.round(value * 100) / 100
+        }
+        if (d >= 12) return value
+        if (Array.isArray(value)) {
+          var outArr = []
+          for (var ai = 0; ai < value.length; ai++) {
+            outArr.push(roundFinancialDeepJS(value[ai], d + 1))
+          }
+          return outArr
+        }
+        if (typeof value === 'object') {
+          var outObj = {}
+          for (var ok in value) {
+            if (Object.prototype.hasOwnProperty.call(value, ok)) {
+              outObj[ok] = roundFinancialDeepJS(value[ok], d + 1)
+            }
+          }
+          return outObj
+        }
+        return value
+      }
+
       // Função auxiliar para sanitizar headers para log
       function sanitizeHeadersForLog(headers) {
         const sanitized = {}
@@ -2399,6 +2429,10 @@ routerAdd(
         unresolved: unresolvedReport,
       })
 
+      // Garantia final: TODOS os valores financeiros saem com no máximo 2 casas
+      // decimais (payload ao Gerador e snapshot_data da proposta no CRM).
+      const roundedFinancial = roundFinancialDeepJS(enrichedFinancial)
+
       const payload = {
         template_id: templateId,
         external_id: externalId,
@@ -2406,7 +2440,7 @@ routerAdd(
         lead: enrichedLead,
         negotiation: enrichedNegotiation,
         sizing: enrichedSizing,
-        financial: enrichedFinancial,
+        financial: roundedFinancial,
         dynamic: resolvedDynamic,
       }
 
@@ -2432,7 +2466,7 @@ routerAdd(
               lead: enrichedLead,
               negotiation: enrichedNegotiation,
               sizing: enrichedSizing,
-              financial: enrichedFinancial,
+              financial: roundedFinancial,
               dynamic: resolvedDynamic,
               resolution_report: resolvedReport,
               unresolved_report: unresolvedReport,

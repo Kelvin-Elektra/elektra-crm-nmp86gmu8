@@ -43,6 +43,7 @@ import { createGeneratorProposal, getTemplatesResponse } from '@/services/templa
 import { enrichPayloadWithSemanticVariables } from '@/lib/semantic-mapper'
 import { recalcPricingWithDiscount, type DiscountRecalcResult } from '@/lib/discount-recalc'
 import { isMarginOrCommission, brl2, pct2 } from '@/components/negotiation-tabs/ProposalCostModal'
+import { roundFinancialDeep, roundFinancialPayload, roundTo2 } from '@/lib/financial-rounding'
 import {
   calculateConsumptionCoverage,
   calculateOccupiedArea,
@@ -1019,12 +1020,12 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
         payment_terms: paymentTerms,
         notes: notes,
         discount_amount: effectiveDiscountPct,
-        total_value: finalPrice,
+        total_value: roundTo2(finalPrice),
         has_financing: hasFinancing,
-        kit_details: JSON.stringify(enrichedSnapshotData),
+        kit_details: JSON.stringify(roundFinancialDeep(enrichedSnapshotData)),
         cost_breakdown: cost_breakdown,
-        snapshot_data: enrichedSnapshotData,
-        calc_snapshot: calcSnapshot,
+        snapshot_data: roundFinancialDeep(enrichedSnapshotData),
+        calc_snapshot: roundFinancialDeep(calcSnapshot),
       }
 
       const rec = await pb.collection('proposals').create(proposalDataToCreate)
@@ -1047,7 +1048,7 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
             lead: enriched.lead,
             negotiation: enriched.negotiation,
             sizing: enriched.sizing,
-            financial: enriched.financial,
+            financial: roundFinancialPayload(enriched.financial),
             dynamic: enriched.dynamic,
             manual_mappings: manualTemplateMappings || undefined,
           },
@@ -1082,12 +1083,12 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
         external_id: externalId,
         view_url: viewUrl,
         snapshot_data: {
-          ...enrichedSnapshotData,
+          ...roundFinancialDeep(enrichedSnapshotData),
           view_url: viewUrl,
-          calc_snapshot: calcSnapshot,
+          calc_snapshot: roundFinancialDeep(calcSnapshot),
           generator_proposal_id: generatorResult.id || null,
         },
-        calc_snapshot: calcSnapshot,
+        calc_snapshot: roundFinancialDeep(calcSnapshot),
       })
 
       toast({ title: 'Proposta gerada com sucesso' })
