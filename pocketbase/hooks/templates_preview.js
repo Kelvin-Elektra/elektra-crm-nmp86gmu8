@@ -364,6 +364,10 @@ routerAdd(
           Array.isArray(matchingTpl.variable_schema.fixed)
         ) {
           const schemaKeys = matchingTpl.variable_schema.fixed.map((f) => f.key)
+          // O template 4 não declara 'logo' no contrato do Gerador — sempre mantemos.
+          if (schemaKeys.indexOf('logo') === -1) {
+            schemaKeys.push('logo')
+          }
           const filteredFixedData = {}
           for (const k of schemaKeys) {
             if (rawFixedData[k] !== undefined) {

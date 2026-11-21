@@ -80,6 +80,38 @@ routerAdd(
     var rawResult = res.json || {}
     var result = fixMojibakeDeep(rawResult)
 
+    // Template 4: garantir campo fixo 'logo' (type image) no variable_schema.
+    // O Gerador não declara esse campo no contrato do template 4 — sem ele a
+    // logo nunca é enviada no fixed_data e sai como placeholder no HTML final.
+    try {
+      if (Array.isArray(result.templates)) {
+        for (var ti = 0; ti < result.templates.length; ti++) {
+          var tpl = result.templates[ti]
+          if (!tpl || String(tpl.id || '').indexOf('4') === -1) continue
+          if (!tpl.variable_schema || typeof tpl.variable_schema !== 'object') {
+            tpl.variable_schema = { fixed: [], dynamic: {} }
+          }
+          if (!Array.isArray(tpl.variable_schema.fixed)) tpl.variable_schema.fixed = []
+          var hasLogoField = false
+          for (var lfi = 0; lfi < tpl.variable_schema.fixed.length; lfi++) {
+            if (tpl.variable_schema.fixed[lfi] && tpl.variable_schema.fixed[lfi].key === 'logo') {
+              hasLogoField = true
+              break
+            }
+          }
+          if (!hasLogoField) {
+            tpl.variable_schema.fixed.push({
+              key: 'logo',
+              label: 'Logo',
+              type: 'image',
+            })
+          }
+        }
+      }
+    } catch (logoErr) {
+      $app.logger().warn('Aviso ao injetar campo logo no schema do template 4', String(logoErr))
+    }
+
     // Garantir formato uniforme { contract, templates }
     if (Array.isArray(result)) {
       result = {

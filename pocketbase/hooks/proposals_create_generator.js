@@ -353,6 +353,50 @@ routerAdd(
       // Não filtramos nem podamos campos de fixed_data para garantir integridade na regeneração.
       let rawFixedData = Object.assign({}, body.fixed_data || {})
 
+      // Template 4: o contrato do Gerador não declara o campo fixo 'logo', mas o
+      // template usa ({logo} no HTML). Garantimos que o valor salvo pelo usuário
+      // (upload em template_assets via Campos fixos) chegue no payload. Fallback:
+      // logo da empresa / branding salvo em proposal_settings.templates_config.
+      try {
+        var t4IdStr = String(templateId || '')
+        if (t4IdStr.indexOf('4') !== -1) {
+          var hasLogoValue = false
+          for (var lk = 0; lk < Object.keys(rawFixedData).length; lk++) {
+            if (Object.keys(rawFixedData)[lk] === 'logo' && rawFixedData['logo']) {
+              hasLogoValue = true
+              break
+            }
+          }
+          if (!hasLogoValue) {
+            var t4LogoFallback = ''
+            try {
+              if (companyProposalSettingsRecord) {
+                var t4TcRaw = companyProposalSettingsRecord.get('templates_config')
+                if (typeof t4TcRaw === 'string') {
+                  try {
+                    t4TcRaw = JSON.parse(t4TcRaw)
+                  } catch (_) {}
+                }
+                if (t4TcRaw && typeof t4TcRaw === 'object') {
+                  var t4TcTpl = t4TcRaw[templateId]
+                  if (t4TcTpl && typeof t4TcTpl === 'object' && t4TcTpl.logo) {
+                    t4LogoFallback = String(t4TcTpl.logo)
+                  }
+                  if (!t4LogoFallback && t4TcRaw.logo) {
+                    t4LogoFallback = String(t4TcRaw.logo)
+                  }
+                }
+              }
+            } catch (_) {}
+            if (t4LogoFallback) {
+              rawFixedData['logo'] = t4LogoFallback
+            }
+          }
+        }
+      } catch (logoFixErr) {
+        safeLogWarn('Aviso ao garantir logo no fixed_data do template 4', String(logoFixErr))
+      }
+
       // =========================================================================
       // MAPEADOR SEMÂNTICO DE VARIÁVEIS DINÂMICAS DO CONTRATO EXTERNO
       // =========================================================================
