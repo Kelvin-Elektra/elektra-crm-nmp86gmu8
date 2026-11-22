@@ -4,7 +4,10 @@
  * - "compact": apenas módulos e inversores (Resumida)
  * - "full": todos os itens (Completa)
  * - "generic": módulos + inversores + item genérico (Agrupada)
- * - "none": omitir o campo (Não enviar lista)
+ *
+ * Fallback seguro: estilo "none" (opção "Não enviar lista", removida do
+ * seletor) ou qualquer valor desconhecido é interpretado como "full" — sem
+ * migração de dados.
  *
  * Mesma semântica do hook pocketbase/hooks/proposals_create_generator.js
  * (formatEquipmentsByStyle). NÃO altera o motor de cálculo — apenas a lista
@@ -42,11 +45,9 @@ export function applyEquipmentListStyle(
   module?: any,
   inverters?: any[],
 ): EquipmentListStyleResult {
-  const normalized = (style || 'full').toLowerCase()
-
-  if (normalized === 'none') {
-    return { list: [], omit: true }
-  }
+  // Fallback seguro: "none" (opção removida do seletor) ou valor desconhecido
+  // é interpretado como "full" — companhia existente não quebra, sem migração.
+  const normalized = style === 'compact' || style === 'generic' ? style : 'full'
 
   // Núcleo real do kit: módulo + inversores (do catálogo/snapshot)
   const coreKeys = new Set<string>()

@@ -22,7 +22,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { previewTemplate } from '@/services/templates'
 import { UserDiscountConfigModal } from '@/components/UserDiscountConfigModal'
 import { TemplateFixedFieldsModal } from '@/components/proposal-settings/TemplateFixedFieldsModal'
-import { EquipmentListAuditSection } from '@/components/proposal-settings/EquipmentListAuditSection'
+import {
+  EquipmentListAuditSection,
+  CORE_KIT_ROWS,
+  SAMPLE_SUPPLIES,
+} from '@/components/proposal-settings/EquipmentListAuditSection'
 import {
   fetchTemplatesWithSchema,
   getFixedFields,
@@ -50,12 +54,9 @@ const EQUIPMENT_LIST_STYLE_OPTIONS: TemplateOption[] = [
   },
   { id: 'full', name: 'Completa', tooltip: 'Todos os itens do kit, incluindo insumos' },
   { id: 'generic', name: 'Agrupada', tooltip: 'Itens de proteção e materiais em um item agrupado' },
-  {
-    id: 'none',
-    name: 'Não enviar lista',
-    tooltip: 'O campo de equipamentos é omitido da proposta',
-  },
 ]
+// "none" (Não enviar lista) foi removido do seletor — companhias que ainda o
+// têm gravado no banco caem no fallback "full" (helper + hook).
 
 // Chaves fixas de elementos de página
 const FIXED_ELEMENT_OPTIONS: { id: string; label: string }[] = [
@@ -132,7 +133,13 @@ export default function ProposalSettings() {
             typeof rec.pricing === 'string' ? safeParse(rec.pricing) : rec.pricing || {}
           setLoadedPricing(pricing)
           setActiveTemplateId(rec.active_template_id || '')
-          setEquipmentListStyle(pricing.equipment_list_style || 'full')
+          // "none" foi removido do seletor — companhia com 'none' gravado cai
+          // em 'full' (fallback seguro, sem migração de dados)
+          setEquipmentListStyle(
+            pricing.equipment_list_style === 'compact' || pricing.equipment_list_style === 'generic'
+              ? pricing.equipment_list_style
+              : 'full',
+          )
           setVisiblePages(Array.isArray(rec.visible_pages) ? rec.visible_pages : [])
           const layout =
             typeof rec.pages_layout === 'string' ? safeParse(rec.pages_layout) : rec.pages_layout
@@ -530,7 +537,10 @@ export default function ProposalSettings() {
             </CardContent>
           </Card>
 
-          <EquipmentListAuditSection equipmentListStyle={equipmentListStyle} />
+          <EquipmentListAuditSection
+            equipmentListStyle={equipmentListStyle}
+            fullKitList={[...CORE_KIT_ROWS, ...SAMPLE_SUPPLIES]}
+          />
 
           <Card>
             <CardHeader>
