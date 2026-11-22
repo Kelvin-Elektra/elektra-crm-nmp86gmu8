@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 export interface EquipmentAuditRow {
   item: string
@@ -9,11 +10,20 @@ export interface EquipmentAuditRow {
   warranty: string
 }
 
+// Rótulos amigáveis (mesmos do seletor em ProposalSettings) — o valor salvo
+// em equipment_list_style continua compact/full/generic/none.
 const SAMPLE_STYLES: Record<string, string> = {
-  compact: 'Lista compacta (apenas módulos e inversores)',
-  full: 'Lista completa de equipamentos e insumos',
-  generic: 'Item genérico (proteção e materiais)',
-  none: 'Sem lista de equipamentos',
+  compact: 'Resumida',
+  full: 'Completa',
+  generic: 'Agrupada',
+  none: 'Não enviar lista',
+}
+
+const STYLE_TOOLTIPS: Record<string, string> = {
+  compact: 'Apenas módulos e inversores na lista de equipamentos',
+  full: 'Todos os itens do kit, incluindo insumos',
+  generic: 'Itens de proteção e materiais em um item agrupado',
+  none: 'O campo de equipamentos é omitido da proposta',
 }
 
 const SAMPLE_SUPPLIES: EquipmentAuditRow[] = [
@@ -77,6 +87,7 @@ export function EquipmentListAuditSection({ equipmentListStyle }: { equipmentLis
   const [expanded, setExpanded] = useState(false)
   const rows = buildPreviewRows(equipmentListStyle)
   const styleLabel = SAMPLE_STYLES[equipmentListStyle] || SAMPLE_STYLES.full
+  const styleTooltip = STYLE_TOOLTIPS[equipmentListStyle] || STYLE_TOOLTIPS.full
 
   return (
     <Card>
@@ -101,9 +112,19 @@ export function EquipmentListAuditSection({ equipmentListStyle }: { equipmentLis
                 <ChevronRight className="w-4 h-4 text-muted-foreground" />
               )}
               <span>Lista de equipamentos enviados ao Gerador de Propostas</span>
-              <span className="text-[11px] font-normal px-2 py-0.5 rounded bg-primary/10 text-primary">
-                {styleLabel}
-              </span>
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      tabIndex={0}
+                      className="text-[11px] font-normal px-2 py-0.5 rounded bg-primary/10 text-primary cursor-help"
+                    >
+                      {styleLabel}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs text-xs">{styleTooltip}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
             <span className="text-xs text-muted-foreground font-normal">
               {equipmentListStyle === 'none'

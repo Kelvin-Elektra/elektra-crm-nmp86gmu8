@@ -18,6 +18,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Loader2, Plus, X } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { previewTemplate } from '@/services/templates'
 import { UserDiscountConfigModal } from '@/components/UserDiscountConfigModal'
 import { TemplateFixedFieldsModal } from '@/components/proposal-settings/TemplateFixedFieldsModal'
@@ -32,6 +33,7 @@ import type { GeneratorTemplate } from '@/services/templates'
 interface TemplateOption {
   id: string
   name: string
+  tooltip?: string
 }
 
 interface PagesLayout {
@@ -41,10 +43,18 @@ interface PagesLayout {
 
 // Estilo da lista de equipamentos — config GLOBAL, lida pelo hook do CRM para qualquer template
 const EQUIPMENT_LIST_STYLE_OPTIONS: TemplateOption[] = [
-  { id: 'compact', name: 'Lista compacta (apenas módulos e inversores)' },
-  { id: 'full', name: 'Lista completa de equipamentos e insumos' },
-  { id: 'generic', name: 'Item genérico (proteção e materiais)' },
-  { id: 'none', name: 'Sem lista de equipamentos' },
+  {
+    id: 'compact',
+    name: 'Resumida',
+    tooltip: 'Apenas módulos e inversores na lista de equipamentos',
+  },
+  { id: 'full', name: 'Completa', tooltip: 'Todos os itens do kit, incluindo insumos' },
+  { id: 'generic', name: 'Agrupada', tooltip: 'Itens de proteção e materiais em um item agrupado' },
+  {
+    id: 'none',
+    name: 'Não enviar lista',
+    tooltip: 'O campo de equipamentos é omitido da proposta',
+  },
 ]
 
 // Chaves fixas de elementos de página
@@ -492,14 +502,25 @@ export default function ProposalSettings() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2 max-w-md">
-                <Label>Define como os equipamentos serão exibidos na proposta comercial</Label>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Label className="cursor-help border-b border-dotted border-muted-foreground/40 w-fit">
+                        Lista de equipamentos na proposta
+                      </Label>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs text-xs">
+                      Define como os equipamentos serão exibidos na proposta comercial.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <Select value={equipmentListStyle} onValueChange={setEquipmentListStyle}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o estilo" />
                   </SelectTrigger>
                   <SelectContent>
                     {EQUIPMENT_LIST_STYLE_OPTIONS.map((o) => (
-                      <SelectItem key={o.id} value={o.id}>
+                      <SelectItem key={o.id} value={o.id} title={o.tooltip}>
                         {o.name}
                       </SelectItem>
                     ))}

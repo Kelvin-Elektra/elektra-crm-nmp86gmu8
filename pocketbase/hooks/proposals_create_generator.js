@@ -2464,8 +2464,12 @@ routerAdd(
       if (isTemplate4 && typeof isTemplate4 === 'boolean') {
         // Template 4: sem schema fixed declarado no contrato, mas o Gerador usa
         // primaryColor/secondaryColor/company_name/cnpj/email/useful_life_years/
-        // included_items/premises_notes — puxar de templates_config[templateId]
-        // (salvos em Campos fixos) e logo da empresa como fallback.
+        // included_items/premises_notes. Resolução por CADEIA POR CHAVE (mesma
+        // cadeia do regenerator e do wizard): para cada chave, a primeira fonte
+        // com valor vence — 1) rawFixedData (snapshot/body.fixed_data) →
+        // 2) templates_config[templateId] (Campos fixos) → 3) settings.branding
+        // (legado) → 4) companies (logo/name/email/cnpj).
+        var t4CompanyRec = null
         try {
           var t4CfgRaw = companyProposalSettingsRecord
             ? companyProposalSettingsRecord.get('templates_config')
@@ -2475,33 +2479,73 @@ routerAdd(
               t4CfgRaw = JSON.parse(t4CfgRaw)
             } catch (_) {}
           }
-          if (t4CfgRaw && typeof t4CfgRaw === 'object') {
-            var t4Cfg = t4CfgRaw[templateId] || t4CfgRaw
-            if (t4Cfg && typeof t4Cfg === 'object') {
-              var t4FixedKeys = [
-                'logo',
-                'primaryColor',
-                'secondaryColor',
-                'company_name',
-                'cnpj',
-                'email',
-                'useful_life_years',
-                'included_items',
-                'premises_notes',
-              ]
-              for (var t4fk = 0; t4fk < t4FixedKeys.length; t4fk++) {
-                var t4fkKey = t4FixedKeys[t4fk]
-                if (
-                  (rawFixedData[t4fkKey] === undefined || rawFixedData[t4fkKey] === '') &&
-                  t4Cfg[t4fkKey] !== undefined
-                ) {
-                  rawFixedData[t4fkKey] = t4Cfg[t4fkKey]
+          var t4Cfg =
+            t4CfgRaw && typeof t4CfgRaw === 'object' ? t4CfgRaw[templateId] || t4CfgRaw : null
+          if (!t4Cfg || typeof t4Cfg !== 'object') t4Cfg = null
+
+          var t4Branding = companyProposalSettingsRecord
+            ? companyProposalSettingsRecord.get('branding')
+            : null
+          if (typeof t4Branding === 'string') {
+            try {
+              t4Branding = JSON.parse(t4Branding)
+            } catch (_) {
+              t4Branding = null
+            }
+          }
+          if (!t4Branding || typeof t4Branding !== 'object') t4Branding = null
+
+          var t4FixedKeys = [
+            'logo',
+            'primaryColor',
+            'secondaryColor',
+            'company_name',
+            'cnpj',
+            'email',
+            'useful_life_years',
+            'included_items',
+            'premises_notes',
+          ]
+          for (var t4fk = 0; t4fk < t4FixedKeys.length; t4fk++) {
+            var t4fkKey = t4FixedKeys[t4fk]
+            if (rawFixedData[t4fkKey] !== undefined && rawFixedData[t4fkKey] !== '') continue
+            var t4fkVal = t4Cfg && t4Cfg[t4fkKey] !== undefined ? t4Cfg[t4fkKey] : undefined
+            if (t4fkVal === undefined || t4fkVal === null || t4fkVal === '') {
+              t4fkVal =
+                t4Branding && t4Branding[t4fkKey] !== undefined ? t4Branding[t4fkKey] : undefined
+            }
+            if ((t4fkVal === undefined || t4fkVal === null || t4fkVal === '') && companyId) {
+              try {
+                if (!t4CompanyRec) {
+                  t4CompanyRec = $app.findFirstRecordByFilter(
+                    'companies',
+                    "id = '" + companyId + "'",
+                  )
                 }
+                if (t4CompanyRec) {
+                  if (t4fkKey === 'logo' && t4CompanyRec.getString('logo')) {
+                    t4fkVal = $app.fileUrl(t4CompanyRec, t4CompanyRec.getString('logo'))
+                  } else if (t4fkKey === 'company_name') {
+                    t4fkVal = t4CompanyRec.getString('name')
+                  } else if (t4fkKey === 'email') {
+                    t4fkVal = t4CompanyRec.getString('email')
+                  } else if (t4fkKey === 'cnpj') {
+                    t4fkVal = t4CompanyRec.getString('cnpj')
+                  }
+                }
+              } catch (t4CompChainErr) {
+                safeLogWarn(
+                  'Aviso ao buscar fallback companies p/ fixed_data do t4',
+                  String(t4CompChainErr),
+                )
               }
+            }
+            if (t4fkVal !== undefined && t4fkVal !== null && t4fkVal !== '') {
+              rawFixedData[t4fkKey] = t4fkVal
             }
           }
         } catch (t4CfgErr) {
-          safeLogWarn('Aviso ao ler templates_config p/ fixed_data do t4', String(t4CfgErr))
+          safeLogWarn('Aviso ao resolver cadeia de fixed_data/branding do t4', String(t4CfgErr))
         }
         // primary/secondary color default se nem o schema nem o config trouxeram
         if (!rawFixedData['primaryColor']) rawFixedData['primaryColor'] = '#16a34a'
