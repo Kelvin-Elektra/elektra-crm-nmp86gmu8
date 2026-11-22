@@ -575,7 +575,26 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
       })
 
       const activeTplId = pricingDetails?.settings?.active_template_id || null
-      const activeTemplateFixedData = pricingDetails?.settings?.branding || {}
+      // Campos fixos por template vivem em proposal_settings.templates_config[templateId]
+      // (gravados pelo modal "Campos fixos"), NÃO em settings.branding. Fallback:
+      // settings.branding só quando o template não tiver config salva.
+      const settingsFixedSrc = pricingDetails?.settings as any
+      let tcfgRaw = settingsFixedSrc?.templates_config
+      if (typeof tcfgRaw === 'string') {
+        try {
+          tcfgRaw = JSON.parse(tcfgRaw)
+        } catch {
+          tcfgRaw = null
+        }
+      }
+      const tcfgTpl =
+        tcfgRaw && typeof tcfgRaw === 'object' && activeTplId
+          ? (tcfgRaw[activeTplId] as Record<string, any> | undefined)
+          : undefined
+      const activeTemplateFixedData: Record<string, any> =
+        tcfgTpl && typeof tcfgTpl === 'object' && Object.keys(tcfgTpl).length > 0
+          ? { ...tcfgTpl }
+          : { ...(settingsFixedSrc?.branding || {}) }
 
       const snapshotData = {
         sizing: neg.sizing || {},
