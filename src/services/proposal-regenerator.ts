@@ -17,6 +17,7 @@ import {
   buildEquipmentsArray,
   buildCommercialConditionsArray,
 } from '@/lib/solar-calculations'
+import { applyEquipmentListStyle } from '@/lib/equipment-list-style'
 
 export interface RegenerateProposalParams {
   proposal: any
@@ -185,7 +186,7 @@ export async function saveAndRegenerateProposal(
 
       // Estilo da lista é GLOBAL (pricing.equipment_list_style); o hook reconstrói
       // a lista conforme compact/full/generic/none — não há config por template.
-      const equipmentsList = buildEquipmentsArray({
+      const equipmentsListRaw = buildEquipmentsArray({
         module: resolvedModule,
         moduleQty: modQty,
         inverters: resolvedInverters,
