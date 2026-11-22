@@ -21,6 +21,7 @@ import { Loader2, Plus, X } from 'lucide-react'
 import { previewTemplate } from '@/services/templates'
 import { UserDiscountConfigModal } from '@/components/UserDiscountConfigModal'
 import { TemplateFixedFieldsModal } from '@/components/proposal-settings/TemplateFixedFieldsModal'
+import { EquipmentListAuditSection } from '@/components/proposal-settings/EquipmentListAuditSection'
 import {
   fetchTemplatesWithSchema,
   getFixedFields,
@@ -37,14 +38,6 @@ interface PagesLayout {
   id: string
   elements: string[]
 }
-
-// Templates fixos do Gerador
-const FIXED_TEMPLATE_OPTIONS: TemplateOption[] = [
-  { id: '5d7031e0a417b4c', name: 'Template 1 - Clássico' },
-  { id: '5555666677778888', name: 'Template 2 - Moderno' },
-  { id: '5d7031e0a417b4c-2', name: 'Template 3 - Minimalista' },
-  { id: '5555666677778888-2', name: 'Template 4 - Premium' },
-]
 
 // Estilo da lista de equipamentos — config GLOBAL, lida pelo hook do CRM para qualquer template
 const EQUIPMENT_LIST_STYLE_OPTIONS: TemplateOption[] = [
@@ -404,25 +397,12 @@ export default function ProposalSettings() {
         <TabsContent value="general" className="mt-4 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Template Padrão</CardTitle>
-              <CardDescription>Modelo usado por padrão na geração das propostas.</CardDescription>
+              <CardTitle className="text-base">Padrões Gerais</CardTitle>
+              <CardDescription>
+                O template ativo é escolhido na aba Template e Design.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2 max-w-md">
-                <Label>Template ativo</Label>
-                <Select value={activeTemplateId} onValueChange={setActiveTemplateId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o template" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FIXED_TEMPLATE_OPTIONS.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
                 <div className="space-y-2">
                   <Label>Validade padrão (dias)</Label>
@@ -528,6 +508,8 @@ export default function ProposalSettings() {
               </div>
             </CardContent>
           </Card>
+
+          <EquipmentListAuditSection equipmentListStyle={equipmentListStyle} />
 
           <Card>
             <CardHeader>
