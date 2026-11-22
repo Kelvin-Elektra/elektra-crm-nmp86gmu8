@@ -194,6 +194,17 @@ export async function saveAndRegenerateProposal(
         includeSupplies: true,
       })
 
+      // Aplica o estilo da companhia (compact/generic/full/none) na ORIGEM:
+      // o Gerador lê data.equipments do sizing — lista já vem filtrada.
+      // Para "none", omitir o campo (Gerador mostra o mock dele).
+      const equipmentsStyle = applyEquipmentListStyle(
+        equipmentsListRaw,
+        updatedSnapshot.equipment_list_style,
+        resolvedModule,
+        resolvedInverters,
+      )
+      const equipmentsList = equipmentsStyle.omit ? undefined : equipmentsStyle.list
+
       const sizingPayload: Record<string, any> = {
         ...rawSizing,
         kit_power_kwp: kitPower,
@@ -218,13 +229,12 @@ export async function saveAndRegenerateProposal(
         tension: resolvedTension,
         city: leadCity,
         state: leadState,
-        equipments: equipmentsList,
+        ...(equipmentsList !== undefined ? { equipments: equipmentsList } : {}),
         commercial_conditions: commercialConditions,
       }
       if (resolvedConcessionaire) sizingPayload.concessionaire = resolvedConcessionaire
       if (resolvedRoofType) sizingPayload.roof_type = resolvedRoofType
       if (resolvedTension) sizingPayload.tension = resolvedTension
-      sizingPayload.equipments = equipmentsList
 
       const paybackYearsVal =
         fp?.roiYears != null

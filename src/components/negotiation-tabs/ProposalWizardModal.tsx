@@ -59,6 +59,7 @@ import {
   buildEquipmentsArray,
   buildCommercialConditionsArray,
 } from '@/lib/solar-calculations'
+import { applyEquipmentListStyle } from '@/lib/equipment-list-style'
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -806,15 +807,24 @@ export function ProposalWizardModal({ open, onOpenChange, neg, reload }: any) {
         (tariffDetails as any)?.voltage ||
         ''
 
-      // Construir equipments array — o estilo é GLOBAL (pricing.equipment_list_style);
-      // o hook reconstrói a lista conforme compact/full/generic/none.
-      const equipmentsList = buildEquipmentsArray({
+      // Construir equipments array aplicando o estilo da companhia
+      // (pricing.equipment_list_style) na ORIGEM: compact = só módulos e
+      // inversores; generic = + item genérico; full = tudo; none = omitir o
+      // campo (o Gerador mostra o mock dele).
+      const equipmentsBuild = buildEquipmentsArray({
         module: rawPricingData?.rawModule,
         moduleQty: moduleQtyVal,
         inverters: rawPricingData?.rawInverters || neg.sizing?.inverters,
         supplies: rawPricingData?.kitComposition || rawPricingData?.supplies,
         includeSupplies: true,
       })
+      const equipmentsStyled = applyEquipmentListStyle(
+        equipmentsBuild,
+        rawPricingData?.settings?.pricing?.equipment_list_style,
+        rawPricingData?.rawModule,
+        rawPricingData?.rawInverters,
+      )
+      const equipmentsList = equipmentsStyled.omit ? undefined : equipmentsStyled.list
 
       const sizingPayload = {
         kit_power_kwp: kitPowerKwp,
