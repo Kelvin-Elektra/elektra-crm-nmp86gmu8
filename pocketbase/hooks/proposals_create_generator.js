@@ -2373,13 +2373,6 @@ routerAdd(
         rawFinancial.savings_projection = t4Proj
         enrichedFinancial.savings_projection = t4Proj
         semanticContext.financial.savings_projection = t4Proj
-
-        // reduction_pct: % de redução na conta elétrica — fallback: cobertura de
-        // consumo (o contrato do template 4 não declara consumo_coverage_pct)
-        var t4ReductionPct = Number(consumptionCoveragePct) || 0
-        rawFinancial.reduction_pct = t4ReductionPct
-        enrichedFinancial.reduction_pct = t4ReductionPct
-        semanticContext.financial.reduction_pct = t4ReductionPct
       }
 
       if (omitEquipments) {

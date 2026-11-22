@@ -400,6 +400,56 @@ export async function saveAndRegenerateProposal(
         financial: financialPayload,
       })
 
+      // Fixed_data/branding do template: fonte canônica é
+      // proposal_settings.templates_config[templateId] (mesma fonte do wizard).
+      // Fallbacks: snapshot anterior da proposta e settings.branding (legado).
+      let regenFixedData: Record<string, any> = { ...(updatedSnapshot.fixed_data || {}) }
+      if (Object.keys(regenFixedData).length === 0 && updatedSnapshot.branding) {
+        regenFixedData = { ...(updatedSnapshot.branding as Record<string, any>) }
+      }
+      try {
+        const companyIdRegen =
+          proposal.company_id || proposal?.expand?.negotiation_id?.company_id || ''
+        if (companyIdRegen) {
+          const pSettingsRegen: any = await pb
+            .collection('proposal_settings')
+            .getFirstListItem(`company_id='${companyIdRegen}'`)
+            .catch(() => null)
+          if (pSettingsRegen) {
+            let tcRegen = pSettingsRegen.templates_config
+            if (typeof tcRegen === 'string') {
+              try {
+                tcRegen = JSON.parse(tcRegen)
+              } catch {
+                tcRegen = null
+              }
+            }
+            // Config por template é um mapa PLANO de valores dos campos fixos
+            // (mesma estrutura lida pelo wizard em templates_config[templateId]).
+            const tplCfg = tcRegen && typeof tcRegen === 'object' ? tcRegen[templateId] : null
+            if (tplCfg && typeof tplCfg === 'object' && Object.keys(tplCfg).length > 0) {
+              regenFixedData = { ...regenFixedData, ...tplCfg }
+            }
+            // Fallback legado: settings.branding quando nada configurado por template
+            if (Object.keys(regenFixedData).length === 0 && pSettingsRegen.branding) {
+              let legBranding = pSettingsRegen.branding
+              if (typeof legBranding === 'string') {
+                try {
+                  legBranding = JSON.parse(legBranding)
+                } catch {
+                  legBranding = null
+                }
+              }
+              if (legBranding && typeof legBranding === 'object') {
+                regenFixedData = { ...regenFixedData, ...legBranding }
+              }
+            }
+          }
+        }
+      } catch {
+        /* sem settings: mantém o snapshot anterior */
+      }
+
       // 1. Gravar PRIMEIRO no banco de dados para que o hook do Gerador leia
       // os valores e snapshot ATUAIS e frescos em vez do estado anterior.
       const proposalUpdatePayload: Record<string, any> = {
@@ -429,7 +479,7 @@ export async function saveAndRegenerateProposal(
         {
           template_id: templateId,
           external_id: proposal.id,
-          fixed_data: updatedSnapshot.fixed_data || updatedSnapshot.branding || {},
+          fixed_data: regenFixedData,
           lead: enriched.lead,
           negotiation: enriched.negotiation,
           sizing: enriched.sizing,
