@@ -22,11 +22,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { previewTemplate } from '@/services/templates'
 import { UserDiscountConfigModal } from '@/components/UserDiscountConfigModal'
 import { TemplateFixedFieldsModal } from '@/components/proposal-settings/TemplateFixedFieldsModal'
+import { EquipmentListPreviewPopover } from '@/components/proposal-settings/EquipmentListPreviewPopover'
 import {
-  EquipmentListAuditSection,
-  CORE_KIT_ROWS,
-  SAMPLE_SUPPLIES,
-} from '@/components/proposal-settings/EquipmentListAuditSection'
+  EQUIPMENT_STYLE_OPTIONS,
+  buildStyleExampleList,
+} from '@/components/proposal-settings/equipment-list-samples'
 import {
   fetchTemplatesWithSchema,
   getFixedFields,
@@ -45,18 +45,10 @@ interface PagesLayout {
   elements: string[]
 }
 
-// Estilo da lista de equipamentos — config GLOBAL, lida pelo hook do CRM para qualquer template
-const EQUIPMENT_LIST_STYLE_OPTIONS: TemplateOption[] = [
-  {
-    id: 'compact',
-    name: 'Resumida',
-    tooltip: 'Apenas módulos e inversores na lista de equipamentos',
-  },
-  { id: 'full', name: 'Completa', tooltip: 'Todos os itens do kit, incluindo insumos' },
-  { id: 'generic', name: 'Agrupada', tooltip: 'Itens de proteção e materiais em um item agrupado' },
-]
-// "none" (Não enviar lista) foi removido do seletor — companhias que ainda o
-// têm gravado no banco caem no fallback "full" (helper + hook).
+// Estilo da lista de equipamentos — rótulos autoexplicativos vindos do módulo
+// compartilhado (sem jargão; cada opção diz o que envia). "none" (Não enviar
+// lista) foi removido do seletor — companhias que ainda o têm gravado no banco
+// caem no fallback "full" (helper + hook).
 
 // Chaves fixas de elementos de página
 const FIXED_ELEMENT_OPTIONS: { id: string; label: string }[] = [
@@ -526,21 +518,29 @@ export default function ProposalSettings() {
                     <SelectValue placeholder="Selecione o estilo" />
                   </SelectTrigger>
                   <SelectContent>
-                    {EQUIPMENT_LIST_STYLE_OPTIONS.map((o) => (
-                      <SelectItem key={o.id} value={o.id} title={o.tooltip}>
+                    {EQUIPMENT_STYLE_OPTIONS.map((o) => (
+                      <SelectItem key={o.id} value={o.id}>
                         {o.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+              <div className="flex items-center gap-2">
+                <EquipmentListPreviewPopover
+                  value={equipmentListStyle}
+                  onSelect={setEquipmentListStyle}
+                />
+                <span className="text-xs text-muted-foreground">
+                  Veja um exemplo de como a lista fica na proposta.
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Escolha quais equipamentos aparecem na proposta enviada ao cliente — a lista do kit
+                da negociação continua completa internamente.
+              </p>
             </CardContent>
           </Card>
-
-          <EquipmentListAuditSection
-            equipmentListStyle={equipmentListStyle}
-            fullKitList={[...CORE_KIT_ROWS, ...SAMPLE_SUPPLIES]}
-          />
 
           <Card>
             <CardHeader>

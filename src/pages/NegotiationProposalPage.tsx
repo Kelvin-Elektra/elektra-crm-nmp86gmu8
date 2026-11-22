@@ -23,6 +23,10 @@ import {
 } from 'lucide-react'
 import { useRealtime } from '@/hooks/use-realtime'
 import { FinancialAnalysisCard } from '@/components/negotiation-tabs/FinancialAnalysisCard'
+import { NegotiationEquipmentLists } from '@/components/negotiation-tabs/NegotiationEquipmentLists'
+import { calculateKitPrice } from '@/hooks/use-kit-calculator'
+import { buildEquipmentsArray } from '@/lib/solar-calculations'
+import type { EquipmentAuditRow } from '@/components/proposal-settings/equipment-list-samples'
 import { ProposalEditModal } from '@/components/negotiation-tabs/ProposalEditModal'
 import { ProposalCostModal } from '@/components/negotiation-tabs/ProposalCostModal'
 import { ProposalHistoryDialog } from '@/components/negotiation-tabs/ProposalHistoryDialog'
@@ -46,6 +50,10 @@ export default function NegotiationProposalPage() {
   const [catalogModule, setCatalogModule] = useState<any>(null)
   const [catalogInverters, setCatalogInverters] = useState<Record<string, any>>({})
   const [installationName, setInstallationName] = useState<string | null>(null)
+  // Config de estilo da lista de equipamentos da companhia (proposal_settings.pricing)
+  const [equipmentListStyle, setEquipmentListStyle] = useState('full')
+  // Lista completa de equipamentos do kit (montada a partir do dimensionamento real)
+  const [fullKitList, setFullKitList] = useState<EquipmentAuditRow[]>([])
 
   // Modais de ação na proposta
   const [editModalOpen, setEditModalOpen] = useState<any>(null)
@@ -148,6 +156,65 @@ export default function NegotiationProposalPage() {
     if (e.record.id === id) loadData()
   })
   useRealtime('proposals', loadData)
+
+  // Estilo da lista de equipamentos da companhia (pricing.equipment_list_style em
+  // proposal_settings) — reavaliado ao vivo na aba Resumo.
+  useEffect(() => {
+    if (!neg?.company_id) return
+    let cancelled = false
+    pb.collection('proposal_settings')
+      .getFirstListItem(`company_id="${neg.company_id}"`)
+      .then((rec: any) => {
+        if (cancelled) return
+        const pricing =
+          typeof rec.pricing === 'string' ? safeParseJson(rec.pricing) : rec.pricing || {}
+        const style = pricing.equipment_list_style
+        setEquipmentListStyle(style === 'compact' || style === 'generic' ? style : 'full')
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [neg?.company_id])
+
+  // Lista completa do kit: mesma montagem usada na geração da proposta
+  // (buildEquipmentsArray sobre o catálogo real + insumos).
+  useEffect(() => {
+    if (!neg?.company_id || !neg?.sizing) {
+      setFullKitList([])
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { kitComposition } = await calculateKitPrice(neg)
+        if (cancelled) return
+        const rows = buildEquipmentsArray({
+          module: catalogModule,
+          moduleQty: Number(neg.sizing?.module_qty) || 0,
+          inverters: Object.values(catalogInverters).map((inv: any) => ({
+            ...inv,
+            qty: neg.sizing?.inverters?.find((i: any) => i.id === inv.id)?.qty || 1,
+          })),
+          supplies: kitComposition,
+          includeSupplies: true,
+        })
+        if (!cancelled) setFullKitList(rows as EquipmentAuditRow[])
+      } catch {
+        if (!cancelled) setFullKitList([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [
+    neg?.company_id,
+    neg?.sizing?.selected_module_id,
+    JSON.stringify(neg?.sizing?.inverters || []),
+    neg?.sizing?.module_qty,
+    catalogModule?.id,
+    Object.keys(catalogInverters).length,
+  ])
 
   const isAdmin =
     user?.role === 'User_elektra' || user?.role_company === 'admin' || user?.role === 'User_owner'
@@ -642,6 +709,14 @@ export default function NegotiationProposalPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* Duas seções recolhidas: kit completo + lista que segue ao Gerador */}
+          <NegotiationEquipmentLists
+            fullKitList={fullKitList}
+            catalogModule={catalogModule}
+            catalogInverters={Object.values(catalogInverters)}
+            equipmentListStyle={equipmentListStyle}
+          />
         </TabsContent>
 
         {/* ABA 2: FINANCEIRO (ANÁLISE FINANCEIRA E RETORNO DO INVESTIMENTO DEDICADA) */}
@@ -701,4 +776,12 @@ export default function NegotiationProposalPage() {
       )}
     </div>
   )
+}
+
+function safeParseJson(v: string): Record<string, any> {
+  try {
+    return JSON.parse(v)
+  } catch (_) {
+    return {}
+  }
 }
